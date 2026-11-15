@@ -62,6 +62,28 @@ void main() {
       expect(mensagemCurtaDaApi(jsonEncode({'message': '<b>erro</b>'})), isNull);
     });
 
+    test('rota inexistente do Nest e outros rótulos HTTP não vão para a tela', () {
+      for (final m in [
+        'Cannot GET /encomendas/novo',
+        'Cannot POST /areas-sociais/remove',
+        'Cannot PUT /x',
+        'Cannot PATCH /x',
+        'Cannot DELETE /x',
+        'Payload Too Large',
+        'Gateway Timeout',
+        'Request Timeout',
+        'Unprocessable Entity',
+      ]) {
+        expect(mensagemCurtaDaApi(jsonEncode({'message': m})), isNull, reason: m);
+      }
+    });
+
+    test('lista com itens que não são texto usa só os textos', () {
+      expect(mensagemCurtaDaApi(jsonEncode({'message': [1, null, {'a': 1}, 'Informe a unidade.']})),
+          'Informe a unidade.');
+      expect(mensagemCurtaDaApi(jsonEncode({'message': [1, null, true]})), isNull);
+    });
+
     test('message gigante não vai para a tela', () {
       expect(mensagemCurtaDaApi(jsonEncode({'message': 'a' * 600})), isNull);
     });
@@ -164,7 +186,13 @@ void main() {
       final r = await apiSendCredentialsResultado(7);
       expect(r.ok, isFalse);
       expect(r.mensagem, msg);
-      expect(apiSendCredentialsGeral(7), throwsA(isA<String>()));
+      // O throw antigo carrega a mensagem da API, não o genérico.
+      expect(apiSendCredentialsGeral(7), throwsA(msg));
+    });
+
+    test('enviar acesso: sem conexão, o throw antigo é o genérico de sempre', () async {
+      ApiClient.client = MockClient((_) async => throw http.ClientException('sem rede'));
+      expect(apiSendCredentialsGeral(7), throwsA('Houve um erro, tente novamente!'));
     });
 
     test('cancelar reserva: recusa sem JSON não vira FormatException na tela', () async {

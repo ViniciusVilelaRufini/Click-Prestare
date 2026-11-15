@@ -61,6 +61,10 @@ const Set<String> _kRotulosHttp = {
   'too many requests',
   'service unavailable',
   'bad gateway',
+  'payload too large',
+  'gateway timeout',
+  'request timeout',
+  'unprocessable entity',
 };
 
 final RegExp _kTextoTecnico = RegExp(
@@ -72,7 +76,8 @@ final RegExp _kTextoTecnico = RegExp(
   r'|(Exception)'
   r'|(Cannot read prop)'
   r'|(super constructor)'
-  r'|(ECONN|ETIMEDOUT)',
+  r'|(ECONN|ETIMEDOUT)'
+  r'|(^Cannot (GET|POST|PUT|PATCH|DELETE) )', // rota inexistente no Nest
   caseSensitive: false,
 );
 
