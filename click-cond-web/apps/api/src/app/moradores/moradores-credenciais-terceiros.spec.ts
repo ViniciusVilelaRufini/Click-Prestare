@@ -71,6 +71,7 @@ describe('MoradoresService.update — credenciais da conta', () => {
           findFirst: jest.fn(),
           update: jest.fn(async () => ({})),
         },
+        funcionarios_Portaria: { count: jest.fn(async () => 0) },
         sindicos_Condominios: { count: jest.fn(async () => 0) },
         funcionarios: { count: jest.fn(async () => 0) },
         apartamentos_Users: { count: jest.fn(async () => 0), findMany: jest.fn(async () => []) },

@@ -22,6 +22,7 @@ describe('MoradoresService.sendCredentials — link para quem já tem senha', ()
     linksNaUltimaHora?: number;
     contaAchadaPeloEmail?: Record<string, unknown> | null;
     outroCondominio?: boolean;
+    loginDePortaria?: boolean;
   } = {}) {
     const prisma: any = {
       isConnected: true,
@@ -36,7 +37,7 @@ describe('MoradoresService.sendCredentials — link para quem já tem senha', ()
         count: jest.fn(async ({ where }: any) => (where?.email ? (opts.cadastrosComOEmail ?? 1) : opts.outroCondominio && where?.id_condominio?.not != null ? 1 : 0)),
       },
       redefinicoes_Senha: { count: jest.fn().mockResolvedValue(opts.linksNaUltimaHora ?? 0) },
-      funcionarios_Portaria: { count: jest.fn().mockResolvedValue(0) },
+      funcionarios_Portaria: { count: jest.fn(async ({ where }: any) => (opts.loginDePortaria && where?.login === 'bia@x.com' ? 1 : 0)) },
       sindicos_Condominios: { count: jest.fn().mockResolvedValue(0) },
       funcionarios: { count: jest.fn().mockResolvedValue(0) },
       apartamentos_Users: { count: jest.fn().mockResolvedValue(0) },
@@ -76,6 +77,41 @@ describe('MoradoresService.sendCredentials — link para quem já tem senha', ()
     // O login da conta, diferente do e-mail do cadastro, não aparece para o operador.
     expect(res.message).not.toContain('bia@x.com');
     expect(res.message).toContain('e-mail de acesso do morador');
+  });
+
+  describe('revisão final I-1: conta com outro papel (síndico, equipe, portaria) nunca tem a senha trocada', () => {
+    const casos: Array<[string, Record<string, unknown>, boolean?]> = [
+      ['síndico-morador que só usa o console web (sem push, sem senha_alterada_em), pela flag', { is_sindico: 1 }],
+      ['síndico-morador pelo vínculo Sindicos_Condominios', { _count: { devices: 0, sindicosCondominios: 1 } }],
+      ['síndico-morador pelo perfil em Sindicos', { _count: { devices: 0, sindicos: 1 } }],
+      ['funcionário-morador pela flag', { is_funcionario: 1 }],
+      ['funcionário-morador pela equipe (Funcionarios)', { _count: { devices: 0, funcionarios: 1 } }],
+      ['conta com o login de portaria', {}, true],
+    ];
+    for (const [nome, papel, portaria] of casos) {
+      it(`${nome}: link, senha intacta`, async () => {
+        const { service, prisma, mail, mobileAuth } = harness({ conta: { ...NUNCA_ENTROU, ...papel }, loginDePortaria: portaria });
+        const res = await service.sendCredentials(5);
+        expect(res).toMatchObject({ ok: true, modo: 'link' });
+        expect(mobileAuth.solicitarRedefinicaoSenha).toHaveBeenCalledWith('bia@x.com', 'morador');
+        expect(prisma.users.update).not.toHaveBeenCalled();
+        expect(mail.sendWelcomeMorador).not.toHaveBeenCalled();
+      });
+    }
+
+    it('conta da equipe sem login de e-mail: recusa, sem gravar senha', async () => {
+      const { service, prisma, mail } = harness({ conta: { email: null, login: null, password: null, is_funcionario: 1 } });
+      await expect(service.sendCredentials(5)).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.users.update).not.toHaveBeenCalled();
+      expect(mail.sendWelcomeMorador).not.toHaveBeenCalled();
+    });
+
+    it('morador comum (só morador, só daqui) que nunca entrou: credencial inicial', async () => {
+      const { service, prisma, mail } = harness({ conta: { ...NUNCA_ENTROU, is_sindico: 0, is_funcionario: 0, _count: { devices: 0, sindicos: 0, sindicosCondominios: 0, funcionarios: 0 } } });
+      await expect(service.sendCredentials(5)).resolves.toMatchObject({ modo: 'senha' });
+      expect(prisma.users.update).toHaveBeenCalled();
+      expect(mail.sendWelcomeMorador).toHaveBeenCalled();
+    });
   });
 
   describe('primeiro acesso (rodada 1 da revisão): a senha aleatória do cadastro não conta como "já usa o app"', () => {
@@ -238,5 +274,36 @@ describe('MoradoresService.findAll — envio_acesso_por_link segue a mesma regra
     // O hash da senha e os sinais de uso não saem na lista.
     expect(JSON.stringify(res)).not.toContain('senha_alterada_em');
     expect(res[0]).not.toHaveProperty('password');
+  });
+
+  it('revisão final I-1: síndico, equipe e login de portaria → link; cadastro sem id_user reflete a conta achada pelo e-mail', async () => {
+    const nunca = { password: 'h', senha_alterada_em: null, fcm_token: null, apartamentosUsers: [] };
+    const lista = [
+      linha(1, { id: 101, login: 'sind@x.com', is_sindico: 1, ...nunca }),
+      linha(2, { id: 102, login: 'func@x.com', _count: { devices: 0, funcionarios: 1 }, ...nunca }),
+      linha(3, { id: 103, login: 'port@x.com', ...nunca }),
+      linha(4, { id: 104, login: 'comum@x.com', ...nunca }),
+      // Sem id_user: o "Enviar Acesso" acha a conta pelo e-mail do cadastro.
+      { ...linha(5, null), email: 'achada@x.com' },
+      { ...linha(6, null), email: 'novo@x.com' },
+    ];
+    const prisma: any = {
+      isConnected: true,
+      moradores: { findMany: jest.fn(async ({ where }: any) => (where?.id_user ? [] : lista)) },
+      sindicos_Condominios: { findMany: jest.fn(async () => []) },
+      funcionarios: { findMany: jest.fn(async () => []) },
+      apartamentos_Users: { findMany: jest.fn(async () => []) },
+      funcionarios_Portaria: { findMany: jest.fn(async () => [{ login: 'port@x.com' }]) },
+      users: {
+        findMany: jest.fn(async () => [
+          { id: 900, email: 'achada@x.com', login: 'achada@x.com', password: 'h', senha_alterada_em: new Date() },
+        ]),
+      },
+    };
+    const service = new MoradoresService(prisma, {} as any, {} as any, {} as any, {} as any, {} as any);
+    const res: any[] = await service.findAll(1);
+    expect(res.map((r) => r.envio_acesso_por_link)).toEqual([true, true, true, false, true, false]);
+    // A conta achada pelo e-mail não aparece na lista (nem id, nem login).
+    expect(JSON.stringify(res[4])).not.toContain('900');
   });
 });

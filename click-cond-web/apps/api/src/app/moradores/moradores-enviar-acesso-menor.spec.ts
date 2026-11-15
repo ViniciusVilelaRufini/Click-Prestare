@@ -17,6 +17,7 @@ describe('MoradoresService.sendCredentials — menor de 18 com data no cadastro'
         findFirst: jest.fn(),
       },
       moradores: { update: jest.fn(), count: jest.fn().mockResolvedValue(0) },
+      funcionarios_Portaria: { count: jest.fn().mockResolvedValue(0) },
       sindicos_Condominios: { count: jest.fn().mockResolvedValue(0) },
       funcionarios: { count: jest.fn().mockResolvedValue(0) },
       apartamentos_Users: { count: jest.fn().mockResolvedValue(0) },

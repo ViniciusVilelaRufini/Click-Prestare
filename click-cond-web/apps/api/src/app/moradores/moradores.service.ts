@@ -60,7 +60,9 @@ const SELECAO_CONTA_ENVIO = {
   password: true,
   senha_alterada_em: true,
   fcm_token: true,
-  _count: { select: { devices: true } },
+  is_sindico: true,
+  is_funcionario: true,
+  _count: { select: { devices: true, sindicos: true, sindicosCondominios: true, funcionarios: true } },
 } as const;
 
 type ContaEnvioAcesso = {
@@ -70,7 +72,9 @@ type ContaEnvioAcesso = {
   password?: string | null;
   senha_alterada_em?: Date | string | null;
   fcm_token?: string | null;
-  _count?: { devices?: number } | null;
+  is_sindico?: number | null;
+  is_funcionario?: number | null;
+  _count?: { devices?: number; sindicos?: number; sindicosCondominios?: number; funcionarios?: number } | null;
 };
 
 /**
@@ -84,13 +88,38 @@ export function jaAcessouApp(conta: ContaEnvioAcesso | null | undefined): boolea
 }
 
 /**
- * Caminho do "Enviar Acesso" — a mesma regra decide a API e o texto da confirmação na tela.
- * 'link': conta com login que já usou o app (e tem senha) ou que também é de outro condomínio (a senha
- * dela nunca é trocada daqui). 'senha': conta nova, sem login, ou que nunca entrou e é só deste condomínio.
+ * A conta tem outro papel além de morador: síndico (flag, perfil em Sindicos ou vínculo em
+ * Sindicos_Condominios), equipe (flag ou Funcionarios em qualquer condomínio) ou o login de uma linha de
+ * portaria. Quem só usa o console web não deixa push nem senha_alterada_em — a senha dela nunca é trocada
+ * pelo "Enviar Acesso" do morador.
  */
-export function modoEnvioAcesso(conta: ContaEnvioAcesso | null | undefined, outroCondominio: boolean): 'link' | 'senha' {
+export function temOutroPapel(conta: ContaEnvioAcesso | null | undefined, loginDePortaria: boolean): boolean {
+  if (!conta) return false;
+  const c = conta._count ?? {};
+  return (
+    Number(conta.is_sindico ?? 0) === 1 ||
+    Number(conta.is_funcionario ?? 0) === 1 ||
+    (c.sindicos ?? 0) > 0 ||
+    (c.sindicosCondominios ?? 0) > 0 ||
+    (c.funcionarios ?? 0) > 0 ||
+    loginDePortaria
+  );
+}
+
+/**
+ * Caminho do "Enviar Acesso" — a mesma regra decide a API e o `envio_acesso_por_link` da lista.
+ * 'link' (a senha nunca é trocada daqui): conta com outro papel (síndico, equipe, portaria), conta também
+ * de outro condomínio, ou conta com login e senha que já usou o app.
+ * 'senha' (credencial inicial): conta nova, sem login, ou exclusivamente de morador deste condomínio que
+ * nunca entrou.
+ */
+export function modoEnvioAcesso(
+  conta: ContaEnvioAcesso | null | undefined,
+  ctx: { outroCondominio: boolean; loginDePortaria: boolean },
+): 'link' | 'senha' {
+  if (temOutroPapel(conta, ctx.loginDePortaria)) return 'link';
   if (!(conta?.login ?? '').trim()) return 'senha';
-  if (outroCondominio) return 'link';
+  if (ctx.outroCondominio) return 'link';
   return conta!.password && jaAcessouApp(conta) ? 'link' : 'senha';
 }
 
@@ -472,19 +501,69 @@ export class MoradoresService {
     };
   }
 
-  /** Contas com login que também têm vínculo em outro condomínio (o "Enviar Acesso" delas é sempre o link). */
-  private async contasComLoginDeOutroCondominio(
-    contas: Array<{ id?: number | null; login?: string | null } | null | undefined>,
+  /**
+   * `envio_acesso_por_link` de cada linha da lista: o que o "Enviar Acesso" fará, pela mesma regra
+   * (modoEnvioAcesso). A linha sem id_user usa a conta que a API acharia pelo e-mail do cadastro; a conta
+   * achada que é de outro condomínio a API recusa, e a linha fica com `false`. Nada da conta sai na lista.
+   * Leituras que falham deixam o booleano pela informação que houver (a API continua decidindo).
+   */
+  private async enviosPorLink(
+    linhas: Array<{ id_user: number | null; email?: string | null; user?: ContaEnvioAcesso | null }>,
     idCondominio: number,
-  ): Promise<Set<number>> {
-    const ids = contas.filter((c) => c?.id != null && !!(c.login ?? '').trim()).map((c) => Number(c!.id));
-    if (ids.length === 0) return new Set();
-    try {
-      return await usuariosComVinculoEmOutroCondominio(this.prisma as any, ids, idCondominio);
-    } catch (e: any) {
-      this.logger.warn(`[moradores.findAll] vínculos em outro condomínio não lidos: ${e?.message ?? e}`);
-      return new Set();
+  ): Promise<boolean[]> {
+    const contas: Array<ContaEnvioAcesso | null> = linhas.map((l) => (l.user ? { ...l.user, id: l.user.id ?? l.id_user ?? undefined } : null));
+    const achadas = new Set<number>();
+    const semConta = linhas
+      .map((l, i) => ({ i, email: (l.email ?? '').trim() }))
+      .filter(({ i, email }) => linhas[i].id_user == null && !!email);
+    if (semConta.length > 0) {
+      try {
+        const emails = [...new Set(semConta.map((x) => x.email))];
+        const encontradas: ContaEnvioAcesso[] = await this.prisma.users.findMany({
+          where: { OR: [{ email: { in: emails } }, { login: { in: emails } }] },
+          select: SELECAO_CONTA_ENVIO,
+        });
+        for (const { i, email } of semConta) {
+          const e = email.toLowerCase();
+          const c = encontradas.find((u) => (u.email ?? '').toLowerCase() === e || (u.login ?? '').toLowerCase() === e);
+          if (c) {
+            contas[i] = c;
+            achadas.add(i);
+          }
+        }
+      } catch (e: any) {
+        this.logger.warn(`[moradores.findAll] contas pelo e-mail não lidas: ${e?.message ?? e}`);
+      }
     }
+    const ids = contas.filter((c) => c?.id != null && !!(c.login ?? '').trim()).map((c) => Number(c!.id));
+    let deFora = new Set<number>();
+    if (ids.length > 0) {
+      try {
+        deFora = await usuariosComVinculoEmOutroCondominio(this.prisma as any, ids, idCondominio);
+      } catch (e: any) {
+        this.logger.warn(`[moradores.findAll] vínculos em outro condomínio não lidos: ${e?.message ?? e}`);
+      }
+    }
+    const logins = [...new Set(contas.map((c) => (c?.login ?? '').trim()).filter(Boolean))];
+    let dePortaria = new Set<string>();
+    if (logins.length > 0) {
+      try {
+        const linhasPortaria = await this.prisma.funcionarios_Portaria.findMany({
+          where: { login: { in: logins } },
+          select: { login: true },
+        });
+        dePortaria = new Set(linhasPortaria.map((p) => p.login.toLowerCase()));
+      } catch (e: any) {
+        this.logger.warn(`[moradores.findAll] logins de portaria não lidos: ${e?.message ?? e}`);
+      }
+    }
+    return contas.map((c, i) => {
+      if (!c) return false;
+      const outroCondominio = c.id != null && deFora.has(Number(c.id));
+      if (achadas.has(i) && outroCondominio) return false; // a API recusa ligar o cadastro a ela
+      const loginDePortaria = dePortaria.has((c.login ?? '').trim().toLowerCase());
+      return modoEnvioAcesso(c, { outroCondominio, loginDePortaria }) === 'link';
+    });
   }
 
   /**
@@ -509,7 +588,7 @@ export class MoradoresService {
         where: { id_apto: Number(idApto), apartamento: { id_condominio: Number(idCondominio) } },
         include: {
           apartamento: true,
-          user: { include: { moradores: true, _count: { select: { devices: true } } } },
+          user: { include: { moradores: true, _count: { select: { devices: true, sindicos: true, sindicosCondominios: true, funcionarios: true } } } },
         },
       });
       // Users é global: conta que também é de OUTRO condomínio não empresta CPF, e-mail, telefone e
@@ -520,10 +599,10 @@ export class MoradoresService {
         Number(idCondominio),
       );
       const autorizados = await this.biometriaAutorizadaPorUsuario(rels.map((r) => r.id_user));
-      const contasDeFora = await this.contasComLoginDeOutroCondominio(rels.map((r) => r.user), Number(idCondominio));
+      const porLink = await this.enviosPorLink(rels as any[], Number(idCondominio));
       const seen = new Set<number>();
       const out: any[] = [];
-      for (const r of rels) {
+      for (const [indice, r] of rels.entries()) {
         if (seen.has(r.id_user)) continue;
         seen.add(r.id_user);
         const condId = r.apartamento?.id_condominio ?? idCondominio;
@@ -564,7 +643,7 @@ export class MoradoresService {
           // Tag RFID e QR Code não saem na lista (eram a credencial do prédio inteiro num GET só):
           // ficam na ficha (findOne), que a tela carrega antes de editar.
           ...this.estadoAceiteBiometria(m, autorizados, r.user),
-          envio_acesso_por_link: modoEnvioAcesso(r.user as any, contasDeFora.has(r.id_user)) === 'link',
+          envio_acesso_por_link: porLink[indice],
         });
       }
       // Busca textual local (mesmo comportamento da query condo-wide).
@@ -613,7 +692,9 @@ export class MoradoresService {
             password: true,
             senha_alterada_em: true,
             fcm_token: true,
-            _count: { select: { devices: true } },
+            is_sindico: true,
+            is_funcionario: true,
+            _count: { select: { devices: true, sindicos: true, sindicosCondominios: true, funcionarios: true } },
             // Só os vínculos deste condomínio, na ordem em que nasceram: a unidade de cada linha sai deles.
             apartamentosUsers: {
               where: { apartamento: { id_condominio: Number(idCondominio) } },
@@ -636,11 +717,8 @@ export class MoradoresService {
       Number(idCondominio),
     );
     const autorizados = await this.biometriaAutorizadaPorUsuario(list.map((m) => m.id_user));
-    const contasDeFora = await this.contasComLoginDeOutroCondominio(
-      list.map((m) => (m.user ? { ...m.user, id: m.user.id ?? m.id_user } : null)),
-      Number(idCondominio),
-    );
-    return list.map((m) => {
+    const porLink = await this.enviosPorLink(list as any[], Number(idCondominio));
+    return list.map((m, indice) => {
       const idAptoMapped = idApartamentoDaLinha(m, m.user?.apartamentosUsers ?? []);
       const fotoFinal = m.foto_pessoa ?? (m.id_user != null && compartilhadas.has(m.id_user) ? null : m.user?.photo) ?? null;
       return {
@@ -663,8 +741,8 @@ export class MoradoresService {
         face_sync_error: m.face_sync_error ?? null,
         // Sem tag_rfid e qrcode_acesso: só na ficha (findOne). Esta lista também alimenta o CRM.
         ...this.estadoAceiteBiometria(m, autorizados, m.user),
-        // A confirmação da tela usa a mesma regra da API: link (já usa o app ou é de outro condomínio) ou senha inicial.
-        envio_acesso_por_link: modoEnvioAcesso(m.user as any, m.id_user != null && contasDeFora.has(m.id_user)) === 'link',
+        // A confirmação da tela usa a mesma regra da API (modoEnvioAcesso): link ou senha inicial.
+        envio_acesso_por_link: porLink[indice],
       };
     });
   }
@@ -1712,9 +1790,16 @@ export class MoradoresService {
       const outroCondominio =
         !!userId && m.id_condominio != null && (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, userId, m.id_condominio));
 
-      if (modoEnvioAcesso(conta, outroCondominio) === 'link') {
+      // Login de uma linha de portaria = conta de porteiro (sincronizarContaDoPorteiro casa pelo login).
+      // Erro de banco sobe (não decide "senha" às cegas); o `?.` só cobre doubles de teste sem o delegate.
+      const loginDePortaria =
+        !!(conta?.login ?? '').trim() &&
+        ((await this.prisma.funcionarios_Portaria?.count({ where: { login: String(conta!.login).trim() } })) ?? 0) > 0;
+
+      if (modoEnvioAcesso(conta, { outroCondominio, loginDePortaria }) === 'link') {
         // A senha atual e as sessões continuam valendo até o morador trocar.
-        const login = String(conta!.login).trim().toLowerCase();
+        // Conta de síndico/equipe sem login de e-mail cai na recusa de conferirLinkRedefinicao, sem gravar nada.
+        const login = String(conta?.login ?? '').trim().toLowerCase();
         await this.conferirLinkRedefinicao(userId!, login);
         if (ligarCadastro) await this.prisma.moradores.update({ where: { id }, data: { id_user: userId! } });
         await this.mobileAuth!.solicitarRedefinicaoSenha(login, 'morador');
