@@ -29,6 +29,12 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { CardAoVivoService } from '../card-ao-vivo/card-ao-vivo.service';
 import { WalletService } from '../wallet/wallet.service';
 import { GuaritaOperacoesService } from '../guarita/guarita-operacoes.service';
+import {
+  ESTADOS_TAG_COM_OPERACAO_PENDENTE,
+  ESTADO_TAG,
+  MSG_TAG_AUSENTE_DO_GUARITA,
+  MSG_TAG_COM_OPERACAO_PENDENTE,
+} from '../guarita/guarita.constantes';
 import { temaValido } from '../card-ao-vivo/conteudo';
 import { assertStaff, assertSindico, assertSindicoEstrito, assertOperador, isOperador } from './tenant.util';
 import { ApartamentosService } from '../apartamentos/apartamentos.service';
@@ -6199,7 +6205,7 @@ export class MobileAuthService {
     // sem mexer nela (o app reenvia o código a cada edição).
     const existente = await this.prisma.tags.findUnique({
       where: { id_condominio_codigo: { id_condominio: idCondominio, codigo } },
-      select: { id: true, ativo: true },
+      select: { id: true, ativo: true, id_device: true, guarita_estado: true },
     });
     if (existente && existente.ativo !== 1) {
       const jaVinculada = await this.prisma.veiculos.findFirst({
@@ -6222,6 +6228,13 @@ export class MobileAuthService {
         })
       : null;
     if (!jaDesteVeiculo) {
+      // Módulo Guarita: tag com operação pendente lá (ou fora dele) não ganha
+      // outro veículo. Tag comum (sem id_device) segue como antes.
+      if (existente?.id_device != null) {
+        const estado = existente.guarita_estado ?? '';
+        if (ESTADOS_TAG_COM_OPERACAO_PENDENTE.includes(estado)) throw new BadRequestException(MSG_TAG_COM_OPERACAO_PENDENTE);
+        if (estado === ESTADO_TAG.ausente) throw new BadRequestException(MSG_TAG_AUSENTE_DO_GUARITA);
+      }
       await assertTagNaoEmUso(this.prisma, idCondominio, codigo, {
         ignorar: { idTag: existente?.id ?? null },
       });

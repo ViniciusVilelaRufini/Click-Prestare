@@ -504,6 +504,34 @@ describe('Regravar: saída para tag falhou ou incerto', () => {
   });
 });
 
+describe('Tag com operação pendente no Guarita não é livre para vincular', () => {
+  const BLOQUEADOS = ['remocao_falhou', 'removendo', 'incerto', 'conflito'];
+
+  it('GET tags?livres=true esconde remocao_falhou, removendo, incerto, conflito (e ausente)', async () => {
+    const { TagsService } = require('../veiculos/tags.service');
+    const db = criarBancoFalso();
+    const estados = [...BLOQUEADOS, 'ausente', 'ativo', 'a_vincular', null];
+    db.semear('tags', estados.map((e, i) => ({ id: i + 1, id_condominio: 7, codigo: `T${i}`, ativo: 1, id_device: e ? 10 : null, guarita_estado: e })));
+    const findMany = db.tags.findMany;
+    db.tags.findMany = async (a: any) => {
+      const { veiculos: _v, ...where } = a.where; // o banco falso não entende `veiculos: { none }`
+      return findMany({ ...a, where });
+    };
+    const livres = await new TagsService(db as any).findAll(7, true);
+    expect(livres.map((t: any) => t.guarita_estado)).toEqual(expect.arrayContaining(['ativo', 'a_vincular', null]));
+    expect(livres).toHaveLength(3);
+  });
+
+  it.each(BLOQUEADOS)('vincular tag %s a um veículo → 400 "Esta tag ainda tem uma operação pendente no Guarita."', async (estado) => {
+    const { VeiculosService } = require('../veiculos/veiculos.service');
+    const m = montar();
+    m.db.semear('tags', [{ id: 2, id_condominio: 7, codigo: 'G3-0F0999', tipo: 'cartao', id_device: 10, guarita_tipo: 3, guarita_serial: '0F0999', guarita_estado: estado, ativo: 1 }]);
+    const v = new VeiculosService(m.db as any, m.ops);
+    await expect(v.create(7, 50, { placa: 'QWE1R23', id_tag: 2 } as any)).rejects.toThrow('Esta tag ainda tem uma operação pendente no Guarita.');
+    await expect(v.update(7, 70, { placa: 'ABC1D23', id_tag: 2 } as any)).rejects.toThrow('Esta tag ainda tem uma operação pendente no Guarita.');
+  });
+});
+
 describe('C1 — duas gravações da mesma tag no mesmo lote', () => {
   it('cenário A: troca de unidade e saída logo depois → o dispositivo é removido do Guarita', async () => {
     const m = montar();
