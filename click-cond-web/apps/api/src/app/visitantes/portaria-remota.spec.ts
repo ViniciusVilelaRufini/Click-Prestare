@@ -99,6 +99,27 @@ describe('VisitantesService — portaria remota', () => {
     );
   });
 
+  // Rodada 4, item 2: o pedido é transacional (há alguém no portão esperando a
+  // resposta) — vai também para quem desligou "avisos de visitantes", e conta
+  // em `avisados`. Os demais avisos (chegou, saiu) seguem a preferência.
+  it('o pedido chega ao morador que desligou "avisos de visitantes" e conta em avisados', async () => {
+    const { svc, prisma, notifications } = build();
+    const moradores = [{ id: 20, fcm_token: 'token-valido-fcm-1', name: 'Maria', phone: null, notif_visitantes: 0 }];
+    prisma.users.findMany.mockImplementation(async ({ where }: any) =>
+      moradores.filter((m) => where.notif_visitantes === undefined || m.notif_visitantes === where.notif_visitantes),
+    );
+    const res = await svc.solicitarAutorizacao(5, porteiro);
+    expect(res).toEqual({ ok: true, avisados: 1 });
+    expect(notifications.sendPushNotification).toHaveBeenCalledWith(
+      'token-valido-fcm-1', expect.any(String), expect.stringContaining('João'),
+      expect.objectContaining({ type: 'autorizacao_visitante' }),
+    );
+    // Mesmo recorte de antes: moradores da unidade do pedido, com aparelho.
+    expect(prisma.users.findMany.mock.calls[0][0].where).toEqual(
+      expect.objectContaining({ apartamentosUsers: { some: { id_apto: APTO_DONO } } }),
+    );
+  });
+
   it('autorizar (morador dono) → liberado=1, autorizado, enrola no facial', async () => {
     const { svc, prisma, facial } = build({ auth_status: 'pendente', auth_solicitado_em: new Date() });
     const res = await svc.autorizar(5, moradorDono);

@@ -33,6 +33,7 @@ import { PessoasService, pessoaTemVisitaForaDosAptos } from '../pessoas/pessoas.
 import { VisitasService } from '../visitas/visitas.service';
 import { CardAoVivoService, type QuemRespondeu } from '../card-ao-vivo/card-ao-vivo.service';
 import { AUTORIZACAO_EXPIRACAO_MS } from '../common/autorizacao-expiracao';
+import { TOLERANCIA_JANELA_MS, ehAutorizacaoRemota, prazoAutorizacaoRemotaMs } from '../common/janela-visita';
 
 /**
  * Migração Visitantes → Pessoas/Visitas: as tabelas `pessoas`/`visitas` estão
@@ -58,12 +59,9 @@ function pessoasMigrationEnabled(prisma?: any): boolean {
 
 // Prazo único do pedido/autorização — o card ao vivo usa o mesmo.
 export { AUTORIZACAO_EXPIRACAO_MS };
-/**
- * Tolerância depois do fim da janela: o terminal facial e o Validar PIN aceitam
- * até 15 min além do `data_hora_termino`. A lista usa a mesma para não dizer
- * "encerrada" de quem o portão ainda deixa passar.
- */
-export const TOLERANCIA_JANELA_MS = 15 * 60 * 1000;
+// Tolerância depois do fim da janela (15 min): constante única em common/,
+// a mesma do terminal facial; reexportada para os imports existentes.
+export { TOLERANCIA_JANELA_MS };
 /** Visitas mais recentes de cada pessoa na lista da portaria (as em aberto entram sempre). */
 const VISITAS_POR_PESSOA_NA_LISTA = 20;
 /** Janela da visita aberta por um pedido de autorização: agora → +4 h. */
@@ -92,14 +90,26 @@ export function isAutorizacaoAtual(registro: any, agora = Date.now()): boolean {
  * (o morador cedeu a vaga por dias); visitante recorrente (dias da semana) só
  * com término no FUTURO — sem término viraria acesso permanente. Mesma regra
  * da saída pelo terminal (facial.service, que já mantém com vaga vigente).
+ *
+ * Autorização REMOTA (o morador respondeu ao pedido da portaria) vale para uma
+ * entrada: na saída não sobra liberação, nem para prestador/recorrente — nova
+ * entrada é novo pedido ou a portaria liberar. A vaga é janela própria.
  */
 export function mantemLiberadoNaSaida(
-  v: { is_prestador?: number | null; dias_semana?: string | null; data_hora_termino?: Date | string | null },
+  v: {
+    is_prestador?: number | null;
+    dias_semana?: string | null;
+    data_hora_termino?: Date | string | null;
+    auth_status?: string | null;
+    auth_respondido_em?: Date | string | null;
+    auth_respondido_por?: number | null;
+  },
   agora = Date.now(),
   temVagaVigente = false,
 ): boolean {
-  if (v.is_prestador === 1) return true;
   if (temVagaVigente) return true;
+  if (ehAutorizacaoRemota(v)) return false;
+  if (v.is_prestador === 1) return true;
   if (!String(v.dias_semana ?? '').trim() || !v.data_hora_termino) return false;
   return new Date(v.data_hora_termino).getTime() > agora;
 }
@@ -1884,7 +1894,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       categorias: ultimaVisita?.categorias ?? null,
     } as any);
 
-    await this.desativarOutrosCodigosVisita(visita.id_condominio, visita.id_pessoa, visita.id, await this.aptosDoMoradorMobile(payload));
+    await this.desativarOutrosCodigosVisita(
+      visita.id_condominio, visita.id_pessoa, visita.id, await this.aptosDoMoradorMobile(payload), visita.id_apartamento,
+    );
 
     const tipoLabel = visita.is_prestador === 1 ? 'Prestador' : 'Visitante';
     const ctx = this.construirContextoAuditoria(visita);
@@ -2676,7 +2688,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // doc/nome que o caminho legado precisa porque Visitantes não tem esse
     // vínculo estrutural.
     if (!pedirAutorizacao) {
-      await this.desativarOutrosCodigosVisita(visita.id_condominio, visita.id_pessoa, visita.id, aptosDoChamador);
+      await this.desativarOutrosCodigosVisita(
+        visita.id_condominio, visita.id_pessoa, visita.id, aptosDoChamador, visita.id_apartamento,
+      );
     }
 
     const tipoLabel = visita.is_prestador === 1 ? 'Prestador' : 'Visitante';
@@ -2829,8 +2843,13 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // Morador: só revoga códigos das visitas dos apartamentos DELE. A visita
     // em aberto do vizinho para a mesma Pessoa não é dele para derrubar.
     aptosDoChamador?: number[],
+    // Operador (portaria/síndico): só a unidade da visita atual. Revogar no
+    // condomínio inteiro derrubava a pré-autorização que o morador de OUTRA
+    // unidade deu para a mesma pessoa — o PIN dele era recusado, sem aviso.
+    idApartamentoAtual?: number | null,
   ): Promise<void> {
     if (!this.prisma.isConnected) return;
+    const escopo = aptosDoChamador ?? (idApartamentoAtual != null ? [Number(idApartamentoAtual)] : undefined);
     await this.prisma.visitas.updateMany({
       where: {
         id_condominio: Number(idCondominio),
@@ -2838,7 +2857,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         id: { not: Number(idVisitaAtual) },
         data_entrada: null,
         data_saida: null,
-        ...(aptosDoChamador ? { id_apartamento: { in: aptosDoChamador } } : {}),
+        ...(escopo ? { id_apartamento: { in: escopo } } : {}),
       },
       data: {
         liberado: 0,
@@ -3141,6 +3160,24 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (dto.id_apartamento !== undefined) visitaData.id_apartamento = dto.id_apartamento;
     if (dto.dias_semana !== undefined) visitaData.dias_semana = dto.dias_semana;
     if (dto.categorias !== undefined) visitaData.categorias = dto.categorias;
+    // O morador muda a janela de uma visita que ele autorizou remotamente e
+    // que ainda não foi usada: é uma liberação nova DELE, com janela própria —
+    // deixa de ser a autorização de 10 min/uma entrada do pedido. O app manda o
+    // formulário inteiro em toda edição, e com a hora em MINUTOS (a API devolve
+    // "dd/MM/yyyy HH:mm"; o pedido gravou segundos): a comparação é por minuto,
+    // e só conta se o início ou o término mudou de fato. A conversão é auditada
+    // em nome do morador.
+    let conversaoRemotaPeloMorador = false;
+    if (ehAutorizacaoRemota(ref) && !ref.data_entrada && (await this.aptosDoMoradorMobile(payload)) !== undefined) {
+      const minuto = (d: any) => (d ? Math.floor(new Date(d).getTime() / 60_000) : null);
+      const mudouJanela =
+        ('data_hora_inicio' in visitaData && minuto(visitaData.data_hora_inicio) !== minuto(ref.data_hora_inicio)) ||
+        ('data_hora_termino' in visitaData && minuto(visitaData.data_hora_termino) !== minuto(ref.data_hora_termino));
+      if (mudouJanela) {
+        visitaData.auth_status = null;
+        conversaoRemotaPeloMorador = true;
+      }
+    }
 
     const pessoaData: any = {};
     if (dto.nome !== undefined) pessoaData.nome = dto.nome;
@@ -3211,6 +3248,31 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     }
 
     const label = updatedVisita.is_prestador === 1 ? 'Prestador' : 'Visitante';
+    if (conversaoRemotaPeloMorador) {
+      const fmt = (d: any, comDia: boolean) =>
+        d
+          ? new Date(d).toLocaleString('pt-BR', {
+              timeZone: 'America/Sao_Paulo',
+              ...(comDia ? { day: '2-digit', month: '2-digit' } : {}),
+              hour: '2-digit',
+              minute: '2-digit',
+            }).replace(',', '')
+          : '—';
+      await this.auditoria.registrar({
+        id_condominio: updatedVisita.id_condominio,
+        usuario_nome: payload?.nome ?? (payload as any)?.user?.nome ?? (payload as any)?.user?.name ?? 'Morador',
+        acao: 'UPDATE',
+        modulo: 'visitas',
+        entidade_id: updatedVisita.id,
+        descricao:
+          `${label} "${updatedVisita.pessoa?.nome ?? ref.pessoa?.nome ?? ''}": o morador converteu a autorização remota em liberação própria, ` +
+          `janela ${fmt(updatedVisita.data_hora_inicio, true)}–${fmt(
+            updatedVisita.data_hora_termino,
+            // Término em outro dia: mostra o dia também.
+            fmt(updatedVisita.data_hora_inicio, true).slice(0, 5) !== fmt(updatedVisita.data_hora_termino, true).slice(0, 5),
+          )}`,
+      });
+    }
     await this.auditoria.registrar({
       id_condominio: updatedVisita.id_condominio,
       usuario_nome: 'Sistema / Portaria',
@@ -3498,6 +3560,17 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    * dava 409 eterno. No caso de o morador negar com o modal aberto, liberado
    * ainda é 0 no clique, então ele continua travado.
    */
+  /**
+   * Liberar por cima de uma autorização remota do morador a converte em
+   * liberação de quem liberou (vale pela janela): a auditoria diz isso.
+   */
+  private notaConversaoRemota(ref: any): string {
+    if (!ehAutorizacaoRemota(ref)) return '';
+    const prazo = prazoAutorizacaoRemotaMs(ref);
+    const estado = prazo === null ? 'já usada' : prazo >= Date.now() ? 'ainda ativa' : 'expirada';
+    return ` (converteu a autorização remota do morador, ${estado}, em liberação direta, pela janela da visita)`;
+  }
+
   private assertNegativaConhecida(
     ref: { auth_status?: string | null; liberado?: number | null },
     esperado: string | null | undefined,
@@ -3556,6 +3629,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           auth_respondido_por: idUsuarioDoToken(payload),
         }),
         ...(ref.auth_status === 'negado' && { auth_status: null }),
+        // Autorização remota do morador (10 min no portão): liberar por cima
+        // é decisão de quem liberou e vale pela janela, como toda liberação.
+        ...(ehAutorizacaoRemota(ref) && { auth_status: null }),
       },
       include: {
         pessoa: true,
@@ -3576,10 +3652,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       acao: 'UPDATE',
       modulo: 'visitas',
       entidade_id: v.id,
-      descricao: `Acesso liberado: ${label} "${v.pessoa?.nome}" no ${aptoLabel}`,
+      descricao: `Acesso liberado: ${label} "${v.pessoa?.nome}" no ${aptoLabel}${this.notaConversaoRemota(ref)}`,
       detalhes: ctx ?? undefined,
     });
-    await this.desativarOutrosCodigosVisita(v.id_condominio, v.id_pessoa, v.id, await this.aptosDoMoradorMobile(payload));
+    await this.desativarOutrosCodigosVisita(
+      v.id_condominio, v.id_pessoa, v.id, await this.aptosDoMoradorMobile(payload), v.id_apartamento,
+    );
 
     this.fireFacialSyncPessoa(v.id_pessoa);
     if (ref.auth_status === 'pendente') {
@@ -5206,10 +5284,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // Moradores alcançados por card, push ou WhatsApp (devolvido à portaria).
     let avisados = 0;
     try {
+      // Sem o filtro de `notif_visitantes`: o pedido é transacional — há alguém
+      // no portão esperando a resposta. A preferência vale para os avisos
+      // informativos (chegou, saiu), não para o pedido.
       const moradores = await this.prisma.users.findMany({
         where: {
           apartamentosUsers: { some: { id_apto: v.id_apartamento } },
-          notif_visitantes: 1,
           fcm_token: { not: null },
         },
         select: { id: true, fcm_token: true, name: true, phone: true },
