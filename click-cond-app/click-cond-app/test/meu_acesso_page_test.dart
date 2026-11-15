@@ -1,8 +1,10 @@
 import 'package:click/pages/shared/meu_acesso/meu_acesso_page.dart';
+import 'package:click/pages/shared/meu_acesso/passe_carteira_secao.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/services/biometric_auth_service.dart';
 import 'package:click/services/credencial_acesso.dart';
 import 'package:click/utils/codigo_dinamico.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -124,6 +126,43 @@ void main() {
     expect(find.byKey(ValueKey('qr-$antes')), findsNothing);
     expect(find.text('Novo código em 30 s'), findsOneWidget);
 
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('iPhone com o QR pronto: a seção da carteira aparece abaixo do QR', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    final pedidas = <int>[];
+    PasseCarteiraSecao.situacao = (id) async {
+      pedidas.add(id);
+      return {
+        'habilitado': true,
+        'apple': {'disponivel': true, 'ativo': false},
+        'google': {'disponivel': false, 'ativo': false},
+      };
+    };
+    try {
+      respostas.add(emitida());
+      await abrir(tester);
+
+      expect(find.byType(QrImageView), findsOneWidget);
+      expect(pedidas, [10]);
+      expect(find.byKey(PasseCarteiraSecao.chaveConteudo), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.byKey(PasseCarteiraSecao.chaveConteudo)).dy,
+        greaterThan(tester.getBottomLeft(find.byType(QrImageView)).dy),
+      );
+      await tester.pumpWidget(const SizedBox());
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+      PasseCarteiraSecao.restaurarPadroes();
+    }
+  });
+
+  testWidgets('Android: sem seção da carteira', (tester) async {
+    respostas.add(emitida());
+    await abrir(tester);
+    expect(find.byType(QrImageView), findsOneWidget);
+    expect(find.byKey(PasseCarteiraSecao.chaveConteudo), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 

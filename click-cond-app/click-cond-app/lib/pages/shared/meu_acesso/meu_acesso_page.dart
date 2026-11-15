@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:click/pages/shared/meu_acesso/passe_carteira_secao.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/services/credencial_acesso.dart';
 import 'package:click/services/tela_segura.dart';
@@ -241,6 +242,9 @@ class _MeuAcessoPageState extends State<MeuAcessoPage> with WidgetsBindingObserv
               textAlign: TextAlign.center,
               style: AppTypography.bodySecondary(context),
             ),
+            // Passe na Carteira da Apple: só no iPhone e com a opção ligada no
+            // condomínio; fora disso a seção não desenha nada.
+            if (_idCondominio != null) PasseCarteiraSecao(idCondominio: _idCondominio!),
           ],
         ),
       ),
