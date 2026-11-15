@@ -87,6 +87,8 @@ const PADROES = Object.freeze({
   prazoReleMs: 10000, // validade do relé: sem a vez em 10 s (ex.: durante o 29), desiste — não abre atrasado
   quedaLongaMs: 60000, // reconexão depois de queda maior que isto relê a memória de eventos
   esperaConferenciaMs: 30000, // gravação sem resposta: espera reconectar até isto para conferir
+  timeoutsParaCalar: 2, // timeouts SEGUIDOS do mesmo comando (em conexões consecutivas) para marcá-lo "sem resposta"
+  validadeMudoMs: 600000, // a marca "sem resposta" expira sozinha em 10 min
   esperaPingConectandoMs: 4000, // ping durante a conexão espera o desfecho (prazo do ciclo é 5 s)
   limiteFilaEventos: 5000,
   lotePorEnvio: 500, // eventos por POST e frames por parte da importação
@@ -305,18 +307,24 @@ class ServicoGuarita {
 
   async _aoConectarSessao(sessao) {
     const m = this._memoriaDoProcesso();
+    const pular = this._mudosAtivos();
     try {
-      this.info = await operacoes.identificar(sessao, { agora: this.cfg.agora, pular: m.semResposta });
-      if (this.info.relogioDeltaS === null && !m.semResposta.has(12)) {
+      this.info = await operacoes.identificar(sessao, { agora: this.cfg.agora, pular });
+      for (const { comando } of operacoes.IDENTIFICACAO) if (!pular.has(comando)) this._registrarResposta(comando);
+      if (this.info.relogioDeltaS === null && !pular.has(12)) {
         this.log.error(`${this.rotulo}: relógio do Guarita ilegível`);
       }
     } catch (e) {
-      // Um comando da identificação sem resposta: a sessão caiu (C1). Fica
-      // marcado para este Guarita e não é mandado de novo (até o processo
-      // reiniciar); a próxima conexão segue sem ele.
+      // Um comando da identificação sem resposta: a sessão caiu (C1) e a
+      // próxima conexão tenta de novo. Só depois de 2 timeouts SEGUIDOS ele
+      // fica marcado "sem resposta" (e expira em 10 min) — senão um 5 s
+      // perdido calaria o comando para sempre.
       if (e && e.codigo === 'sem_resposta' && Number.isInteger(e.comando)) {
-        m.semResposta.add(e.comando);
-        this.log.error(`${this.rotulo}: o Guarita não respondeu ao comando ${e.comando} da identificação; ele fica de fora nas próximas conexões`);
+        for (const { comando } of operacoes.IDENTIFICACAO) {
+          if (comando === e.comando) break;
+          if (!pular.has(comando)) this._registrarResposta(comando);
+        }
+        this._registrarTimeout(e.comando);
       } else {
         this.log.error(`${this.rotulo}: falha ao identificar o Guarita (${(e && e.message) || e})`);
       }
@@ -329,9 +337,10 @@ class ServicoGuarita {
     // pedido no meio passa na frente e ela recomeça.
     const foraMs = m.foraDesde === null ? null : this.t.agora() - m.foraDesde;
     m.foraDesde = null;
-    if (m.semResposta.has(6) || m.semResposta.has('recuperacao')) {
-      // Sem o 6 (ou o 17) não há como reler a memória: segue sem recuperação.
-      m.recuperou = true;
+    const mudos = this._mudosAtivos();
+    if (mudos.has(6) || mudos.has('recuperacao')) {
+      // Sem o 6 (ou o 17) não há como reler a memória agora: segue sem
+      // recuperação; quando a marca expirar, ela volta a ser tentada.
     } else if (!m.recuperou || foraMs === null || foraMs > this.iv.quedaLongaMs) {
       if (await this._recuperarEventos(sessao)) m.recuperou = true;
     } else {
@@ -376,7 +385,7 @@ class ServicoGuarita {
   _memoriaDoProcesso() {
     let m = this.cfg.memoriaProcesso.get(this.device.id);
     if (!m) {
-      m = { recuperou: false, foraDesde: null, semResposta: new Set() };
+      m = { recuperou: false, foraDesde: null, mudos: new Map(), timeoutsSeguidos: new Map() };
       this.cfg.memoriaProcesso.set(this.device.id, m);
     }
     return m;
@@ -427,9 +436,46 @@ class ServicoGuarita {
     return c;
   }
 
+  /** Comandos marcados "sem resposta" ainda válidos (os vencidos saem aqui). */
+  _mudosAtivos() {
+    const m = this._memoriaDoProcesso();
+    const agora = this.t.agora();
+    for (const [chave, desde] of m.mudos) {
+      if (agora - desde > this.iv.validadeMudoMs) {
+        m.mudos.delete(chave);
+        this.log.log(`${this.rotulo}: a marca "sem resposta" de ${chave} expirou; ele volta a ser tentado`);
+      }
+    }
+    return new Set(m.mudos.keys());
+  }
+
+  _registrarTimeout(chave) {
+    const m = this._memoriaDoProcesso();
+    const n = (m.timeoutsSeguidos.get(chave) || 0) + 1;
+    if (n >= this.iv.timeoutsParaCalar) {
+      m.timeoutsSeguidos.delete(chave);
+      this._marcarMudo(chave);
+    } else {
+      m.timeoutsSeguidos.set(chave, n);
+      this.log.error(`${this.rotulo}: o Guarita não respondeu a ${chave}; reconectando para tentar de novo`);
+    }
+  }
+
+  _marcarMudo(chave) {
+    const m = this._memoriaDoProcesso();
+    m.mudos.set(chave, this.t.agora());
+    this.log.error(`${this.rotulo}: o Guarita não respondeu a ${chave} de novo; fica de fora por até ${Math.round(this.iv.validadeMudoMs / 60000)} min`);
+  }
+
+  _registrarResposta(chave) {
+    const m = this._memoriaDoProcesso();
+    m.timeoutsSeguidos.delete(chave);
+    m.mudos.delete(chave);
+  }
+
   /** Nomes do que este Guarita não respondeu (identificação e recuperação). */
   _leiturasSemResposta() {
-    const mudos = this._memoriaDoProcesso().semResposta;
+    const mudos = this._mudosAtivos();
     const nomes = operacoes.IDENTIFICACAO.filter((x) => mudos.has(x.comando)).map((x) => x.nome);
     if (mudos.has('recuperacao')) nomes.push('eventos da memória');
     return nomes;
@@ -548,10 +594,11 @@ class ServicoGuarita {
       lista = await operacoes.lerTodosEventos(sessao);
     } catch (e) {
       this.log.error(`${this.rotulo}: falha ao recuperar os eventos do Guarita (${e.message})`);
-      // Sem resposta (6 ou 17): não insiste a cada conexão, senão nunca chega às operações.
-      if (e && e.codigo === 'sem_resposta') this._memoriaDoProcesso().semResposta.add('recuperacao');
+      // Sem resposta (6 ou 17): 2 seguidas marcam (por 10 min), senão não chega às operações.
+      if (e && e.codigo === 'sem_resposta') this._registrarTimeout('recuperacao');
       return false;
     }
+    this._registrarResposta('recuperacao');
     if (lista.length === 0) return true;
     const recebidoEm = new Date(this.cfg.agora()).toISOString();
     const itens = lista.map((f) => ({ frame_hex: f, origem: 'recuperacao', recebido_em: recebidoEm }));
@@ -734,20 +781,20 @@ class ServicoGuarita {
       case 'conferir': {
         this._lembrar(op.id, { estado: 'executando' });
         let partes;
-        const mudos = this._memoriaDoProcesso().semResposta;
         try {
-          if (mudos.has(7)) {
-            throw new Error(
-              'O Guarita não responde à leitura da quantidade de dispositivos (comando 7); importação e conferência não são possíveis.',
-            );
-          }
+          // Pedido explícito: tenta o 7 de novo (uma vez por operação), mesmo marcado.
           const frames = await operacoes.lerTodosDispositivos(sessao);
+          this._registrarResposta(7);
           partes = partesDaImportacao(frames, this.iv.lotePorEnvio);
           this.info.totalDispositivos = frames.length;
           this.log.log(`${this.rotulo}: operação ${op.id} (${op.tipo}) → ${frames.length} dispositivo(s) lido(s)`);
         } catch (e) {
-          if (e && e.codigo === 'sem_resposta' && e.comando === 7) mudos.add(7);
-          partes = [{ ok: false, erro: e.message }];
+          let erro = e.message;
+          if (e && e.codigo === 'sem_resposta' && e.comando === 7) {
+            this._marcarMudo(7); // a marca volta (a sessão caiu; a reconexão segue sem ele)
+            erro = `O Guarita não respondeu à leitura da quantidade de dispositivos (comando 7); a ${op.tipo === 'conferir' ? 'conferência' : 'importação'} não foi possível.`;
+          }
+          partes = [{ ok: false, erro }];
           this.log.error(`${this.rotulo}: operação ${op.id} (${op.tipo}) → FALHA (${e.message})`);
         }
         await this._concluir(op.id, partes);

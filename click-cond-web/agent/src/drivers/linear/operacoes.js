@@ -334,6 +334,11 @@ async function gravar(sessao, { tipo, frameHex, esperado } = {}) {
         return { ok: false, codigo: 0x03, mensagem: mensagemDoCodigo(0x03) };
       }
       const atual = lidoDe(lido.frame);
+      // Editar cujo pedido JÁ está no Guarita (uma tentativa anterior valeu,
+      // inclusive mudando a unidade): objetivo atendido, sem escrever.
+      if (tipo === 'editar' && mesmoFrameGravavel(lido.frame, frame)) {
+        return { ok: true, codigo: null, ja_estava: true, lido: atual, mensagem: 'O Guarita já tinha estes dados.' };
+      }
       if (atual.unidade !== esperado.unidade || atual.bloco !== esperado.bloco) {
         return {
           ok: false,
@@ -346,10 +351,11 @@ async function gravar(sessao, { tipo, frameHex, esperado } = {}) {
       escreveu = true;
       const dados = await exec(67, Buffer.concat([Buffer.from([OPCAO_POR_TIPO[tipo]]), frame]), { timeoutMs: TIMEOUT_67_MS });
       const codigo = dados[1];
+      // Todo resultado que leu o dispositivo leva o que foi lido (antes de escrever).
       if (tipo === 'apagar' && codigo === 0x03) {
-        return { ok: true, codigo, ja_estava: true, mensagem: 'O dispositivo já não estava no Guarita.' };
+        return { ok: true, codigo, ja_estava: true, lido: atual, mensagem: 'O dispositivo já não estava no Guarita.' };
       }
-      return { ok: codigo === 0x00, codigo, mensagem: mensagemDoCodigo(codigo) };
+      return { ok: codigo === 0x00, codigo, lido: atual, mensagem: mensagemDoCodigo(codigo) };
     });
   } catch (e) {
     // Sem resposta no Ler: a sessão caiu e NADA foi escrito. Na escrita: pode ter gravado.
