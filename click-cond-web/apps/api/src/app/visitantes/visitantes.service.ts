@@ -33,7 +33,7 @@ import { PessoasService, pessoaTemVisitaForaDosAptos } from '../pessoas/pessoas.
 import { VisitasService } from '../visitas/visitas.service';
 import { CardAoVivoService, type QuemRespondeu } from '../card-ao-vivo/card-ao-vivo.service';
 import { AUTORIZACAO_EXPIRACAO_MS } from '../common/autorizacao-expiracao';
-import { TOLERANCIA_JANELA_MS, ehAutorizacaoRemota } from '../common/janela-visita';
+import { TOLERANCIA_JANELA_MS, ehAutorizacaoRemota, prazoAutorizacaoRemotaMs } from '../common/janela-visita';
 
 /**
  * Migração Visitantes → Pessoas/Visitas: as tabelas `pessoas`/`visitas` estão
@@ -90,14 +90,26 @@ export function isAutorizacaoAtual(registro: any, agora = Date.now()): boolean {
  * (o morador cedeu a vaga por dias); visitante recorrente (dias da semana) só
  * com término no FUTURO — sem término viraria acesso permanente. Mesma regra
  * da saída pelo terminal (facial.service, que já mantém com vaga vigente).
+ *
+ * Autorização REMOTA (o morador respondeu ao pedido da portaria) vale para uma
+ * entrada: na saída não sobra liberação, nem para prestador/recorrente — nova
+ * entrada é novo pedido ou a portaria liberar. A vaga é janela própria.
  */
 export function mantemLiberadoNaSaida(
-  v: { is_prestador?: number | null; dias_semana?: string | null; data_hora_termino?: Date | string | null },
+  v: {
+    is_prestador?: number | null;
+    dias_semana?: string | null;
+    data_hora_termino?: Date | string | null;
+    auth_status?: string | null;
+    auth_respondido_em?: Date | string | null;
+    auth_respondido_por?: number | null;
+  },
   agora = Date.now(),
   temVagaVigente = false,
 ): boolean {
-  if (v.is_prestador === 1) return true;
   if (temVagaVigente) return true;
+  if (ehAutorizacaoRemota(v)) return false;
+  if (v.is_prestador === 1) return true;
   if (!String(v.dias_semana ?? '').trim() || !v.data_hora_termino) return false;
   return new Date(v.data_hora_termino).getTime() > agora;
 }
@@ -3148,6 +3160,17 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (dto.id_apartamento !== undefined) visitaData.id_apartamento = dto.id_apartamento;
     if (dto.dias_semana !== undefined) visitaData.dias_semana = dto.dias_semana;
     if (dto.categorias !== undefined) visitaData.categorias = dto.categorias;
+    // O morador muda a janela de uma visita que ele autorizou remotamente e
+    // que ainda não foi usada: é uma liberação nova DELE, com janela própria —
+    // deixa de ser a autorização de 10 min/uma entrada do pedido. O app manda o
+    // formulário inteiro em toda edição: só conta se a janela mudou de fato.
+    if (ehAutorizacaoRemota(ref) && !ref.data_entrada && (await this.aptosDoMoradorMobile(payload)) !== undefined) {
+      const t = (d: any) => (d ? new Date(d).getTime() : null);
+      const mudouJanela =
+        ('data_hora_inicio' in visitaData && t(visitaData.data_hora_inicio) !== t(ref.data_hora_inicio)) ||
+        ('data_hora_termino' in visitaData && t(visitaData.data_hora_termino) !== t(ref.data_hora_termino));
+      if (mudouJanela) visitaData.auth_status = null;
+    }
 
     const pessoaData: any = {};
     if (dto.nome !== undefined) pessoaData.nome = dto.nome;
@@ -3505,6 +3528,17 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    * dava 409 eterno. No caso de o morador negar com o modal aberto, liberado
    * ainda é 0 no clique, então ele continua travado.
    */
+  /**
+   * Liberar por cima de uma autorização remota do morador a converte em
+   * liberação de quem liberou (vale pela janela): a auditoria diz isso.
+   */
+  private notaConversaoRemota(ref: any): string {
+    if (!ehAutorizacaoRemota(ref)) return '';
+    const prazo = prazoAutorizacaoRemotaMs(ref);
+    const estado = prazo === null ? 'já usada' : prazo >= Date.now() ? 'ainda ativa' : 'expirada';
+    return ` (converteu a autorização remota do morador, ${estado}, em liberação direta, pela janela da visita)`;
+  }
+
   private assertNegativaConhecida(
     ref: { auth_status?: string | null; liberado?: number | null },
     esperado: string | null | undefined,
@@ -3586,7 +3620,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       acao: 'UPDATE',
       modulo: 'visitas',
       entidade_id: v.id,
-      descricao: `Acesso liberado: ${label} "${v.pessoa?.nome}" no ${aptoLabel}`,
+      descricao: `Acesso liberado: ${label} "${v.pessoa?.nome}" no ${aptoLabel}${this.notaConversaoRemota(ref)}`,
       detalhes: ctx ?? undefined,
     });
     await this.desativarOutrosCodigosVisita(

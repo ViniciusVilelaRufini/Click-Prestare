@@ -1,5 +1,6 @@
 import { VisitantesService } from './visitantes.service';
 import { prazoAutorizacaoRemotaMs } from '../common/janela-visita';
+import { mantemLiberadoNaSaida } from './visitantes.service';
 
 /**
  * Rodada 4, item 1: a autorização remota do morador vale 10 min também no
@@ -61,5 +62,70 @@ describe('Liberar (Pessoas/Visitas) sobre autorização remota do morador', () =
     const { svc, visita } = montar({ auth_respondido_por: null });
     await svc.liberarAcesso(1000004, porteiro, undefined, 'autorizado');
     expect(visita.auth_status).toBe('autorizado');
+  });
+
+  // Rodada 1, M-3: a auditoria diz que houve conversão.
+  it('a auditoria do Liberar registra a conversão da autorização remota (expirada)', async () => {
+    const { svc } = montar();
+    await svc.liberarAcesso(1000004, porteiro, undefined, 'autorizado');
+    const auditoria = (svc as any).auditoria.registrar.mock.calls[0][0];
+    expect(auditoria.descricao).toMatch(/converteu a autorização remota do morador, expirada, em liberação direta/);
+  });
+
+  it('sem autorização remota a descrição do Liberar fica como antes', async () => {
+    const { svc } = montar({ auth_status: null, auth_respondido_por: null });
+    await svc.liberarAcesso(1000004, porteiro);
+    expect((svc as any).auditoria.registrar.mock.calls[0][0].descricao).not.toMatch(/converteu/);
+  });
+
+  // Rodada 1, I-2: a autorização remota vale uma entrada — a baixa do console
+  // não mantém a liberação, nem do prestador; a vaga cedida pelo morador sim.
+  describe('mantemLiberadoNaSaida com autorização remota', () => {
+    const remota = { auth_status: 'autorizado', auth_respondido_em: new Date(), auth_respondido_por: 77 };
+    it('prestador vindo de pedido: não mantém', () => {
+      expect(mantemLiberadoNaSaida({ is_prestador: 1, ...remota })).toBe(false);
+    });
+    it('recorrente vindo de pedido: não mantém', () => {
+      const futuro = new Date(Date.now() + 24 * 60 * 60_000);
+      expect(mantemLiberadoNaSaida({ dias_semana: 'seg', data_hora_termino: futuro, ...remota })).toBe(false);
+    });
+    it('com vaga vigente: mantém', () => {
+      expect(mantemLiberadoNaSaida({ ...remota }, Date.now(), true)).toBe(true);
+    });
+    it('prestador sem pedido: mantém como sempre', () => {
+      expect(mantemLiberadoNaSaida({ is_prestador: 1 })).toBe(true);
+    });
+  });
+
+  // Rodada 1, M-1 (parte do morador): mudar as datas de uma visita remota não
+  // usada é uma liberação nova dele — deixa de ser remota.
+  describe('morador edita a janela da visita remota não usada', () => {
+    const morador = { sub: 77, typeAccess: 'Morador', user: { id: 77 } } as any;
+    function montarEdicao() {
+      const m = montar();
+      const s = m.svc as any;
+      jest.spyOn(s, 'assertFlagCadastrarVisitante').mockResolvedValue(undefined);
+      jest.spyOn(s, 'assertPodeUsarApartamento').mockResolvedValue(undefined);
+      jest.spyOn(s, 'aptosDoMoradorMobile').mockResolvedValue([106]);
+      jest.spyOn(s, 'mapVisitaParaRespostaLegada').mockReturnValue({});
+      return m;
+    }
+    const fmtLocal = (d: Date) =>
+      new Date(d.getTime() - 3 * 60 * 60_000).toISOString().slice(0, 19).replace('T', ' ');
+
+    it('mudou o término: auth_status sai e a janela dele vale', async () => {
+      const { svc, prisma, visita } = montarEdicao();
+      await svc.update({
+        id: 1000004, id_apartamento: 106,
+        data_hora_termino: fmtLocal(new Date(visita.data_hora_termino.getTime() + 60 * 60_000)),
+      } as any, morador);
+      expect(prisma.visitas.update.mock.calls[0][0].data).toEqual(expect.objectContaining({ auth_status: null }));
+    });
+
+    it('sem mudar a janela (o app manda o formulário inteiro): continua remota', async () => {
+      const { svc, prisma } = montarEdicao();
+      await svc.update({ id: 1000004, id_apartamento: 106, categorias: 'Amigo' } as any, morador);
+      expect(prisma.visitas.update.mock.calls[0][0].data).not.toHaveProperty('auth_status');
+    });
   });
 });
