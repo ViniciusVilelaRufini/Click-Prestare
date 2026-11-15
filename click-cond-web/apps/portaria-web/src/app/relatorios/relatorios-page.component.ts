@@ -61,6 +61,8 @@ export class RelatoriosPageComponent {
   readonly tipo = signal<'visitantes' | 'encomendas' | 'ocorrencias' | 'financeiro'>('visitantes');
   readonly dataInicio = signal<string>('');
   readonly dataFim = signal<string>('');
+  /** Só no financeiro: reinclui as taxas apto a apto, como o interruptor do Livro Caixa. */
+  readonly incluirTaxasCondominiais = signal<boolean>(false);
   readonly loading = signal<boolean>(false);
   readonly error = signal<string | null>(null);
 
@@ -481,6 +483,7 @@ export class RelatoriosPageComponent {
       formato,
       this.dataInicio() || undefined,
       this.dataFim() || undefined,
+      this.tipo() === 'financeiro' && this.incluirTaxasCondominiais(),
     ).subscribe({
       next: (blob) => {
         const url = window.URL.createObjectURL(blob);
@@ -497,8 +500,21 @@ export class RelatoriosPageComponent {
       },
       error: (err) => {
         console.error(err);
-        this.error.set('Não foi possível gerar o relatório. Verifique os filtros e tente novamente.');
         this.loading.set(false);
+        const padrao = 'Não foi possível gerar o relatório. Verifique os filtros e tente novamente.';
+        // O download pede blob: a mensagem da API chega dentro dele.
+        const corpo = err?.error;
+        if (corpo instanceof Blob && typeof corpo.text === 'function') {
+          this.error.set(padrao);
+          corpo.text().then((t) => {
+            try {
+              const msg = JSON.parse(t)?.message;
+              if (msg) this.error.set(Array.isArray(msg) ? msg.join(' ') : String(msg));
+            } catch { /* corpo não é JSON: fica a mensagem padrão */ }
+          }).catch(() => undefined);
+        } else {
+          this.error.set(err?.error?.message ?? padrao);
+        }
       },
     });
   }

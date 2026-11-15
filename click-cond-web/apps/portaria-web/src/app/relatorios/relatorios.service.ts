@@ -14,13 +14,20 @@ export class RelatoriosApi {
     return `${API_BASE}/condominios/${cid}/relatorios`;
   }
 
-  downloadReport(tipo: string, formato: string, dataInicio?: string, dataFim?: string): Observable<Blob> {
+  downloadReport(
+    tipo: string,
+    formato: string,
+    dataInicio?: string,
+    dataFim?: string,
+    incluirTaxasCondominiais = false,
+  ): Observable<Blob> {
     let params = new HttpParams()
       .set('tipo', tipo)
       .set('formato', formato);
 
     if (dataInicio) params = params.set('dataInicio', dataInicio);
     if (dataFim) params = params.set('dataFim', dataFim);
+    if (incluirTaxasCondominiais) params = params.set('incluirTaxasCondominiais', 'true');
 
     return this.http.get(this.base, {
       params,

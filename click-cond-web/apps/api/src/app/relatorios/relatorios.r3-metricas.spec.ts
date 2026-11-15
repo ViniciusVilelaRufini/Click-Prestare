@@ -29,6 +29,8 @@ describe('RelatoriosService.generate — rodada 3', () => {
       encomendas: { findMany: jest.fn(async () => dados.encomendas ?? []) },
       ocorrencias: { findMany: jest.fn(async () => dados.ocorrencias ?? []) },
       financeiro: { findMany: jest.fn(async () => dados.financeiro ?? []) },
+      // Rodada 4: o financeiro esconde as taxas condominiais apto a apto.
+      apartamentos: { findMany: jest.fn(async () => []) },
     };
     const svc = new RelatoriosService(prisma);
     const excel = jest.spyOn(svc as any, 'generateExcel').mockReturnValue(Buffer.from('x'));

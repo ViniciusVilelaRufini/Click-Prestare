@@ -18,6 +18,18 @@ import {
   resolverPeriodoEventos,
 } from './eventos-espinha';
 import { cabecalhoMarca, fileteMarca, PDF_COR, temaPdf, travarAcessosPdf } from './pdf-tema';
+import {
+  ehTaxaCondominialDeApto,
+  lancamentoPago,
+  lancamentoRenegociado,
+  valorNoLivroCaixa,
+} from '../financeiro/livro-caixa-criterio.util';
+
+/** Opções do relatório financeiro. Todas opcionais: o app publicado não manda nenhuma. */
+export interface OpcoesRelatorioFinanceiro {
+  /** Reinclui as taxas condominiais apto a apto (padrão: fora, como no Livro Caixa). */
+  incluirTaxasCondominiais?: boolean;
+}
 
 /**
  * Módulos do log que só o síndico lê: os detalhes trazem valores, nomes e
@@ -118,6 +130,7 @@ export class RelatoriosService {
     dataFim?: string,
     bloco?: string,
     apto?: string,
+    opcoes: OpcoesRelatorioFinanceiro = {},
   ): Promise<{ buffer: Buffer; mime: string; filename: string }> {
     const condominio = await this.prisma.condominios.findUnique({
       where: { id: idCondominio },
@@ -431,10 +444,28 @@ export class RelatoriosService {
       ];
     }
 
-    let list = await this.prisma.financeiro.findMany({
+    const listBruta = await this.prisma.financeiro.findMany({
       where,
       orderBy: { created_at: 'desc' },
     });
+
+    // Mesmo recorte do Livro Caixa (financeiro/livro-caixa-criterio.util), para
+    // o Balanço daqui fechar com o Saldo de lá no mesmo mês:
+    //  - a dívida renegociada num acordo sai (a Inadimplência também a tira);
+    //    as parcelas do acordo ficam;
+    //  - as taxas condominiais apto a apto ficam fora, salvo com o interruptor.
+    //    Com unidade escolhida no filtro elas entram: o relatório de um
+    //    apartamento existe justamente para mostrar as cobranças dele.
+    const incluirTaxas = opcoes.incluirTaxasCondominiais === true || !!cleanApto;
+    const aptosDoCondominio = incluirTaxas
+      ? []
+      : await this.prisma.apartamentos.findMany({
+          where: { id_condominio: idCondominio },
+          select: { apto: true, bloco: true },
+        });
+    let list = listBruta.filter(
+      (f) => !lancamentoRenegociado(f) && (incluirTaxas || !ehTaxaCondominialDeApto(f, aptosDoCondominio)),
+    );
 
     if (cleanApto) {
       list = list.filter((f) => {
@@ -448,13 +479,36 @@ export class RelatoriosService {
       });
     }
 
+    // Totais como no Livro Caixa: só o que está pago entra em receitas,
+    // despesas e balanço. O que não foi pago no período aparece à parte.
+    let totalReceitas = 0;
+    let totalDespesas = 0;
+    let aReceber = 0;
+    let aPagar = 0;
+    for (const f of list) {
+      const v = valorNoLivroCaixa(f);
+      if (lancamentoPago(f)) {
+        if (v < 0) totalDespesas += -v;
+        else totalReceitas += v;
+      } else if (v < 0) aPagar += -v;
+      else aReceber += v;
+    }
+    const balanco = totalReceitas - totalDespesas;
+    const resumo = [
+      { label: 'Total Receitas', valor: totalReceitas },
+      { label: 'Total Despesas', valor: totalDespesas },
+      { label: 'Balanço Geral', valor: balanco },
+      { label: 'A receber', valor: aReceber },
+      { label: 'A pagar', valor: aPagar },
+    ];
+    const arred = (n: number) => Math.round(n * 100) / 100;
+
     const excelData = list.map((f) => {
-      const isRevenue = f.tipo?.toUpperCase() === 'C';
-      const rawVal = Math.abs(f.valor ? Number(f.valor) : 0);
+      const v = valorNoLivroCaixa(f);
       return {
         Nome: f.nome || '-',
-        Tipo: isRevenue ? 'Receita' : 'Despesa',
-        Valor: isRevenue ? rawVal : -rawVal,
+        Tipo: f.tipo === 'D' ? 'Despesa' : 'Receita',
+        Valor: v,
         Vencimento: formatDiaDb(f.data_vencimento),
         // O período é pela data do pagamento (competência): ela precisa aparecer.
         // Só no lançamento pago: `data` também vem preenchida no que não foi pago.
@@ -466,29 +520,20 @@ export class RelatoriosService {
     });
 
     if (formato === 'xlsx') {
-      const buffer = this.generateExcel(excelData, 'Financeiro');
+      const buffer = this.generateExcel(excelData, 'Financeiro', [
+        { nome: 'Resumo', dados: resumo.map((m) => ({ Indicador: m.label, Valor: arred(m.valor) })) },
+      ]);
       return {
         buffer,
         mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         filename: `relatorio_financeiro${fileSuffix}_${getTimestamp()}.xlsx`,
       };
     } else {
-      const totalReceitas = list
-        .filter((f) => f.tipo?.toUpperCase() === 'C')
-        .reduce((sum, f) => sum + Math.abs(f.valor ? Number(f.valor) : 0), 0);
-      const totalDespesas = list
-        .filter((f) => f.tipo?.toUpperCase() === 'D')
-        .reduce((sum, f) => sum + Math.abs(f.valor ? Number(f.valor) : 0), 0);
-
       const buffer = await this.generatePdf({
         headerText: `Relatório Financeiro - ${nomeCondo}`,
         unidade: unidadeDesc,
         periodo: this.formatPeriod(dataInicio, dataFim),
-        metrics: [
-          { label: 'Total Receitas', value: `R$ ${totalReceitas.toFixed(2)}` },
-          { label: 'Total Despesas', value: `R$ ${totalDespesas.toFixed(2)}` },
-          { label: 'Balanço Geral', value: `R$ ${(totalReceitas - totalDespesas).toFixed(2)}` },
-        ],
+        metrics: resumo.map((m) => ({ label: m.label, value: `R$ ${m.valor.toFixed(2)}` })),
         table: {
           widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto'],
           body: [
@@ -497,12 +542,11 @@ export class RelatoriosService {
               style: 'tableHeader',
             })),
             ...list.map((f) => {
-              const isRevenue = f.tipo?.toUpperCase() === 'C';
-              const rawVal = Math.abs(f.valor ? Number(f.valor) : 0);
-              const valStr = isRevenue ? `R$ ${rawVal.toFixed(2)}` : `-R$ ${rawVal.toFixed(2)}`;
+              const v = valorNoLivroCaixa(f);
+              const valStr = v < 0 ? `-R$ ${(-v).toFixed(2)}` : `R$ ${v.toFixed(2)}`;
               return [
                 f.nome || '-',
-                isRevenue ? 'Receita' : 'Despesa',
+                f.tipo === 'D' ? 'Despesa' : 'Receita',
                 valStr,
                 formatDiaDb(f.data_vencimento),
                 f.pago === 1 ? formatDiaDb(f.data) : '-',
@@ -521,10 +565,13 @@ export class RelatoriosService {
     }
   }
 
-  private generateExcel(data: any[], sheetName: string): Buffer {
+  private generateExcel(data: any[], sheetName: string, abasExtras: { nome: string; dados: any[] }[] = []): Buffer {
     const ws = xlsx.utils.json_to_sheet(data);
     const wb = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(wb, ws, sheetName);
+    for (const aba of abasExtras) {
+      xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(aba.dados), aba.nome);
+    }
     return xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
   }
 
