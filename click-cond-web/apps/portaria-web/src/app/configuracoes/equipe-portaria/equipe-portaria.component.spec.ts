@@ -96,6 +96,7 @@ describe('EquipePortariaComponent', () => {
     botao(el, 12, 'desativar')!.click();
     await estabilizar(fixture);
     expect(ask).toHaveBeenCalledTimes(1);
+    expect(ask.mock.calls[0][0].message).toContain('deixa de entrar no console e no app como funcionário deste condomínio até ser reativado');
     expect(ask.mock.calls[0][0].message).toContain('30 segundos');
     const req = http.expectOne({ method: 'PATCH', url: `${URL}/12` });
     expect(req.request.body).toEqual({ ativo: false });
@@ -127,11 +128,29 @@ describe('EquipePortariaComponent', () => {
     expect(linha(el, 13).textContent).toContain('Ativo');
   });
 
-  it('a própria linha do síndico não tem o botão de desativar', () => {
+  it('linha de síndico (a própria ou de outro síndico) não tem Desativar, e mostra a dica', () => {
     const { fixture, el } = render();
+    const dados = lista();
+    dados.push({ ...dados[0], id: 16, nome: 'Co-síndico', login: 'co@x.com', sindico: true, voce: false });
+    carregar(fixture, dados);
+    for (const id of [14, 16]) {
+      expect(botao(el, id, 'desativar')).toBeNull();
+      expect(linha(el, id).querySelector('[data-dica-sindico]')).toBeTruthy();
+      expect(botao(el, id, 'turno')).toBeTruthy();
+    }
+    expect(botao(el, 12, 'desativar')).toBeTruthy();
+  });
+
+  it('o nome devolvido pela API (igualado ao do prestador ao sair de Geral) aparece na linha', () => {
+    const { fixture, el, cmp } = render();
     carregar(fixture);
-    expect(botao(el, 14, 'desativar')).toBeNull();
-    expect(botao(el, 14, 'turno')).toBeTruthy();
+    botao(el, 13, 'turno')!.click();
+    fixture.detectChanges();
+    cmp.turnoEditado = 'Noturno';
+    (linha(el, 13).querySelector('button[data-acao="salvar-turno"]') as HTMLButtonElement).click();
+    http.expectOne({ method: 'PATCH', url: `${URL}/13` }).flush({ id: 13, ativo: false, turno: 'Noturno', nome: 'Eletricista Silva' });
+    fixture.detectChanges();
+    expect(linha(el, 13).textContent).toContain('Eletricista Silva');
   });
 
   it('mudar o turno envia PATCH { turno } e mostra o novo valor', async () => {

@@ -24,10 +24,10 @@ export interface LoginPortaria {
   voce: boolean;
 }
 
-/** Texto da confirmação de desativar (o que acontece e o que não acontece). */
+/** Texto da confirmação de desativar (o que acontece, e como volta). */
 export function avisoDesativar(nome: string): string {
-  return `${nome} deixa de entrar no console da portaria, e a sessão aberta cai em até 30 segundos. ` +
-    'O app do funcionário não muda: para tirar todo o acesso, exclua-o pelo app do síndico ou desligue o acesso no cadastro do prestador.';
+  return `${nome} deixa de entrar no console e no app como funcionário deste condomínio até ser reativado. ` +
+    'A sessão aberta cai em até 30 segundos. Para devolver o acesso, use Ativar.';
 }
 
 /**
@@ -126,10 +126,12 @@ export class EquipePortariaComponent implements OnInit {
     if (!url) return;
     this.erro.set(null);
     this.salvando.set(f.id);
-    this.http.patch<{ id: number; ativo: boolean; turno: string }>(`${url}/${f.id}`, body).subscribe({
+    this.http.patch<{ id: number; ativo: boolean; turno: string; nome?: string }>(`${url}/${f.id}`, body).subscribe({
       next: (r) => {
         this.salvando.set(null);
-        this.equipe.update((l) => l.map((x) => (x.id === f.id ? { ...x, ativo: !!r?.ativo, turno: r?.turno ?? x.turno } : x)));
+        this.equipe.update((l) =>
+          l.map((x) => (x.id === f.id ? { ...x, ativo: !!r?.ativo, turno: r?.turno ?? x.turno, nome: r?.nome ?? x.nome } : x)),
+        );
         depois?.();
       },
       error: (e: any) => {

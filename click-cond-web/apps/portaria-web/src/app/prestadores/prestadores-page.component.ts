@@ -509,6 +509,38 @@ export class PrestadoresPageComponent implements OnInit {
     return !!atual && atual !== this.emailDeAcessoOriginal.toLowerCase();
   }
 
+  readonly revogando = signal(false);
+
+  /**
+   * Login desativado na aba "Equipe da portaria": revogar de vez (login, vínculo e conta só daqui) pelo caminho
+   * explícito da API. Só o síndico vê o botão; a API confere de novo.
+   */
+  async revogarAcessoDeVez() {
+    if (this.editingId === null || this.revogando()) return;
+    const ok = await this.confirm.ask({
+      title: 'Revogar o acesso de vez?',
+      message: `${this.novo.nome} perde o login de portaria e o acesso como funcionário deste condomínio. Para voltar, será preciso conceder o acesso de novo, com senha nova.`,
+      confirmLabel: 'Revogar',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    this.revogando.set(true);
+    this.error.set(null);
+    this.api.revogarAcesso(this.editingId).subscribe({
+      next: () => {
+        this.revogando.set(false);
+        this.loginDesativado = false;
+        this.emailDeAcessoOriginal = null;
+        this.cancelarForm();
+        this.carregar();
+      },
+      error: (e: any) => {
+        this.revogando.set(false);
+        this.error.set(e?.error?.message ?? e?.message ?? 'Não foi possível revogar o acesso.');
+      },
+    });
+  }
+
   async remover(p: Prestador) {
     const ok = await this.confirm.ask({
       title: 'Remover prestador',

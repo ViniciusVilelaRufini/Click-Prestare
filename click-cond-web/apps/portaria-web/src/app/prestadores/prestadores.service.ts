@@ -63,6 +63,11 @@ export class PrestadoresApi {
     return this.http.patch<Prestador>(`${this.base}/${id}/foto`, { campo });
   }
 
+  /** Revoga de vez o login de portaria do prestador (caminho explícito do login desativado). Só síndico. */
+  revogarAcesso(id: number): Observable<{ success: boolean }> {
+    return this.http.post<{ success: boolean }>(`${this.base}/${id}/revogar-acesso`, {});
+  }
+
   remove(id: number): Observable<{ ok: boolean }> {
     return this.http.delete<{ ok: boolean }>(`${this.base}/${id}`);
   }

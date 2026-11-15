@@ -34,12 +34,15 @@ const semLogin = { id: 2, nome: 'Jardineiro', telefone: null, email: null, categ
 const loginInativo = { id: 3, nome: 'Pintor', telefone: null, email: 'i@x.com', categorias: '', id_condominio: 1, hasPortariaAccess: false, loginPortariaProprio: true };
 
 describe('PrestadoresPageComponent — acesso à portaria só para o síndico', () => {
+  let ask: jest.Mock;
   function render(token: string, turno: string | null) {
+    ask = jest.fn(async () => true);
     const api = {
       list: jest.fn(() => of([comLogin, semLogin, loginInativo])),
       create: jest.fn(() => of({ id: 3 })),
       update: jest.fn(() => of({ id: 1 })),
       remove: jest.fn(() => of({ ok: true })),
+      revogarAcesso: jest.fn(() => of({ success: true })),
       clearFoto: jest.fn(),
     };
     TestBed.configureTestingModule({
@@ -50,7 +53,7 @@ describe('PrestadoresPageComponent — acesso à portaria só para o síndico', 
         { provide: VisitantesService, useValue: { list: () => of([]), listarPessoas: () => of([]) } },
         { provide: ApartamentosApi, useValue: { list: () => of([]) } },
         { provide: ConsentimentosApi, useValue: { registrarTerceiro: () => of({}) } },
-        { provide: ConfirmService, useValue: { ask: jest.fn(async () => true) } },
+        { provide: ConfirmService, useValue: { ask } },
         { provide: AuthService, useValue: { porteiroInfo: signal({ nome: 'X', turno, id_condominio: 1 }), token } },
       ],
     });
@@ -126,11 +129,42 @@ describe('PrestadoresPageComponent — acesso à portaria só para o síndico', 
     expect((api.update.mock.calls[0] as any[])[1]).toHaveProperty('hasPortariaAccess', true);
   });
 
-  it('a edição de quem tem o login desativado avisa onde reativar', () => {
+  it('login desativado: mostra o estado, sem a chave, com Reativar e Revogar acesso de vez', () => {
     const { atualizar, cmp, el } = render(SINDICO, 'Síndico');
     cmp.abrirEditar(loginInativo as any);
     atualizar();
-    expect(el.textContent).toContain('Login desativado em Configurações › Equipe da portaria');
+    expect(el.querySelector('[data-acesso-desativado]')?.textContent).toContain('Acesso desativado na Equipe da portaria');
+    expect(temChave(el)).toBe(false);
+    (el.querySelector('button[data-acao="reativar-acesso"]') as HTMLButtonElement).click();
+    atualizar();
+    expect(cmp.novo.hasPortariaAccess).toBe(true);
+    expect(temChave(el)).toBe(true);
+  });
+
+  it('"Revogar acesso de vez" confirma e chama a rota explícita; erro da API aparece', async () => {
+    const { atualizar, cmp, el, api } = render(SINDICO, 'Síndico');
+    cmp.abrirEditar(loginInativo as any);
+    atualizar();
+    (el.querySelector('button[data-acao="revogar-acesso"]') as HTMLButtonElement).click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(api.revogarAcesso).toHaveBeenCalledWith(3);
+    expect(api.update).not.toHaveBeenCalled();
+
+    api.revogarAcesso.mockReturnValueOnce(throwError(() => ({ error: { message: 'Acesso negado: revogar exige síndico.' } })));
+    cmp.abrirEditar(loginInativo as any);
+    await cmp.revogarAcessoDeVez();
+    expect(cmp.error()).toBe('Acesso negado: revogar exige síndico.');
+  });
+
+  it('desistir na confirmação não revoga', async () => {
+    const { atualizar, cmp, api } = render(SINDICO, 'Síndico');
+    cmp.abrirEditar(loginInativo as any);
+    atualizar();
+    ask.mockResolvedValueOnce(false);
+    await cmp.revogarAcessoDeVez();
+    expect(api.revogarAcesso).not.toHaveBeenCalled();
   });
 
   it('desligar a chave de quem tem login ativo continua mandando false (revoga)', () => {

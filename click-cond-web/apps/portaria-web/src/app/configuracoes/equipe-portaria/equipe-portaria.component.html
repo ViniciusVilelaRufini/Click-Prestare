@@ -90,7 +90,10 @@
                     <button type="button" data-acao="turno" (click)="editarTurno(f)" [disabled]="salvando() !== null" class="ps-btn ps-btn-sec ps-btn-sm">Turno</button>
                   }
                   @if (f.ativo) {
-                    @if (!f.voce) {
+                    @if (f.sindico || f.voce) {
+                      <!-- O síndico entra com a senha da conta dele: desativar a linha de portaria não teria efeito. -->
+                      <span data-dica-sindico class="text-xs text-slate-500" title="O síndico entra com a senha da conta dele; desativar esta linha não tiraria o acesso.">Síndico: sem desativar</span>
+                    } @else {
                       <button type="button" data-acao="desativar" (click)="alternarAtivo(f)" [disabled]="salvando() !== null" class="ps-btn ps-btn-danger ps-btn-sm">Desativar</button>
                     }
                   } @else {
@@ -104,8 +107,8 @@
       </table>
     </div>
     <p class="text-xs text-slate-500 leading-relaxed">
-      Desativar tira só o acesso ao console: a sessão aberta cai em até 30 segundos. O app do funcionário não muda.
-      Último acesso é o último login no console com senha.
+      Desativar tira o acesso ao console e ao app como funcionário deste condomínio até ser reativado (a sessão aberta
+      cai em até 30 segundos). Último acesso é o último login no console, por senha ou QR, nos últimos 90 dias.
     </p>
   }
 </div>
