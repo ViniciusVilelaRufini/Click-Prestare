@@ -120,4 +120,68 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
     expect(c.textContent).toContain('Total apurado: 2');
     expect(c.querySelector('.bg-accent')).toBeTruthy();
   });
+
+  describe('Somente proprietários', () => {
+    it('selo na pauta marcada; sem selo na desmarcada e na da API antiga', () => {
+      const { fixture, el, comp } = render({
+        getAssembleia: jest.fn(() =>
+          of({ assembleia: ASSEMBLEIA, votacoes: [PAUTA_OCULTA, PAUTA_ENCERRADA, PAUTA_ANTIGA], meusVotos: [] }),
+        ),
+      });
+      comp.verAssembleia(2);
+      fixture.detectChanges();
+      expect(cartao(el, 'Obra').textContent).toContain('Somente proprietários');
+      expect(cartao(el, 'Contas').textContent).not.toContain('Somente proprietários');
+      expect(cartao(el, 'Fachada').textContent).not.toContain('Somente proprietários');
+    });
+
+    it('selo também na enquete marcada (true ou 1)', () => {
+      const { fixture, el, comp } = render({
+        listEnquetes: jest.fn(() => of([{ ...PAUTA_ANTIGA, id: 30, titulo: 'Reforma', somente_proprietarios: true }])),
+      });
+      comp.tab.set('enquetes');
+      fixture.detectChanges();
+      expect(cartao(el, 'Reforma').textContent).toContain('Somente proprietários');
+    });
+
+    function caixa(el: HTMLElement) {
+      return el.querySelector('.ps-drawer input[type="checkbox"][name="somente_proprietarios"]') as HTMLInputElement;
+    }
+
+    it('nova pauta: caixa desmarcada com a explicação; marcada vai no payload', async () => {
+      const insertVotacao = jest.fn(() => of({}));
+      const { fixture, el, comp } = render({ insertVotacao });
+      comp.verAssembleia(2);
+      comp.abrirModalPauta(2);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      const cb = caixa(el);
+      expect(cb).toBeTruthy();
+      expect(cb.checked).toBe(false);
+      expect(el.querySelector('.ps-drawer')?.textContent).toContain(
+        'Inquilinos não votam nesta pauta. Use em despesas extraordinárias, obras e alteração de convenção.',
+      );
+      cb.click();
+      fixture.detectChanges();
+      comp.novaVotacao.titulo = 'Obra da fachada';
+      comp.salvarVotacao();
+      expect(insertVotacao).toHaveBeenCalledWith(
+        expect.objectContaining({ id_assembleia: 2, somente_proprietarios: true }),
+      );
+    });
+
+    it('nova enquete: caixa presente; desmarcada vai como false', async () => {
+      const insertVotacao = jest.fn(() => of({}));
+      const { fixture, el, comp } = render({ insertVotacao });
+      comp.abrirModalEnquete();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(caixa(el)).toBeTruthy();
+      comp.novaVotacao.titulo = 'Horário da piscina';
+      comp.salvarVotacao();
+      expect(insertVotacao).toHaveBeenCalledWith(
+        expect.objectContaining({ is_enquete: true, somente_proprietarios: false }),
+      );
+    });
+  });
 });

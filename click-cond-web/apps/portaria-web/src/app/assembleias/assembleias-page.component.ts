@@ -252,7 +252,8 @@ export class AssembleiasPageComponent implements OnInit {
 
     this.novaVotacao = {
       titulo: '', descricao: '', data_inicio: dIni, data_termino: dFim,
-      is_enquete: true, id_assembleia: null, opcoes: ['Sim, concordo', 'Não concordo']
+      is_enquete: true, id_assembleia: null, opcoes: ['Sim, concordo', 'Não concordo'],
+      somente_proprietarios: false,
     };
     this.erroModal.set(null);
     this.modalEnquete.set(true);
@@ -266,7 +267,8 @@ export class AssembleiasPageComponent implements OnInit {
 
     this.novaVotacao = {
       titulo: '', descricao: '', data_inicio: dIni, data_termino: dFim,
-      is_enquete: false, id_assembleia: idAssembleia, opcoes: ['Aprovar', 'Rejeitar', 'Abster']
+      is_enquete: false, id_assembleia: idAssembleia, opcoes: ['Aprovar', 'Rejeitar', 'Abster'],
+      somente_proprietarios: false,
     };
     this.erroModal.set(null);
     this.modalEnquete.set(true);
@@ -276,7 +278,7 @@ export class AssembleiasPageComponent implements OnInit {
     if (this.salvandoVotacao()) return;
     // Filtra opções vazias
     const filtradas = this.novaVotacao.opcoes.filter((o: string) => o.trim() !== '');
-    const payload = { ...this.novaVotacao, opcoes: filtradas };
+    const payload = { ...this.novaVotacao, opcoes: filtradas, somente_proprietarios: this.novaVotacao.somente_proprietarios === true };
 
     this.erroModal.set(null);
     this.salvandoVotacao.set(true);
@@ -331,6 +333,11 @@ export class AssembleiasPageComponent implements OnInit {
   /** A API esconde a contagem enquanto a votação está aberta. Campo ausente (API antiga): mostra como antes. */
   resultadoOculto(v: Votacao): boolean {
     return v?.resultado_oculto === true;
+  }
+
+  /** Pauta/enquete em que inquilinos não votam (1 ou true; ausente = não). */
+  somenteProprietarios(v: Votacao): boolean {
+    return v?.somente_proprietarios === true || Number(v?.somente_proprietarios) === 1;
   }
 
   /** "X de Y unidades votaram" (quórum); vazio quando a API não manda a participação. */

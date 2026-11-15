@@ -132,6 +132,9 @@
                               [class.ps-dot-warn]="v.status === 0"></span>
                         {{ v.status === 1 ? 'Em votação' : v.status === 0 ? 'Agendada' : 'Encerrada' }}
                       </span>
+                      @if (somenteProprietarios(v)) {
+                        <span class="ps-tag" title="Inquilinos não votam nesta pauta">Somente proprietários</span>
+                      }
                       @if (v.data_inicio || v.data_termino) {
                         <span class="text-xs text-slate-500 font-mono">{{ v.data_inicio }} a {{ v.data_termino }}</span>
                       }
@@ -300,6 +303,9 @@
                 </div>
               </div>
 
+              @if (somenteProprietarios(e)) {
+                <span class="ps-tag mb-2" title="Inquilinos não votam nesta enquete">Somente proprietários</span>
+              }
               <h3 class="text-base font-bold text-white mb-1">{{ e.titulo }}</h3>
               @if (e.descricao) {
                 <p class="text-xs text-slate-400 mb-4 leading-relaxed">{{ e.descricao }}</p>
@@ -540,6 +546,22 @@
               />
             </div>
           </div>
+
+          <label class="flex items-start gap-3 p-3 border border-slate-300 cursor-pointer">
+            <input
+              type="checkbox"
+              name="somente_proprietarios"
+              [(ngModel)]="novaVotacao.somente_proprietarios"
+              class="mt-0.5 w-4 h-4 shrink-0"
+              style="accent-color: var(--brand)"
+            />
+            <span class="space-y-0.5">
+              <span class="block text-xs text-slate-200 font-medium">Somente proprietários</span>
+              <span class="block text-[11px] leading-relaxed text-slate-400">
+                Inquilinos não votam {{ novaVotacao.id_assembleia ? 'nesta pauta' : 'nesta enquete' }}. Use em despesas extraordinárias, obras e alteração de convenção.
+              </span>
+            </span>
+          </label>
 
           <div class="space-y-2 pt-2 border-t border-slate-200">
             <span class="ps-label block">Opções de Voto</span>
