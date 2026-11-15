@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { FacialService } from '../facial/facial.service';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
+import { GuaritaImportacaoService } from './guarita-importacao.service';
 import {
   ESPERA_ATUALIZAR_RECEPTORES_MS,
   ESTADO_OP,
@@ -120,6 +121,7 @@ export class GuaritaAgenteService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly facial: FacialService,
+    @Optional() private readonly importacao?: GuaritaImportacaoService,
   ) {
     this.estado = new EstadoCompartilhado(prisma);
   }
@@ -252,6 +254,11 @@ export class GuaritaAgenteService {
       return { ok: true };
     }
     const r = this.validarResultado(corpo);
+    if (TIPOS_LEITURA.includes(op.tipo)) {
+      if (!this.importacao) throw new Error('GuaritaImportacaoService ausente');
+      await this.importacao.receberResultado(device, op, r);
+      return { ok: true };
+    }
     const agora = new Date();
     await this.prisma.guarita_Operacoes.updateMany({
       where: { id: op.id, estado: { in: [ESTADO_OP.pendente, ESTADO_OP.enviada] } },

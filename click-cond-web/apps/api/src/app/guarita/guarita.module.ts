@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { FacialModule } from '../facial/facial.module';
 import { GuaritaAgenteController } from './guarita-agente.controller';
 import { GuaritaAgenteService } from './guarita-agente.service';
+import { GuaritaController } from './guarita.controller';
+import { GuaritaImportacaoService } from './guarita-importacao.service';
 
 /**
  * Integração com o Módulo Guarita MG3000 (Nice / Linear-HCS) pelo Agente Local.
@@ -14,8 +16,8 @@ import { GuaritaAgenteService } from './guarita-agente.service';
  */
 @Module({
   imports: [FacialModule],
-  controllers: [GuaritaAgenteController],
-  providers: [GuaritaAgenteService],
+  controllers: [GuaritaAgenteController, GuaritaController],
+  providers: [GuaritaAgenteService, GuaritaImportacaoService],
   exports: [GuaritaAgenteService],
 })
 export class GuaritaModule {}

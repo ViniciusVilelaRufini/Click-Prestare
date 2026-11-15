@@ -1,0 +1,102 @@
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
+import { ReqUser } from '../auth/req-user.decorator';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { assertOperador } from '../auth/tenant.util';
+import { GuaritaImportacaoService } from './guarita-importacao.service';
+import { autorDoUsuario } from './guarita-comum.util';
+
+/**
+ * Rotas do console para o Módulo Guarita (`condominios/:idCondominio/guarita/…`).
+ *
+ * TenantGuard global amarra o :idCondominio ao token; aqui exige-se a mesma
+ * permissão que protege Veículos/Tags (assertOperador: síndico, funcionário ou
+ * operador da portaria). Guarita de outro condomínio → 404. As rotas sem
+ * `:deviceId` (alertas) são declaradas ANTES das com `:deviceId`.
+ *
+ * Nenhuma resposta daqui contém a palavra de autorização do Guarita.
+ */
+@Controller('condominios/:idCondominio/guarita')
+export class GuaritaController {
+  constructor(private readonly importacao: GuaritaImportacaoService) {}
+
+  // ------------------------------------------------ importação / conferência
+
+  @Post(':deviceId/importar')
+  async importar(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'importar o cadastro do Guarita');
+    return this.importacao.solicitar(idCondominio, deviceId, 'importar', autorDoUsuario(user));
+  }
+
+  @Post(':deviceId/conferir')
+  async conferir(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'conferir o cadastro do Guarita');
+    return this.importacao.solicitar(idCondominio, deviceId, 'conferir', autorDoUsuario(user));
+  }
+
+  @Get(':deviceId/operacoes/:idOperacao')
+  async operacao(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @Param('idOperacao', ParseIntPipe) idOperacao: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'acompanhar operação do Guarita');
+    return this.importacao.operacao(idCondominio, deviceId, idOperacao);
+  }
+
+  // ------------------------------------------------------- dispositivos
+
+  @Get(':deviceId/dispositivos')
+  async listarDispositivos(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @Query('estado') estado: string | undefined,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'listar os dispositivos do Guarita');
+    return this.importacao.listarDispositivos(idCondominio, deviceId, estado);
+  }
+
+  @Post(':deviceId/dispositivos/:idTag/vincular')
+  async vincular(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @Param('idTag', ParseIntPipe) idTag: number,
+    @Body() body: { id_veiculo?: number },
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'vincular dispositivo do Guarita');
+    return this.importacao.vincular(idCondominio, deviceId, idTag, body?.id_veiculo);
+  }
+
+  // ------------------------------------------------- cópias de segurança
+
+  @Get(':deviceId/backups')
+  async listarBackups(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'listar as cópias de segurança do Guarita');
+    return this.importacao.listarBackups(idCondominio, deviceId);
+  }
+
+  @Get(':deviceId/backups/:idBackup')
+  async baixarBackup(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @Param('idBackup', ParseIntPipe) idBackup: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'baixar cópia de segurança do Guarita');
+    return this.importacao.baixarBackup(idCondominio, deviceId, idBackup);
+  }
+}
