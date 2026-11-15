@@ -217,7 +217,11 @@ function criarGuaritaSimulado(opcoes = {}) {
   function validarFrameDispositivo(disp, opcao) {
     const tipo = disp[0] >> 4;
     if (![1, 2, 3, 6].includes(tipo)) return false;
-    if (tipo !== 1 && (disp[0] & 0x0f) !== 0) return false;
+    // Nibble baixo do byte 1: no RF é serial; no CT é o <disp_dest> (0
+    // Guarita ou 4 Catraca 2010) e faz parte da chave; em TA/TP é sempre 0.
+    const nibble = disp[0] & 0x0f;
+    if (tipo === 3 && nibble !== 0 && nibble !== 4) return false;
+    if ((tipo === 2 || tipo === 6) && nibble !== 0) return false;
     // Ler (3) e apagar (4) só usam a chave (tipo + serial, bytes 1-4).
     if (opcao === 3 || opcao === 4) return true;
     if (disp[1] === 0 && disp[2] === 0 && disp[3] === 0 && (disp[0] & 0x0f) === 0) return false;

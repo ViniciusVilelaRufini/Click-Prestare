@@ -338,3 +338,23 @@ test('Menor 7: edição de CT Visitante (bytes 5-6 = "VI") com base39 preserva o
   assert.equal(novo[4], 0);
   assert.equal(novo[5], 0);
 });
+
+test('item 2: CT com destino (nibble baixo do byte 1) faz parte da identidade: decodifica dispDest, codifica e apaga com ele', () => {
+  const ct = codec.codificarDispositivo({ tipo: 3, dispDest: 4, serialHex: '0F086E', unidade: 1, bloco: 'A', rotulo: 'CATRACA', marca: 0x16, cor: 0, placa: '' });
+  assert.equal(ct[0], 0x34);
+  const d = codec.decodificarDispositivo(ct);
+  assert.equal(d.tipo, 3);
+  assert.equal(d.dispDest, 4);
+  assert.equal(d.serialHex, '0F086E');
+  assert.equal(codec.decodificarDispositivo(codec.codificarDispositivo({ tipo: 3, serialHex: '0F086E', unidade: 1, bloco: 'A' })).dispDest, 0);
+  assert.equal(hex(codec.codificarApagar(3, '0F086E', 4)), '340F086E' + '00'.repeat(35));
+  assert.equal(hex(codec.codificarApagar(3, '0F086E')), '300F086E' + '00'.repeat(35));
+  // edição com base: o destino lido é preservado
+  const editado = codec.codificarDispositivo({ tipo: 3, serialHex: '0F086E', unidade: 2, bloco: 'A', rotulo: 'X' }, ct);
+  assert.equal(editado[0], 0x34);
+  // só 0 (Guarita) ou 4 (Catraca 2010), e só no CT
+  assert.throws(() => codec.codificarDispositivo({ tipo: 3, dispDest: 5, serialHex: '0F086E', unidade: 1, bloco: 'A' }), /destino/);
+  assert.throws(() => codec.codificarDispositivo({ tipo: 2, dispDest: 4, serialHex: '0F086E', unidade: 1, bloco: 'A' }), /destino/);
+  assert.throws(() => codec.codificarApagar(6, '0F086E', 4), /destino/);
+  assert.equal(codec.decodificarDispositivo(codec.codificarDispositivo({ tipo: 2, serialHex: '0F086E', unidade: 1, bloco: 'A' })).dispDest, 0);
+});

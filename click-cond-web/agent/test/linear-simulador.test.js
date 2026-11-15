@@ -366,3 +366,24 @@ test('evento automático pelo comando 40 (ponteiro) quando configurado', async (
     c.sock.destroy();
   });
 });
+
+test('item 2: CT com disp_dest = 4 é aceito, e 0x34… e 0x30… com o mesmo serial são dispositivos diferentes', async () => {
+  const CT4 = `340F086E 0000 0001 00 00 FF ${ROT('CATRACA')} 00 16 00 ${PLACA('')}`;
+  const CT0 = `300F086E 0000 0001 00 00 FF ${ROT('GUARITA')} 00 16 00 ${PLACA('')}`;
+  await comSimulador({}, async (sim, porta) => {
+    const c = await conectarCru(porta);
+    c.enviar(comCs(`00 43 00 ${CT4}`));
+    assert.equal(hex(await c.esperarBytes(5)), '0043000043');
+    c.enviar(comCs(`00 43 00 ${CT0}`));
+    assert.equal(hex(await c.esperarBytes(5)), '0043000043');
+    assert.equal(sim.memoria.dispositivos.length, 2);
+    c.enviar(comCs(`00 43 04 ${'340F086E' + '00'.repeat(35)}`));
+    assert.equal(hex(await c.esperarBytes(5)), '0043040047');
+    assert.equal(sim.memoria.dispositivos.length, 1);
+    assert.equal(sim.memoria.dispositivos[0][0], 0x30, 'só o de destino 4 saiu');
+    // TA/TP com nibble diferente de 0 continua inválido
+    c.enviar(comCs(`00 43 00 ${CT0.replace(/^30/, '25')}`));
+    assert.equal(hex(await c.esperarBytes(5)), '004300FE41');
+    c.sock.destroy();
+  });
+});

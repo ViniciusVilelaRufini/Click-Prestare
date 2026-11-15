@@ -248,6 +248,19 @@ function serialParaBytes(tipo, serialHex) {
   };
 }
 
+/**
+ * Nibble baixo do byte 1 fora do RF: no CT é o <disp_dest> (0 = Guarita, 4 =
+ * Catraca 2010, p20) e faz parte da identidade do dispositivo; em TA/TP é
+ * sempre 0. `base` (edição) preserva o destino lido quando não vem outro.
+ */
+function nibbleDoDestino(tipo, dispDest, base) {
+  if (tipo === 1) return null; // no RF o nibble é o 1º dígito do serial
+  const valor = dispDest === undefined || dispDest === null ? (tipo === 3 && base ? base[0] & 0x0f : 0) : dispDest;
+  if (tipo === 3 && (valor === 0 || valor === 4)) return valor;
+  if (tipo !== 3 && valor === 0) return 0;
+  throw erroValor('destino do cartão inválido (só no CT: 0 Guarita ou 4 Catraca 2010)');
+}
+
 function serialDosBytes(eRf, nibble, b2, b1, b0) {
   const n = ((eRf ? nibble & 0x0f : 0) * 0x1000000) + (b2 << 16) + (b1 << 8) + b0;
   return n.toString(16).toUpperCase().padStart(eRf ? 7 : 6, '0');
@@ -277,6 +290,7 @@ function decodificarDispositivo(frame39) {
     tipo,
     serialHex: serialDosBytes(eRf, b[0], b[1], b[2], b[3]),
     contador: (b[4] << 8) | b[5],
+    dispDest: tipo === 3 ? b[0] & 0x0f : 0,
     unidade: bytesParaUnidade(b[6], b[7]),
     bloco: byteParaBloco(b[8]),
     grupo: b[9],
@@ -324,7 +338,8 @@ function codificarDispositivo(d, base39) {
   const [uh, ul] = unidadeParaBytes(d.unidade);
 
   const b = Buffer.alloc(39, 0x00);
-  b[0] = (tipo << 4) | serial.nibble;
+  const destino = nibbleDoDestino(tipo, d.dispDest, base39);
+  b[0] = (tipo << 4) | (destino === null ? serial.nibble : destino);
   b[1] = serial.bytes[0];
   b[2] = serial.bytes[1];
   b[3] = serial.bytes[2];
@@ -344,11 +359,12 @@ function codificarDispositivo(d, base39) {
 }
 
 /** Frame de 39 bytes para APAGAR: só tipo + serial (bytes 1-4), resto 0x00. */
-function codificarApagar(tipo, serialHex) {
+function codificarApagar(tipo, serialHex, dispDest) {
   if (!TIPOS_DISPOSITIVO.includes(tipo)) throw erroValor('tipo de dispositivo inválido (1 RF, 2 TA, 3 CT, 6 TP)');
   const serial = serialParaBytes(tipo, serialHex);
+  const destino = nibbleDoDestino(tipo, dispDest);
   const b = Buffer.alloc(39, 0x00);
-  b[0] = (tipo << 4) | serial.nibble;
+  b[0] = (tipo << 4) | (destino === null ? serial.nibble : destino);
   b[1] = serial.bytes[0];
   b[2] = serial.bytes[1];
   b[3] = serial.bytes[2];

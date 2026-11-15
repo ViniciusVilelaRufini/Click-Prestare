@@ -411,3 +411,19 @@ test('Menor 6: apagar TA/TP zera o nibble baixo do byte 1 (um 6F… da nuvem ain
     assert.equal(sim.comandosRecebidos(67).at(-1)[3], 0x34);
   });
 });
+
+test('item 2: CT com disp_dest = 4 — o Ler e o apagar usam o byte 1 inteiro; o CT de destino 0 com o mesmo serial não é tocado', async () => {
+  const ct4 = dispositivo(8, 3);
+  ct4[0] = 0x34;
+  const ct0 = dispositivo(8, 3); // mesmo serial, destino 0
+  await cenario({ dispositivos: [ct4, ct0] }, async ({ sim, sessao }) => {
+    const r = await ops.gravar(sessao, { tipo: 'cadastrar', frameHex: hex(ct4) });
+    assert.equal(r.ja_estava, true, 'achou pelo byte 1 inteiro (0x34)');
+    assert.equal(sim.comandosRecebidos(67).at(-1)[3], 0x34, 'o Ler levou 0x34');
+    const sujo = Buffer.from(dispositivo(9, 2));
+    sujo[0] = 0x2f; // TA com nibble sujo: o Ler/apagar zera
+    await ops.lerDispositivo(sessao, sujo);
+    assert.equal(sim.comandosRecebidos(67).at(-1)[3], 0x20);
+    assert.equal(sim.memoria.dispositivos.length, 2);
+  });
+});

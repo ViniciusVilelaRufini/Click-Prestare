@@ -174,9 +174,8 @@ async function gravar(sessao, { tipo, frameHex } = {}) {
     return { ok: false, codigo: null, mensagem: 'Tipo de dispositivo não suportado (só RF, TA, CT e TP).' };
   }
   if (tipo === 'apagar') {
-    frame.fill(0x00, 4);
-    // TA/TP: nibble baixo do byte 1 é sempre 0 (no CT é o disp_dest, mantido).
-    if ((frame[0] >> 4) === 2 || (frame[0] >> 4) === 6) frame[0] &= 0xf0;
+    // Só a chave: byte 1 inteiro (CT mantém o disp_dest; TA/TP zera o nibble) + bytes 2-4.
+    chaveDoFrame(frame).copy(frame);
   }
   let dados;
   try {
@@ -213,9 +212,21 @@ async function gravar(sessao, { tipo, frameHex } = {}) {
  * 0x00). Devolve o frame de 39 bytes lido, ou null (não existe / sem
  * resposta — sem resposta derruba a sessão, ver SessaoGuarita).
  */
-async function lerDispositivo(sessao, frame) {
+/**
+ * Chave do dispositivo (identidade): byte 1 INTEIRO + bytes 2-4, como veio no
+ * frame — no CT o nibble baixo é o <disp_dest> e faz parte dela. TA/TP: o
+ * nibble baixo é sempre 0 (zerado aqui, como no demo da Nice).
+ */
+function chaveDoFrame(frame) {
   const chave = Buffer.alloc(39, 0x00);
   frame.copy(chave, 0, 0, 4);
+  const tipo = chave[0] >> 4;
+  if (tipo === 2 || tipo === 6) chave[0] &= 0xf0;
+  return chave;
+}
+
+async function lerDispositivo(sessao, frame) {
+  const chave = chaveDoFrame(frame);
   let dados;
   try {
     dados = await sessao.comando(67, Buffer.concat([Buffer.from([0x03]), chave]), { timeoutMs: TIMEOUT_67_MS });
@@ -268,6 +279,7 @@ module.exports = {
   lerTodosEventos,
   gravar,
   lerDispositivo,
+  chaveDoFrame,
   atualizarReceptores,
   acionarRele,
   deltaDoRelogio,
