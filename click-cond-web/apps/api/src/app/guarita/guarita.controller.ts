@@ -1,11 +1,15 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query } from '@nestjs/common';
 import { GuaritaEventosService } from './guarita-eventos.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { assertOperador } from '../auth/tenant.util';
+import { assertOperador, assertTenantStrict } from '../auth/tenant.util';
+import { GuaritaPortoesService } from './guarita-portoes.service';
+import type { PortaoDto } from './guarita-portoes.service';
+import { GuaritaCapturaService } from './guarita-captura.service';
 import { GuaritaImportacaoService } from './guarita-importacao.service';
 import { GuaritaOperacoesService } from './guarita-operacoes.service';
 import { autorDoUsuario } from './guarita-comum.util';
+import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 
 /**
  * Rotas do console para o Módulo Guarita (`condominios/:idCondominio/guarita/…`).
@@ -23,6 +27,8 @@ export class GuaritaController {
     private readonly importacao: GuaritaImportacaoService,
     private readonly operacoes: GuaritaOperacoesService,
     private readonly eventos: GuaritaEventosService,
+    private readonly portoes: GuaritaPortoesService,
+    private readonly captura: GuaritaCapturaService,
   ) {}
 
   // ------------------------------------------- alertas (ANTES de :deviceId)
@@ -46,6 +52,126 @@ export class GuaritaController {
   ) {
     assertOperador(user, 'marcar alerta do Guarita como visto');
     return this.eventos.marcarVisto(idCondominio, idAlerta, autorDoUsuario(user));
+  }
+
+  // ------------------------------------------------------------- estado
+
+  @Get(':deviceId/estado')
+  async estado(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'ver o estado do Guarita');
+    return this.portoes.estado(idCondominio, deviceId);
+  }
+
+  // ------------------------------------------------------------ portões
+
+  @Get(':deviceId/portoes')
+  async listarPortoes(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'listar os portões do Guarita');
+    return this.portoes.listar(idCondominio, deviceId);
+  }
+
+  @Post(':deviceId/portoes')
+  async criarPortao(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @Body() body: PortaoDto,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'cadastrar portão do Guarita');
+    return this.portoes.criar(idCondominio, deviceId, body);
+  }
+
+  @Put(':deviceId/portoes/:idPortao')
+  async atualizarPortao(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @Param('idPortao', ParseIntPipe) idPortao: number,
+    @Body() body: PortaoDto,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'editar portão do Guarita');
+    return this.portoes.atualizar(idCondominio, deviceId, idPortao, body);
+  }
+
+  @Delete(':deviceId/portoes/:idPortao')
+  async removerPortao(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @Param('idPortao', ParseIntPipe) idPortao: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'remover portão do Guarita');
+    return this.portoes.remover(idCondominio, deviceId, idPortao);
+  }
+
+  /**
+   * Abrir portão pelo relé do Guarita. Mesma permissão do "Acionar Abertura"
+   * de hoje (POST facial/devices/:id/trigger): sessão do console vinculada ao
+   * condomínio. Morador e token do app sem condomínio → 403.
+   */
+  @SkipAudit()
+  @Post(':deviceId/portoes/:idPortao/abrir')
+  async abrirPortao(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @Param('idPortao', ParseIntPipe) idPortao: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertTenantStrict(idCondominio, user, `portão do Guarita do condomínio ${idCondominio}`);
+    return this.portoes.abrir(idCondominio, deviceId, idPortao, user);
+  }
+
+  // ---------------------------------------------- cadastro de dispositivo
+
+  @Post(':deviceId/captura')
+  async abrirCaptura(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @Body() body: { id_veiculo?: number },
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'cadastrar controle/tag no Guarita');
+    return this.captura.abrir(idCondominio, deviceId, body?.id_veiculo, autorDoUsuario(user));
+  }
+
+  @Get(':deviceId/captura')
+  async listarCaptura(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'cadastrar controle/tag no Guarita');
+    return this.captura.listar(idCondominio, deviceId);
+  }
+
+  @Post(':deviceId/captura/confirmar')
+  async confirmarCaptura(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @Body() body: { tipo?: number; serial_hex?: string; id_veiculo?: number },
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'cadastrar controle/tag no Guarita');
+    return this.captura.confirmar(idCondominio, deviceId, body, autorDoUsuario(user));
+  }
+
+  @Post(':deviceId/dispositivos')
+  async cadastrarDigitado(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @Body() body: { id_veiculo?: number; tipo?: number; codigo_impresso?: string },
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'cadastrar tag/cartão no Guarita');
+    return this.captura.cadastrarDigitado(idCondominio, deviceId, body, autorDoUsuario(user));
   }
 
   // ------------------------------------------------ importação / conferência

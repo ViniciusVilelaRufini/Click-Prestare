@@ -6,6 +6,8 @@ import { GuaritaController } from './guarita.controller';
 import { GuaritaImportacaoService } from './guarita-importacao.service';
 import { GuaritaNucleoModule } from './guarita-nucleo.module';
 import { GuaritaEventosService } from './guarita-eventos.service';
+import { GuaritaPortoesService } from './guarita-portoes.service';
+import { GuaritaCapturaService } from './guarita-captura.service';
 
 /**
  * Integração com o Módulo Guarita MG3000 (Nice / Linear-HCS) pelo Agente Local.
@@ -19,7 +21,13 @@ import { GuaritaEventosService } from './guarita-eventos.service';
 @Module({
   imports: [FacialModule, GuaritaNucleoModule],
   controllers: [GuaritaAgenteController, GuaritaController],
-  providers: [GuaritaAgenteService, GuaritaImportacaoService, GuaritaEventosService],
+  providers: [
+    GuaritaAgenteService,
+    GuaritaImportacaoService,
+    GuaritaEventosService,
+    GuaritaPortoesService,
+    GuaritaCapturaService,
+  ],
   exports: [GuaritaAgenteService],
 })
 export class GuaritaModule {}

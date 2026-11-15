@@ -1,5 +1,5 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { criarBancoFalso } from './guarita-banco-falso.spec';
+import { criarBancoFalso } from './guarita-banco-falso.testutil';
 import { GuaritaEventosService } from './guarita-eventos.service';
 import { GuaritaAgenteService } from './guarita-agente.service';
 import { GuaritaController } from './guarita.controller';

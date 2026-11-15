@@ -1,5 +1,5 @@
 import { BadRequestException, Logger } from '@nestjs/common';
-import { criarBancoFalso } from './guarita-banco-falso.spec';
+import { criarBancoFalso } from './guarita-banco-falso.testutil';
 import { GuaritaOperacoesService, nomeCurto } from './guarita-operacoes.service';
 import { GuaritaAgenteService } from './guarita-agente.service';
 import { GuaritaController } from './guarita.controller';

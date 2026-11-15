@@ -1,7 +1,7 @@
 import { BadRequestException, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { GuaritaAgenteService } from './guarita-agente.service';
 import { GuaritaAgenteController } from './guarita-agente.controller';
-import { criarBancoFalso } from './guarita-banco-falso.spec';
+import { criarBancoFalso } from './guarita-banco-falso.testutil';
 import { FacialService, TIPOS_DISPOSITIVO } from '../facial/facial.service';
 import { FacialController, semPalavraDoGuarita } from '../facial/facial.controller';
 import { normalizarFabricante, protocoloSemHttp, temCapacidade } from '../facial/fabricantes';
@@ -421,5 +421,19 @@ describe('"Testar conexão" do Guarita responde pelo último estado do agente (s
     outro.facialSvc.agent.isOnline = () => false;
     await expect(outro.facialSvc.testDevice(10)).resolves.toMatchObject({ online: false, motivo: 'agente_offline' });
     expect(outro.facialSvc.client.diagnosticar).not.toHaveBeenCalled();
+  });
+});
+describe('banco falso dos testes do Guarita', () => {
+  it('respeita índice único (P2002) e filtros básicos', async () => {
+    const db = criarBancoFalso();
+    await db.guarita_Eventos.create({ data: { id_device: 1, chave: 'a', frame_hex: 'x', origem: 'ao_vivo', id_condominio: 1 } });
+    await expect(
+      db.guarita_Eventos.create({ data: { id_device: 1, chave: 'a', frame_hex: 'y', origem: 'recuperacao', id_condominio: 1 } }),
+    ).rejects.toMatchObject({ code: 'P2002' });
+    await db.guarita_Eventos.create({ data: { id_device: 2, chave: 'a', frame_hex: 'z', origem: 'ao_vivo', id_condominio: 1 } });
+    expect(await db.guarita_Eventos.count({ where: { chave: 'a' } })).toBe(2);
+    expect(await db.guarita_Eventos.count({ where: { id_device: { in: [2, 3] } } })).toBe(1);
+    const r = await db.guarita_Operacoes.updateMany({ where: { estado: 'pendente' }, data: { estado: 'enviada' } });
+    expect(r.count).toBe(0);
   });
 });

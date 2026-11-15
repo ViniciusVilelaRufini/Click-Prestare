@@ -1,4 +1,5 @@
 /**
+ * SÓ PARA TESTES (importado pelos *.spec.ts do Guarita; nada da aplicação o usa).
  * Banco falso em memória para os testes do Módulo Guarita: o suficiente do
  * cliente Prisma para exercitar a fila, a deduplicação e as duas instâncias
  * (dois serviços sobre o MESMO objeto) — inclusive os índices únicos, que são
@@ -325,18 +326,3 @@ export function criarBancoFalso(): BancoFalso {
   );
   return banco as BancoFalso;
 }
-
-describe('banco falso dos testes do Guarita', () => {
-  it('respeita índice único (P2002) e filtros básicos', async () => {
-    const db = criarBancoFalso();
-    await db.guarita_Eventos.create({ data: { id_device: 1, chave: 'a', frame_hex: 'x', origem: 'ao_vivo', id_condominio: 1 } });
-    await expect(
-      db.guarita_Eventos.create({ data: { id_device: 1, chave: 'a', frame_hex: 'y', origem: 'recuperacao', id_condominio: 1 } }),
-    ).rejects.toMatchObject({ code: 'P2002' });
-    await db.guarita_Eventos.create({ data: { id_device: 2, chave: 'a', frame_hex: 'z', origem: 'ao_vivo', id_condominio: 1 } });
-    expect(await db.guarita_Eventos.count({ where: { chave: 'a' } })).toBe(2);
-    expect(await db.guarita_Eventos.count({ where: { id_device: { in: [2, 3] } } })).toBe(1);
-    const r = await db.guarita_Operacoes.updateMany({ where: { estado: 'pendente' }, data: { estado: 'enviada' } });
-    expect(r.count).toBe(0);
-  });
-});
