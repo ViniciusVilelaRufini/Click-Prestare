@@ -642,6 +642,15 @@ model Assembleias {
   id_condominio Int
   created_at    DateTime    @default(now()) @db.DateTime(0)
   updated_at    DateTime    @default(now()) @updatedAt @db.DateTime(0)
+  // Finalizada com a ATA (2026-11-15): a assembleia não é mais apagada; fica
+  // imutável, com as pautas e os votos. Nulos nas linhas antigas.
+  finalizada_em    DateTime? @db.DateTime(0)
+  // Users.id de quem finalizou (sem FK: o registro fica se a conta sair).
+  finalizada_por   Int?
+  // Documentos.id da ATA publicada (sem FK).
+  id_documento_ata Int?
+  // SHA-256 (hex) do texto canônico dos mapas de votação das pautas.
+  apuracao_hash    String?   @db.Char(64)
   condominio    Condominios @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_assemb_cond")
   criadoPor     Users?      @relation("AssembleiaUser", fields: [user], references: [id], map: "fk_assemb_user")
   votacoes      Votacoes[]
@@ -661,6 +670,11 @@ model Votacoes {
   is_enquete    Int               @default(0) @db.TinyInt
   created_at    DateTime          @default(now()) @db.DateTime(0)
   updated_at    DateTime          @default(now()) @updatedAt @db.DateTime(0)
+  // "Encerrar" grava a hora (2026-11-15); antes o encerramento era só
+  // data_termino = ontem, que calcStatusInt ainda trata nas linhas antigas.
+  encerrada_em          DateTime? @db.DateTime(0)
+  // 1: inquilino não vota (despesa extraordinária, obra, convenção).
+  somente_proprietarios Int       @default(0) @db.TinyInt
   assembleia    Assembleias?      @relation(fields: [id_assembleia], references: [id], onDelete: Cascade, map: "fk_vot_assemb")
   condominio    Condominios       @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_vot_cond")
   opcoes        Votacoes_Opcoes[]
@@ -683,15 +697,25 @@ model Votacoes_Opcoes {
 model Votacoes_Usuarios {
   id          Int             @id @default(autoincrement())
   id_opcao    Int
-  id_user     Int
+  // Nulo quando a conta foi excluída (SET NULL desde 2026-11-15): o voto
+  // fica, com o retrato abaixo.
+  id_user     Int?
   // Unidade pela qual o voto foi dado (um voto por votação e unidade). Nulo
   // nos votos anteriores a 2026-11-11: esses contam pela unidade atribuída da
   // conta (menor id_apto). SET NULL ao apagar o apartamento — nunca cascata.
   // Sem índice único: a coluna tem nulos antigos e a apuração deduplica.
   id_apto     Int?
   created_at  DateTime        @default(now()) @db.DateTime(0)
+  // Retrato do voto (2026-11-15), nulos nos votos antigos: vínculo do autor
+  // com a unidade ('proprietario' | 'inquilino' | 'membro'), nome e rótulo
+  // da unidade. A apuração do voto novo não reconsulta o vínculo atual.
+  tipo_vinculo   String?   @db.VarChar(20)
+  nome_votante   String?   @db.VarChar(255)
+  rotulo_unidade String?   @db.VarChar(120)
+  // Preenchido quando outro voto da unidade o substitui: a linha fica (trilha).
+  substituido_em DateTime? @db.DateTime(0)
   opcao       Votacoes_Opcoes @relation(fields: [id_opcao], references: [id], onDelete: Cascade, map: "fk_vu_op")
-  user        Users           @relation(fields: [id_user], references: [id], onDelete: Cascade, map: "fk_vu_user")
+  user        Users?          @relation(fields: [id_user], references: [id], onDelete: SetNull, map: "fk_vu_user")
   apartamento Apartamentos?   @relation(fields: [id_apto], references: [id], onDelete: SetNull, map: "fk_vu_apto")
 
   @@index([id_opcao], map: "fk_vu_op")

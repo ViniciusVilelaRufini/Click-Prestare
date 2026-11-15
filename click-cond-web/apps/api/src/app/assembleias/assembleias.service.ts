@@ -808,7 +808,8 @@ export class AssembleiasService {
     for (const idCond of new Set(votacoesDb.map((v) => v.id_condominio))) {
       const votantes = votacoesDb
         .filter((v) => v.id_condominio === idCond)
-        .flatMap((v) => v.opcoes.flatMap((op) => op.votos.map((voto) => voto.id_user)));
+        .flatMap((v) => v.opcoes.flatMap((op) => op.votos.map((voto) => voto.id_user)))
+        .filter((id): id is number => id != null);
       vinculosPorCond.set(idCond, await this.vinculosNoCondominio(idCond, [...new Set(votantes)]));
     }
 
@@ -823,7 +824,7 @@ export class AssembleiasService {
       const ultimoVoto = new Map<number, VotoApurado>();
       for (const op of v.opcoes) {
         for (const voto of op.votos) {
-          const unidade = this.unidadeDoVoto(voto.id_apto, vinculosDe.get(voto.id_user));
+          const unidade = this.unidadeDoVoto(voto.id_apto, voto.id_user == null ? undefined : vinculosDe.get(voto.id_user));
           if (unidade == null) continue;
           const t = new Date(voto.created_at).getTime();
           const atual = ultimoVoto.get(unidade);
