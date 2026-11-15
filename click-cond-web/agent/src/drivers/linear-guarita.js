@@ -86,6 +86,7 @@ const PADROES = Object.freeze({
   esperaRotaAusenteMs: 60000, // API antiga: pergunta de novo em 1 min
   prazoReleMs: 10000, // validade do relé: sem a vez em 10 s (ex.: durante o 29), desiste — não abre atrasado
   quedaLongaMs: 60000, // reconexão depois de queda maior que isto relê a memória de eventos
+  esperaConferenciaMs: 30000, // gravação sem resposta: espera reconectar até isto para conferir
   esperaPingConectandoMs: 4000, // ping durante a conexão espera o desfecho (prazo do ciclo é 5 s)
   limiteFilaEventos: 5000,
   lotePorEnvio: 500, // eventos por POST e frames por parte da importação
@@ -203,6 +204,7 @@ class ServicoGuarita {
     this._ultimoEstado = null;
     this._operacoesSoDepoisDe = 0;
     this._conectando = null;
+    this._esperandoConexao = [];
     this._rotaAusenteLogada = false;
     this._nuvemForaLogada = false;
     this._descartesLogados = 0;
@@ -218,6 +220,7 @@ class ServicoGuarita {
   parar() {
     if (this.conectado) this._marcarForaDoAr();
     this.parado = true;
+    this._avisarConectado();
     for (const k of Object.keys(this.timers)) {
       if (this.timers[k]) this.t.clearTimeout(this.timers[k]);
       this.timers[k] = null;
@@ -291,6 +294,7 @@ class ServicoGuarita {
     this.ultimoErroConexao = null;
     this.backoffMs = this.iv.backoffInicialMs;
     this.log.log(`${this.rotulo}: conectado ao Módulo Guarita em ${d.ip}:${sessao.porta}`);
+    this._avisarConectado();
     try {
       this._aoConectar();
     } catch {
@@ -327,6 +331,34 @@ class ServicoGuarita {
     if (this.sessao !== sessao || this.parado) return;
     if (this.precisa29) this._armar29();
     this._agendar('ciclo', 0, () => void this._ciclo());
+  }
+
+  /** Espera uma sessão conectada (até `ms`); null se não vier ou o serviço parar. */
+  _esperarConexao(ms) {
+    if (this.conectado && this.sessao) return Promise.resolve(this.sessao);
+    if (this.parado) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const w = { resolve, timer: null };
+      w.timer = this.t.setTimeout(() => {
+        const i = this._esperandoConexao.indexOf(w);
+        if (i !== -1) this._esperandoConexao.splice(i, 1);
+        resolve(null);
+      }, ms);
+      this._esperandoConexao.push(w);
+    });
+  }
+
+  _avisarConectado() {
+    for (const w of this._esperandoConexao.splice(0)) {
+      this.t.clearTimeout(w.timer);
+      w.resolve(this.parado ? null : this.sessao);
+    }
+  }
+
+  async _conferirDepoisDaQueda(op) {
+    const sessao = await this._esperarConexao(this.iv.esperaConferenciaMs);
+    if (!sessao) return { ok: false, codigo: null, incerto: true, mensagem: operacoes.MSG_INCERTO };
+    return operacoes.conferirGravacao(sessao, { tipo: op.tipo, frameHex: op.frame_hex, esperado: op.esperado });
   }
 
   /** Estado que sobrevive à recriação do serviço dentro do mesmo processo. */
@@ -623,7 +655,13 @@ class ServicoGuarita {
       case 'editar':
       case 'apagar': {
         this._lembrar(op.id, { estado: 'executando' });
-        const r = await operacoes.gravar(sessao, { tipo: op.tipo, frameHex: op.frame_hex, esperado: op.esperado });
+        let r = await operacoes.gravar(sessao, { tipo: op.tipo, frameHex: op.frame_hex, esperado: op.esperado });
+        if (r.escritoSemResposta) {
+          // Saiu e não respondeu (a sessão caiu): pode ter gravado. Confere
+          // numa sessão nova antes de dizer qualquer coisa à nuvem.
+          this.log.error(`${this.rotulo}: operação ${op.id} (${op.tipo}) sem resposta; conferindo no Guarita depois de reconectar`);
+          r = await this._conferirDepoisDaQueda(op);
+        }
         if (r.naoEnviado) {
           // Nem chegou ao Guarita (sessão caiu antes): fica para a reentrega.
           this.executadas.delete(op.id);
@@ -633,8 +671,10 @@ class ServicoGuarita {
         if (Number.isInteger(r.codigo)) corpo.codigo = r.codigo;
         if (r.ja_estava) corpo.ja_estava = true;
         if (r.conflito) corpo.conflito = true;
+        if (r.incerto) corpo.incerto = true;
         if (r.lido) corpo.lido = r.lido;
-        if (r.ok && !r.ja_estava) this._marcarGravacao();
+        // Qualquer ok (inclusive conferido depois da queda) pede o 29 do lote.
+        if (r.ok) this._marcarGravacao();
         this.log.log(`${this.rotulo}: operação ${op.id} (${op.tipo}) → ${r.ok ? 'OK' : `FALHA (${r.mensagem})`}${r.ja_estava ? ' (já estava assim no Guarita)' : ''}`);
         await this._concluir(op.id, [corpo], { persistir: true });
         return;

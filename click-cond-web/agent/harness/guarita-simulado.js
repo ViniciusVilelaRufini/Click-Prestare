@@ -98,7 +98,7 @@ function criarGuaritaSimulado(opcoes = {}) {
   const palavrasRecebidas = [];
   const continuacoes = [];
   const continuacoesForaDeDialogo = [];
-  const falhasPendentes = { atrasoMs: 0, ignorarContinuacao: 0, silencio: 0, checksumErrado: 0, cairNoMeio: null, respostaDo67: [], respostaDo29: [] };
+  const falhasPendentes = { silencioEm: [], atrasoMs: 0, ignorarContinuacao: 0, silencio: 0, checksumErrado: 0, cairNoMeio: null, respostaDo67: [], respostaDo29: [] };
   let contAt = 0x01;
   const clientes = new Set();
   let servidor = null;
@@ -412,6 +412,13 @@ function criarGuaritaSimulado(opcoes = {}) {
         falhasPendentes.silencio--;
         continue;
       }
+      const iSil = falhasPendentes.silencioEm.findIndex(
+        (s) => s.comando === frame[1] && (s.opcao === undefined || s.opcao === frame[2]),
+      );
+      if (iSil !== -1) {
+        falhasPendentes.silencioEm.splice(iSil, 1);
+        continue;
+      }
       // Um frame novo encerra qualquer diálogo que estivesse aberto.
       if (cli.dialogo && frame[1] !== 43) encerrarDialogo(cli);
       aoReceber(frame, memoria);
@@ -503,6 +510,10 @@ function criarGuaritaSimulado(opcoes = {}) {
       /** As próximas `n` perguntas não têm resposta nem efeito. */
       silencio: (n = 1) => {
         falhasPendentes.silencio += n;
+      },
+      /** O próximo frame deste comando (e opção, no 67) fica sem resposta nem efeito. */
+      silencioEm: ({ comando, opcao } = {}) => {
+        falhasPendentes.silencioEm.push({ comando, opcao });
       },
       /** O próximo frame que o Guarita mandar sai `ms` depois (tempo real), na mesma conexão. */
       atrasarResposta: (ms) => {

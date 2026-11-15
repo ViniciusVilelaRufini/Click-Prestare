@@ -243,7 +243,7 @@ test('gravar: silêncio no 67 → ok:false "O Guarita não respondeu." (relógio
       const p = ops.gravar(sessao, { tipo: 'cadastrar', frameHex: hex(dispositivo(3)) });
       await esperarAte(() => sim.comandosRecebidos(67).length === 1, { rotulo: 'o 67' });
       await relogio.avancar(5000);
-      assert.deepEqual(await p, { ok: false, codigo: null, mensagem: 'O Guarita não respondeu.' });
+      assert.deepEqual(await p, { ok: false, codigo: null, mensagem: 'O Guarita não respondeu.', escritoSemResposta: true });
     },
     { relogio },
   );
@@ -347,7 +347,7 @@ test('C1 (cenário da revisão): cadastrar A calado → falhou; B nunca sai ok c
       const pA = ops.gravar(sessao, { tipo: 'cadastrar', frameHex: hex(dispositivo(1)) });
       await esperarAte(() => sim.comandosRecebidos(67).length === 1, { rotulo: 'o 67 de A' });
       await relogio.avancar(5000);
-      assert.deepEqual(await pA, { ok: false, codigo: null, mensagem: 'O Guarita não respondeu.' });
+      assert.deepEqual(await pA, { ok: false, codigo: null, mensagem: 'O Guarita não respondeu.', escritoSemResposta: true });
       assert.equal(quedas.length, 1, 'sessão derrubada no timeout');
       const rB = await ops.gravar(sessao, { tipo: 'cadastrar', frameHex: hex(dispositivo(2)) });
       assert.equal(rB.ok, false);
@@ -555,4 +555,106 @@ test('final item 2: cadastrar RF com 0x02 só é ja_estava com o MESMO contador;
     assert.equal(r.ja_estava, undefined);
     assert.deepEqual(r.lido, { unidade: 12, bloco: 0, frame_hex: hex(rf) });
   });
+});
+
+// ---------- revisão final, I2: gravação escrita sem resposta ----------
+
+test('final I2: gravar marca escritoSemResposta só quando o 67 de escrita saiu e a resposta não veio', async () => {
+  const relogio = criarRelogioFalso();
+  await cenario(
+    { dispositivos: [dispositivo(5)] },
+    async ({ sim, sessao }) => {
+      sim.falhas.silencio(1);
+      const p = ops.gravar(sessao, { tipo: 'cadastrar', frameHex: hex(dispositivo(6)) });
+      await esperarAte(() => sim.comandosRecebidos(67).length === 1, { rotulo: 'o 67' });
+      await relogio.avancar(5000);
+      const r = await p;
+      assert.equal(r.ok, false);
+      assert.equal(r.escritoSemResposta, true);
+    },
+    { relogio },
+  );
+  const relogio2 = criarRelogioFalso();
+  await cenario(
+    { dispositivos: [dispositivo(5)] },
+    async ({ sim, sessao }) => {
+      sim.falhas.silencio(1); // o LER fica sem resposta: nada foi escrito
+      const p = ops.gravar(sessao, { tipo: 'apagar', frameHex: hex(dispositivo(5)), esperado: { unidade: 5, bloco: 0 } });
+      await esperarAte(() => sim.comandosRecebidos(67).length === 1, { rotulo: 'o Ler' });
+      await relogio2.avancar(5000);
+      const r = await p;
+      assert.equal(r.ok, false);
+      assert.equal(r.escritoSemResposta, undefined);
+    },
+    { relogio: relogio2 },
+  );
+});
+
+test('final I2: conferirGravacao — cadastrar presente/outra unidade/ausente', async () => {
+  const d = dispositivo(5);
+  const emOutra = dispositivo(6);
+  await cenario({ dispositivos: [d, emOutra] }, async ({ sessao }) => {
+    assert.deepEqual(await ops.conferirGravacao(sessao, { tipo: 'cadastrar', frameHex: hex(d) }), {
+      ok: true,
+      codigo: null,
+      ja_estava: true,
+      lido: { unidade: 5, bloco: 0, frame_hex: hex(d) },
+      mensagem: 'Confirmado no Guarita depois da reconexão.',
+    });
+    const pedidoOutra = Buffer.from(emOutra);
+    pedidoOutra[7] = 9;
+    const c = await ops.conferirGravacao(sessao, { tipo: 'cadastrar', frameHex: hex(pedidoOutra) });
+    assert.equal(c.ok, false);
+    assert.equal(c.conflito, true);
+    assert.deepEqual(c.lido, { unidade: 6, bloco: 0, frame_hex: hex(emOutra) });
+    assert.deepEqual(await ops.conferirGravacao(sessao, { tipo: 'cadastrar', frameHex: hex(dispositivo(77)) }), {
+      ok: false,
+      codigo: null,
+      mensagem: 'O Guarita não respondeu e o dispositivo não foi gravado.',
+    });
+  });
+});
+
+test('final I2: conferirGravacao — editar igual ao pedido (ignorando bateria/último acionamento do byte 30) ou não; apagar ausente/presente', async () => {
+  const d = dispositivo(5);
+  d[29] = 0x3a; // último acionamento 3, bateria A: só leitura
+  await cenario({ dispositivos: [d] }, async ({ sessao }) => {
+    const pedido = Buffer.from(d);
+    pedido[29] = 0x00;
+    const ok = await ops.conferirGravacao(sessao, { tipo: 'editar', frameHex: hex(pedido), esperado: { unidade: 5, bloco: 0 } });
+    assert.equal(ok.ok, true);
+    assert.deepEqual(ok.lido, { unidade: 5, bloco: 0, frame_hex: hex(d) });
+    const outroNome = Buffer.from(pedido);
+    Buffer.from('OUTRO'.padEnd(18, ' ')).copy(outroNome, 11);
+    const nao = await ops.conferirGravacao(sessao, { tipo: 'editar', frameHex: hex(outroNome), esperado: { unidade: 5, bloco: 0 } });
+    assert.equal(nao.ok, false);
+    assert.equal(nao.mensagem, 'O Guarita não respondeu e o dispositivo não foi gravado.');
+    const portaria = Buffer.from(pedido);
+    portaria[29] = 0x80; // bit 7 (portaria) é gravável: conta
+    assert.equal((await ops.conferirGravacao(sessao, { tipo: 'editar', frameHex: hex(portaria), esperado: { unidade: 5, bloco: 0 } })).ok, false);
+    const aindaLa = await ops.conferirGravacao(sessao, { tipo: 'apagar', frameHex: hex(d), esperado: { unidade: 5, bloco: 0 } });
+    assert.equal(aindaLa.ok, false);
+    assert.equal(aindaLa.mensagem, 'O Guarita não respondeu e o dispositivo não foi apagado.');
+    assert.deepEqual(await ops.conferirGravacao(sessao, { tipo: 'apagar', frameHex: hex(dispositivo(77)), esperado: { unidade: 77, bloco: 0 } }), {
+      ok: true,
+      codigo: null,
+      ja_estava: true,
+      mensagem: 'Confirmado no Guarita depois da reconexão.',
+    });
+  });
+});
+
+test('final I2: conferirGravacao sem resposta → incerto', async () => {
+  const relogio = criarRelogioFalso();
+  await cenario(
+    {},
+    async ({ sim, sessao }) => {
+      sim.falhas.silencio(1);
+      const p = ops.conferirGravacao(sessao, { tipo: 'cadastrar', frameHex: hex(dispositivo(5)) });
+      await esperarAte(() => sim.comandosRecebidos(67).length === 1, { rotulo: 'o Ler' });
+      await relogio.avancar(5000);
+      assert.deepEqual(await p, { ok: false, codigo: null, incerto: true, mensagem: 'Não foi possível confirmar no Guarita.' });
+    },
+    { relogio },
+  );
 });
