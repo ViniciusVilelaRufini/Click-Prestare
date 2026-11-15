@@ -357,8 +357,12 @@ export class GuaritaConfigComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** Motivos que a API grava em `Guarita_Backups.motivo`; outro = rótulo genérico. */
   rotuloMotivo(m: string): string {
-    return ({ importacao: 'Importação', antes_gravacao: 'Antes da primeira gravação', conferencia: 'Conferência' } as Record<string, string>)[m] ?? m;
+    return (
+      ({ importacao: 'Importação', conferencia: 'Conferência', remocao: 'Remoção de dispositivo' } as Record<string, string>)[m] ??
+      'Cópia de segurança'
+    );
   }
 
   // ===================== Portões =====================

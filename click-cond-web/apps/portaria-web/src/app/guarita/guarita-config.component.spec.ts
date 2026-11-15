@@ -291,6 +291,15 @@ describe('GuaritaConfigComponent — cópias de segurança', () => {
     tela.ngOnDestroy();
   });
 
+  it('rótulos dos motivos que a API manda; motivo desconhecido tem rótulo genérico', () => {
+    const { tela } = build();
+    expect(tela.rotuloMotivo('importacao')).toBe('Importação');
+    expect(tela.rotuloMotivo('conferencia')).toBe('Conferência');
+    expect(tela.rotuloMotivo('remocao')).toBe('Remoção de dispositivo');
+    expect(tela.rotuloMotivo('outra_coisa')).toBe('Cópia de segurança');
+    tela.ngOnDestroy();
+  });
+
   it('sem cópia ainda: explica quando a primeira é feita', () => {
     const { el, tela } = build({ backups: jest.fn(() => of([])) });
     expect(el.textContent).toContain('Nenhuma cópia ainda');
