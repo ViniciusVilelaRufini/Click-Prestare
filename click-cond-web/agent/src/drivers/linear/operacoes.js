@@ -76,19 +76,38 @@ function deltaDoRelogio(dados12, agoraMs) {
   return Math.round((guaritaMs - agoraMs) / 1000);
 }
 
-async function identificar(sessao, { agora = () => Date.now() } = {}) {
-  const versao = await sessao.comando(38);
-  const rotulos = await sessao.comando(3);
-  const quantDisp = await sessao.comando(7);
-  const quantEvt = await sessao.comando(6, [0x02]);
-  const relogio = await sessao.comando(12);
-  return {
-    firmware: textoDe(versao),
-    rotulos: [textoDe(rotulos.subarray(0, 20)), textoDe(rotulos.subarray(20, 40))],
-    totalDispositivos: (quantDisp[0] << 8) | quantDisp[1],
-    totalEventos: (quantEvt[1] << 8) | quantEvt[2],
-    relogioDeltaS: deltaDoRelogio(relogio, agora()),
-  };
+/** Comandos da identificação, na ordem, com o nome que vai para o estado. */
+const IDENTIFICACAO = Object.freeze([
+  { comando: 38, nome: 'versão' },
+  { comando: 3, nome: 'rótulos' },
+  { comando: 7, nome: 'quantidade de dispositivos' },
+  { comando: 6, nome: 'quantidade de eventos' },
+  { comando: 12, nome: 'relógio' },
+]);
+
+/**
+ * Identificação ao conectar (38, 3, 7, 6, 12). Cada comando é opcional:
+ * `pular` traz os que este Guarita já mostrou não responder (não são
+ * enviados). Um que não responda lança (a sessão cai, regra do C1) com
+ * `e.comando`; quem chama o anota em `pular` e reconecta.
+ */
+async function identificar(sessao, { agora = () => Date.now(), pular = new Set() } = {}) {
+  const info = { relogioDeltaS: null };
+  if (!pular.has(38)) info.firmware = textoDe(await sessao.comando(38));
+  if (!pular.has(3)) {
+    const rotulos = await sessao.comando(3);
+    info.rotulos = [textoDe(rotulos.subarray(0, 20)), textoDe(rotulos.subarray(20, 40))];
+  }
+  if (!pular.has(7)) {
+    const q = await sessao.comando(7);
+    info.totalDispositivos = (q[0] << 8) | q[1];
+  }
+  if (!pular.has(6)) {
+    const q = await sessao.comando(6, [0x02]);
+    info.totalEventos = (q[1] << 8) | q[2];
+  }
+  if (!pular.has(12)) info.relogioDeltaS = deltaDoRelogio(await sessao.comando(12), agora());
+  return info;
 }
 
 async function contarDispositivos(sessao) {
@@ -405,6 +424,7 @@ async function acionarRele(sessao, { tipoReceptor, numReceptor, rele } = {}, { p
 
 module.exports = {
   identificar,
+  IDENTIFICACAO,
   lerTodosDispositivos,
   lerTodosEventos,
   gravar,

@@ -1056,3 +1056,63 @@ test('final I2 (driver): apagar escrito sem resposta e o Guarita some → em 30 
     });
   });
 });
+
+// ---------- revisão final, I3: identificação tolerante ----------
+
+const NOMES_IDENTIFICACAO = { 38: 'versão', 3: 'rótulos', 7: 'quantidade de dispositivos', 6: 'quantidade de eventos', 12: 'relógio' };
+
+for (const mudo of [38, 3, 7, 6, 12]) {
+  test(`final I3: Guarita que nunca responde ao ${mudo} (${NOMES_IDENTIFICACAO[mudo]}) → no máximo 2 reconexões, executa um cadastrar e o estado diz o que ficou de fora`, async () => {
+    await cenario({ sim: { eventos: [E1] } }, async (c) => {
+      c.sim.falhas.calar(mudo);
+      c.nuvem.ops.push({ id: 90 + mudo, tipo: 'cadastrar', frame_hex: hex(dispositivo(mudo)) });
+      c.escutar();
+      for (let i = 0; i < 12 && !c.nuvem.resultados.some((r) => r.id === 90 + mudo); i++) {
+        await esperarAte(() => c.servico().timers.ciclo || c.servico().timers.reconexao || c.sim.comandosRecebidos(mudo).length > 0, {
+          rotulo: 'algo armado',
+        });
+        await c.relogio.avancar(c.servico().timers.reconexao ? 1000 : c.servico().timers.ciclo ? 0 : 5000);
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      await esperarAte(() => c.nuvem.resultados.some((r) => r.id === 90 + mudo), { rotulo: 'resultado do cadastrar' });
+      assert.deepEqual(c.nuvem.resultados.find((r) => r.id === 90 + mudo), { id: 90 + mudo, ok: true, codigo: 0 });
+      assert.ok(c.sim.conexoesAceitas <= 3, `conexões: ${c.sim.conexoesAceitas}`);
+      assert.equal(c.sim.comandosRecebidos(mudo).length, 1, `o ${mudo} não é enviado de novo`);
+      const ultimo = c.nuvem.estados.at(-1);
+      assert.equal(ultimo.conectado, true);
+      assert.match(ultimo.erro || '', new RegExp(`O Guarita não respondeu à leitura de: .*${NOMES_IDENTIFICACAO[mudo]}`));
+      if (mudo === 12) {
+        c.sim.injetarEvento(E2);
+        await esperarAte(() => c.nuvem.lotesEventos.length >= 1, { rotulo: 'lote de eventos' });
+        const lote = c.nuvem.lotesEventos.at(-1);
+        assert.ok(Object.prototype.hasOwnProperty.call(lote, 'relogio_delta_s'));
+        assert.equal(lote.relogio_delta_s, null, 'sem relógio: null, não 0');
+        assert.ok(!Object.prototype.hasOwnProperty.call(ultimo, 'relogio_delta_s'), 'estado omite o campo');
+      }
+    });
+  });
+}
+
+test('final I3: com o 7 mudo, importar falha na hora com erro claro e sem derrubar a sessão de novo', async () => {
+  await cenario({}, async (c) => {
+    c.sim.falhas.calar(7);
+    c.escutar();
+    for (let i = 0; i < 6 && !(c.servico().conectado && c.servico().timers.ciclo); i++) {
+      await c.relogio.avancar(c.servico().timers.reconexao ? 1000 : 5000);
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    await c.pronto();
+    const conexoes = c.sim.conexoesAceitas;
+    c.nuvem.ops.push({ id: 99, tipo: 'importar' });
+    await c.relogio.avancar(0);
+    await esperarAte(() => c.nuvem.resultados.some((r) => r.id === 99), { rotulo: 'resultado' });
+    assert.deepEqual(c.nuvem.resultados.find((r) => r.id === 99), {
+      id: 99,
+      ok: false,
+      erro: 'O Guarita não responde à leitura da quantidade de dispositivos (comando 7); importação e conferência não são possíveis.',
+    });
+    assert.equal(c.sim.comandosRecebidos(7).length, 1);
+    assert.equal(c.sim.conexoesAceitas, conexoes);
+    assert.equal(c.servico().conectado, true);
+  });
+});

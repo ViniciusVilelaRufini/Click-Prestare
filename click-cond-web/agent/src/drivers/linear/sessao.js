@@ -391,7 +391,7 @@ class SessaoGuarita extends EventEmitter {
         espera.acordar = () => {};
         // Pode haver resposta órfã a caminho: esta sessão não serve mais.
         this._derrubar(`sem resposta do comando ${espera.comando} em ${timeoutMs} ms`);
-        reject(erro(MSG_SEM_RESPOSTA, 'sem_resposta', { code: 'ETIMEDOUT' }));
+        reject(erro(MSG_SEM_RESPOSTA, 'sem_resposta', { code: 'ETIMEDOUT', comando: espera.comando }));
       }, timeoutMs);
       espera.acordar = () => {
         if (espera.fila.length > 0) {

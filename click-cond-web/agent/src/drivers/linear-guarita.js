@@ -304,24 +304,35 @@ class ServicoGuarita {
   }
 
   async _aoConectarSessao(sessao) {
+    const m = this._memoriaDoProcesso();
     try {
-      this.info = await operacoes.identificar(sessao, { agora: this.cfg.agora });
-      if (this.info.relogioDeltaS === null) {
+      this.info = await operacoes.identificar(sessao, { agora: this.cfg.agora, pular: m.semResposta });
+      if (this.info.relogioDeltaS === null && !m.semResposta.has(12)) {
         this.log.error(`${this.rotulo}: relógio do Guarita ilegível`);
       }
     } catch (e) {
+      // Um comando da identificação sem resposta: a sessão caiu (C1). Fica
+      // marcado para este Guarita e não é mandado de novo (até o processo
+      // reiniciar); a próxima conexão segue sem ele.
+      if (e && e.codigo === 'sem_resposta' && Number.isInteger(e.comando)) {
+        m.semResposta.add(e.comando);
+        this.log.error(`${this.rotulo}: o Guarita não respondeu ao comando ${e.comando} da identificação; ele fica de fora nas próximas conexões`);
+      } else {
+        this.log.error(`${this.rotulo}: falha ao identificar o Guarita (${(e && e.message) || e})`);
+      }
       if (this.sessao !== sessao) return;
-      this.log.error(`${this.rotulo}: falha ao identificar o Guarita (${e.message})`);
     }
     if (this.sessao !== sessao) return;
     this._enviarEstado();
     // Reler a memória inteira (até 8.192 eventos) só na 1ª conexão do
     // processo e depois de queda longa. A leitura é interrompível: um relé
     // pedido no meio passa na frente e ela recomeça.
-    const m = this._memoriaDoProcesso();
     const foraMs = m.foraDesde === null ? null : this.t.agora() - m.foraDesde;
     m.foraDesde = null;
-    if (!m.recuperou || foraMs === null || foraMs > this.iv.quedaLongaMs) {
+    if (m.semResposta.has(6) || m.semResposta.has('recuperacao')) {
+      // Sem o 6 (ou o 17) não há como reler a memória: segue sem recuperação.
+      m.recuperou = true;
+    } else if (!m.recuperou || foraMs === null || foraMs > this.iv.quedaLongaMs) {
       if (await this._recuperarEventos(sessao)) m.recuperou = true;
     } else {
       this.log.log(
@@ -365,7 +376,7 @@ class ServicoGuarita {
   _memoriaDoProcesso() {
     let m = this.cfg.memoriaProcesso.get(this.device.id);
     if (!m) {
-      m = { recuperou: false, foraDesde: null };
+      m = { recuperou: false, foraDesde: null, semResposta: new Set() };
       this.cfg.memoriaProcesso.set(this.device.id, m);
     }
     return m;
@@ -409,7 +420,19 @@ class ServicoGuarita {
     if (Number.isInteger(this.info.totalEventos)) c.total_eventos = this.info.totalEventos;
     if (Number.isFinite(this.info.relogioDeltaS)) c.relogio_delta_s = this.info.relogioDeltaS;
     if (this.erro) c.erro = this.erro;
+    else {
+      const faltam = this._leiturasSemResposta();
+      if (faltam.length > 0) c.erro = `O Guarita não respondeu à leitura de: ${faltam.join(', ')}`;
+    }
     return c;
+  }
+
+  /** Nomes do que este Guarita não respondeu (identificação e recuperação). */
+  _leiturasSemResposta() {
+    const mudos = this._memoriaDoProcesso().semResposta;
+    const nomes = operacoes.IDENTIFICACAO.filter((x) => mudos.has(x.comando)).map((x) => x.nome);
+    if (mudos.has('recuperacao')) nomes.push('eventos da memória');
+    return nomes;
   }
 
   /** Manda o estado se mudou (ou sempre, com `forcar`). Nunca rejeita. */
@@ -503,7 +526,8 @@ class ServicoGuarita {
         this._descarregarDeNovo = false;
         while (this.filaEventos.length > 0 && !this.parado) {
           const lote = this.filaEventos.slice(0, this.iv.lotePorEnvio);
-          const delta = Number.isFinite(this.info.relogioDeltaS) ? this.info.relogioDeltaS : 0;
+          // Relógio desconhecido: null (a API trata como "sem correção"), nunca 0.
+          const delta = Number.isFinite(this.info.relogioDeltaS) ? this.info.relogioDeltaS : null;
           const r = await this._nuvem('POST', 'eventos', { eventos: lote, relogio_delta_s: delta });
           if (!r.ok && r.transitorio) return;
           if (!r.ok) {
@@ -524,6 +548,8 @@ class ServicoGuarita {
       lista = await operacoes.lerTodosEventos(sessao);
     } catch (e) {
       this.log.error(`${this.rotulo}: falha ao recuperar os eventos do Guarita (${e.message})`);
+      // Sem resposta (6 ou 17): não insiste a cada conexão, senão nunca chega às operações.
+      if (e && e.codigo === 'sem_resposta') this._memoriaDoProcesso().semResposta.add('recuperacao');
       return false;
     }
     if (lista.length === 0) return true;
@@ -531,7 +557,7 @@ class ServicoGuarita {
     const itens = lista.map((f) => ({ frame_hex: f, origem: 'recuperacao', recebido_em: recebidoEm }));
     // A recuperação lê a memória inteira (até 8.192): vai direto em lotes, sem
     // passar pelo teto da fila; só o que não sair fica guardado.
-    const delta = Number.isFinite(this.info.relogioDeltaS) ? this.info.relogioDeltaS : 0;
+    const delta = Number.isFinite(this.info.relogioDeltaS) ? this.info.relogioDeltaS : null;
     let i = 0;
     while (i < itens.length && !this.parado) {
       const lote = itens.slice(i, i + this.iv.lotePorEnvio);
@@ -691,12 +717,19 @@ class ServicoGuarita {
       case 'conferir': {
         this._lembrar(op.id, { estado: 'executando' });
         let partes;
+        const mudos = this._memoriaDoProcesso().semResposta;
         try {
+          if (mudos.has(7)) {
+            throw new Error(
+              'O Guarita não responde à leitura da quantidade de dispositivos (comando 7); importação e conferência não são possíveis.',
+            );
+          }
           const frames = await operacoes.lerTodosDispositivos(sessao);
           partes = partesDaImportacao(frames, this.iv.lotePorEnvio);
           this.info.totalDispositivos = frames.length;
           this.log.log(`${this.rotulo}: operação ${op.id} (${op.tipo}) → ${frames.length} dispositivo(s) lido(s)`);
         } catch (e) {
+          if (e && e.codigo === 'sem_resposta' && e.comando === 7) mudos.add(7);
           partes = [{ ok: false, erro: e.message }];
           this.log.error(`${this.rotulo}: operação ${op.id} (${op.tipo}) → FALHA (${e.message})`);
         }

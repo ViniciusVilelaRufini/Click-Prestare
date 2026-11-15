@@ -98,6 +98,7 @@ function criarGuaritaSimulado(opcoes = {}) {
   const palavrasRecebidas = [];
   const continuacoes = [];
   const continuacoesForaDeDialogo = [];
+  const calados = new Set();
   const falhasPendentes = { silencioEm: [], atrasoMs: 0, ignorarContinuacao: 0, silencio: 0, checksumErrado: 0, cairNoMeio: null, respostaDo67: [], respostaDo29: [] };
   let contAt = 0x01;
   const clientes = new Set();
@@ -408,6 +409,7 @@ function criarGuaritaSimulado(opcoes = {}) {
         recebidosInvalidos.push(frame);
         continue;
       }
+      if (calados.has(frame[1])) continue; // firmware que não responde a este comando
       if (falhasPendentes.silencio > 0) {
         falhasPendentes.silencio--;
         continue;
@@ -510,6 +512,10 @@ function criarGuaritaSimulado(opcoes = {}) {
       /** As próximas `n` perguntas não têm resposta nem efeito. */
       silencio: (n = 1) => {
         falhasPendentes.silencio += n;
+      },
+      /** Este comando NUNCA tem resposta (firmware que não o implementa). */
+      calar: (comando) => {
+        calados.add(comando);
       },
       /** O próximo frame deste comando (e opção, no 67) fica sem resposta nem efeito. */
       silencioEm: ({ comando, opcao } = {}) => {
