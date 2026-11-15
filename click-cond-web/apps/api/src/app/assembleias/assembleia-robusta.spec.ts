@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { AssembleiasController } from './assembleias.controller';
-import { AssembleiasService } from './assembleias.service';
+import { AssembleiasService, hashMapas, textoCanonicoMapa } from './assembleias.service';
 
 /**
  * Rodada 5 — assembleia robusta. Pedido do dono (15/11): "Hoje um inquilino
@@ -660,6 +660,83 @@ describe('2.3 — resultado parcial oculto', () => {
         { id_votacao: 6, id_apto: 100, rotulo: 'Apto 11 Bloco A', opcao: null, tipo_vinculo: 'membro', pode_votar: true, motivo: null, votado_por: null },
       ]);
       expect(r.unidades).toEqual([{ id_apto: 100, rotulo: 'Apto 11 Bloco A' }]);
+    });
+  });
+});
+
+describe('2.6 — mapa de votação (nominal, só síndico/staff)', () => {
+  const t = (hhmm: string) => new Date(`2026-11-14T${hhmm}:00Z`);
+  const VOTOS = [
+    // Unidade 100: inquilino votou, proprietária substituiu.
+    { id: 1, id_opcao: 52, id_user: 11, id_apto: 100, tipo_vinculo: 'inquilino', nome_votante: 'Igor Inquilino', rotulo_unidade: 'Apto 11 Bloco A', created_at: t('12:00'), substituido_em: t('13:00') },
+    { id: 2, id_opcao: 51, id_user: 10, id_apto: 100, tipo_vinculo: 'proprietario', nome_votante: 'Paula Proprietária', rotulo_unidade: 'Apto 11 Bloco A', created_at: t('13:00') },
+    // Unidade 200: voto antigo (sem retrato) do proprietário legado 20.
+    { id: 3, id_opcao: 52, id_user: 20, id_apto: 200, created_at: t('11:00') },
+    // Conta excluída, voto novo: continua no mapa com o retrato.
+    { id: 4, id_opcao: 51, id_user: null, id_apto: null, tipo_vinculo: 'proprietario', nome_votante: 'Ex-morador', rotulo_unidade: 'Apto 31', created_at: t('10:00') },
+  ] as any;
+  const porteiro: any = { sub: 3, nome: 'João', id_condominio: 1, tipo_sub: 'funcionario_portaria' };
+
+  function encerrada() {
+    const b = build({ votos: VOTOS });
+    b.votacoes[0].encerrada_em = new Date('2026-11-14T20:00:00Z');
+    b.votacoes[0].somente_proprietarios = 0;
+    return b;
+  }
+
+  it('aberta: 400 e nada é revelado', async () => {
+    const { svc } = build({ votos: VOTOS });
+    await expect(svc.mapaVotacao(5, sindico)).rejects.toThrow(
+      new BadRequestException('O mapa de votação fica disponível quando a votação é encerrada.'),
+    );
+  });
+
+  it('porteiro do console (token sem typeAccess) e morador: 403', async () => {
+    const { svc } = encerrada();
+    await expect(svc.mapaVotacao(5, porteiro)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(svc.mapaVotacao(5, morador(10))).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('encerrada: todos os votos, inclusive os substituídos, por unidade e hora, com datas de Brasília', async () => {
+    const { svc } = encerrada();
+    const mapa = await svc.mapaVotacao(5, sindico);
+    expect(mapa.votacao).toEqual({ id: 5, titulo: 'Contas 2025', somente_proprietarios: 0, encerrada_em: '14/11/2026 17:00:00' });
+    expect(mapa.participacao).toEqual({ unidades_votaram: 3, unidades_total: 3 });
+    expect(mapa.opcoes).toEqual([{ id: 51, nome: 'Aprovar', votos: 2 }, { id: 52, nome: 'Rejeitar', votos: 1 }]);
+    expect(mapa.votos).toEqual([
+      { unidade: 'Apto 11 Bloco A', votante: 'Igor Inquilino', tipo_vinculo: 'inquilino', opcao: 'Rejeitar', registrado_em: '14/11/2026 09:00:00', vigente: false, substituido_em: '14/11/2026 10:00:00' },
+      { unidade: 'Apto 11 Bloco A', votante: 'Paula Proprietária', tipo_vinculo: 'proprietario', opcao: 'Aprovar', registrado_em: '14/11/2026 10:00:00', vigente: true, substituido_em: null },
+      { unidade: 'Apto 21 Bloco A', votante: 'Vinte', tipo_vinculo: 'proprietario', opcao: 'Rejeitar', registrado_em: '14/11/2026 08:00:00', vigente: true, substituido_em: null },
+      { unidade: 'Apto 31', votante: 'Ex-morador', tipo_vinculo: 'proprietario', opcao: 'Aprovar', registrado_em: '14/11/2026 07:00:00', vigente: true, substituido_em: null },
+    ]);
+  });
+
+  it('confere o condomínio da votação (tenant)', async () => {
+    const { svc } = encerrada();
+    const tenant = (svc as any).tenant;
+    await svc.mapaVotacao(5, sindico);
+    expect(tenant.assertEntidade).toHaveBeenCalledWith(COND, sindico, expect.stringContaining('5'));
+  });
+
+  it('rota GET votacoes/mapa?id= repassa o id e o token', () => {
+    const service: any = { mapaVotacao: jest.fn(async () => ({})) };
+    new AssembleiasController(service).mapa('5', sindico);
+    expect(service.mapaVotacao).toHaveBeenCalledWith(5, sindico);
+  });
+
+  describe('texto canônico (base do código de integridade)', () => {
+    it('é determinístico, sem participação nem hora de encerramento, e muda quando um voto muda', async () => {
+      const { svc } = encerrada();
+      const mapa = await svc.mapaVotacao(5, sindico);
+      const texto = textoCanonicoMapa(mapa);
+      expect(texto).toBe(textoCanonicoMapa(JSON.parse(JSON.stringify(mapa))));
+      expect(texto.split('\n')[0]).toBe('mapa-de-votacao v1');
+      expect(texto).toContain('["Apto 11 Bloco A","Igor Inquilino","inquilino","Rejeitar","14/11/2026 09:00:00",false,"14/11/2026 10:00:00"]');
+      expect(textoCanonicoMapa({ ...mapa, participacao: { unidades_votaram: 0, unidades_total: 99 }, votacao: { ...mapa.votacao, encerrada_em: null } })).toBe(texto);
+      const alterado = { ...mapa, votos: mapa.votos.map((v, i) => (i === 1 ? { ...v, opcao: 'Rejeitar' } : v)) };
+      expect(textoCanonicoMapa(alterado)).not.toBe(texto);
+      expect(hashMapas([mapa])).toMatch(/^[0-9a-f]{64}$/);
+      expect(hashMapas([mapa])).toBe(hashMapas([JSON.parse(JSON.stringify(mapa))]));
     });
   });
 });

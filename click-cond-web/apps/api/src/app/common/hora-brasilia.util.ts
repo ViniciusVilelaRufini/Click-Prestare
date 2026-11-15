@@ -16,6 +16,7 @@ function partes(d: Date): Record<string, string> {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+    second: '2-digit',
     hourCycle: 'h23',
   }).formatToParts(d)) {
     out[p.type] = p.value;
@@ -34,6 +35,13 @@ export function formatarDataHoraBrasilia(d: Date | null | undefined): string {
   if (!d) return '';
   const p = partes(new Date(d));
   return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`;
+}
+
+/** "dd/MM/aaaa HH:mm:ss" no horário de Brasília ('' para nulo). */
+export function formatarDataHoraSegundosBrasilia(d: Date | null | undefined): string {
+  if (!d) return '';
+  const p = partes(new Date(d));
+  return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}:${p.second}`;
 }
 
 /** Hora (0–23) no horário de Brasília. */

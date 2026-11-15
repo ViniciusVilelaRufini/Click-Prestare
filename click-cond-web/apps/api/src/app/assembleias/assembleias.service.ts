@@ -5,7 +5,8 @@ import { type Gravados, StorageService, umaVez } from '../common/storage/storage
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertStaff } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { formatarDataHoraBrasilia, hojeBrasilia } from '../common/hora-brasilia.util';
+import { createHash } from 'crypto';
+import { formatarDataHoraBrasilia, formatarDataHoraSegundosBrasilia, hojeBrasilia } from '../common/hora-brasilia.util';
 import { rotuloBloco } from '../common/rotulo-bloco.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { avisarMoradoresDoCondominio } from '../comunicados/avisar-moradores.util';
@@ -158,6 +159,72 @@ export type VotoDaUnidade = {
   pode_votar: boolean;
   motivo: string | null;
   votado_por: TipoVinculo | null;
+};
+
+/**
+ * Mapa de votação (nominal) de uma votação encerrada — só síndico/staff.
+ * Datas em horário de Brasília ("dd/MM/aaaa HH:mm:ss"). `vigente`: o voto é o
+ * que conta na apuração da unidade (o substituído traz `substituido_em`).
+ */
+export type MapaVotacao = {
+  votacao: { id: number; titulo: string; somente_proprietarios: 0 | 1; encerrada_em: string | null };
+  participacao: { unidades_votaram: number; unidades_total: number };
+  opcoes: Array<{ id: number; nome: string; votos: number }>;
+  votos: Array<{
+    unidade: string;
+    votante: string;
+    tipo_vinculo: TipoVinculo | null;
+    opcao: string;
+    registrado_em: string;
+    vigente: boolean;
+    substituido_em: string | null;
+  }>;
+};
+
+/**
+ * Texto canônico do mapa: base do código de integridade (`apuracao_hash`)
+ * impresso na apuração publicada. Uma linha por registro, cada uma um array
+ * JSON (sem ambiguidade com ';', '|' ou quebra de linha nos nomes):
+ *
+ *   mapa-de-votacao v1
+ *   votacao [id, titulo, somente_proprietarios]
+ *   opcao [id, nome, votos]                         (uma por opção, na ordem)
+ *   voto [unidade, votante, tipo_vinculo, opcao, registrado_em, vigente, substituido_em]
+ *
+ * Ficam FORA a participação (o total de unidades do condomínio muda depois) e
+ * a hora de encerramento: o texto é refeito igual a partir do JSON do mapa a
+ * qualquer tempo.
+ */
+export function textoCanonicoMapa(mapa: MapaVotacao): string {
+  const linhas = [
+    'mapa-de-votacao v1',
+    `votacao ${JSON.stringify([mapa.votacao.id, mapa.votacao.titulo, mapa.votacao.somente_proprietarios])}`,
+    ...mapa.opcoes.map((o) => `opcao ${JSON.stringify([o.id, o.nome, o.votos])}`),
+    ...mapa.votos.map(
+      (v) =>
+        `voto ${JSON.stringify([v.unidade, v.votante, v.tipo_vinculo, v.opcao, v.registrado_em, v.vigente, v.substituido_em])}`,
+    ),
+  ];
+  return `${linhas.join('\n')}\n`;
+}
+
+/** SHA-256 (hex) dos textos canônicos dos mapas, em ordem de id da votação. */
+export function hashMapas(mapas: MapaVotacao[]): string {
+  const texto = [...mapas]
+    .sort((a, b) => a.votacao.id - b.votacao.id)
+    .map(textoCanonicoMapa)
+    .join('');
+  return createHash('sha256').update(texto, 'utf8').digest('hex');
+}
+
+/** Mapa de uma votação mais o que a ATA e as checagens precisam dela. */
+type MapaCalculado = {
+  mapa: MapaVotacao;
+  status: number;
+  id_condominio: number;
+  descricao: string;
+  data_inicio: Date | null;
+  data_termino: Date | null;
 };
 
 /** O que votosPorUnidade precisa saber de cada votação. */
@@ -854,6 +921,171 @@ export class AssembleiasService {
 
   /** Quantas vezes o voto é refeito depois de um deadlock (P2034). */
   private static readonly NOVAS_TENTATIVAS_VOTO = 2;
+
+  /**
+   * Mapa de votação nominal (`GET assembleias/votacoes/mapa?id=`): todos os
+   * votos, inclusive os substituídos. Só síndico/staff (o porteiro do console
+   * não tem typeAccess: assertStaff recusa) do condomínio da votação, e só
+   * depois de encerrada — antes revelaria o resultado parcial.
+   */
+  async mapaVotacao(idVotacao: number, requester?: JwtPayload): Promise<MapaVotacao> {
+    assertStaff(requester, 'ver o mapa de votação');
+    if (!this.prisma.isConnected) {
+      return {
+        votacao: { id: idVotacao, titulo: '', somente_proprietarios: 0, encerrada_em: null },
+        participacao: { unidades_votaram: 0, unidades_total: 0 },
+        opcoes: [],
+        votos: [],
+      };
+    }
+    const atual = await this.prisma.votacoes.findUnique({
+      where: { id: Number(idVotacao) },
+      select: { id_condominio: true },
+    });
+    if (!atual) throw new NotFoundException('Votação não encontrada');
+    await this.tenant.assertEntidade(atual.id_condominio, requester, `votação #${idVotacao}`);
+    const [calc] = await this.mapasDasVotacoes({ id: Number(idVotacao) });
+    if (!calc) throw new NotFoundException('Votação não encontrada');
+    if (calc.status !== 2) {
+      throw new BadRequestException('O mapa de votação fica disponível quando a votação é encerrada.');
+    }
+    return calc.mapa;
+  }
+
+  /**
+   * Mapas (nominais) das votações do `where`, em ordem de id, com a mesma
+   * apuração da tela (só vigentes; voto novo pela unidade gravada; voto antigo
+   * pela regra antiga). Unidade e votante vêm do retrato do voto; no voto
+   * antigo, do cadastro atual (morador no condomínio, senão Users.name).
+   */
+  private async mapasDasVotacoes(where: Prisma.VotacoesWhereInput): Promise<MapaCalculado[]> {
+    const votacoesDb = await this.prisma.votacoes.findMany({
+      where,
+      include: {
+        opcoes: {
+          orderBy: { id: 'asc' },
+          include: {
+            votos: {
+              select: {
+                id: true, id_user: true, id_apto: true, created_at: true, tipo_vinculo: true,
+                nome_votante: true, rotulo_unidade: true, substituido_em: true,
+              },
+            },
+          },
+        },
+        assembleia: { select: { finalizada_em: true } },
+        condominio: { select: { _count: { select: { apartamentos: true } } } },
+      },
+      orderBy: { id: 'asc' },
+    });
+
+    const saida: MapaCalculado[] = [];
+    const vinculosPorCond = new Map<number, Map<number, Map<number, TipoVinculo>>>();
+    for (const v of votacoesDb) {
+      const todos = v.opcoes.flatMap((op) => op.votos.map((voto) => ({ ...voto, op })));
+      const antigos = todos.filter((x) => !x.tipo_vinculo);
+
+      let vinculosDe = vinculosPorCond.get(v.id_condominio);
+      if (!vinculosDe) {
+        const autores = votacoesDb
+          .filter((x) => x.id_condominio === v.id_condominio)
+          .flatMap((x) => x.opcoes.flatMap((op) => op.votos.filter((voto) => !voto.tipo_vinculo).map((voto) => voto.id_user)))
+          .filter((id): id is number => id != null);
+        vinculosDe = await this.vinculosNoCondominio(v.id_condominio, [...new Set(autores)]);
+        vinculosPorCond.set(v.id_condominio, vinculosDe);
+      }
+
+      // Unidade de cada voto antigo (a da apuração; sem vínculo, a gravada).
+      const unidadeAntiga = new Map<number, number | null>();
+      for (const x of antigos) {
+        const vinc = x.id_user == null ? undefined : vinculosDe.get(x.id_user);
+        unidadeAntiga.set(x.id, this.unidadeDoVotoAntigo(x.id_apto, vinc) ?? x.id_apto ?? null);
+      }
+      const idsAptos = [
+        ...new Set(
+          todos
+            .filter((x) => !x.rotulo_unidade)
+            .map((x) => (x.tipo_vinculo ? x.id_apto : unidadeAntiga.get(x.id)))
+            .filter((id): id is number => id != null),
+        ),
+      ];
+      const aptos = idsAptos.length
+        ? await this.prisma.apartamentos.findMany({ where: { id: { in: idsAptos } }, select: { id: true, bloco: true, apto: true } })
+        : [];
+      const aptoPorId = new Map(aptos.map((a) => [a.id, a]));
+
+      const semNome = [...new Set(todos.filter((x) => !x.nome_votante && x.id_user != null).map((x) => x.id_user as number))];
+      const nomes = new Map<number, string>();
+      if (semNome.length) {
+        const usuarios = await this.prisma.users.findMany({ where: { id: { in: semNome } }, select: { id: true, name: true } });
+        for (const u of usuarios) if ((u.name ?? '').trim()) nomes.set(u.id, (u.name ?? '').trim());
+        const moradores = await this.prisma.moradores.findMany({
+          where: { id_user: { in: semNome }, id_condominio: v.id_condominio },
+          select: { id_user: true, nome: true },
+          orderBy: { id: 'desc' },
+        });
+        // orderBy desc + sobrescrever: fica o de menor id (como nomeDoVotante).
+        for (const m of moradores) if ((m.nome ?? '').trim()) nomes.set(m.id_user, m.nome.trim());
+      }
+
+      const apurado = this.apurar(v.opcoes, vinculosDe);
+      const contados = new Set([...apurado.values()].map((x) => x.id));
+      const votosPorOpcao = new Map<number, number>();
+      for (const { id_opcao } of apurado.values()) votosPorOpcao.set(id_opcao, (votosPorOpcao.get(id_opcao) ?? 0) + 1);
+
+      const linhas = todos.map((x) => {
+        const idUnidade = x.tipo_vinculo ? x.id_apto : unidadeAntiga.get(x.id) ?? null;
+        const unidade =
+          (x.rotulo_unidade ?? '').trim() ||
+          (idUnidade != null ? rotuloDaUnidade(idUnidade, aptoPorId.get(idUnidade)) : 'Sem unidade');
+        const votante =
+          (x.nome_votante ?? '').trim() ||
+          (x.id_user != null ? nomes.get(x.id_user) ?? `Conta ${x.id_user}` : 'Conta excluída');
+        const tipo = x.tipo_vinculo
+          ? normalizarTipoVinculo(x.tipo_vinculo)
+          : (idUnidade != null && x.id_user != null ? vinculosDe!.get(x.id_user)?.get(idUnidade) : undefined) ?? null;
+        return {
+          linha: {
+            unidade,
+            votante,
+            tipo_vinculo: tipo,
+            opcao: x.op.nome,
+            registrado_em: formatarDataHoraSegundosBrasilia(x.created_at),
+            vigente: contados.has(x.id),
+            substituido_em: x.substituido_em ? formatarDataHoraSegundosBrasilia(x.substituido_em) : null,
+          },
+          t: new Date(x.created_at).getTime(),
+          id: x.id,
+        };
+      });
+      linhas.sort(
+        (a, b) =>
+          a.linha.unidade.localeCompare(b.linha.unidade, 'pt-BR', { numeric: true, sensitivity: 'base' }) ||
+          a.t - b.t ||
+          a.id - b.id,
+      );
+
+      saida.push({
+        mapa: {
+          votacao: {
+            id: v.id,
+            titulo: v.titulo,
+            somente_proprietarios: v.somente_proprietarios ? 1 : 0,
+            encerrada_em: v.encerrada_em ? formatarDataHoraSegundosBrasilia(v.encerrada_em) : null,
+          },
+          participacao: { unidades_votaram: apurado.size, unidades_total: v.condominio?._count?.apartamentos ?? 0 },
+          opcoes: v.opcoes.map((op) => ({ id: op.id, nome: op.nome, votos: votosPorOpcao.get(op.id) ?? 0 })),
+          votos: linhas.map((l) => l.linha),
+        },
+        status: this.calcStatusInt(v.data_inicio, v.data_termino, v.encerrada_em ?? v.assembleia?.finalizada_em),
+        id_condominio: v.id_condominio,
+        descricao: v.descricao ?? '',
+        data_inicio: v.data_inicio,
+        data_termino: v.data_termino,
+      });
+    }
+    return saida;
+  }
 
   async enqueteGetAll(idCondominio: number, requester?: JwtPayload) {
     await this.tenant.assertCondominio(idCondominio, requester);

@@ -119,6 +119,12 @@ export class AssembleiasController {
     );
   }
 
+  /** Mapa de votação nominal (síndico/staff, votação encerrada). */
+  @Get('votacoes/mapa')
+  mapa(@Query('id') id: string, @ReqUser() payload: JwtPayload) {
+    return this.service.mapaVotacao(Number(id), payload);
+  }
+
   @Get('votacoes/enquetes/get-all')
   enqueteGetAll(@Query('id_condominio') idCondominio: string, @ReqUser() payload: JwtPayload) {
     return this.service.enqueteGetAll(Number(idCondominio), payload);
