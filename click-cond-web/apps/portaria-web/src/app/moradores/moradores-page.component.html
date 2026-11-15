@@ -64,6 +64,12 @@
           {{ f.label }}
         </button>
       }
+      <!-- Implantação: sem a data, o morador não recebe o acesso ao app. -->
+      <button (click)="filtroTipo.set(filtroSemNascimento)" [class.on]="filtroTipo() === filtroSemNascimento"
+              data-filtro-sem-nascimento
+              title="Moradores sem data de nascimento: não recebem o acesso ao app até ela ser preenchida">
+        Sem data de nascimento ({{ stats().semNascimento }})
+      </button>
     </div>
     </div>
 
@@ -705,6 +711,9 @@
                     <span class="ps-tag !h-[18px] !px-1.5 !text-[9px]" title="Envie o acesso ao app: o rosto só vai para os terminais depois que o morador aceitar a biometria"><span class="ps-dot ps-dot-warn"></span>Sem acesso ao app</span>
                   }
                   <span class="ps-tag {{ tipoColor(m.tipo) }}">{{ tipoLabel(m.tipo) }}</span>
+                  @if (!m.data_nascimento) {
+                    <span class="ps-tag !h-[18px] !px-1.5 !text-[9px]" data-selo-sem-nascimento title="Sem data de nascimento: o morador não recebe o acesso ao app até ela ser preenchida"><span class="ps-dot ps-dot-warn"></span>Sem nascimento</span>
+                  }
                 </div>
                 @if (m.email) { <p class="text-[11px] text-slate-500 truncate mt-0.5">{{ m.email }}</p> }
                 <div class="flex items-center gap-3 mt-2 text-xs text-slate-400 flex-wrap">
@@ -776,6 +785,9 @@
                         <span class="ps-tag !h-[18px] !px-1.5 !text-[9px] shrink-0" title="O rosto só vai para os terminais depois que o morador aceitar a biometria no app"><span class="ps-dot ps-dot-warn"></span>Aguardando aceite</span>
                       } @else if (m.biometria_sem_conta_app) {
                         <span class="ps-tag !h-[18px] !px-1.5 !text-[9px] shrink-0" title="Envie o acesso ao app: o rosto só vai para os terminais depois que o morador aceitar a biometria"><span class="ps-dot ps-dot-warn"></span>Sem acesso ao app</span>
+                      }
+                      @if (!m.data_nascimento) {
+                        <span class="ps-tag !h-[18px] !px-1.5 !text-[9px] shrink-0" data-selo-sem-nascimento title="Sem data de nascimento: o morador não recebe o acesso ao app até ela ser preenchida"><span class="ps-dot ps-dot-warn"></span>Sem nascimento</span>
                       }
                     </div>
                     @if (m.email) { <p class="text-[11px] text-slate-500 truncate">{{ m.email }}</p> }
@@ -1000,6 +1012,11 @@
               Baixar modelo Excel (.xlsx)
             </button>
           </div>
+          <p class="text-[11px] text-slate-400 -mt-3" data-instrucao-importacao>
+            Colunas: Nome Completo, Documento, E-mail, Telefone, Quadra/Bloco, Lote/Apto, Vínculo e Data de Nascimento
+            (DD/MM/AAAA ou AAAA-MM-DD). Sem a data, o morador é importado sem acesso ao app. Unidade que ainda não
+            existe só é criada se quem importa gerencia unidades (síndico).
+          </p>
 
           @if (bulkStatus() === 'idle') {
             <div class="relative flex flex-col items-center justify-center p-8 rounded-xl border-2 border-dashed border-white/10 hover:border-accent/40 bg-graphite-200/50 hover:bg-graphite-200 transition text-center group cursor-pointer">
@@ -1039,6 +1056,7 @@
                       <th class="p-2.5 font-medium">Nome</th>
                       <th class="p-2.5 font-medium">Contato</th>
                       <th class="p-2.5 font-medium">Unidade</th>
+                      <th class="p-2.5 font-medium">Nascimento</th>
                       <th class="p-2.5 font-medium text-center">E-mail de Acesso</th>
                     </tr>
                   </thead>
@@ -1052,8 +1070,17 @@
                             {{ item.quadra }} / {{ item.lote }}
                           </span>
                         </td>
+                        <td class="p-2.5 text-slate-400">
+                          @if (temDataNascimento(item.data_nascimento)) {
+                            {{ formatarParaBr(item.data_nascimento) }}
+                          } @else if (item.data_nascimento) {
+                            <span class="text-amber-400" title="Use DD/MM/AAAA ou AAAA-MM-DD">{{ item.data_nascimento }} (inválida)</span>
+                          } @else {
+                            <span class="text-amber-400" title="Sem a data, o morador é importado sem acesso ao app">Sem data</span>
+                          }
+                        </td>
                         <td class="p-2.5 text-center">
-                          <input type="checkbox" [(ngModel)]="item.sendCredentials" [disabled]="!item.email" [title]="item.email ? '' : 'Sem e-mail: nenhuma credencial é enviada'" class="rounded bg-graphite-200 border-white/20 text-accent accent-accent"/>
+                          <input type="checkbox" [(ngModel)]="item.sendCredentials" [disabled]="!item.email || !temDataNascimento(item.data_nascimento)" [title]="!item.email ? 'Sem e-mail: nenhuma credencial é enviada' : (temDataNascimento(item.data_nascimento) ? '' : 'Sem data de nascimento: importado sem acesso ao app')" class="rounded bg-graphite-200 border-white/20 text-accent accent-accent"/>
                         </td>
                       </tr>
                     }
@@ -1085,6 +1112,14 @@
                   <p class="text-[11px] font-medium text-amber-400">Ocorrências durante o processamento:</p>
                   @for (e of bulkResult().erros; track $index) {
                     <p class="text-[10px] text-slate-400">• <span class="text-slate-300 font-medium">{{ e.nome }}</span>: {{ e.erro }}</p>
+                  }
+                </div>
+              }
+              @if (bulkResult().sem_acesso?.length) {
+                <div class="mt-3 text-left max-h-36 overflow-y-auto bg-black/20 p-2.5 rounded-lg border border-white/5 space-y-1" data-importados-sem-acesso>
+                  <p class="text-[11px] font-medium text-amber-400">Importados sem acesso ao app (preencha a data de nascimento e use "Enviar Acesso"):</p>
+                  @for (s of bulkResult().sem_acesso; track $index) {
+                    <p class="text-[10px] text-slate-400">• <span class="text-slate-300 font-medium">{{ s.nome }}</span>: {{ s.motivo }}</p>
                   }
                 </div>
               }

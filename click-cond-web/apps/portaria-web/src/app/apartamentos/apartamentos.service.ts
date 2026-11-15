@@ -50,6 +50,11 @@ export class ApartamentosApi {
     return this.http.delete<{ ok: boolean }>(`${this.base}/${id}`);
   }
 
+  /** O que a sessão pode fazer com as unidades (síndico, ou funcionário com a permissão "apartamentos"). */
+  acesso(): Observable<{ gerenciar: boolean }> {
+    return this.http.get<{ gerenciar: boolean }>(`${this.base}/acesso`);
+  }
+
   importBulk(linhas: any[]): Observable<{ ok: boolean; total: number; criados: any[] }> {
     return this.http.post<{ ok: boolean; total: number; criados: any[] }>(`${this.base}/import-bulk`, { linhas });
   }

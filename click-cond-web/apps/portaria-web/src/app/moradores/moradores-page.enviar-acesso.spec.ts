@@ -29,7 +29,7 @@ function build(sendCredentials: jest.Mock) {
   return { tela, toast, confirm };
 }
 
-const morador = (extra: any = {}) => ({ id: 5, nome: 'Bia', email: 'bia@x.com', data_nascimento: null, ...extra }) as any;
+const morador = (extra: any = {}) => ({ id: 5, nome: 'Bia', email: 'bia@x.com', data_nascimento: '1980-04-19', ...extra }) as any;
 
 describe('MoradoresPageComponent — Enviar Acesso', () => {
   it('menor de 18 pela data do cadastro: avisa e não chama a API', async () => {
@@ -43,6 +43,26 @@ describe('MoradoresPageComponent — Enviar Acesso', () => {
     expect(send).not.toHaveBeenCalled();
     expect(confirm.ask).not.toHaveBeenCalled();
     expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining('menor de 18 anos'));
+  });
+
+  it('sem data de nascimento: pede a data e não chama a API', async () => {
+    const send = jest.fn(() => of({ ok: true }));
+    const { tela, toast, confirm } = build(send);
+
+    await tela.sendCredentials(morador({ data_nascimento: null }));
+
+    expect(send).not.toHaveBeenCalled();
+    expect(confirm.ask).not.toHaveBeenCalled();
+    expect(toast.warning).toHaveBeenCalledWith('Informe a data de nascimento do morador antes de enviar o acesso.');
+  });
+
+  it('sucesso mostra o que a API fez (link ou senha inicial)', async () => {
+    const send = jest.fn(() => of({ ok: true, modo: 'link', message: 'Enviamos para bia@x.com um link para o morador definir uma nova senha.' }));
+    const { tela, toast } = build(send);
+
+    await tela.sendCredentials(morador({ envio_acesso_por_link: true }));
+
+    expect(toast.success).toHaveBeenCalledWith('Enviamos para bia@x.com um link para o morador definir uma nova senha.');
   });
 
   it('recusa da API aparece com a mensagem dela', async () => {

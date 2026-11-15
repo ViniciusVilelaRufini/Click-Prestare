@@ -90,6 +90,34 @@ describe('ApartamentosService — exige a flag apartamentos', () => {
     expect(prisma.apartamentos.create).toHaveBeenCalled();
   });
 
+  it('NEGA importar unidades em massa sem a flag (rodada 4)', async () => {
+    const { service, prisma } = build();
+    (prisma.apartamentos as any).findFirst = jest.fn(async () => null);
+    await expect(service.importBulk(2, [{ apto: '103', bloco: 'A' }], semFlag)).rejects.toThrow(ForbiddenException);
+    expect(prisma.apartamentos.create).not.toHaveBeenCalled();
+  });
+
+  it('PERMITE importar com a flag', async () => {
+    const { service, prisma } = build();
+    (prisma.apartamentos as any).findFirst = jest.fn(async () => null);
+    await service.importBulk(2, [{ apto: '103', bloco: 'A' }], comFlag);
+    expect(prisma.apartamentos.create).toHaveBeenCalled();
+  });
+
+  describe('acesso (GET apartamentos/acesso): a tela esconde os botões de quem a API recusaria', () => {
+    it('síndico e funcionário com a flag gerenciam', async () => {
+      const { service } = build();
+      await expect(service.acesso(2, sindico)).resolves.toEqual({ gerenciar: true });
+      await expect(service.acesso(2, comFlag)).resolves.toEqual({ gerenciar: true });
+    });
+
+    it('funcionário sem a flag e porteiro de login e senha não gerenciam', async () => {
+      const { service } = build();
+      await expect(service.acesso(2, semFlag)).resolves.toEqual({ gerenciar: false });
+      await expect(service.acesso(2, { sub: 3, nome: 'P', id_condominio: 2 } as any)).resolves.toEqual({ gerenciar: false });
+    });
+  });
+
   /// O console administrativo nao tem flag de funcionario e nao pode ser barrado.
   it('não interfere no caminho da operadora', async () => {
     const { service, prisma, tenant } = build();

@@ -7,6 +7,7 @@ import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
 import { WalletService } from '../wallet/wallet.service';
+import { MobileAuthService } from '../auth/mobile-auth.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador } from '../auth/tenant.util';
 import { momentoTrocaSenha } from '../auth/senha-alterada.util';
@@ -50,6 +51,48 @@ export interface CreateMoradorDto {
 
 /** Recusa da edição quando a unidade da linha e a anterior da tela são vínculos diferentes (sai com a mensagem, não a genérica). */
 class UnidadeDaTelaDivergente extends BadRequestException {}
+
+/** Campos da conta (Users) que decidem o caminho do "Enviar Acesso". */
+const SELECAO_CONTA_ENVIO = {
+  id: true,
+  email: true,
+  login: true,
+  password: true,
+  senha_alterada_em: true,
+  fcm_token: true,
+  _count: { select: { devices: true } },
+} as const;
+
+type ContaEnvioAcesso = {
+  id?: number;
+  email?: string | null;
+  login?: string | null;
+  password?: string | null;
+  senha_alterada_em?: Date | string | null;
+  fcm_token?: string | null;
+  _count?: { devices?: number } | null;
+};
+
+/**
+ * Evidência de que a conta já entrou no app: senha trocada/definida depois da criação
+ * (`senha_alterada_em`: redefinição, troca no app ou senha inicial já enviada), ou aparelho com push
+ * registrado (`fcm_token` / Users_Devices). A senha aleatória do cadastro sozinha não conta.
+ */
+export function jaAcessouApp(conta: ContaEnvioAcesso | null | undefined): boolean {
+  if (!conta) return false;
+  return !!conta.senha_alterada_em || !!(conta.fcm_token ?? '').trim() || (conta._count?.devices ?? 0) > 0;
+}
+
+/**
+ * Caminho do "Enviar Acesso" — a mesma regra decide a API e o texto da confirmação na tela.
+ * 'link': conta com login que já usou o app (e tem senha) ou que também é de outro condomínio (a senha
+ * dela nunca é trocada daqui). 'senha': conta nova, sem login, ou que nunca entrou e é só deste condomínio.
+ */
+export function modoEnvioAcesso(conta: ContaEnvioAcesso | null | undefined, outroCondominio: boolean): 'link' | 'senha' {
+  if (!(conta?.login ?? '').trim()) return 'senha';
+  if (outroCondominio) return 'link';
+  return conta!.password && jaAcessouApp(conta) ? 'link' : 'senha';
+}
 
 /** Chave da unidade: bloco normalizado ("Bloco A" = "A") e apto sem espaços nem caixa. */
 function chaveUnidade(bloco: string | null | undefined, apto: string | null | undefined): string {
@@ -101,6 +144,8 @@ export class MoradoresService {
     private readonly auditoria: AuditoriaService,
     private readonly superlogicaWrite: SuperlogicaWriteService,
     @Optional() private readonly wallet?: WalletService,
+    // "Enviar Acesso" para conta que já tem senha: o mesmo link do "Esqueci a senha" do morador.
+    @Optional() private readonly mobileAuth?: MobileAuthService,
   ) {}
 
   private gerarSenhaAleatoria(): string {
@@ -427,6 +472,21 @@ export class MoradoresService {
     };
   }
 
+  /** Contas com login que também têm vínculo em outro condomínio (o "Enviar Acesso" delas é sempre o link). */
+  private async contasComLoginDeOutroCondominio(
+    contas: Array<{ id?: number | null; login?: string | null } | null | undefined>,
+    idCondominio: number,
+  ): Promise<Set<number>> {
+    const ids = contas.filter((c) => c?.id != null && !!(c.login ?? '').trim()).map((c) => Number(c!.id));
+    if (ids.length === 0) return new Set();
+    try {
+      return await usuariosComVinculoEmOutroCondominio(this.prisma as any, ids, idCondominio);
+    } catch (e: any) {
+      this.logger.warn(`[moradores.findAll] vínculos em outro condomínio não lidos: ${e?.message ?? e}`);
+      return new Set();
+    }
+  }
+
   /**
    * Moradores no schema legado têm FK para Users e podem ter id_condominio.
    * Para a portaria, listamos moradores diretamente filtrados por id_condominio
@@ -449,7 +509,7 @@ export class MoradoresService {
         where: { id_apto: Number(idApto), apartamento: { id_condominio: Number(idCondominio) } },
         include: {
           apartamento: true,
-          user: { include: { moradores: true } },
+          user: { include: { moradores: true, _count: { select: { devices: true } } } },
         },
       });
       // Users é global: conta que também é de OUTRO condomínio não empresta CPF, e-mail, telefone e
@@ -460,6 +520,7 @@ export class MoradoresService {
         Number(idCondominio),
       );
       const autorizados = await this.biometriaAutorizadaPorUsuario(rels.map((r) => r.id_user));
+      const contasDeFora = await this.contasComLoginDeOutroCondominio(rels.map((r) => r.user), Number(idCondominio));
       const seen = new Set<number>();
       const out: any[] = [];
       for (const r of rels) {
@@ -500,10 +561,10 @@ export class MoradoresService {
           face_id: m?.face_id ?? null,
           face_sync_status: m?.face_sync_status ?? null,
           face_sync_error: m?.face_sync_error ?? null,
-          // A tela de edição monta o formulário com estes campos: sem eles, salvar apagava a tag e o QR.
-          tag_rfid: m?.tag_rfid ?? null,
-          qrcode_acesso: m?.qrcode_acesso ?? null,
+          // Tag RFID e QR Code não saem na lista (eram a credencial do prédio inteiro num GET só):
+          // ficam na ficha (findOne), que a tela carrega antes de editar.
           ...this.estadoAceiteBiometria(m, autorizados, r.user),
+          envio_acesso_por_link: modoEnvioAcesso(r.user as any, contasDeFora.has(r.id_user)) === 'link',
         });
       }
       // Busca textual local (mesmo comportamento da query condo-wide).
@@ -544,9 +605,15 @@ export class MoradoresService {
       include: {
         user: {
           select: {
+            id: true,
             photo: true,
             login: true,
             login_type: true,
+            // O caminho do "Enviar Acesso" (modoEnvioAcesso): só viram um booleano, não saem na resposta.
+            password: true,
+            senha_alterada_em: true,
+            fcm_token: true,
+            _count: { select: { devices: true } },
             // Só os vínculos deste condomínio, na ordem em que nasceram: a unidade de cada linha sai deles.
             apartamentosUsers: {
               where: { apartamento: { id_condominio: Number(idCondominio) } },
@@ -569,6 +636,10 @@ export class MoradoresService {
       Number(idCondominio),
     );
     const autorizados = await this.biometriaAutorizadaPorUsuario(list.map((m) => m.id_user));
+    const contasDeFora = await this.contasComLoginDeOutroCondominio(
+      list.map((m) => (m.user ? { ...m.user, id: m.user.id ?? m.id_user } : null)),
+      Number(idCondominio),
+    );
     return list.map((m) => {
       const idAptoMapped = idApartamentoDaLinha(m, m.user?.apartamentosUsers ?? []);
       const fotoFinal = m.foto_pessoa ?? (m.id_user != null && compartilhadas.has(m.id_user) ? null : m.user?.photo) ?? null;
@@ -590,9 +661,10 @@ export class MoradoresService {
         face_id: m.face_id ?? null,
         face_sync_status: m.face_sync_status ?? null,
         face_sync_error: m.face_sync_error ?? null,
-        tag_rfid: m.tag_rfid ?? null,
-        qrcode_acesso: m.qrcode_acesso ?? null,
+        // Sem tag_rfid e qrcode_acesso: só na ficha (findOne). Esta lista também alimenta o CRM.
         ...this.estadoAceiteBiometria(m, autorizados, m.user),
+        // A confirmação da tela usa a mesma regra da API: link (já usa o app ou é de outro condomínio) ou senha inicial.
+        envio_acesso_por_link: modoEnvioAcesso(m.user as any, m.id_user != null && contasDeFora.has(m.id_user)) === 'link',
       };
     });
   }
@@ -859,8 +931,16 @@ export class MoradoresService {
    * `opts.permitirContaDeOutroCondominio`: só para os chamadores confiáveis do CRM (criar morador e importação
    * de contatos da Superlógica). Pula APENAS a recusa de ligar conta que já tem vínculo em outro condomínio;
    * as credenciais e o perfil dessa conta continuam intocados.
+   *
+   * `opts.semContaApp`: só a importação, para a linha com e-mail e sem data de nascimento. O cadastro entra
+   * com o e-mail em Moradores e um Users sem login nem senha (como o cadastro sem e-mail): sem a data não há
+   * conta de app. O "Enviar Acesso" cria o login depois que a data for preenchida.
    */
-  async create(dto: CreateMoradorDto, operador?: JwtPayload, opts?: { permitirContaDeOutroCondominio?: boolean }) {
+  async create(
+    dto: CreateMoradorDto,
+    operador?: JwtPayload,
+    opts?: { permitirContaDeOutroCondominio?: boolean; semContaApp?: boolean },
+  ) {
     if (!this.prisma.isConnected) {
       const newM = {
         id: MoradoresService.mockMoradores.length + 1,
@@ -946,7 +1026,8 @@ export class MoradoresService {
     // validarMaioridade() lança se estiver ausente (não apenas se for menor).
     // Só o e-mail cria conta de app: sendCredentials sem e-mail não envia nada
     // (a tela e a importação o mandam marcado por padrão).
-    if (dto.email) {
+    const criaContaApp = !!dto.email && !opts?.semContaApp;
+    if (criaContaApp) {
       validarMaioridade(dto.data_nascimento, 'criação de conta de usuário no aplicativo');
     }
 
@@ -1003,7 +1084,7 @@ export class MoradoresService {
             },
           });
           userId = u.id;
-        } else if (dto.email) {
+        } else if (criaContaApp) {
           const existing = await tx.users.findFirst({
             where: { email: dto.email },
           });
@@ -1132,8 +1213,8 @@ export class MoradoresService {
     // A conta existente foi achada por dto.email, então o aviso vai sempre para o endereço
     // dela. Conta de outro condomínio não recebe senha nova (passwordWasSet fica false):
     // só o aviso de "você já tem conta", sem credencial.
-    if (dto.sendCredentials && dto.email) {
-      this.fireWelcomeEmail(dto.email, dto.nome, passwordWasSet ? senhaInicial : undefined);
+    if (dto.sendCredentials && criaContaApp) {
+      this.fireWelcomeEmail(dto.email!, dto.nome, passwordWasSet ? senhaInicial : undefined);
     }
 
     // Mão dupla com a Superlógica. Best-effort de propósito: o ERP fora do ar
@@ -1205,6 +1286,12 @@ export class MoradoresService {
     // Foto reenviada igual à do cadastro não é edição: sem isto, corrigir o telefone exigia a data de
     // nascimento, rodava o sync facial de novo e regravava a foto de perfil do app (Users.photo).
     if (fotoPessoaUrl !== undefined && fotoPessoaUrl === (atual.foto_pessoa ?? null)) fotoPessoaUrl = undefined;
+    // "Remover foto" quando o cadastro não tem foto e a tela mostrava a de perfil do app (Users.photo):
+    // sem isto nada mudava e a foto continuava na lista. Sai só a de perfil; o facial lê Moradores.foto_pessoa,
+    // que já está vazio. Conta também de outro condomínio fica intocada (abaixo, contaDeOutroCondominio).
+    const removeFotoDoPerfil =
+      dto.foto_pessoa !== undefined && fotoPessoaUrl === undefined && !atual.foto_pessoa &&
+      !(dto.foto_pessoa ?? '').toString().trim() && !!(atual.user?.photo || atual.user?.profile_image);
     const fotoDocumentoUrl =
       dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento, fotosDoCadastro) : undefined;
 
@@ -1267,7 +1354,7 @@ export class MoradoresService {
 
     // O console nunca é o titular: com a conta também em outro condomínio, nome/telefone/foto ficam só
     // em Moradores. Só consulta quando há o que propagar (as demais edições não tocam Users).
-    const tocaPerfilDaConta = dto.nome !== undefined || dto.telefone !== undefined || fotoPessoaUrl !== undefined;
+    const tocaPerfilDaConta = dto.nome !== undefined || dto.telefone !== undefined || fotoPessoaUrl !== undefined || removeFotoDoPerfil;
     const contaDeOutroCondominio =
       tocaPerfilDaConta && !!atual.id_user && atual.id_condominio != null &&
       (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, atual.id_user, atual.id_condominio));
@@ -1430,6 +1517,9 @@ export class MoradoresService {
         if (fotoPessoaUrl !== undefined) {
           userPatch.photo = fotoPessoaUrl;
           userPatch.profile_image = fotoPessoaUrl;
+        } else if (removeFotoDoPerfil) {
+          userPatch.photo = null;
+          userPatch.profile_image = null;
         }
         // O console edita o cadastro do condomínio (Moradores). Login/e-mail/CPF da
         // conta (Users) só mudam pelo próprio titular, no app, com a senha atual:
@@ -1478,6 +1568,9 @@ export class MoradoresService {
     }
     if (fotoPessoaUrl !== undefined && fotoPessoaUrl !== atual.foto_pessoa) {
       changes['foto_pessoa'] = { de: '(anterior)', para: '(nova)' };
+    }
+    if (removeFotoDoPerfil && !contaDeOutroCondominio) {
+      changes['foto_perfil_app'] = { de: '(anterior)', para: null };
     }
     const ctx = await this.carregarContextoMorador(result.id);
     await this.auditoria.registrar({
@@ -1559,14 +1652,26 @@ export class MoradoresService {
     }
   }
 
+  /**
+   * "Enviar Acesso" (console e tela do síndico no app). O caminho sai de `modoEnvioAcesso`:
+   * - Conta que já usou o app (senha trocada/definida, aparelho com push registrado) ou que também é de
+   *   outro condomínio: não gera senha nova nem derruba sessões; manda o link do "Esqueci a senha"
+   *   (MobileAuthService, papel morador).
+   * - Conta que nunca entrou e é só deste condomínio (inclusive a que nasceu com senha aleatória no
+   *   cadastro ou na importação): credencial inicial — senha gerada e e-mail de boas-vindas, sem prazo.
+   * A resposta continua `{ ok: true }` (o app só confere o 2xx); `modo` e `message` são campos novos.
+   * Nenhuma recusa deixa efeito: o cadastro só é ligado à conta depois de todas as conferências.
+   */
   async sendCredentials(id: number, operador?: JwtPayload) {
     const m = (await this.findOne(id)) as any;
     if (!m.email) {
       throw new NotFoundException('Morador não possui e-mail cadastrado');
     }
-    // Cláusula 8.3: menor não tem conta de app. Só o caso inequívoco (data no cadastro e de menor);
-    // sem data, segue como antes.
-    if (m.data_nascimento && calcularIdade(m.data_nascimento) < 18) {
+    // Cláusula 8.3: menor não tem conta de app. Sem a data não há como saber — mesma regra do cadastro com e-mail.
+    if (!m.data_nascimento) {
+      throw new BadRequestException('Informe a data de nascimento do morador antes de enviar o acesso.');
+    }
+    if (calcularIdade(m.data_nascimento) < 18) {
       throw new BadRequestException(
         'Este morador é menor de 18 anos e não recebe acesso ao app (Cláusula 8.3). O acesso do menor é pelo responsável.',
       );
@@ -1580,63 +1685,109 @@ export class MoradoresService {
     // senha da conta a quem trocou o e-mail do cadastro).
     let emailDestino: string = m.email;
     if (this.prisma.isConnected) {
-      let userId = m.id_user;
+      let userId: number | null = m.id_user ?? null;
+      let conta: ContaEnvioAcesso | null = null;
+      // Cadastro sem id_user cuja conta foi achada pelo e-mail: só é ligado a ela no fim, sem recusa pelo caminho.
+      let ligarCadastro = false;
       if (userId) {
-        const conta = await this.prisma.users.findUnique({
-          where: { id: userId },
-          select: { email: true, login: true },
-        });
-        const candidato = [conta?.email, conta?.login].find((v) => !!v && String(v).includes('@'));
-        if (!candidato) {
-          throw new BadRequestException('Esta conta não tem e-mail de acesso cadastrado. Peça que a pessoa use "Esqueci a senha" no app.');
-        }
-        emailDestino = String(candidato);
-      }
-      if (!userId) {
-        const existingUser = await this.prisma.users.findFirst({
+        conta = await this.prisma.users.findUnique({ where: { id: userId }, select: SELECAO_CONTA_ENVIO });
+      } else {
+        const existingUser: ContaEnvioAcesso | null = await this.prisma.users.findFirst({
           where: { OR: [{ email: m.email }, { login: m.email }] },
+          select: SELECAO_CONTA_ENVIO,
         });
-        // Sem id_user a conta (nova ou achada) recebe login = m.email logo abaixo.
+        // Sem id_user a conta (nova ou achada) recebe login = m.email no caminho da senha inicial.
         if (!existingUser || existingUser.login !== m.email) {
           await this.assertLoginLivreDaPortaria(m.email);
         }
         if (existingUser) {
-          // Antes do vínculo: a recusa abaixo saía depois de gravar Moradores.id_user com a conta alheia.
-          if (m.id_condominio != null && (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, existingUser.id, m.id_condominio))) {
+          if (m.id_condominio != null && (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, existingUser.id!, m.id_condominio))) {
             throw new BadRequestException('Esta pessoa também tem conta em outro condomínio. Peça que use "Esqueci a senha" no app.');
           }
-          userId = existingUser.id;
-        } else {
-          const newUser = await this.prisma.users.create({
-            data: {
-              name: m.nome,
-              email: m.email,
-              login: m.email,
-              phone: m.telefone,
-              cpf: m.documento,
-              is_morador: 1,
-              login_type: 'morador',
-              photo: m.foto_pessoa,
-              profile_image: m.foto_pessoa,
-            },
-          });
-          userId = newUser.id;
+          userId = existingUser.id!;
+          conta = existingUser;
+          ligarCadastro = true;
         }
-        await this.prisma.moradores.update({
-          where: { id },
-          data: { id_user: userId },
+      }
+      const outroCondominio =
+        !!userId && m.id_condominio != null && (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, userId, m.id_condominio));
+
+      if (modoEnvioAcesso(conta, outroCondominio) === 'link') {
+        // A senha atual e as sessões continuam valendo até o morador trocar.
+        const login = String(conta!.login).trim().toLowerCase();
+        await this.conferirLinkRedefinicao(userId!, login);
+        if (ligarCadastro) await this.prisma.moradores.update({ where: { id }, data: { id_user: userId! } });
+        await this.mobileAuth!.solicitarRedefinicaoSenha(login, 'morador');
+        // O login da conta só aparece para o operador quando é o próprio e-mail do cadastro.
+        const destino = login === String(m.email).trim().toLowerCase() ? login : 'o e-mail de acesso do morador';
+        const ctxLink = await this.carregarContextoMorador(id);
+        await this.auditoria.registrar({
+          id_condominio: m.id_condominio ?? -1,
+          usuario_nome: operador?.nome ?? 'Portaria',
+          acao: 'STATUS',
+          modulo: 'moradores',
+          entidade_id: id,
+          descricao: `Enviou link de redefinição de senha para "${m.nome}" (${destino})`,
+          detalhes: ctxLink ?? undefined,
         });
+        return {
+          ok: true,
+          modo: 'link' as const,
+          message: `Enviamos para ${destino} um link para o morador definir uma nova senha. O link vale por 30 minutos.`,
+        };
       }
 
-      if (m.id_condominio != null && (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, userId, m.id_condominio))) {
+      // Credencial inicial. Conta sem login: o login nasce com o e-mail (cadastro importado sem acesso ao app).
+      let loginNovo: string | null = null;
+      if (conta && !ligarCadastro) {
+        const candidato = [conta.email, conta.login].find((v) => !!v && String(v).includes('@'));
+        if (candidato) {
+          emailDestino = String(candidato);
+          if (!conta.login) loginNovo = emailDestino;
+        } else if (!conta.login) {
+          loginNovo = m.email;
+        } else {
+          throw new BadRequestException('Esta conta não tem e-mail de acesso cadastrado. Peça que a pessoa use "Esqueci a senha" no app.');
+        }
+      }
+      if (outroCondominio) {
         throw new BadRequestException('Esta pessoa também tem conta em outro condomínio. Peça que use "Esqueci a senha" no app.');
       }
+      if (loginNovo) {
+        // Users.email e Users.login são únicos: o e-mail não pode ser de outra conta nem de um porteiro.
+        const conflito = await this.prisma.users.findFirst({
+          where: { OR: [{ email: loginNovo }, { login: loginNovo }], NOT: { id: userId! } },
+          select: { id: true },
+        });
+        if (conflito) throw new BadRequestException('Já existe outro usuário com este e-mail.');
+        await this.assertLoginLivreDaPortaria(loginNovo);
+        emailDestino = loginNovo;
+      }
+      if (!userId) {
+        const newUser = await this.prisma.users.create({
+          data: {
+            name: m.nome,
+            email: m.email,
+            login: m.email,
+            phone: m.telefone,
+            cpf: m.documento,
+            is_morador: 1,
+            login_type: 'morador',
+            photo: m.foto_pessoa,
+            profile_image: m.foto_pessoa,
+          },
+        });
+        userId = newUser.id;
+        ligarCadastro = true;
+      }
+      if (ligarCadastro) await this.prisma.moradores.update({ where: { id }, data: { id_user: userId! } });
       const senhaHash = await bcrypt.hash(senhaInicial, 10);
       await this.prisma.users.update({
-        where: { id: userId },
+        where: { id: userId! },
         data: {
-          // Conta existente mantém o login; só a conta nova nasce com o e-mail do cadastro.
+          // Conta existente mantém o login; só a conta nova (ou a que não tinha login) recebe o e-mail.
           ...(!m.id_user && { login: m.email }),
+          ...(loginNovo && { login: loginNovo, ...(!conta?.email && { email: loginNovo }) }),
           password: senhaHash,
           // Senha nova: derruba os tokens emitidos antes (JwtStrategy).
           senha_alterada_em: momentoTrocaSenha(),
@@ -1645,6 +1796,8 @@ export class MoradoresService {
     }
     this.fireWelcomeEmail(emailDestino, m.nome, senhaInicial);
 
+    const destinoSenha =
+      emailDestino.trim().toLowerCase() === String(m.email).trim().toLowerCase() ? emailDestino : 'o e-mail de acesso do morador';
     const ctx = await this.carregarContextoMorador(id);
     await this.auditoria.registrar({
       id_condominio: m.id_condominio ?? -1,
@@ -1652,11 +1805,45 @@ export class MoradoresService {
       acao: 'STATUS',
       modulo: 'moradores',
       entidade_id: id,
-      descricao: `Reenviou credenciais para "${m.nome}" (${emailDestino})`,
+      descricao: `Reenviou credenciais para "${m.nome}" (${destinoSenha})`,
       detalhes: ctx ?? undefined,
     });
 
-    return { ok: true };
+    return {
+      ok: true,
+      modo: 'senha' as const,
+      message: `Enviamos para ${destinoSenha} o acesso ao app com uma senha inicial.`,
+    };
+  }
+
+  /**
+   * Conferências do link pelo mecanismo do "Esqueci a senha" (token de 30 min, um uso, e-mail próprio).
+   * Aquele fluxo responde "ok" mesmo quando não envia (contra enumeração de contas); aqui o operador
+   * precisa saber, então as situações em que ele não enviaria são recusadas antes, sem efeito.
+   */
+  private async conferirLinkRedefinicao(idConta: number, login: string): Promise<void> {
+    if (!login.includes('@')) {
+      throw new BadRequestException('Esta conta não tem e-mail de acesso cadastrado. Peça que a pessoa use "Esqueci a senha" no app.');
+    }
+    if (!this.mobileAuth) {
+      throw new BadRequestException('Não foi possível enviar o link agora. Tente de novo em instantes.');
+    }
+    // O fluxo do morador só acha a conta quando algum cadastro de morador usa o e-mail do login.
+    // A mensagem não revela o endereço da conta ao operador.
+    const cadastros = await this.prisma.moradores.count({ where: { email: login } });
+    if (!cadastros) {
+      throw new BadRequestException(
+        'O e-mail de acesso deste morador é diferente do e-mail do cadastro; peça a ele para usar "Esqueci a senha" no app.',
+      );
+    }
+    // Mesmo teto do "Esqueci a senha": 3 links por hora por conta.
+    const umaHoraAtras = new Date(Date.now() - 60 * 60 * 1000);
+    const recentes = await this.prisma.redefinicoes_Senha.count({
+      where: { id_conta: idConta, papel: 'morador', criado_em: { gte: umaHoraAtras } },
+    });
+    if (recentes >= 3) {
+      throw new BadRequestException('Já enviamos 3 links para este morador na última hora. Aguarde um pouco antes de enviar de novo.');
+    }
   }
 
   async exportExcel(
@@ -1716,30 +1903,59 @@ export class MoradoresService {
     }
   }
 
-  async importBulk(idCondominio: number, linhas: any[]) {
+  /**
+   * Importação da planilha de moradores.
+   * - `podeCriarUnidade`: só quem gerencia unidades (síndico, ou funcionário com a permissão
+   *   "apartamentos" — o controller decide) cria a unidade que não existe. Sem a opção, não cria:
+   *   a linha vai para os erros pedindo ao síndico.
+   * - Data de nascimento: DD/MM/AAAA ou AAAA-MM-DD. A linha sem data importa, mas sem acesso ao app
+   *   (sem a data não há como saber se é menor — Cláusula 8.3); o e-mail fica no cadastro para o
+   *   "Enviar Acesso" depois que a data for preenchida.
+   */
+  async importBulk(
+    idCondominio: number,
+    linhas: any[],
+    opcoes: { podeCriarUnidade?: boolean; operador?: JwtPayload } = {},
+  ) {
     const criados = [];
     const erros: { nome: string; erro: string }[] = [];
+    const semAcesso: { nome: string; motivo: string }[] = [];
+    // Unidades do condomínio, lidas uma vez e só se preciso: "Bloco A"/101 da planilha é a unidade A/101.
+    let unidades: Array<{ id: number; bloco: string | null; apto: string | null }> | null = null;
     for (const item of linhas) {
       if (!item.nome) continue;
       try {
         let idApto = 0;
         const blocoStr = item.quadra?.toString().trim() || item.bloco?.toString().trim() || '';
         const aptoStr = item.lote?.toString().trim() || item.apartamento?.toString().trim() || '';
+        const dataNascimento = this.dataNascimentoDaPlanilha(item.data_nascimento);
+
+        // "Bloco" sozinho normaliza para vazio e casaria com a unidade sem bloco: recusa explicando.
+        if (blocoStr && !normalizarBloco(blocoStr)) {
+          throw new BadRequestException(`Bloco "${blocoStr}" inválido: informe o bloco (ex.: A) ou deixe a coluna vazia.`);
+        }
 
         if (blocoStr || aptoStr) {
           // Tenta encontrar o apartamento no condominio
-          const dbApto = await this.prisma.apartamentos.findFirst({
+          let dbApto: { id: number } | null = await this.prisma.apartamentos.findFirst({
             where: {
               id_condominio: idCondominio,
               bloco: blocoStr || null,
               apto: aptoStr || null,
             },
           });
+          if (!dbApto) {
+            unidades ??= await this.prisma.apartamentos.findMany({
+              where: { id_condominio: idCondominio },
+              select: { id: true, bloco: true, apto: true },
+            });
+            const chave = chaveUnidade(blocoStr, aptoStr);
+            dbApto = unidades.find((u) => chaveUnidade(u.bloco, u.apto) === chave) ?? null;
+          }
 
           if (dbApto) {
             idApto = dbApto.id;
-          } else {
-            // Se nao encontrar, cria-o automaticamente
+          } else if (opcoes.podeCriarUnidade) {
             const novoApto = await this.prisma.apartamentos.create({
               data: {
                 id_condominio: idCondominio,
@@ -1747,27 +1963,71 @@ export class MoradoresService {
                 apto: aptoStr || null,
               },
             });
+            unidades?.push({ id: novoApto.id, bloco: novoApto.bloco ?? null, apto: novoApto.apto ?? null });
             idApto = novoApto.id;
+          } else {
+            throw new BadRequestException('Unidade não cadastrada — peça ao síndico para cadastrá-la.');
           }
         }
 
-        const m = await this.create({
-          nome: item.nome,
-          documento: item.documento?.toString() || undefined,
-          email: item.email?.toString() || undefined,
-          telefone: item.telefone?.toString() || undefined,
-          tipo: item.tipo?.toString() || 'proprietario',
-          id_apartamento: idApto,
-          id_condominio: idCondominio,
-          data_nascimento: item.data_nascimento?.toString() || undefined,
-          sendCredentials: item.sendCredentials !== false,
-        });
+        const email = item.email?.toString().trim() || undefined;
+        // Com e-mail e sem data: o cadastro entra sem conta de app. Se o e-mail já é de uma conta,
+        // ligar a ela daria acesso a este condomínio sem saber a idade — pede a data.
+        const semContaApp = !!email && !dataNascimento;
+        if (semContaApp) {
+          const conta = await this.prisma.users.findFirst({
+            where: { OR: [{ email }, { login: email }] },
+            select: { id: true },
+          });
+          if (conta) {
+            throw new BadRequestException(
+              'Este e-mail já tem conta no app: informe a data de nascimento na planilha para ligar o cadastro a ela.',
+            );
+          }
+        }
+
+        const m = await this.create(
+          {
+            nome: item.nome,
+            documento: item.documento?.toString() || undefined,
+            email,
+            telefone: item.telefone?.toString() || undefined,
+            tipo: item.tipo?.toString() || 'proprietario',
+            id_apartamento: idApto,
+            id_condominio: idCondominio,
+            data_nascimento: dataNascimento ?? undefined,
+            sendCredentials: !semContaApp && item.sendCredentials !== false,
+          },
+          opcoes.operador,
+          { semContaApp },
+        );
         criados.push(m);
+        if (semContaApp) semAcesso.push({ nome: item.nome, motivo: 'Sem data de nascimento: importado sem acesso ao app.' });
       } catch (err: any) {
         this.logger.error(`[moradores.importBulk] Erro ao importar morador "${item.nome}": ${err?.message ?? err}`);
         erros.push({ nome: item.nome, erro: err?.message ?? 'Erro desconhecido' });
       }
     }
-    return { ok: true, total: criados.length, criados, erros };
+    return { ok: true, total: criados.length, criados, erros, sem_acesso: semAcesso };
+  }
+
+  /**
+   * Data de nascimento da planilha em AAAA-MM-DD. Vazia → null. Aceita DD/MM/AAAA e AAAA-MM-DD
+   * (com ou sem hora); data impossível (31/02), futura ou em outro formato é recusada.
+   */
+  private dataNascimentoDaPlanilha(valor: unknown): string | null {
+    const s = valor == null ? '' : String(valor).trim();
+    if (!s) return null;
+    let dia: number, mes: number, ano: number;
+    const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ].*)?$/);
+    if (br) [dia, mes, ano] = [Number(br[1]), Number(br[2]), Number(br[3])];
+    else if (iso) [ano, mes, dia] = [Number(iso[1]), Number(iso[2]), Number(iso[3])];
+    else throw new BadRequestException('Data de nascimento inválida: use DD/MM/AAAA ou AAAA-MM-DD.');
+    const d = new Date(Date.UTC(ano, mes - 1, dia));
+    if (d.getUTCFullYear() !== ano || d.getUTCMonth() !== mes - 1 || d.getUTCDate() !== dia || ano < 1900 || d.getTime() > Date.now()) {
+      throw new BadRequestException('Data de nascimento inválida: use DD/MM/AAAA ou AAAA-MM-DD.');
+    }
+    return d.toISOString().slice(0, 10);
   }
 }

@@ -17,7 +17,7 @@ function tokenCom(payload: object): string {
 }
 
 function build(opts: { token?: string | null; apiApartamentos?: Record<string, unknown>; moradoresApi?: Record<string, unknown> } = {}) {
-  const apiApartamentos = { list: jest.fn(() => of([APTO])), remove: jest.fn(() => of({ success: true })), ...opts.apiApartamentos };
+  const apiApartamentos = { list: jest.fn(() => of([APTO])), remove: jest.fn(() => of({ success: true })), acesso: jest.fn(() => of({ gerenciar: true })), ...opts.apiApartamentos };
   const moradoresApi = { create: jest.fn(() => of({ id: 1 })), ...opts.moradoresApi };
   TestBed.configureTestingModule({
     imports: [ApartamentosPageComponent],
@@ -52,6 +52,51 @@ describe('ApartamentosPageComponent — cadastro de unidade e de morador', () =>
       expect(el.textContent).toContain('Importar Excel');
       expect(el.textContent).toContain('Cadastrar apartamento');
       expect(el.querySelector('button[title="Excluir apartamento"]')).toBeTruthy();
+    });
+  });
+
+  describe('rodada 4: funcionário sem a permissão "apartamentos" (GET apartamentos/acesso)', () => {
+    it('funcionário no console por QR sem a permissão não vê Importar, Cadastrar, Editar nem Excluir', () => {
+      const { f, tela, el, apiApartamentos } = build({
+        token: tokenCom({ sub: 20, typeAccess: 'Funcionario' }),
+        apiApartamentos: { acesso: jest.fn(() => of({ gerenciar: false })) },
+      });
+      tela.viewMode.set('tabela');
+      f.detectChanges();
+      expect(apiApartamentos.acesso).toHaveBeenCalled();
+      expect(el.textContent).not.toContain('Importar Excel');
+      expect(el.textContent).not.toContain('Cadastrar apartamento');
+      expect(el.querySelector('button[title="Excluir apartamento"]')).toBeNull();
+    });
+
+    it('funcionário com a permissão vê os botões', () => {
+      const { f, tela, el } = build({ token: tokenCom({ sub: 20, typeAccess: 'Funcionario' }) });
+      tela.viewMode.set('tabela');
+      f.detectChanges();
+      expect(el.textContent).toContain('Cadastrar apartamento');
+    });
+
+    it('porteiro de login e senha nem pergunta à API', () => {
+      const { apiApartamentos } = build({ token: tokenCom({ sub: 3, id_condominio: 1, turno: 'Manhã' }) });
+      expect(apiApartamentos.acesso).not.toHaveBeenCalled();
+    });
+
+    it('API antiga sem a rota (404): segue o papel do token', () => {
+      const { el } = build({
+        token: tokenCom({ sub: 3, typeAccess: 'Sindico' }),
+        apiApartamentos: { acesso: jest.fn(() => throwError(() => ({ status: 404 }))) },
+      });
+      expect(el.textContent).toContain('Cadastrar apartamento');
+    });
+
+    it('outro erro: esconde os botões e mostra a mensagem', () => {
+      const { f, tela, el } = build({
+        token: tokenCom({ sub: 3, typeAccess: 'Sindico' }),
+        apiApartamentos: { acesso: jest.fn(() => throwError(() => ({ status: 500, error: { message: 'Falha ao ler as permissões.' } }))) },
+      });
+      f.detectChanges();
+      expect(el.textContent).not.toContain('Cadastrar apartamento');
+      expect(tela.error()).toBe('Falha ao ler as permissões.');
     });
   });
 

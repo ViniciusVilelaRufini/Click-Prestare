@@ -189,7 +189,7 @@ describe('MoradoresService - Validação de Menor de 18 Anos', () => {
     expect(result.erros).toHaveLength(0);
   });
 
-  it('importBulk reporta erro por linha (sem travar o lote) quando a planilha manda credenciais sem data de nascimento', async () => {
+  it('importBulk: linha com e-mail e sem data de nascimento entra sem conta de app (rodada 4), sem travar o lote', async () => {
     const linhas = [
       {
         nome: 'Yasmin Alves Costa',
@@ -204,10 +204,14 @@ describe('MoradoresService - Validação de Menor de 18 Anos', () => {
 
     const result = await service.importBulk(1, linhas);
     expect(result.ok).toBe(true);
-    expect(result.total).toBe(0);
-    expect(result.criados).toHaveLength(0);
-    expect(result.erros).toHaveLength(1);
-    expect(result.erros[0].nome).toBe('Yasmin Alves Costa');
+    expect(result.total).toBe(1);
+    expect(result.erros).toHaveLength(0);
+    expect(result.sem_acesso).toEqual([{ nome: 'Yasmin Alves Costa', motivo: 'Sem data de nascimento: importado sem acesso ao app.' }]);
+    // Sem a data não há conta de app: Users sem login nem senha, e-mail só no cadastro.
+    const conta = prismaMock.users.create.mock.calls[0][0].data;
+    expect(conta).not.toHaveProperty('login');
+    expect(conta).not.toHaveProperty('password');
+    expect(prismaMock.moradores.create.mock.calls[0][0].data.email).toBe('yasmin.alves@mockemail.com');
   });
 });
 

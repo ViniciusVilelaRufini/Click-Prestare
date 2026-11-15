@@ -119,6 +119,27 @@ describe('MoradoresService.update — só valida e sincroniza o que mudou (M3, M
     ).rejects.toThrow(/menor|18/i);
   });
 
+  describe('rodada 4: "Remover foto" quando a única foto é a de perfil do app', () => {
+    const PERFIL = 'https://bucket/users/perfil.jpg';
+    const soPerfil = { foto_pessoa: null, face_id: null, user: { id: 50, photo: PERFIL, profile_image: PERFIL, apartamentosUsers: [] } };
+
+    it('remove a foto de perfil (era a que a tela mostrava) sem mexer no cadastro nem no facial', async () => {
+      const { service, prisma, facial } = harness(soPerfil);
+      await service.update(5, { foto_pessoa: '' } as any);
+      const patch = prisma.users.update.mock.calls.map((c: any[]) => c[0]).find((a: any) => 'photo' in (a?.data ?? {}));
+      expect(patch).toEqual({ where: { id: 50 }, data: expect.objectContaining({ photo: null, profile_image: null }) });
+      expect(prisma.moradores.update.mock.calls[0][0].data).not.toHaveProperty('foto_pessoa');
+      expect(facial.syncMorador).not.toHaveBeenCalled();
+    });
+
+    it('conta também de outro condomínio: a foto de perfil fica (o console não é o titular)', async () => {
+      const { service, prisma } = harness(soPerfil);
+      prisma.moradores.count.mockResolvedValue(1); // vínculo em outro condomínio
+      await service.update(5, { foto_pessoa: '' } as any);
+      expect(prisma.users.update.mock.calls.some((c: any[]) => 'photo' in (c[0]?.data ?? {}))).toBe(false);
+    });
+  });
+
   it('M4: apartamento de outro condomínio sai com a mensagem real', async () => {
     const { service } = harness();
     await expect(service.update(5, { id_apartamento: 77, id_apartamento_anterior: 10 } as any)).rejects.toThrow(

@@ -22,6 +22,7 @@ export interface Morador {
   face_id?: string | null;
   face_sync_status?: string | null;
   face_sync_error?: string | null;
+  /** Só na ficha (GET :id): a lista não traz a tag nem o QR. */
   tag_rfid?: string | null;
   qrcode_acesso?: string | null;
   /** O titular aceitou a biometria no app (null: não deu para saber). Sem o aceite, o rosto não vai aos terminais. */
@@ -32,6 +33,8 @@ export interface Morador {
   tem_conta_app?: boolean;
   /** Tem foto do rosto, mas sem conta no app não há como aceitar a biometria: falta enviar o acesso. */
   biometria_sem_conta_app?: boolean;
+  /** "Enviar Acesso" manda o link para nova senha (já usou o app ou é de outro condomínio); falso: senha inicial. */
+  envio_acesso_por_link?: boolean;
 }
 
 export interface CreateMorador {
@@ -79,6 +82,11 @@ export class MoradoresApi {
     );
   }
 
+  /** Ficha do morador (GET :id). Tag RFID e QR Code só vêm por aqui, não pela lista. */
+  get(id: number): Observable<Morador> {
+    return this.http.get<Morador>(`${this.base}/${id}`);
+  }
+
   create(dto: CreateMorador): Observable<Morador> {
     return this.http.post<Morador>(this.base, dto);
   }
@@ -91,8 +99,9 @@ export class MoradoresApi {
     return this.http.delete<{ ok: boolean }>(`${this.base}/${id}`);
   }
 
-  sendCredentials(id: number): Observable<{ ok: boolean }> {
-    return this.http.post<{ ok: boolean }>(`${this.base}/${id}/send-credentials`, {});
+  /** `modo`: 'link' (conta que já tem senha recebe o link para definir outra) ou 'senha' (senha inicial). */
+  sendCredentials(id: number): Observable<{ ok: boolean; modo?: 'link' | 'senha'; message?: string }> {
+    return this.http.post<{ ok: boolean; modo?: 'link' | 'senha'; message?: string }>(`${this.base}/${id}/send-credentials`, {});
   }
 
   // A rota mora em consentimentos (consentimentos.controller.ts), não em moradores.
@@ -127,8 +136,9 @@ export class MoradoresApi {
     return this.http.get<{ base64: string; filename: string }>(`${this.base}/export-excel`, { params });
   }
 
-  importBulk(linhas: any[]): Observable<{ ok: boolean; total: number; criados: any[]; erros?: { nome: string; erro: string }[] }> {
-    return this.http.post<{ ok: boolean; total: number; criados: any[]; erros?: { nome: string; erro: string }[] }>(`${this.base}/import-bulk`, { linhas });
+  /** `sem_acesso`: linhas importadas sem acesso ao app (com e-mail e sem data de nascimento). */
+  importBulk(linhas: any[]): Observable<ResultadoImportacao> {
+    return this.http.post<ResultadoImportacao>(`${this.base}/import-bulk`, { linhas });
   }
 
   // Síndicos do condomínio (para vincular um deles como morador).
@@ -140,6 +150,14 @@ export class MoradoresApi {
   linkUser(dto: { id_user: number; id_apartamento: number; tipo?: string }): Observable<any> {
     return this.http.post(`${this.base}/link-user`, dto);
   }
+}
+
+export interface ResultadoImportacao {
+  ok: boolean;
+  total: number;
+  criados: any[];
+  erros?: { nome: string; erro: string }[];
+  sem_acesso?: { nome: string; motivo: string }[];
 }
 
 export interface SindicoOption {

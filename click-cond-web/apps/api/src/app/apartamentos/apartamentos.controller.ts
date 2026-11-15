@@ -23,6 +23,13 @@ export class ApartamentosController {
     return this.service.findAll(idCondominio, search);
   }
 
+  // Antes de ':id' (ParseIntPipe): o que a sessão pode fazer com as unidades, para a tela esconder os botões.
+  @Get('acesso')
+  acesso(@Param('idCondominio', ParseIntPipe) idCondominio: number, @ReqUser() payload: JwtPayload) {
+    assertOperador(payload, 'ver os apartamentos do condomínio');
+    return this.service.acesso(idCondominio, payload);
+  }
+
   @Get(':id')
   get(@Param('id', ParseIntPipe) id: number, @ReqUser() payload: JwtPayload) {
     return this.service.findOne(id, payload);

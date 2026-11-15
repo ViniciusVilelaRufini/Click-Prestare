@@ -14,6 +14,7 @@ describe('MoradoresService.sendCredentials — legado com conta de outro condom�
         findUnique: jest.fn(async () => ({
           id: 20, nome: 'Legado', email: 'pessoa@x.com', telefone: null, documento: null,
           id_condominio: 1, id_user: null, foto_pessoa: null, foto_documento: null, user: null,
+          data_nascimento: new Date('1980-01-01'),
         })),
         update: jest.fn(async () => ({})),
         count: jest.fn(async ({ where }: any) => (contaEmOutroCondominio && where.id_condominio?.not === 1 ? 1 : 0)),
@@ -45,7 +46,7 @@ describe('MoradoresService.sendCredentials — legado com conta de outro condom�
 
   it('conta só deste condomínio: grava o vínculo e a senha (fluxo de sempre)', async () => {
     const { svc, prisma } = build(false);
-    await expect(svc.sendCredentials(20)).resolves.toEqual({ ok: true });
+    await expect(svc.sendCredentials(20)).resolves.toMatchObject({ ok: true });
     expect(prisma.moradores.update).toHaveBeenCalledWith({ where: { id: 20 }, data: { id_user: 77 } });
     expect(prisma.users.update).toHaveBeenCalled();
   });
