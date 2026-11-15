@@ -823,7 +823,8 @@ export class AuthService {
       select: { id: true },
     });
     // Login de portaria desativado na aba "Equipe da portaria": o QR não abre o console para ele.
-    if (func && (await loginPortariaDesativadoNoCondominio(this.prisma, userId, idCondominio))) {
+    // Falha fechada: é autenticação — consulta com erro recusa (503) e a pessoa tenta de novo.
+    if (func && (await loginPortariaDesativadoNoCondominio(this.prisma, userId, idCondominio, { falhaFechada: true }))) {
       throw new UnauthorizedException(MSG_FUNCIONARIO_DESATIVADO);
     }
     if (func) return 'Funcionario';

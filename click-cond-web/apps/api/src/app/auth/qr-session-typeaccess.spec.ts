@@ -21,6 +21,8 @@ describe('AuthService.authorizeQrSession — papel no token de portaria', () => 
     let assinado: JwtPayload | null = null;
     const prisma: any = {
       isConnected: vinculos.conectado ?? true,
+      // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
+      $queryRaw: jest.fn(async () => []),
       condominios: { findUnique: jest.fn(async () => ({ nome: 'Edifício Demo' })) },
       sindicos_Condominios: { findFirst: jest.fn(async () => (vinculos.sindico ? { id: 1 } : null)) },
       funcionarios: { findFirst: jest.fn(async () => (vinculos.funcionario ? { id: 2 } : null)) },

@@ -1,10 +1,14 @@
-import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { TenantAccessService } from './tenant-access.service';
 import { JwtStrategy } from './jwt.strategy';
 import { AuthService } from './auth.service';
 import { MobileAuthService } from './mobile-auth.service';
-import { MSG_FUNCIONARIO_DESATIVADO, loginPortariaDesativadoNoCondominio } from './login-portaria-desativado.util';
+import {
+  MSG_FUNCIONARIO_DESATIVADO,
+  limparCacheLoginPortariaDesativado,
+  loginPortariaDesativadoNoCondominio,
+} from './login-portaria-desativado.util';
 
 /**
  * Rodada 4 (raia e), correção C1 — desativar um porteiro na aba "Equipe da portaria" (Funcionarios_Portaria.ativo
@@ -43,6 +47,7 @@ describe('Login de portaria desativado — corta o funcionário deste condomíni
     const casa = (row: Linha, where: Linha = {}): boolean =>
       Object.entries(where).every(([k, v]) => {
         if (k === 'OR') return (v as Linha[]).some((w) => casa(row, w));
+        if (k === 'NOT') return !casa(row, v);
         if (k === 'condominio') return true; // todos os condomínios do teste estão ativos
         if (k === 'apartamento') return row.id_condominio === v.id_condominio;
         return em(v, row[k]);
@@ -68,8 +73,20 @@ describe('Login de portaria desativado — corta o funcionário deste condomíni
       funcionarios: tabela(db.func),
       sindicos_Condominios: tabela(db.sindCond),
       apartamentos_Users: tabela(db.aptUsers),
+      moradores: tabela([]),
       condominios: { findUnique: jest.fn(async () => ({ nome: 'Edifício Demo' })) },
+      encomendas: { count: jest.fn(async () => 0) },
     };
+    // A consulta única do helper (JOIN Users × Funcionarios_Portaria): login OU e-mail da linha = login OU e-mail da conta.
+    prisma.$queryRaw = jest.fn(async (_sql: TemplateStringsArray, idUser: number, idCond: number) => {
+      const u = db.users.find((x) => x.id === idUser);
+      if (!u) return [];
+      const chaves = [u.login, u.email].filter(Boolean);
+      return db.fp
+        .filter((f) => f.id_condominio === idCond && (chaves.includes(f.login) || chaves.includes(f.email)))
+        .map((f) => ({ ativo: f.ativo }));
+    });
+    prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
     // loginFuncionario: a conta vem com os vínculos de equipe (include funcionarios).
     const usersFindFirst = prisma.users.findFirst;
     prisma.users.findFirst = jest.fn(async (args: any) => {
@@ -81,8 +98,16 @@ describe('Login de portaria desativado — corta o funcionário deste condomíni
     return { db, prisma };
   }
 
-  const desativar = (db: any, login = 'ana@x.com') => (db.fp.find((f: Linha) => f.login === login).ativo = 0);
-  const reativar = (db: any, login = 'ana@x.com') => (db.fp.find((f: Linha) => f.login === login).ativo = 1);
+  // A aba limpa o cache do helper ao ativar/desativar; aqui o banco muda direto, então limpa junto.
+  const desativar = (db: any, login = 'ana@x.com') => {
+    db.fp.find((f: Linha) => f.login === login).ativo = 0;
+    limparCacheLoginPortariaDesativado();
+  };
+  const reativar = (db: any, login = 'ana@x.com') => {
+    db.fp.find((f: Linha) => f.login === login).ativo = 1;
+    limparCacheLoginPortariaDesativado();
+  };
+  beforeEach(() => limparCacheLoginPortariaDesativado());
 
   const anaApp = { sub: 5, nome: 'Ana', typeAccess: 'Funcionario', user: { id: 5 } } as any;
   const anaQr = (cond: number) => ({ sub: 5, nome: 'Ana', id_condominio: cond, turno: 'Porteiro (App)', typeAccess: 'Funcionario', iat: 1 }) as any;
@@ -95,8 +120,54 @@ describe('Login de portaria desativado — corta o funcionário deste condomíni
     desativar(db);
     expect(await loginPortariaDesativadoNoCondominio(prisma, 5, 1)).toBe(true);
     expect(await loginPortariaDesativadoNoCondominio(prisma, 5, 2)).toBe(false); // sem linha de portaria no 2
-    prisma.funcionarios_Portaria.findMany.mockRejectedValueOnce(new Error('banco instável'));
-    expect(await loginPortariaDesativadoNoCondominio(prisma, 5, 1)).toBe(false); // fail-open, como o JwtStrategy
+    limparCacheLoginPortariaDesativado();
+    prisma.$queryRaw.mockRejectedValueOnce(new Error('banco instável'));
+    expect(await loginPortariaDesativadoNoCondominio(prisma, 5, 1)).toBe(false); // rotas: segue o vínculo, como o JwtStrategy
+    prisma.$queryRaw.mockRejectedValueOnce(new Error('banco instável'));
+    await expect(loginPortariaDesativadoNoCondominio(prisma, 5, 1, { falhaFechada: true })).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    ); // autenticação: recusa
+  });
+
+  it('M1: casa também pelo e-mail da linha (legado com login diferente do e-mail)', async () => {
+    const { db, prisma } = banco();
+    Object.assign(db.fp[0], { login: 'ana.portaria', email: 'ana@x.com', ativo: 0 });
+    expect(await loginPortariaDesativadoNoCondominio(prisma, 5, 1)).toBe(true);
+  });
+
+  it('M4: uma consulta só, com cache de 30 s por (conta, condomínio); limpar o cache refaz', async () => {
+    const { prisma } = banco();
+    await loginPortariaDesativadoNoCondominio(prisma, 5, 1);
+    await loginPortariaDesativadoNoCondominio(prisma, 5, 1);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.users.findUnique).not.toHaveBeenCalled();
+    expect(prisma.funcionarios_Portaria.findMany).not.toHaveBeenCalled();
+    await loginPortariaDesativadoNoCondominio(prisma, 5, 2); // outro condomínio: outra chave
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+    limparCacheLoginPortariaDesativado(1);
+    await loginPortariaDesativadoNoCondominio(prisma, 5, 1);
+    await loginPortariaDesativadoNoCondominio(prisma, 5, 2);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(3);
+  });
+
+  it('M6: com o primeiro vínculo desativado, o app cai no próximo ativo; sem nenhum, em nenhum', async () => {
+    const { db, prisma } = banco();
+    const svc: any = new MobileAuthService(prisma, {} as any, {} as any, {} as any, {} as any, {} as any);
+    desativar(db);
+    expect(await svc.condominioDoVinculoSeAtivo(5, 1)).toBe(2);
+    db.func.splice(db.func.findIndex((f) => f.id === 71), 1);
+    expect(await svc.condominioDoVinculoSeAtivo(5, 1)).toBeUndefined();
+  });
+
+  it('M6: o resumo do app não usa linha de portaria com o mesmo e-mail num condomínio sem vínculo da conta', async () => {
+    const { db, prisma } = banco();
+    db.func.splice(0, db.func.length); // a conta não é da equipe de lugar nenhum
+    db.fp.push({ id: 30, nome: 'Outro', login: 'outro@x.com', email: 'ana@x.com', password: hash, turno: 'Diurno', ativo: 1, id_condominio: 3 });
+    const tenant: any = { recorteOcorrenciasPrivadas: jest.fn(async () => null) };
+    const svc = new MobileAuthService(prisma, {} as any, {} as any, {} as any, {} as any, tenant);
+    const r = await svc.getSummary(5, 'Funcionario', anaApp);
+    expect(r).toEqual({ packages: 0, visits_today: 0, inside_condo: 0, occurrences: 0 });
+    expect(prisma.encomendas.count).not.toHaveBeenCalled();
   });
 
   describe('app como funcionário (TenantAccessService)', () => {
@@ -160,6 +231,20 @@ describe('Login de portaria desativado — corta o funcionário deste condomíni
       await expect(nova().validate(sindicoQr)).resolves.toBeTruthy();
       reativar(db);
       await expect(nova().validate(anaQr(1))).resolves.toBeTruthy();
+    });
+  });
+
+  describe('falha fechada na autenticação (M3)', () => {
+    it('erro na conferência: login do app e QR recusam (503, tente de novo); a rota do app segue o vínculo', async () => {
+      const { prisma } = banco();
+      prisma.$queryRaw.mockRejectedValue(new Error('banco instável'));
+      const app = new MobileAuthService(prisma, { sign: jest.fn(() => 't') } as any, {} as any, {} as any, {} as any, {} as any);
+      await expect(app.loginFuncionario('ana@x.com', SENHA)).rejects.toBeInstanceOf(ServiceUnavailableException);
+      const qrStore: any = { get: jest.fn(async () => ({ status: 'pending' })), confirm: jest.fn(async () => true) };
+      const auth = new AuthService(prisma, { sign: jest.fn(() => 't') } as any, qrStore);
+      await expect(auth.authorizeQrSession(anaApp, 'qr', 1)).rejects.toBeInstanceOf(ServiceUnavailableException);
+      expect(qrStore.confirm).not.toHaveBeenCalled();
+      await expect(new TenantAccessService(prisma).assertCondominio(1, anaApp)).resolves.toBeUndefined();
     });
   });
 

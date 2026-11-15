@@ -26,6 +26,8 @@ describe('AuthService — sessão do console (rodada 3)', () => {
     function build() {
       const prisma: any = {
         isConnected: true,
+        // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
+        $queryRaw: jest.fn(async () => []),
         users: { findUnique: jest.fn(async () => ({ id: 42, password: hashUsers })), update: jest.fn() },
         funcionarios_Portaria: { findUnique: jest.fn(async () => ({ id: 3, password: hashPortaria })), update: jest.fn() },
       };
@@ -59,6 +61,8 @@ describe('AuthService — sessão do console (rodada 3)', () => {
       const vinculos = sindicoEm.map((id, i) => ({ id: i + 1, id_user: 42, id_condominio: id, condominio: { nome: `C${id}` } }));
       const prisma: any = {
         isConnected: true,
+        // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
+        $queryRaw: jest.fn(async () => []),
         funcionarios_Portaria: {
           // O login de portaria do síndico, no condomínio 7 (o findFirst do login já exige condomínio ativo).
           findFirst: jest.fn(async () =>
@@ -128,6 +132,8 @@ describe('AuthService — sessão do console (rodada 3)', () => {
     function build() {
       const prisma: any = {
         isConnected: true,
+        // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
+        $queryRaw: jest.fn(async () => []),
         sindicos_Condominios: { findFirst: jest.fn(async () => null) },
         funcionarios_Portaria: { findFirst: jest.fn(async () => null) },
         users: { findFirst: jest.fn(async () => null) },
@@ -153,6 +159,8 @@ describe('AuthService — sessão do console (rodada 3)', () => {
       const store = new QrSessionStore();
       const prisma: any = {
         isConnected: true,
+        // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
+        $queryRaw: jest.fn(async () => []),
         condominios: { findUnique: jest.fn(async () => ({ nome: 'C7' })) },
         sindicos_Condominios: {
           findFirst: jest.fn(async () => ({ id: 1 })),
@@ -194,6 +202,8 @@ describe('AuthService — sessão do console (rodada 3)', () => {
       const contas = conta ? [{ ...conta }] : [];
       const prisma: any = {
         isConnected: true,
+        // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
+        $queryRaw: jest.fn(async () => []),
         funcionarios_Portaria: {
           findUnique: jest.fn(async () => ({ id: 3, login: 'p@x.com', password: hashPortaria, id_condominio: 7 })),
           update: jest.fn(async () => ({})),
