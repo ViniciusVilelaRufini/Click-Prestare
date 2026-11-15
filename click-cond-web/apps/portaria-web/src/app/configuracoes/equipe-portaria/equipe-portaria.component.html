@@ -1,0 +1,111 @@
+<div class="space-y-5">
+
+  <div class="flex items-start justify-between gap-4">
+    <div class="space-y-1 min-w-0">
+      <h2 class="text-base font-semibold text-white">Equipe da portaria</h2>
+      <p class="text-sm text-slate-400 leading-relaxed max-w-3xl">
+        Quem entra no console da portaria com login e senha. Aqui você ativa, desativa e muda o turno.
+        Para cadastrar ou excluir, use o app do síndico ou o acesso no cadastro do prestador.
+      </p>
+    </div>
+    <button type="button" data-acao="recarregar" (click)="carregar()" [disabled]="carregando()" class="ps-btn ps-btn-sec ps-btn-sm shrink-0">
+      Atualizar
+    </button>
+  </div>
+
+  @if (erro()) {
+    <div class="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm font-medium" role="alert">
+      {{ erro() }}
+    </div>
+  }
+
+  @if (carregando()) {
+    <div class="p-12 flex items-center justify-center">
+      <div class="w-6 h-6 border-2 border-white/20 border-t-accent rounded-full animate-spin"></div>
+    </div>
+  } @else if (erroLista()) {
+    <div class="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm font-medium flex items-center justify-between gap-3" role="alert">
+      <span>{{ erroLista() }}</span>
+    </div>
+  } @else if (equipe().length === 0) {
+    <div class="ps-empty p-10 text-center text-sm text-slate-400">Nenhum login de portaria neste condomínio.</div>
+  } @else {
+    <div class="ps-tablewrap">
+      <table class="w-full text-sm !min-w-[860px]">
+        <thead>
+          <tr>
+            <th class="text-left">Nome</th>
+            <th class="text-left">Login</th>
+            <th class="text-left">Turno</th>
+            <th class="text-left">Origem</th>
+            <th class="text-left">Último acesso</th>
+            <th class="text-left">Status</th>
+            <th class="text-right"></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (f of equipe(); track f.id) {
+            <tr [attr.data-login-portaria]="f.id" [class.opacity-60]="!f.ativo">
+              <td>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span class="font-semibold text-white">{{ f.nome || '—' }}</span>
+                  @if (f.voce) { <span class="ps-tag">Você</span> }
+                  @if (f.sindico && !f.voce) { <span class="ps-tag">Síndico</span> }
+                </div>
+              </td>
+              <td class="text-slate-300 break-all">{{ f.login }}</td>
+              <td>
+                @if (editandoTurno() === f.id) {
+                  <div class="flex items-center gap-1.5">
+                    <input [(ngModel)]="turnoEditado" name="turno-{{ f.id }}" maxlength="20" placeholder="Ex.: Noturno"
+                      class="w-32 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-white/10 text-white text-sm focus:outline-none focus:border-accent" />
+                    <button type="button" data-acao="salvar-turno" (click)="salvarTurno(f)" [disabled]="salvando() === f.id" class="ps-btn ps-btn-sm">Salvar</button>
+                    <button type="button" data-acao="cancelar-turno" (click)="cancelarTurno()" class="ps-btn ps-btn-ghost ps-btn-sm">Cancelar</button>
+                  </div>
+                } @else {
+                  <span class="text-slate-200">{{ f.turno || '—' }}</span>
+                }
+              </td>
+              <td>
+                @if (f.origem === 'prestador' && f.prestador) {
+                  <span class="text-slate-300">Prestador: {{ f.prestador.nome }}</span>
+                } @else {
+                  <span class="text-slate-400">App</span>
+                  @if (f.email_de_prestador) {
+                    <span class="ps-tag ml-1.5" title="O e-mail é de um prestador, mas o cadastro dele não reconhece mais este login (turno e nome mudados no app). Gerencie por aqui.">E-mail de prestador</span>
+                  }
+                }
+              </td>
+              <td class="text-slate-400 tabular-nums">{{ f.ultimo_acesso ? (f.ultimo_acesso | date:'dd/MM/yyyy HH:mm') : '—' }}</td>
+              <td>
+                @if (f.ativo) {
+                  <span class="ps-tag"><span class="ps-dot ps-dot-ok"></span>Ativo</span>
+                } @else {
+                  <span class="ps-tag"><span class="ps-dot"></span>Inativo</span>
+                }
+              </td>
+              <td class="text-right">
+                <div class="flex items-center justify-end gap-1.5">
+                  @if (editandoTurno() !== f.id) {
+                    <button type="button" data-acao="turno" (click)="editarTurno(f)" [disabled]="salvando() !== null" class="ps-btn ps-btn-sec ps-btn-sm">Turno</button>
+                  }
+                  @if (f.ativo) {
+                    @if (!f.voce) {
+                      <button type="button" data-acao="desativar" (click)="alternarAtivo(f)" [disabled]="salvando() !== null" class="ps-btn ps-btn-danger ps-btn-sm">Desativar</button>
+                    }
+                  } @else {
+                    <button type="button" data-acao="ativar" (click)="alternarAtivo(f)" [disabled]="salvando() !== null" class="ps-btn ps-btn-sm">Ativar</button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <p class="text-xs text-slate-500 leading-relaxed">
+      Desativar tira só o acesso ao console: a sessão aberta cai em até 30 segundos. O app do funcionário não muda.
+      Último acesso é o último login no console com senha.
+    </p>
+  }
+</div>

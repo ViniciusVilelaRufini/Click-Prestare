@@ -9,6 +9,7 @@ import { API_BASE } from '../shared/api.config';
 import { TerminaisFaciaisPageComponent } from '../terminais-faciais/terminais-faciais-page.component';
 import { RegrasAcessoComponent } from './regras-acesso/regras-acesso.component';
 import { CaminhoLeitoresComponent } from './caminho-leitores/caminho-leitores.component';
+import { EquipePortariaComponent } from './equipe-portaria/equipe-portaria.component';
 
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 
@@ -31,6 +32,7 @@ type OpcaoCredenciais = { qr_app_habilitado: boolean; wallet_habilitado?: boolea
     TerminaisFaciaisPageComponent,
     RegrasAcessoComponent,
     CaminhoLeitoresComponent,
+    EquipePortariaComponent,
     SlideIndicatorDirective,
   ],
   templateUrl: './configuracoes-page.component.html',
@@ -173,7 +175,8 @@ export class ConfiguracoesPageComponent implements OnInit {
     });
   }
 
-  readonly currentTab = signal<'conta' | 'terminais' | 'regras' | 'caminho'>(
+  /** 'equipe' (Equipe da portaria) só aparece e só abre para o síndico (ehSindico, pelo typeAccess do token). */
+  readonly currentTab = signal<'conta' | 'terminais' | 'regras' | 'caminho' | 'equipe'>(
     'conta',
   );
 
