@@ -4,7 +4,7 @@ import { FinanceiroService } from '../financeiro/financeiro.service';
 
 /**
  * Rodada 4 — o relatório financeiro (PDF/XLSX) segue o Livro Caixa:
- *  a) "Total Receitas", "Total Despesas" e "Balanço Geral" somam só o que
+ *  a) "Receitas pagas", "Despesas pagas" e "Balanço Geral" somam só o que
  *     está pago (`pago = 1`); o que não foi pago aparece à parte em
  *     "A receber" e "A pagar";
  *  b) taxas condominiais apto a apto ficam fora por padrão, com o mesmo
@@ -122,8 +122,8 @@ describe('relatório financeiro = Livro Caixa', () => {
     it('padrão (sem taxas): receitas e despesas pagas, não pagos separados', async () => {
       const { svc, metrica } = relatorio(lancamentosDeNovembro());
       await svc.generate(1, 'financeiro', 'pdf', '2026-11-01', '2026-11-30');
-      expect(reais(metrica('Total Receitas'))).toBe(200);
-      expect(reais(metrica('Total Despesas'))).toBe(1200);
+      expect(reais(metrica('Receitas pagas'))).toBe(200);
+      expect(reais(metrica('Despesas pagas'))).toBe(1200);
       expect(reais(metrica('Balanço Geral'))).toBe(-1000);
       expect(reais(metrica('A receber'))).toBe(50);
       expect(reais(metrica('A pagar'))).toBe(300);
@@ -150,7 +150,7 @@ describe('relatório financeiro = Livro Caixa', () => {
       expect(linhasPdf()).toEqual(expect.arrayContaining([
         'Apto 101 Bloco A - Ref. 11/2026', 'Apto 101 Bloco A - Ref. 12/2026', 'Apto 101 Bloco A - Acordo Parc. 1/2',
       ]));
-      expect(reais(metrica('Total Receitas'))).toBe(200 + 650 + 325);
+      expect(reais(metrica('Receitas pagas'))).toBe(200 + 650 + 325);
       expect(reais(metrica('A receber'))).toBe(50 + 650);
     });
 
@@ -188,9 +188,9 @@ describe('relatório financeiro = Livro Caixa', () => {
       await svc.generate(1, 'financeiro', 'xlsx', '2026-11-01', '2026-11-30');
       const extras = excel.mock.calls[0][2] as any[];
       const resumo = extras.find((a) => a.nome === 'Resumo').dados;
-      const valor = (m: string) => resumo.find((l: any) => l.Indicador === m)?.Valor;
-      expect(valor('Total Receitas')).toBe(200);
-      expect(valor('Total Despesas')).toBe(1200);
+      const valor = (m: string) => resumo.find((l: any) => String(l.Indicador).startsWith(m))?.Valor;
+      expect(valor('Receitas pagas')).toBe(200);
+      expect(valor('Despesas pagas')).toBe(1200);
       expect(valor('Balanço Geral')).toBe(-1000);
       expect(valor('A receber')).toBe(50);
       expect(valor('A pagar')).toBe(300);
@@ -199,7 +199,20 @@ describe('relatório financeiro = Livro Caixa', () => {
 
   describe('Balanço do relatório = Saldo do Livro Caixa (mesmo mês, mesmas opções)', () => {
     it.each([false, true])('incluirTaxasCondominiais = %s', async (incluir) => {
-      const itens = lancamentosDeNovembro();
+      const itens = [
+        ...lancamentosDeNovembro(),
+        // Rodada 1: tipo fora do padrão — os dois lados classificam igual
+        // (só 'D' é despesa, como o saldo sempre fez).
+        lanc({ nome: 'Tipo nulo', tipo: null, valor: 40, pago: 1, status: '1', data: dia('2026-11-15') }),
+        lanc({ nome: 'tipo c minúsculo', tipo: 'c', valor: 30, pago: 1, status: '1', data: dia('2026-11-16') }),
+        lanc({ nome: 'tipo d minúsculo', tipo: 'd', valor: 20, pago: 1, status: '1', data: dia('2026-11-17') }),
+        // Bordas do mês: dia 1 e último dia entram; 31/10 e 01/12 não.
+        lanc({ nome: 'Dia 1', tipo: 'D', valor: 11, pago: 1, status: '1', data: dia('2026-11-01') }),
+        lanc({ nome: 'Último dia', tipo: 'C', valor: 13, pago: 1, status: '1', data: dia('2026-11-30') }),
+        lanc({ nome: 'Véspera', tipo: 'C', valor: 500, pago: 1, status: '1', data: dia('2026-10-31') }),
+        lanc({ nome: 'Mês seguinte', tipo: 'D', valor: 700, pago: 1, status: '1', data: dia('2026-12-01') }),
+        lanc({ nome: 'Vence no último dia', tipo: 'D', valor: 17, pago: 0, data_vencimento: dia('2026-11-30') }),
+      ];
       const rel = relatorio(itens);
       await rel.svc.generate(1, 'financeiro', 'pdf', '2026-11-01', '2026-11-30', undefined, undefined, {
         incluirTaxasCondominiais: incluir,
@@ -207,8 +220,21 @@ describe('relatório financeiro = Livro Caixa', () => {
       const livro = await livroCaixa(itens).getAll(1, '11', '2026', true, sindico, incluir);
 
       expect(reais(rel.metrica('Balanço Geral'))).toBeCloseTo(reais(livro.saldo), 2);
-      expect(reais(rel.metrica('Total Receitas'))).toBeCloseTo(reais(livro.totalReceita), 2);
-      expect(reais(rel.metrica('Total Despesas'))).toBeCloseTo(Math.abs(reais(livro.totalDespesa)), 2);
+      expect(reais(rel.metrica('Receitas pagas'))).toBeCloseTo(reais(livro.totalReceita), 2);
+      expect(reais(rel.metrica('Despesas pagas'))).toBeCloseTo(Math.abs(reais(livro.totalDespesa)), 2);
+      // Bordas e tipos fora do padrão nos dois lados.
+      const linhasLivro = Object.values(livro.lancamentos).flat().map((l: any) => l.nome);
+      for (const nome of ['Dia 1', 'Último dia', 'Vence no último dia', 'Tipo nulo']) {
+        expect(linhasLivro).toContain(nome);
+        expect(rel.linhasPdf()).toContain(nome);
+      }
+      for (const nome of ['Véspera', 'Mês seguinte']) {
+        expect(linhasLivro).not.toContain(nome);
+        expect(rel.linhasPdf()).not.toContain(nome);
+      }
+      // Receitas = 200 (+650+325 com taxas) + 40 + 30 + 20 + 13; despesas = 1200 + 11.
+      expect(reais(rel.metrica('Despesas pagas'))).toBe(1211);
+      expect(reais(rel.metrica('Receitas pagas'))).toBe((incluir ? 200 + 650 + 325 : 200) + 40 + 30 + 20 + 13);
     });
   });
 
@@ -227,6 +253,77 @@ describe('relatório financeiro = Livro Caixa', () => {
     it('sem o parâmetro (app publicado): desligado', async () => {
       await ctrl.download(1, res, sindico, 'financeiro', 'pdf', '2026-11-01', '2026-11-30');
       expect(service.generate.mock.calls[0][7]).toEqual({ incluirTaxasCondominiais: false });
+    });
+  });
+  describe('rodada 1: o documento explica o que conta', () => {
+    const NOTA_PAGOS = 'Totais consideram apenas lançamentos pagos, como no Livro Caixa.';
+    const NOTA_TAXAS =
+      "Não inclui as taxas condominiais por unidade. Para incluí-las, gere o relatório pelo console com a opção 'Incluir taxas condominiais por unidade'.";
+
+    it('PDF: cartões "Receitas pagas"/"Despesas pagas", legenda dos em aberto e as duas notas', async () => {
+      const { svc, pdf } = relatorio(lancamentosDeNovembro());
+      await svc.generate(1, 'financeiro', 'pdf', '2026-11-01', '2026-11-30');
+      const p = pdf.mock.calls[0][0] as any;
+      expect(p.metrics.map((m: any) => m.label)).toEqual(['Receitas pagas', 'Despesas pagas', 'Balanço Geral', 'A receber', 'A pagar']);
+      const legenda = (l: string) => p.metrics.find((m: any) => m.label === l).legenda;
+      expect(legenda('A receber')).toBe('em aberto com vencimento no período');
+      expect(legenda('A pagar')).toBe('em aberto com vencimento no período');
+      expect(p.notas).toEqual([NOTA_PAGOS, NOTA_TAXAS]);
+    });
+
+    it('com as taxas: só a nota dos pagos', async () => {
+      const { svc, pdf } = relatorio(lancamentosDeNovembro());
+      await svc.generate(1, 'financeiro', 'pdf', '2026-11-01', '2026-11-30', undefined, undefined, { incluirTaxasCondominiais: true });
+      expect((pdf.mock.calls[0][0] as any).notas).toEqual([NOTA_PAGOS]);
+    });
+
+    it('XLSX: a aba Resumo traz as legendas e as notas', async () => {
+      const { svc, excel } = relatorio(lancamentosDeNovembro());
+      await svc.generate(1, 'financeiro', 'xlsx', '2026-11-01', '2026-11-30');
+      const resumo = (excel.mock.calls[0][2] as any[]).find((a) => a.nome === 'Resumo').dados.map((l: any) => l.Indicador);
+      expect(resumo).toEqual([
+        'Receitas pagas', 'Despesas pagas', 'Balanço Geral (receitas pagas - despesas pagas)',
+        'A receber (em aberto com vencimento no período)', 'A pagar (em aberto com vencimento no período)',
+        NOTA_PAGOS, NOTA_TAXAS,
+      ]);
+    });
+
+    it('o PDF de verdade é gerado com as notas e as legendas (sem mock do pdfmake)', async () => {
+      const prisma = prismaEmMemoria(lancamentosDeNovembro());
+      const r = await new RelatoriosService(prisma).generate(1, 'financeiro', 'pdf', '2026-11-01', '2026-11-30');
+      expect(r.buffer.subarray(0, 4).toString()).toBe('%PDF');
+    });
+  });
+
+  describe('rodada 1: filtro só por bloco', () => {
+    function comBlocos() {
+      const prisma = prismaEmMemoria([
+        lanc({ nome: 'Apto 101 Bloco A - Ref. 11/2026', tipo: 'C', valor: 650, pago: 1, status: '1', data: dia('2026-11-10') }),
+        lanc({ nome: 'Apto 201 Bloco B - Ref. 11/2026', tipo: 'C', valor: 600, pago: 1, status: '1', data: dia('2026-11-10') }),
+        lanc({ nome: 'Apto 102 Bloco A - Acordo Parc. 1/2', tipo: 'C', valor: 100, pago: 0, data_vencimento: dia('2026-11-20') }),
+        lanc({ nome: 'Manutenção elevador', tipo: 'D', valor: 1200, pago: 1, status: '1', data: dia('2026-11-05') }),
+      ]);
+      prisma.apartamentos.findMany = jest.fn(async () => [
+        { apto: '101', bloco: 'A' }, { apto: '102', bloco: 'A' }, { apto: '201', bloco: 'B' },
+      ]);
+      const svc = new RelatoriosService(prisma);
+      const pdf = jest.spyOn(svc as any, 'generatePdf').mockResolvedValue(Buffer.from('x'));
+      return { svc, prisma, pdf };
+    }
+
+    it('traz as cobranças das unidades do bloco (com as taxas), sem os lançamentos gerais nem outro bloco', async () => {
+      const { svc, prisma, pdf } = comBlocos();
+      // O app manda o bloco como está no cadastro; "Bloco A" e "A" são o mesmo bloco.
+      await svc.generate(1, 'financeiro', 'pdf', '2026-11-01', '2026-11-30', 'Bloco A');
+      const p = pdf.mock.calls[0][0] as any;
+      expect(p.table.body.slice(1).map((l: any[]) => l[0])).toEqual([
+        'Apto 101 Bloco A - Ref. 11/2026', 'Apto 102 Bloco A - Acordo Parc. 1/2',
+      ]);
+      expect(p.metrics.find((m: any) => m.label === 'Receitas pagas').value).toBe('R$ 650.00');
+      expect(p.notas).toContain('Filtro por bloco: só os lançamentos das unidades do bloco; lançamentos gerais do condomínio não entram.');
+      expect(p.notas.some((n: string) => n.startsWith('Não inclui as taxas'))).toBe(false);
+      // Unidades só deste condomínio.
+      expect(prisma.apartamentos.findMany).toHaveBeenCalledWith({ where: { id_condominio: 1 }, select: { apto: true, bloco: true } });
     });
   });
 });

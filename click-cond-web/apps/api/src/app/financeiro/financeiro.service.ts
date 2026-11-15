@@ -33,7 +33,13 @@ import { SuperlogicaService } from '../superlogica/superlogica.service';
 import { csvCelula } from '../common/csv.util';
 
 import { rotuloBloco } from '../common/rotulo-bloco.util';
-import { ehTaxaCondominialDeApto, nomeFaturaDeApto } from './livro-caixa-criterio.util';
+import {
+  ehDespesaNoLivroCaixa,
+  ehTaxaCondominialDeApto,
+  lancamentoPago,
+  nomeFaturaDeApto,
+  valorNoLivroCaixa,
+} from './livro-caixa-criterio.util';
 @Injectable()
 export class FinanceiroService implements OnModuleInit {
   private readonly logger = new Logger(FinanceiroService.name);
@@ -994,17 +1000,13 @@ export class FinanceiroService implements OnModuleInit {
     const mesesNomes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
     for (const item of list) {
-      let v = item.valor ? Number(item.valor) : 0;
-      if (item.tipo === 'D') {
-        v = -Math.abs(v);
-      } else {
-        v = Math.abs(v);
-      }
+      // Sinal e classificação do util compartilhado com o relatório financeiro.
+      const v = valorNoLivroCaixa(item);
 
-      if (item.pago === 1) {
+      if (lancamentoPago(item)) {
         saldo += v;
-        if (item.tipo === 'C') totalReceita += Math.abs(v);
-        else totalDespesa += Math.abs(v);
+        if (ehDespesaNoLivroCaixa(item)) totalDespesa += Math.abs(v);
+        else totalReceita += Math.abs(v);
       }
 
       const refDate = item.data || item.data_vencimento || item.created_at;

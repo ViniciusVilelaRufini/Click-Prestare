@@ -85,10 +85,20 @@ export function lancamentoRenegociado(lancamento: { status?: string | null }): b
   return lancamento.status === '3';
 }
 
-/** Valor com o sinal do Livro Caixa: 'D' sai, o resto entra. */
+/**
+ * Despesa no Livro Caixa: só `tipo = 'D'`. Todo o resto (inclusive 'c'/'d'
+ * minúsculos e tipo nulo) entra como receita — é a regra que o saldo sempre
+ * usou, agora também para separar receitas de despesas nos totais (o getAll
+ * somava o tipo nulo como despesa e o subtraía do saldo como receita).
+ */
+export function ehDespesaNoLivroCaixa(lancamento: { tipo?: string | null }): boolean {
+  return lancamento.tipo === 'D';
+}
+
+/** Valor com o sinal do Livro Caixa: despesa sai, o resto entra. */
 export function valorNoLivroCaixa(lancamento: { tipo?: string | null; valor?: unknown }): number {
   const v = Math.abs(lancamento.valor ? Number(lancamento.valor) : 0);
-  return lancamento.tipo === 'D' ? -v : v;
+  return ehDespesaNoLivroCaixa(lancamento) ? -v : v;
 }
 
 /** Conta no saldo do Livro Caixa: só o que está pago. */
