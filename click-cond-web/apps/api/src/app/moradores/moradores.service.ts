@@ -860,8 +860,16 @@ export class MoradoresService {
    * `opts.permitirContaDeOutroCondominio`: só para os chamadores confiáveis do CRM (criar morador e importação
    * de contatos da Superlógica). Pula APENAS a recusa de ligar conta que já tem vínculo em outro condomínio;
    * as credenciais e o perfil dessa conta continuam intocados.
+   *
+   * `opts.semContaApp`: só a importação, para a linha com e-mail e sem data de nascimento. O cadastro entra
+   * com o e-mail em Moradores e um Users sem login nem senha (como o cadastro sem e-mail): sem a data não há
+   * conta de app. O "Enviar Acesso" cria o login depois que a data for preenchida.
    */
-  async create(dto: CreateMoradorDto, operador?: JwtPayload, opts?: { permitirContaDeOutroCondominio?: boolean }) {
+  async create(
+    dto: CreateMoradorDto,
+    operador?: JwtPayload,
+    opts?: { permitirContaDeOutroCondominio?: boolean; semContaApp?: boolean },
+  ) {
     if (!this.prisma.isConnected) {
       const newM = {
         id: MoradoresService.mockMoradores.length + 1,
@@ -947,7 +955,8 @@ export class MoradoresService {
     // validarMaioridade() lança se estiver ausente (não apenas se for menor).
     // Só o e-mail cria conta de app: sendCredentials sem e-mail não envia nada
     // (a tela e a importação o mandam marcado por padrão).
-    if (dto.email) {
+    const criaContaApp = !!dto.email && !opts?.semContaApp;
+    if (criaContaApp) {
       validarMaioridade(dto.data_nascimento, 'criação de conta de usuário no aplicativo');
     }
 
@@ -1004,7 +1013,7 @@ export class MoradoresService {
             },
           });
           userId = u.id;
-        } else if (dto.email) {
+        } else if (criaContaApp) {
           const existing = await tx.users.findFirst({
             where: { email: dto.email },
           });
@@ -1133,8 +1142,8 @@ export class MoradoresService {
     // A conta existente foi achada por dto.email, então o aviso vai sempre para o endereço
     // dela. Conta de outro condomínio não recebe senha nova (passwordWasSet fica false):
     // só o aviso de "você já tem conta", sem credencial.
-    if (dto.sendCredentials && dto.email) {
-      this.fireWelcomeEmail(dto.email, dto.nome, passwordWasSet ? senhaInicial : undefined);
+    if (dto.sendCredentials && criaContaApp) {
+      this.fireWelcomeEmail(dto.email!, dto.nome, passwordWasSet ? senhaInicial : undefined);
     }
 
     // Mão dupla com a Superlógica. Best-effort de propósito: o ERP fora do ar
@@ -1807,30 +1816,54 @@ export class MoradoresService {
     }
   }
 
-  async importBulk(idCondominio: number, linhas: any[]) {
+  /**
+   * Importação da planilha de moradores.
+   * - `podeCriarUnidade`: só quem gerencia unidades (síndico, ou funcionário com a permissão
+   *   "apartamentos" — o controller decide) cria a unidade que não existe. Sem a opção, não cria:
+   *   a linha vai para os erros pedindo ao síndico.
+   * - Data de nascimento: DD/MM/AAAA ou AAAA-MM-DD. A linha sem data importa, mas sem acesso ao app
+   *   (sem a data não há como saber se é menor — Cláusula 8.3); o e-mail fica no cadastro para o
+   *   "Enviar Acesso" depois que a data for preenchida.
+   */
+  async importBulk(
+    idCondominio: number,
+    linhas: any[],
+    opcoes: { podeCriarUnidade?: boolean; operador?: JwtPayload } = {},
+  ) {
     const criados = [];
     const erros: { nome: string; erro: string }[] = [];
+    const semAcesso: { nome: string; motivo: string }[] = [];
+    // Unidades do condomínio, lidas uma vez e só se preciso: "Bloco A"/101 da planilha é a unidade A/101.
+    let unidades: Array<{ id: number; bloco: string | null; apto: string | null }> | null = null;
     for (const item of linhas) {
       if (!item.nome) continue;
       try {
         let idApto = 0;
         const blocoStr = item.quadra?.toString().trim() || item.bloco?.toString().trim() || '';
         const aptoStr = item.lote?.toString().trim() || item.apartamento?.toString().trim() || '';
+        const dataNascimento = this.dataNascimentoDaPlanilha(item.data_nascimento);
 
         if (blocoStr || aptoStr) {
           // Tenta encontrar o apartamento no condominio
-          const dbApto = await this.prisma.apartamentos.findFirst({
+          let dbApto: { id: number } | null = await this.prisma.apartamentos.findFirst({
             where: {
               id_condominio: idCondominio,
               bloco: blocoStr || null,
               apto: aptoStr || null,
             },
           });
+          if (!dbApto) {
+            unidades ??= await this.prisma.apartamentos.findMany({
+              where: { id_condominio: idCondominio },
+              select: { id: true, bloco: true, apto: true },
+            });
+            const chave = chaveUnidade(blocoStr, aptoStr);
+            dbApto = unidades.find((u) => chaveUnidade(u.bloco, u.apto) === chave) ?? null;
+          }
 
           if (dbApto) {
             idApto = dbApto.id;
-          } else {
-            // Se nao encontrar, cria-o automaticamente
+          } else if (opcoes.podeCriarUnidade) {
             const novoApto = await this.prisma.apartamentos.create({
               data: {
                 id_condominio: idCondominio,
@@ -1838,27 +1871,71 @@ export class MoradoresService {
                 apto: aptoStr || null,
               },
             });
+            unidades?.push({ id: novoApto.id, bloco: novoApto.bloco ?? null, apto: novoApto.apto ?? null });
             idApto = novoApto.id;
+          } else {
+            throw new BadRequestException('Unidade não cadastrada — peça ao síndico para cadastrá-la.');
           }
         }
 
-        const m = await this.create({
-          nome: item.nome,
-          documento: item.documento?.toString() || undefined,
-          email: item.email?.toString() || undefined,
-          telefone: item.telefone?.toString() || undefined,
-          tipo: item.tipo?.toString() || 'proprietario',
-          id_apartamento: idApto,
-          id_condominio: idCondominio,
-          data_nascimento: item.data_nascimento?.toString() || undefined,
-          sendCredentials: item.sendCredentials !== false,
-        });
+        const email = item.email?.toString().trim() || undefined;
+        // Com e-mail e sem data: o cadastro entra sem conta de app. Se o e-mail já é de uma conta,
+        // ligar a ela daria acesso a este condomínio sem saber a idade — pede a data.
+        const semContaApp = !!email && !dataNascimento;
+        if (semContaApp) {
+          const conta = await this.prisma.users.findFirst({
+            where: { OR: [{ email }, { login: email }] },
+            select: { id: true },
+          });
+          if (conta) {
+            throw new BadRequestException(
+              'Este e-mail já tem conta no app: informe a data de nascimento na planilha para ligar o cadastro a ela.',
+            );
+          }
+        }
+
+        const m = await this.create(
+          {
+            nome: item.nome,
+            documento: item.documento?.toString() || undefined,
+            email,
+            telefone: item.telefone?.toString() || undefined,
+            tipo: item.tipo?.toString() || 'proprietario',
+            id_apartamento: idApto,
+            id_condominio: idCondominio,
+            data_nascimento: dataNascimento ?? undefined,
+            sendCredentials: !semContaApp && item.sendCredentials !== false,
+          },
+          opcoes.operador,
+          { semContaApp },
+        );
         criados.push(m);
+        if (semContaApp) semAcesso.push({ nome: item.nome, motivo: 'Sem data de nascimento: importado sem acesso ao app.' });
       } catch (err: any) {
         this.logger.error(`[moradores.importBulk] Erro ao importar morador "${item.nome}": ${err?.message ?? err}`);
         erros.push({ nome: item.nome, erro: err?.message ?? 'Erro desconhecido' });
       }
     }
-    return { ok: true, total: criados.length, criados, erros };
+    return { ok: true, total: criados.length, criados, erros, sem_acesso: semAcesso };
+  }
+
+  /**
+   * Data de nascimento da planilha em AAAA-MM-DD. Vazia → null. Aceita DD/MM/AAAA e AAAA-MM-DD
+   * (com ou sem hora); data impossível (31/02), futura ou em outro formato é recusada.
+   */
+  private dataNascimentoDaPlanilha(valor: unknown): string | null {
+    const s = valor == null ? '' : String(valor).trim();
+    if (!s) return null;
+    let dia: number, mes: number, ano: number;
+    const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ].*)?$/);
+    if (br) [dia, mes, ano] = [Number(br[1]), Number(br[2]), Number(br[3])];
+    else if (iso) [ano, mes, dia] = [Number(iso[1]), Number(iso[2]), Number(iso[3])];
+    else throw new BadRequestException('Data de nascimento inválida: use DD/MM/AAAA ou AAAA-MM-DD.');
+    const d = new Date(Date.UTC(ano, mes - 1, dia));
+    if (d.getUTCFullYear() !== ano || d.getUTCMonth() !== mes - 1 || d.getUTCDate() !== dia || ano < 1900 || d.getTime() > Date.now()) {
+      throw new BadRequestException('Data de nascimento inválida: use DD/MM/AAAA ou AAAA-MM-DD.');
+    }
+    return d.toISOString().slice(0, 10);
   }
 }

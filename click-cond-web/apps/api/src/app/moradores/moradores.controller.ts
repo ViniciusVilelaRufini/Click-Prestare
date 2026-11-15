@@ -1,12 +1,12 @@
 import {
-  Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query,
+  Body, Controller, Delete, ForbiddenException, Get, Param, ParseIntPipe, Post, Put, Query,
 } from '@nestjs/common';
 import { CreateMoradorDto, MoradoresService } from './moradores.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
-import { assertOperador } from '../auth/tenant.util';
+import { assertOperador, assertStaff } from '../auth/tenant.util';
 
 /**
  * Superfície do CONSOLE (portaria-web). Enxerga o cadastro de moradores do
@@ -72,7 +72,23 @@ export class MoradoresController {
     @ReqUser() user: JwtPayload,
   ) {
     assertOperador(user, 'importar moradores em massa');
-    return this.service.importBulk(idCondominio, body.linhas);
+    // A unidade da planilha que não existe só é criada por quem gerencia unidades — a mesma regra de
+    // POST apartamentos: síndico, ou funcionário (inclusive no console por QR) com a permissão
+    // "apartamentos". O porteiro importa só nas unidades que já existem.
+    return this.podeCriarUnidade(idCondominio, user).then((podeCriarUnidade) =>
+      this.service.importBulk(idCondominio, body.linhas, { podeCriarUnidade, operador: user }),
+    );
+  }
+
+  private async podeCriarUnidade(idCondominio: number, user: JwtPayload): Promise<boolean> {
+    try {
+      assertStaff(user, 'cadastrar apartamento');
+      await this.tenant.assertPermissaoFuncionario(idCondominio, 'apartamentos', user);
+      return true;
+    } catch (e) {
+      if (e instanceof ForbiddenException) return false;
+      throw e;
+    }
   }
 
   @Get(':id')
