@@ -50,6 +50,9 @@ export interface ResultadoGravacao {
 
 /** Texto do desfecho desconhecido (também marca a operação: é por ele que as tentativas são contadas). */
 export const MSG_INCERTO = 'Não foi possível confirmar no Guarita.';
+/** Marca do cadastro reenfileirado depois de um incerto: o frame é recalculado na entrega (R5). */
+export const CRIADO_POR_RECADASTRO_INCERTO = 'Conferir cadastro sem confirmação';
+
 /** Depois do segundo cadastro incerto (sem mais tentativa automática). */
 export const MSG_INCERTO_CONFERIR = 'Não foi possível confirmar no Guarita. Use Conferir agora.';
 
@@ -272,6 +275,26 @@ export class GuaritaOperacoesService {
       },
     });
     return confirmacoes > 0;
+  }
+
+  /**
+   * R5: o cadastro reenfileirado depois de um incerto sai com o frame ATUAL da
+   * tag (dados de hoje do veículo/morador), não com o de quando foi pedido.
+   * Não monta (unidade inválida, sem veículo...): fica o frame guardado.
+   */
+  async atualizarFrameDoRecadastro(op: { id: number; id_tag: number | null; frame_hex: string | null }): Promise<string | null> {
+    if (op.id_tag == null) return op.frame_hex;
+    const tag = await this.prisma.tags.findUnique({ where: { id: op.id_tag } });
+    if (!tag) return op.frame_hex;
+    try {
+      const frame = await this.montarFrame(tag, null);
+      if (frame !== op.frame_hex) {
+        await this.prisma.guarita_Operacoes.updateMany({ where: { id: op.id, estado: ESTADO_OP.pendente }, data: { frame_hex: frame } });
+      }
+      return frame;
+    } catch {
+      return op.frame_hex;
+    }
   }
 
   /** O frame que o Prestare acredita estar no Guarita: o lido/confirmado, ou o do último cadastro. */
@@ -919,7 +942,7 @@ export class GuaritaOperacoesService {
             tipo: 'cadastrar',
             frame_hex: op.frame_hex,
             estado: ESTADO_OP.pendente,
-            criado_por: 'Conferir cadastro sem confirmação',
+            criado_por: CRIADO_POR_RECADASTRO_INCERTO,
           },
         });
         await this.garantirAtualizarReceptores(tag.id_condominio, op.id_device);

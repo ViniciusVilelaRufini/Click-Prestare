@@ -120,6 +120,19 @@ describe('I2 — gravação sem resposta é incerta', () => {
     expect(tag(m.db)).toMatchObject({ guarita_estado: 'falhou', guarita_erro: 'O Guarita não respondeu e o dispositivo não foi gravado.' });
   });
 
+  it('R5: o cadastro reenfileirado sai com o frame ATUAL (o morador mudou de unidade no meio)', async () => {
+    const m = montar();
+    Object.assign(tag(m.db), { guarita_estado: 'a_vincular', guarita_frame: null });
+    const { id_operacao } = await m.ops.enfileirarCadastro(1, 'x');
+    await m.agente.buscarOperacoes(DEV);
+    await m.agente.registrarResultado(DEV, id_operacao, { ok: false, incerto: true });
+    m.db.linhas('moradores')[0].apartamento = '202';
+    for (const o of m.db.linhas('guarita_Operacoes')) if (o.estado === 'enviada') o.estado = 'ok';
+    const lote = await m.agente.buscarOperacoes(DEV);
+    const repetido = lote.operacoes.find((o) => o.tipo === 'cadastrar')!;
+    expect(repetido.frame_hex!.slice(12, 18)).toBe('020201');
+  });
+
   it('segundo cadastro incerto não volta de novo à fila (uma vez só)', async () => {
     const m = montar();
     Object.assign(tag(m.db), { guarita_estado: 'a_vincular', guarita_frame: null });
