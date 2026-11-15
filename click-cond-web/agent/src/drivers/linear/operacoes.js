@@ -31,6 +31,26 @@ const MSG_QUEDA_NA_GRAVACAO = 'A conexão com o Guarita caiu antes da confirmaç
 const OPCAO_POR_TIPO = Object.freeze({ cadastrar: 0x00, editar: 0x01, apagar: 0x04 });
 const TIMEOUT_29_MS = 180000;
 const TIMEOUT_67_MS = 5000;
+// Leitura progressiva interrompida para o relé passar recomeça do zero, no
+// máximo este tanto de vezes; depois falha e fica para a próxima tentativa.
+const MAX_RECOMECOS = 5;
+
+async function comRecomeco(ler, oQue) {
+  for (let recomecos = 0; ; recomecos++) {
+    try {
+      return await ler();
+    } catch (e) {
+      if (!e || e.codigo !== 'interrompida') throw e;
+      if (recomecos >= MAX_RECOMECOS) {
+        const falha = new Error(
+          `Leitura de ${oQue} do Guarita interrompida ${MAX_RECOMECOS + 1} vezes para abrir o portão; fica para a próxima tentativa.`,
+        );
+        falha.codigo = 'interrompida_demais';
+        throw falha;
+      }
+    }
+  }
+}
 
 const textoDe = (buf) => buf.toString('latin1').replace(/[\x00 ]+$/, '');
 const paraHex = (buf) => Buffer.from(buf).toString('hex').toUpperCase();
@@ -82,6 +102,10 @@ async function contarDispositivos(sessao) {
  * durante a leitura (alguém cadastrou no teclado no meio): nunca parcial.
  */
 async function lerTodosDispositivos(sessao) {
+  return comRecomeco(() => lerDispositivosUmaVez(sessao), 'dispositivos');
+}
+
+async function lerDispositivosUmaVez(sessao) {
   const quantidade = await contarDispositivos(sessao);
   if (quantidade === 0) return [];
   const lista = [];
@@ -103,6 +127,10 @@ async function lerTodosDispositivos(sessao) {
 
 /** Todos os eventos da memória (hex de 16 bytes): 6 (0x02) → 17 (0x02) progressivo → 43. */
 async function lerTodosEventos(sessao) {
+  return comRecomeco(() => lerEventosUmaVez(sessao), 'eventos');
+}
+
+async function lerEventosUmaVez(sessao) {
   const r = await sessao.comando(6, [0x02]);
   const quantidade = (r[1] << 8) | r[2];
   if (quantidade === 0) return [];
@@ -226,7 +254,8 @@ async function acionarRele(sessao, { tipoReceptor, numReceptor, rele } = {}, { p
   if (!Number.isInteger(rele) || rele < 1 || rele > 4) {
     throw new Error('Relé inválido (saída 1 a 4).');
   }
-  await sessao.comando(13, [tipoReceptor, numReceptor - 1, rele, 0x01], { semResposta: true, prazoNaFilaMs });
+  // Prioritário: passa na frente da fila e interrompe leitura progressiva.
+  await sessao.comando(13, [tipoReceptor, numReceptor - 1, rele, 0x01], { semResposta: true, prazoNaFilaMs, prioritario: true });
 }
 
 module.exports = {
@@ -241,4 +270,5 @@ module.exports = {
   MENSAGENS_67,
   MSG_SEM_RESPOSTA,
   MSG_QUEDA_NA_GRAVACAO,
+  MAX_RECOMECOS,
 };

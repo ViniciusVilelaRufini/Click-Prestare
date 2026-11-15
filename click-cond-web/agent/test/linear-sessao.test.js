@@ -290,18 +290,71 @@ test('lista branca na sessão: comando proibido lança sem escrever; escrita cru
   assert.equal(sock.escritos.length, 0);
 });
 
-test('prazoNaFilaMs: com o Guarita ocupado (29 esperando 180 s), o relé desiste sem escrever', async () => {
+test('I2: relé durante o 29 espera a validade (10 s) e desiste com a mensagem do 29; o 13 nunca sai no meio do 29', async () => {
   const { sock, sessao, relogio } = await conectada();
   const p29 = sessao.comando(29, [], { timeoutMs: 180000 });
   await girar();
-  const pRele = sessao.comando(13, [0x01, 0x00, 0x01, 0x01], { semResposta: true, prazoNaFilaMs: 5000 });
-  const erro = assert.rejects(pRele, (e) => e.codigo === 'ocupado');
-  await relogio.avancar(5000);
+  const pRele = sessao.comando(13, [0x01, 0x00, 0x01, 0x01], { semResposta: true, prazoNaFilaMs: 10000, prioritario: true });
+  const erro = assert.rejects(pRele, (e) => {
+    assert.equal(e.codigo, 'ocupado_29');
+    assert.equal(e.message, 'O Guarita está atualizando os receptores. Tente de novo em instantes.');
+    return true;
+  });
+  await relogio.avancar(9999);
+  assert.deepEqual(sock.escritosHex(), ['001D1D']);
+  await relogio.avancar(1);
   await erro;
   sock.receber(h('00 1D 00 1D'));
   assert.equal((await p29).toString('hex'), '00');
   await girar();
   assert.deepEqual(sock.escritosHex(), ['001D1D']);
+});
+
+test('I2: relé esperando interrompe a leitura progressiva entre dois frames (43 + quarentena) e sai antes de quem já esperava', async () => {
+  const { sock, sessao, relogio } = await conectada();
+  let erroLeitura = null;
+  const lidos = [];
+  const leitura = (async () => {
+    for await (const d of sessao.lerProgressivo(70, [], 5)) lidos.push(d);
+  })().catch((e) => (erroLeitura = e));
+  await girar();
+  const pComum = sessao.comando(7); // não prioritário, já na fila
+  const pRele = sessao.comando(13, [0x01, 0x00, 0x02, 0x01], { semResposta: true, prazoNaFilaMs: 10000, prioritario: true });
+  await girar();
+  sock.receber(F70);
+  await girar();
+  assert.deepEqual(sock.escritosHex(), ['004646', '002B2B'], 'no lugar do 0x00, o 43');
+  await relogio.avancar(249);
+  assert.deepEqual(sock.escritosHex(), ['004646', '002B2B'], 'quarentena');
+  await relogio.avancar(1);
+  await pRele;
+  await leitura;
+  assert.equal(erroLeitura.codigo, 'interrompida');
+  assert.equal(lidos.length, 0, 'nada parcial entregue');
+  await girar();
+  assert.deepEqual(sock.escritosHex(), ['004646', '002B2B', '000D0100020111', '000707'], 'o relé passou na frente do 7');
+  sock.receber(h('00 07 00 02 09'));
+  await pComum;
+  assert.equal(sessao.conectado, true);
+});
+
+test('I2: se o frame seguinte chegar mesmo depois do 43 (o Guarita leu o 0x00 como continuação), a sessão cai e o relé não sai nela', async () => {
+  const { sock, sessao, relogio } = await conectada();
+  const leitura = (async () => {
+    for await (const d of sessao.lerProgressivo(70, [], 5)) void d;
+  })().catch((e) => e);
+  await girar();
+  const pRele = sessao.comando(13, [0x01, 0x00, 0x02, 0x01], { semResposta: true, prazoNaFilaMs: 10000, prioritario: true });
+  await girar();
+  sock.receber(F70);
+  await girar();
+  const resultadoRele = pRele.then(() => null, (e) => e);
+  sock.receber(F70); // atrasado, na quarentena
+  await relogio.avancar(250);
+  assert.match((await resultadoRele).message, /não conectado/);
+  await leitura;
+  assert.equal(sessao.conectado, false);
+  assert.ok(!sock.escritosHex().includes('000D0100020111'));
 });
 
 test('fechar(): não emite queda e rejeita o que estava esperando', async () => {

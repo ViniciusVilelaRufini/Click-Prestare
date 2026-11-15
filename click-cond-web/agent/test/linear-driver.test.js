@@ -775,3 +775,81 @@ test('I1: armazém em arquivo grava/relê atômico e guarda no máximo 500 opera
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('I2 (driver): guarita_rele durante importação de 2.000 dispositivos sai em < 2 s simulados; a importação termina completa', async () => {
+  const lista = Array.from({ length: 2000 }, (_, i) => dispositivo(i + 1, [1, 2, 3, 6][i % 4]));
+  await cenario({ sim: { dispositivos: lista } }, async (c) => {
+    c.escutar();
+    await c.pronto();
+    c.nuvem.ops.push({ id: 30, tipo: 'importar' });
+    await c.relogio.avancar(0);
+    await esperarAte(() => c.sim.continuacoes.length >= 50, { rotulo: 'importação andando' });
+    const inicio = c.relogio.agora();
+    let resultado = null;
+    const rele = c.driver
+      .executar(c.dev, { type: 'guarita_rele', payload: { tipo_receptor: 1, num_receptor: 1, rele: 1 } })
+      .then((r) => (resultado = r));
+    while (!resultado && c.relogio.agora() - inicio < 2000) {
+      await c.relogio.avancar(50);
+      await new Promise((r) => setTimeout(r, 2));
+    }
+    await rele;
+    assert.deepEqual(resultado, { ok: true });
+    assert.ok(c.relogio.agora() - inicio < 2000, `${c.relogio.agora() - inicio} ms simulados`);
+    await esperarAte(() => c.nuvem.resultados.filter((r) => r.id === 30).length === 4, { rotulo: 'importação', limiteMs: 15000 });
+    const partes = c.nuvem.resultados.filter((r) => r.id === 30);
+    assert.deepEqual(partes.flatMap((p) => p.frames_hex), lista.map(hex));
+    assert.equal(partes.at(-1).fim, true);
+    assert.equal(c.sim.comandosRecebidos(13).length, 1);
+  });
+});
+
+test('I2 (driver): guarita_rele durante o 29 espera 10 s e devolve "O Guarita está atualizando os receptores. Tente de novo em instantes."', async () => {
+  await cenario({ sim: { tempos: { atraso29Ms: 5 } } }, async (c) => {
+    c.escutar();
+    await c.pronto();
+    c.sim.falhas.silencio(1); // o 29 fica respondendo "nunca" (até 180 s)
+    c.nuvem.ops.push({ id: 40, tipo: 'atualizar_receptores' });
+    await c.relogio.avancar(0);
+    await esperarAte(() => c.servico().ops29.length === 1 || c.sim.comandosRecebidos(29).length === 1, { rotulo: 'operação recebida' });
+    await c.relogio.avancar(0);
+    await esperarAte(() => c.sim.comandosRecebidos(29).length === 1, { rotulo: 'o 29' });
+    const p = c.driver.executar(c.dev, { type: 'guarita_rele', payload: { tipo_receptor: 1, num_receptor: 1, rele: 1 } });
+    await c.relogio.avancar(10000);
+    assert.deepEqual(await p, { ok: false, error: 'O Guarita está atualizando os receptores. Tente de novo em instantes.' });
+    assert.equal(c.sim.comandosRecebidos(13).length, 0, 'o 13 nunca sai no meio do 29');
+  });
+});
+
+test('I2 (driver): memória de eventos relida só na 1ª conexão e depois de queda > 60 s; queda curta só registra o tempo fora', async () => {
+  await cenario({ sim: { eventos: [E1, E2] } }, async (c) => {
+    c.escutar();
+    await c.pronto();
+    assert.equal(c.sim.comandosRecebidos(17).length, 1, '1ª conexão: relê');
+    // queda curta
+    c.sim.derrubarConexoes();
+    await esperarAte(() => !c.servico().conectado, { rotulo: 'caiu' });
+    await c.relogio.avancar(1000);
+    await c.pronto();
+    assert.equal(c.sim.comandosRecebidos(17).length, 1, 'queda curta: não relê');
+    assert.ok(c.logs.some((l) => /ficou 1 s sem conexão/.test(l)), c.logs.join('\n'));
+    // queda longa (o relógio "andou" 61 s fora do ar)
+    c.sim.derrubarConexoes();
+    await esperarAte(() => !c.servico().conectado, { rotulo: 'caiu de novo' });
+    c.driver._servicos.get(42).cfg.memoriaProcesso.get(42).foraDesde -= 61000;
+    await c.relogio.avancar(1000);
+    await c.pronto();
+    assert.equal(c.sim.comandosRecebidos(17).length, 2, 'queda longa: relê');
+  });
+});
+
+test('I2 (driver): recriar o ouvinte no mesmo processo não relê a memória (não é a 1ª conexão)', async () => {
+  await cenario({ sim: { eventos: [E1] } }, async (c) => {
+    const parar = c.escutar();
+    await c.pronto();
+    parar();
+    c.escutar();
+    await c.pronto();
+    assert.equal(c.sim.comandosRecebidos(17).length, 1);
+  });
+});

@@ -84,7 +84,8 @@ const PADROES = Object.freeze({
   backoffMaxMs: 60000,
   esperaNegadoMs: 60000,
   esperaRotaAusenteMs: 60000, // API antiga: pergunta de novo em 1 min
-  prazoReleMs: 5000, // relé que não consegue a vez em 5 s desiste (não abre atrasado)
+  prazoReleMs: 10000, // validade do relé: sem a vez em 10 s (ex.: durante o 29), desiste — não abre atrasado
+  quedaLongaMs: 60000, // reconexão depois de queda maior que isto relê a memória de eventos
   esperaPingConectandoMs: 4000, // ping durante a conexão espera o desfecho (prazo do ciclo é 5 s)
   limiteFilaEventos: 5000,
   lotePorEnvio: 500, // eventos por POST e frames por parte da importação
@@ -215,6 +216,7 @@ class ServicoGuarita {
   }
 
   parar() {
+    if (this.conectado) this._marcarForaDoAr();
     this.parado = true;
     for (const k of Object.keys(this.timers)) {
       if (this.timers[k]) this.t.clearTimeout(this.timers[k]);
@@ -309,14 +311,42 @@ class ServicoGuarita {
     }
     if (this.sessao !== sessao) return;
     this._enviarEstado();
-    await this._recuperarEventos(sessao);
+    // Reler a memória inteira (até 8.192 eventos) só na 1ª conexão do
+    // processo e depois de queda longa. A leitura é interrompível: um relé
+    // pedido no meio passa na frente e ela recomeça.
+    const m = this._memoriaDoProcesso();
+    const foraMs = m.foraDesde === null ? null : this.t.agora() - m.foraDesde;
+    m.foraDesde = null;
+    if (!m.recuperou || foraMs === null || foraMs > this.iv.quedaLongaMs) {
+      if (await this._recuperarEventos(sessao)) m.recuperou = true;
+    } else {
+      this.log.log(
+        `${this.rotulo}: ficou ${Math.round(foraMs / 1000)} s sem conexão com o Guarita; a memória de eventos não é relida (queda curta) — os eventos desse intervalo podem faltar no histórico`,
+      );
+    }
     if (this.sessao !== sessao || this.parado) return;
     if (this.precisa29) this._armar29();
     this._agendar('ciclo', 0, () => void this._ciclo());
   }
 
+  /** Estado que sobrevive à recriação do serviço dentro do mesmo processo. */
+  _memoriaDoProcesso() {
+    let m = this.cfg.memoriaProcesso.get(this.device.id);
+    if (!m) {
+      m = { recuperou: false, foraDesde: null };
+      this.cfg.memoriaProcesso.set(this.device.id, m);
+    }
+    return m;
+  }
+
+  _marcarForaDoAr() {
+    const m = this._memoriaDoProcesso();
+    if (m.foraDesde === null) m.foraDesde = this.t.agora();
+  }
+
   _aoQueda(sessao, e) {
     if (sessao !== this.sessao) return;
+    this._marcarForaDoAr();
     this.sessao = null;
     this.conectado = false;
     this.erro = e.message;
@@ -456,9 +486,9 @@ class ServicoGuarita {
       lista = await operacoes.lerTodosEventos(sessao);
     } catch (e) {
       this.log.error(`${this.rotulo}: falha ao recuperar os eventos do Guarita (${e.message})`);
-      return;
+      return false;
     }
-    if (lista.length === 0) return;
+    if (lista.length === 0) return true;
     const recebidoEm = new Date(this.cfg.agora()).toISOString();
     const itens = lista.map((f) => ({ frame_hex: f, origem: 'recuperacao', recebido_em: recebidoEm }));
     // A recuperação lê a memória inteira (até 8.192): vai direto em lotes, sem
@@ -473,6 +503,7 @@ class ServicoGuarita {
     }
     if (i < itens.length) this._enfileirarEventos(itens.slice(i));
     this.log.log(`${this.rotulo}: ${lista.length} evento(s) da memória do Guarita recuperado(s)`);
+    return true;
   }
 
   async _enviarNaoCadastrado(corpo) {
@@ -748,6 +779,7 @@ function criarDriverGuarita(opcoes = {}) {
     abrirSocket: opcoes.abrirSocket,
     log: opcoes.log || console,
     armazem: opcoes.armazem || criarArmazemEmMemoria(),
+    memoriaProcesso: new Map(), // deviceId → { recuperou, foraDesde }
     intervalos: { ...PADROES, ...(opcoes.intervalos || {}) },
   };
   const servicos = new Map();

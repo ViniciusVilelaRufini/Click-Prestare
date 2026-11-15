@@ -346,3 +346,50 @@ test('C1 (cenário da revisão): cadastrar A calado → falhou; B nunca sai ok c
     { relogio },
   );
 });
+
+test('I2: abrir portão durante a importação de 2.000 dispositivos sai em < 2 s de relógio simulado e a importação termina completa depois', async () => {
+  const relogio = criarRelogioFalso();
+  const lista = Array.from({ length: 2000 }, (_, i) => dispositivo(i + 1, [1, 2, 3, 6][i % 4]));
+  await cenario(
+    { dispositivos: lista },
+    async ({ sim, sessao }) => {
+      let lidos = null;
+      const importacao = ops.lerTodosDispositivos(sessao).then((l) => (lidos = l));
+      await esperarAte(() => sim.continuacoes.length >= 50, { rotulo: 'importação andando' });
+      const inicio = relogio.agora();
+      let releOk = false;
+      const rele = ops.acionarRele(sessao, { tipoReceptor: 1, numReceptor: 1, rele: 1 }, { prazoNaFilaMs: 10000 }).then(() => (releOk = true));
+      while (!releOk && relogio.agora() - inicio < 2000) {
+        await relogio.avancar(50);
+        await new Promise((r) => setTimeout(r, 2));
+      }
+      await rele;
+      assert.ok(relogio.agora() - inicio < 2000, `relé saiu em ${relogio.agora() - inicio} ms simulados`);
+      await esperarAte(() => sim.comandosRecebidos(13).length === 1, { rotulo: 'o 13' });
+      await importacao;
+      assert.equal(lidos.length, 2000, 'importação completa');
+      assert.deepEqual(lidos, lista.map(hex));
+      assert.equal(sim.comandosRecebidos(70).length, 2, 'recomeçou do zero uma vez');
+      assert.equal(sessao.conectado, true);
+    },
+    { relogio },
+  );
+});
+
+test('I2: leitura interrompida mais de 5 vezes falha com erro claro (nunca devolve parcial)', async () => {
+  let tentativas = 0;
+  const sessaoFalsa = {
+    comando: async (n) => (n === 7 ? Buffer.from([0x00, 0x03]) : Buffer.from([0x02, 0x00, 0x03])),
+    lerProgressivo: async function* () {
+      tentativas++;
+      const e = new Error('Leitura interrompida para abrir o portão.');
+      e.codigo = 'interrompida';
+      throw e;
+    },
+  };
+  await assert.rejects(ops.lerTodosDispositivos(sessaoFalsa), /interrompida 6 vezes para abrir o portão/);
+  assert.equal(tentativas, 6);
+  tentativas = 0;
+  await assert.rejects(ops.lerTodosEventos(sessaoFalsa), /eventos do Guarita interrompida 6 vezes/);
+  assert.equal(tentativas, 6);
+});

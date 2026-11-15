@@ -48,6 +48,12 @@ const TIMEOUT_COMANDO_MS = 5000;
 const ESPERA_APOS_NEGADO_MS = 60000;
 const CONTINUAR = Buffer.from([0x00]);
 const PROGRESSIVOS = new Set([17, 70]);
+// Depois de fechar um progressivo no meio (para o relé passar), espera este
+// tanto antes de soltar a vez: se o Guarita tiver lido o 0x00 do 43 como
+// "mande o próximo", o frame atrasado chega aqui e a sessão é derrubada.
+const QUARENTENA_APOS_43_MS = 250;
+const MSG_OCUPADO = 'O Guarita está ocupado com outra operação; tente de novo em instantes.';
+const MSG_OCUPADO_29 = 'O Guarita está atualizando os receptores. Tente de novo em instantes.';
 
 const MSG_NEGADO = 'Palavra de autorização recusada pelo Guarita';
 const MSG_PALAVRA_INVALIDA = 'Palavra de autorização inválida no cadastro';
@@ -107,7 +113,9 @@ class SessaoGuarita extends EventEmitter {
     this._espera = null;
     this._emProgressivo = false;
     this._ocupadaPor = 0;
-    this._cauda = Promise.resolve();
+    this._travada = false; // alguém está com a vez
+    this._aguardando = []; // [{ prioritario, conceder, timer }]
+    this._emExecucao = null; // comando de quem está com a vez
     this._bufAuth = Buffer.alloc(0);
     this._aoAutorizar = null;
     this._aoConectarSocket = null;
@@ -442,32 +450,58 @@ class SessaoGuarita extends EventEmitter {
 
   // ---------- fila serial ----------
 
-  /** Espera a vez. `prazoNaFilaMs`: desiste (sem escrever nada) se a vez não chegar a tempo. */
-  _adquirir(prazoNaFilaMs) {
-    const anterior = this._cauda;
-    let liberar;
-    const fim = new Promise((r) => {
-      liberar = r;
-    });
-    this._cauda = fim;
+  /**
+   * Espera a vez (um comando por vez na conexão). `prioritario` (relé)
+   * passa na frente de quem estiver esperando e faz a leitura progressiva em
+   * curso fechar o diálogo entre um frame e outro. `prazoNaFilaMs`: desiste
+   * sem escrever nada se a vez não chegar a tempo — durante o 29 com a
+   * mensagem própria (o 13 nunca sai no meio do 29).
+   */
+  _adquirir({ prazoNaFilaMs, prioritario = false } = {}) {
     return new Promise((resolve, reject) => {
-      let cancelado = false;
-      let timer = null;
+      let liberado = false;
+      const liberar = () => {
+        if (liberado) return;
+        liberado = true;
+        this._liberarVez();
+      };
+      const conceder = () => {
+        this._travada = true;
+        resolve(liberar);
+      };
+      if (!this._travada) {
+        conceder();
+        return;
+      }
+      const w = { prioritario, conceder, timer: null };
       if (Number.isFinite(prazoNaFilaMs)) {
-        timer = this._t.setTimeout(() => {
-          cancelado = true;
-          reject(erro('O Guarita está ocupado com outra operação; tente de novo em instantes.', 'ocupado'));
+        w.timer = this._t.setTimeout(() => {
+          const i = this._aguardando.indexOf(w);
+          if (i !== -1) this._aguardando.splice(i, 1);
+          reject(
+            this._emExecucao === 29 ? erro(MSG_OCUPADO_29, 'ocupado_29') : erro(MSG_OCUPADO, 'ocupado'),
+          );
         }, prazoNaFilaMs);
       }
-      anterior.then(() => {
-        if (timer) this._t.clearTimeout(timer);
-        if (cancelado) {
-          liberar();
-          return;
-        }
-        resolve(liberar);
-      });
+      this._aguardando.push(w);
     });
+  }
+
+  _liberarVez() {
+    this._emExecucao = null;
+    if (this._aguardando.length === 0) {
+      this._travada = false;
+      return;
+    }
+    let i = this._aguardando.findIndex((w) => w.prioritario);
+    if (i === -1) i = 0;
+    const [w] = this._aguardando.splice(i, 1);
+    if (w.timer) this._t.clearTimeout(w.timer);
+    w.conceder();
+  }
+
+  _prioritarioEsperando() {
+    return this._aguardando.some((w) => w.prioritario);
   }
 
   /** Livre agora (nada em execução nem na fila)? */
@@ -481,10 +515,15 @@ class SessaoGuarita extends EventEmitter {
    * escrita. `prazoNaFilaMs`: desiste sem escrever se outra operação
    * segurar a vez por mais que isso.
    */
-  async comando(numero, params, { timeoutMs = TIMEOUT_COMANDO_MS, semResposta = false, prazoNaFilaMs } = {}) {
+  async comando(
+    numero,
+    params,
+    { timeoutMs = TIMEOUT_COMANDO_MS, semResposta = false, prazoNaFilaMs, prioritario = false } = {},
+  ) {
     if (PROGRESSIVOS.has(numero)) throw new Error('use lerProgressivo para os comandos 17 e 70');
     const frame = montar(numero, params); // lança para comando proibido, antes de qualquer espera
-    const liberar = await this._adquirir(prazoNaFilaMs);
+    const liberar = await this._adquirir({ prazoNaFilaMs, prioritario });
+    this._emExecucao = numero;
     this._ocupadaPor++;
     let espera = null;
     try {
@@ -508,8 +547,10 @@ class SessaoGuarita extends EventEmitter {
   /**
    * Leitura progressiva (17 eventos, 70 dispositivos): manda a pergunta,
    * entrega cada frame (dados), pede o próximo com um único byte 0x00 até
-   * completar `quantidade` e fecha com o 43 — também em erro, timeout ou
-   * quando quem consome para antes. Frame que não chega no prazo lança.
+   * completar `quantidade` e fecha com o 43 depois do último frame. Erro,
+   * timeout ou parada antes do fim derrubam a sessão (sem 43 no meio).
+   * Relé esperando a vez: entre um frame e outro manda o 43, espera a
+   * quarentena e lança `codigo: 'interrompida'` — quem chama recomeça do zero.
    */
   async *lerProgressivo(numero, params, quantidade, { timeoutPorFrameMs = TIMEOUT_COMANDO_MS } = {}) {
     if (!PROGRESSIVOS.has(numero)) throw new Error('lerProgressivo só para os comandos 17 e 70');
@@ -517,10 +558,12 @@ class SessaoGuarita extends EventEmitter {
     const frame = montar(numero, params);
     if (quantidade === 0) return;
     const liberar = await this._adquirir();
+    this._emExecucao = numero;
     this._ocupadaPor++;
     let espera = null;
     let perguntou = false;
     let completo = false;
+    let interrompida = false;
     try {
       if (!this.conectado || this._descartada) throw erro('Guarita não conectado.', 'desconectado');
       espera = this._abrirEspera((f) => f.comando === numero, numero);
@@ -529,6 +572,15 @@ class SessaoGuarita extends EventEmitter {
       perguntou = true;
       for (let i = 0; i < quantidade; i++) {
         const f = await this._proximoFrame(espera, timeoutPorFrameMs);
+        if (i < quantidade - 1 && this._prioritarioEsperando()) {
+          // O portão tem prioridade: fecha o diálogo aqui (no lugar do 0x00),
+          // e a espera fica aberta SEM crédito: frame atrasado derruba a sessão.
+          await this._escrever(montar(43));
+          await new Promise((r) => this._t.setTimeout(r, QUARENTENA_APOS_43_MS));
+          if (!this.conectado) throw erro(MSG_QUEDA, 'queda');
+          interrompida = true;
+          throw erro('Leitura interrompida para abrir o portão.', 'interrompida');
+        }
         if (i < quantidade - 1) await this._escreverComCredito(CONTINUAR, espera);
         else completo = true;
         yield f.dados;
@@ -536,7 +588,7 @@ class SessaoGuarita extends EventEmitter {
     } finally {
       this._emProgressivo = false;
       if (espera) this._fecharEspera(espera);
-      if (perguntou && this.conectado) {
+      if (perguntou && this.conectado && !interrompida) {
         if (completo) {
           // Fim normal (como o demo do fabricante): 43 depois do ÚLTIMO frame.
           try {
@@ -568,4 +620,7 @@ module.exports = {
   palavraValida,
   MSG_SEM_RESPOSTA,
   MSG_QUEDA,
+  MSG_OCUPADO,
+  MSG_OCUPADO_29,
+  QUARENTENA_APOS_43_MS,
 };
