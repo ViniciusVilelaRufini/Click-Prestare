@@ -219,10 +219,16 @@ describe('Guarita — nunca apaga o que o Prestare não conhece', () => {
     tagComVeiculo(db, { idTag: 1, idVeiculo: 70, idMorador: 50, estado: 'a_vincular', serial: '000001' });
     tagComVeiculo(db, { idTag: 2, idVeiculo: 71, idMorador: 50, estado: 'a_vincular', serial: '000002' });
     const tags = new TagsService(db as any, ops);
-    await expect(tags.definirAtivo(7, 2, false)).resolves.toMatchObject({ ativo: 0, guarita_remocoes: 0 });
+    // I8: bloquear o que o Prestare não gravou no Guarita é recusado (o portão continuaria abrindo).
+    for (const estado of ['a_vincular', 'conflito', 'ausente', 'aguardando_aprovacao', 'recusada']) {
+      db.linhas('tags').find((t: any) => t.id === 2).guarita_estado = estado;
+      await expect(tags.definirAtivo(7, 2, false)).rejects.toThrow('Esta tag ainda não está sob controle do Prestare no Guarita.');
+    }
+    db.linhas('tags').find((t: any) => t.id === 2).guarita_estado = 'a_vincular';
     await expect(tags.remove(7, 1)).resolves.toEqual({ ok: true, guarita_remocoes: 0 });
     expect(apagares(db)).toHaveLength(0);
     expect(db.linhas('tags').map((t: any) => t.id)).toEqual([2]);
+    expect(db.linhas('tags')[0].ativo).toBe(1);
   });
 
   it('excluir veículo com tag a_vincular: sem apagar', async () => {

@@ -10,6 +10,9 @@ export interface TagDto {
   descricao?: string | null;
 }
 
+/** Estados de tag de Guarita que o Prestare não controla no aparelho: bloquear não tem efeito no portão. */
+const TAG_FORA_DO_CONTROLE = ['a_vincular', 'conflito', 'ausente', 'aguardando_aprovacao', 'recusada'];
+
 /** Tamanho da coluna Tags.codigo. */
 const TAG_CODIGO_COLUNA = 100;
 
@@ -113,10 +116,16 @@ export class TagsService {
         );
       }
       if (!reativar) {
+        // Bloquear algo que o Prestare não gravou no Guarita diria "bloqueada"
+        // com o portão ainda abrindo: recusa (I8).
+        if (TAG_FORA_DO_CONTROLE.includes(tag.guarita_estado ?? '')) {
+          throw new BadRequestException('Esta tag ainda não está sob controle do Prestare no Guarita.');
+        }
         // Bloquear um dispositivo gravado no Guarita = tirá-lo de lá (o portão é ele quem abre).
         const removida = await this.guarita.enfileirarRemocao(tag.id, autor);
-        const atualizada = await this.prisma.tags.update({ where: { id: tag.id }, data: { ativo: 0 } });
-        return { ...atualizada, guarita_remocoes: removida ? 1 : 0 };
+        await this.prisma.tags.updateMany({ where: { id: tag.id }, data: { ativo: 0 } });
+        const atualizada = await this.prisma.tags.findFirst({ where: { id: tag.id } });
+        return { ...(atualizada ?? { ...tag, ativo: 0 }), guarita_remocoes: removida ? 1 : 0 };
       }
     }
     return this.prisma.tags.update({
