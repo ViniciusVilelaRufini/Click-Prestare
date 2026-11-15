@@ -108,15 +108,16 @@ class _NewAssembleiaPageState extends State<NewAssembleia> {
     var choice = await showConfirmDialog(context);
     if (choice != null && choice) {
       setState(() => _isSaving = true);
-      var res = await apiDeleteObject('assembleias', widget.myId!);
+      final res = await apiDeleteObjectResultado('assembleias', widget.myId!);
       if (mounted) setState(() => _isSaving = false);
-      if (res) {
+      if (res.ok) {
         if (mounted) {
           Navigator.of(context).pop(true);
           Navigator.of(context).pop(true);
         }
       } else {
-        if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
+        // Ex.: "Esta assembleia já tem votos e não pode ser excluída. Finalize-a com a ATA."
+        if (mounted) displayMessage(context, getText('alert_error'), res.mensagemOu(getText('alert_generic_error')));
       }
     }
   }

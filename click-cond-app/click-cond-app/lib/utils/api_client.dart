@@ -125,14 +125,20 @@ class ResultadoApi {
   /// A `message` da API, ou null (sem conexão, sem mensagem, texto técnico).
   final String? mensagem;
 
-  const ResultadoApi.sucesso()
+  /// No sucesso, a `message` que a API devolveu (ex.: o texto do finish da
+  /// assembleia), filtrada como [mensagem]; null quando não veio.
+  final String? mensagemSucesso;
+
+  const ResultadoApi.sucesso([this.mensagemSucesso])
       : ok = true,
         mensagem = null;
 
-  const ResultadoApi.falha([this.mensagem]) : ok = false;
+  const ResultadoApi.falha([this.mensagem])
+      : ok = false,
+        mensagemSucesso = null;
 
   factory ResultadoApi.daResposta(int statusCode, String body) {
-    if (statusCode >= 200 && statusCode < 300) return const ResultadoApi.sucesso();
+    if (statusCode >= 200 && statusCode < 300) return ResultadoApi.sucesso(mensagemCurtaDaApi(body));
     return ResultadoApi.falha(mensagemCurtaDaApi(body));
   }
 

@@ -4,6 +4,7 @@ import 'package:click/pages/shared/assembleias/new_assembleia.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
+import 'package:click/utils/api_client.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
@@ -27,12 +28,43 @@ class DetailAssembleia extends StatefulWidget {
   /// Botão "Abrir ATA" da assembleia finalizada.
   static const chaveAbrirAta = Key('assembleia-abrir-ata');
 
+  /// Texto quando a ATA não abre nem depois de recarregar o link.
+  static const erroAbrirAta = 'Não foi possível abrir a ATA agora. Ela também fica em Documentos.';
+
+  /// Confere se o link assinado ainda abre (GET de 1 byte, sem o token da
+  /// sessão). Nulo = não deu para saber. Campo para o teste trocar.
+  static Future<bool?> Function(String url) conferirLink = _conferirLinkPadrao;
+
+  /// Abre o link no navegador. Campo para o teste trocar.
+  static Future<void> Function(String url, BuildContext context) abrirLink = launchInBrowser;
+
+  /// Devolve [conferirLink] e [abrirLink] ao padrão (tearDown dos testes).
+  static void restaurarPadroes() {
+    conferirLink = _conferirLinkPadrao;
+    abrirLink = launchInBrowser;
+  }
+
+  static Future<bool?> _conferirLinkPadrao(String url) async {
+    try {
+      // Cliente cru: o S3 recusa o Authorization que o ApiClient põe.
+      final r = await ApiClient.client
+          .get(Uri.parse(url), headers: {'Range': 'bytes=0-0'})
+          .timeout(const Duration(seconds: 10));
+      return linkAtaValido(r.statusCode);
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   _DetailAssembleiaPageState createState() => _DetailAssembleiaPageState();
 }
 
 class _DetailAssembleiaPageState extends State<DetailAssembleia> {
   var _isLoading = false;
+
+  /// Conferindo/recarregando o link da ATA.
+  var _abrindoAta = false;
   dynamic obj;
   List<dynamic> votacoes = [];
   List<dynamic> meus_votos = [];
@@ -276,6 +308,30 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
     );
   }
 
+  /// Abre a ATA. O link é assinado no `get` e expira: se a conferência diz
+  /// que não abre mais, recarrega o detalhe (link novo) uma vez e tenta de
+  /// novo; só então mostra o erro.
+  Future<void> _abrirAta() async {
+    setState(() => _abrindoAta = true);
+    try {
+      var link = linkAta(obj);
+      var valido = link == null ? false : await DetailAssembleia.conferirLink(link);
+      if (valido == false) {
+        await load();
+        link = linkAta(obj);
+        valido = link == null ? false : await DetailAssembleia.conferirLink(link);
+      }
+      if (!mounted) return;
+      if (link == null || valido == false) {
+        displayMessage(context, getText('alert_error'), DetailAssembleia.erroAbrirAta);
+        return;
+      }
+      await DetailAssembleia.abrirLink(link, context);
+    } finally {
+      if (mounted) setState(() => _abrindoAta = false);
+    }
+  }
+
   /// Faixa da assembleia finalizada: quando, que nada foi apagado e a ATA.
   Widget _cardFinalizada() {
     final quando = dataFinalizacao(obj['finalizada_em']);
@@ -332,7 +388,8 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
                 icon: PhosphorIcons.filePdf,
                 variant: AppButtonVariant.secondary,
                 size: AppButtonSize.md,
-                onPressed: () => launchInBrowser(ata, context),
+                loading: _abrindoAta,
+                onPressed: _abrindoAta ? null : _abrirAta,
               ),
             ],
           ],
