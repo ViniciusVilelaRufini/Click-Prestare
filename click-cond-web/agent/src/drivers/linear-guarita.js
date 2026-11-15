@@ -86,6 +86,7 @@ const PADROES = Object.freeze({
   esperaRotaAusenteMs: 60000, // API antiga: pergunta de novo em 1 min
   prazoReleMs: 10000, // validade do relé: sem a vez em 10 s (ex.: durante o 29), desiste — não abre atrasado
   quedaLongaMs: 60000, // reconexão depois de queda maior que isto relê a memória de eventos
+  esperaConferenciaMs: 30000, // gravação sem resposta: espera reconectar até isto para conferir
   esperaPingConectandoMs: 4000, // ping durante a conexão espera o desfecho (prazo do ciclo é 5 s)
   limiteFilaEventos: 5000,
   lotePorEnvio: 500, // eventos por POST e frames por parte da importação
@@ -203,6 +204,7 @@ class ServicoGuarita {
     this._ultimoEstado = null;
     this._operacoesSoDepoisDe = 0;
     this._conectando = null;
+    this._esperandoConexao = [];
     this._rotaAusenteLogada = false;
     this._nuvemForaLogada = false;
     this._descartesLogados = 0;
@@ -218,6 +220,7 @@ class ServicoGuarita {
   parar() {
     if (this.conectado) this._marcarForaDoAr();
     this.parado = true;
+    this._avisarConectado();
     for (const k of Object.keys(this.timers)) {
       if (this.timers[k]) this.t.clearTimeout(this.timers[k]);
       this.timers[k] = null;
@@ -291,6 +294,7 @@ class ServicoGuarita {
     this.ultimoErroConexao = null;
     this.backoffMs = this.iv.backoffInicialMs;
     this.log.log(`${this.rotulo}: conectado ao Módulo Guarita em ${d.ip}:${sessao.porta}`);
+    this._avisarConectado();
     try {
       this._aoConectar();
     } catch {
@@ -300,24 +304,35 @@ class ServicoGuarita {
   }
 
   async _aoConectarSessao(sessao) {
+    const m = this._memoriaDoProcesso();
     try {
-      this.info = await operacoes.identificar(sessao, { agora: this.cfg.agora });
-      if (this.info.relogioDeltaS === null) {
+      this.info = await operacoes.identificar(sessao, { agora: this.cfg.agora, pular: m.semResposta });
+      if (this.info.relogioDeltaS === null && !m.semResposta.has(12)) {
         this.log.error(`${this.rotulo}: relógio do Guarita ilegível`);
       }
     } catch (e) {
+      // Um comando da identificação sem resposta: a sessão caiu (C1). Fica
+      // marcado para este Guarita e não é mandado de novo (até o processo
+      // reiniciar); a próxima conexão segue sem ele.
+      if (e && e.codigo === 'sem_resposta' && Number.isInteger(e.comando)) {
+        m.semResposta.add(e.comando);
+        this.log.error(`${this.rotulo}: o Guarita não respondeu ao comando ${e.comando} da identificação; ele fica de fora nas próximas conexões`);
+      } else {
+        this.log.error(`${this.rotulo}: falha ao identificar o Guarita (${(e && e.message) || e})`);
+      }
       if (this.sessao !== sessao) return;
-      this.log.error(`${this.rotulo}: falha ao identificar o Guarita (${e.message})`);
     }
     if (this.sessao !== sessao) return;
     this._enviarEstado();
     // Reler a memória inteira (até 8.192 eventos) só na 1ª conexão do
     // processo e depois de queda longa. A leitura é interrompível: um relé
     // pedido no meio passa na frente e ela recomeça.
-    const m = this._memoriaDoProcesso();
     const foraMs = m.foraDesde === null ? null : this.t.agora() - m.foraDesde;
     m.foraDesde = null;
-    if (!m.recuperou || foraMs === null || foraMs > this.iv.quedaLongaMs) {
+    if (m.semResposta.has(6) || m.semResposta.has('recuperacao')) {
+      // Sem o 6 (ou o 17) não há como reler a memória: segue sem recuperação.
+      m.recuperou = true;
+    } else if (!m.recuperou || foraMs === null || foraMs > this.iv.quedaLongaMs) {
       if (await this._recuperarEventos(sessao)) m.recuperou = true;
     } else {
       this.log.log(
@@ -329,11 +344,39 @@ class ServicoGuarita {
     this._agendar('ciclo', 0, () => void this._ciclo());
   }
 
+  /** Espera uma sessão conectada (até `ms`); null se não vier ou o serviço parar. */
+  _esperarConexao(ms) {
+    if (this.conectado && this.sessao) return Promise.resolve(this.sessao);
+    if (this.parado) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const w = { resolve, timer: null };
+      w.timer = this.t.setTimeout(() => {
+        const i = this._esperandoConexao.indexOf(w);
+        if (i !== -1) this._esperandoConexao.splice(i, 1);
+        resolve(null);
+      }, ms);
+      this._esperandoConexao.push(w);
+    });
+  }
+
+  _avisarConectado() {
+    for (const w of this._esperandoConexao.splice(0)) {
+      this.t.clearTimeout(w.timer);
+      w.resolve(this.parado ? null : this.sessao);
+    }
+  }
+
+  async _conferirDepoisDaQueda(op) {
+    const sessao = await this._esperarConexao(this.iv.esperaConferenciaMs);
+    if (!sessao) return { ok: false, codigo: null, incerto: true, mensagem: operacoes.MSG_INCERTO };
+    return operacoes.conferirGravacao(sessao, { tipo: op.tipo, frameHex: op.frame_hex, esperado: op.esperado });
+  }
+
   /** Estado que sobrevive à recriação do serviço dentro do mesmo processo. */
   _memoriaDoProcesso() {
     let m = this.cfg.memoriaProcesso.get(this.device.id);
     if (!m) {
-      m = { recuperou: false, foraDesde: null };
+      m = { recuperou: false, foraDesde: null, semResposta: new Set() };
       this.cfg.memoriaProcesso.set(this.device.id, m);
     }
     return m;
@@ -377,7 +420,19 @@ class ServicoGuarita {
     if (Number.isInteger(this.info.totalEventos)) c.total_eventos = this.info.totalEventos;
     if (Number.isFinite(this.info.relogioDeltaS)) c.relogio_delta_s = this.info.relogioDeltaS;
     if (this.erro) c.erro = this.erro;
+    else {
+      const faltam = this._leiturasSemResposta();
+      if (faltam.length > 0) c.erro = `O Guarita não respondeu à leitura de: ${faltam.join(', ')}`;
+    }
     return c;
+  }
+
+  /** Nomes do que este Guarita não respondeu (identificação e recuperação). */
+  _leiturasSemResposta() {
+    const mudos = this._memoriaDoProcesso().semResposta;
+    const nomes = operacoes.IDENTIFICACAO.filter((x) => mudos.has(x.comando)).map((x) => x.nome);
+    if (mudos.has('recuperacao')) nomes.push('eventos da memória');
+    return nomes;
   }
 
   /** Manda o estado se mudou (ou sempre, com `forcar`). Nunca rejeita. */
@@ -440,7 +495,7 @@ class ServicoGuarita {
       this.filaEventos.splice(0, excesso);
       this._descartesLogados += excesso;
       this.log.error(
-        `${this.rotulo}: fila de eventos do Guarita cheia (${this.iv.limiteFilaEventos}); ${excesso} evento(s) mais antigo(s) descartado(s) — continuam na memória do Guarita e voltam na próxima recuperação`,
+        `${this.rotulo}: fila de eventos do Guarita cheia (${this.iv.limiteFilaEventos}); ${excesso} evento(s) mais antigo(s) descartado(s) — continuam na memória do Guarita e só voltam numa próxima recuperação (reinício do agente ou queda > 60 s)`,
       );
     }
   }
@@ -471,7 +526,8 @@ class ServicoGuarita {
         this._descarregarDeNovo = false;
         while (this.filaEventos.length > 0 && !this.parado) {
           const lote = this.filaEventos.slice(0, this.iv.lotePorEnvio);
-          const delta = Number.isFinite(this.info.relogioDeltaS) ? this.info.relogioDeltaS : 0;
+          // Relógio desconhecido: null (a API trata como "sem correção"), nunca 0.
+          const delta = Number.isFinite(this.info.relogioDeltaS) ? this.info.relogioDeltaS : null;
           const r = await this._nuvem('POST', 'eventos', { eventos: lote, relogio_delta_s: delta });
           if (!r.ok && r.transitorio) return;
           if (!r.ok) {
@@ -492,6 +548,8 @@ class ServicoGuarita {
       lista = await operacoes.lerTodosEventos(sessao);
     } catch (e) {
       this.log.error(`${this.rotulo}: falha ao recuperar os eventos do Guarita (${e.message})`);
+      // Sem resposta (6 ou 17): não insiste a cada conexão, senão nunca chega às operações.
+      if (e && e.codigo === 'sem_resposta') this._memoriaDoProcesso().semResposta.add('recuperacao');
       return false;
     }
     if (lista.length === 0) return true;
@@ -499,7 +557,7 @@ class ServicoGuarita {
     const itens = lista.map((f) => ({ frame_hex: f, origem: 'recuperacao', recebido_em: recebidoEm }));
     // A recuperação lê a memória inteira (até 8.192): vai direto em lotes, sem
     // passar pelo teto da fila; só o que não sair fica guardado.
-    const delta = Number.isFinite(this.info.relogioDeltaS) ? this.info.relogioDeltaS : 0;
+    const delta = Number.isFinite(this.info.relogioDeltaS) ? this.info.relogioDeltaS : null;
     let i = 0;
     while (i < itens.length && !this.parado) {
       const lote = itens.slice(i, i + this.iv.lotePorEnvio);
@@ -564,6 +622,10 @@ class ServicoGuarita {
       if (this.parado || !this.conectado) return;
       if (!op || typeof op !== 'object' || !Number.isInteger(op.id)) continue;
       const ja = this.executadas.get(op.id);
+      if (ja && ja.estado === 'a_conferir') {
+        await this._conferirPendente(op, ja);
+        continue;
+      }
       if (ja) {
         // Mesma operação devolvida de novo: NUNCA executa duas vezes. Se o
         // resultado já saiu, manda de novo (a rota é idempotente).
@@ -588,7 +650,13 @@ class ServicoGuarita {
       this.log.error(`${this.rotulo}: não consegui ler as operações concluídas (${(e && e.message) || e})`);
     }
     for (const item of lista) {
-      if (!item || !Number.isInteger(item.id) || !item.corpo || typeof item.corpo !== 'object') continue;
+      if (!item || !Number.isInteger(item.id)) continue;
+      if (item.em_andamento && item.op && typeof item.op === 'object') {
+        // O agente parou entre escrever e registrar: confere antes de repetir.
+        this.executadas.set(item.id, { estado: 'a_conferir', op: item.op, persistida: true });
+        continue;
+      }
+      if (!item.corpo || typeof item.corpo !== 'object') continue;
       this.executadas.set(item.id, { estado: 'concluida', partes: [item.corpo], enviadas: item.enviado ? 1 : 0, persistida: true });
     }
   }
@@ -597,8 +665,12 @@ class ServicoGuarita {
     try {
       const tudo = this.cfg.armazem.ler() || {};
       tudo[String(this.device.id)] = [...this.executadas]
-        .filter(([, e]) => e.persistida && e.estado === 'concluida')
-        .map(([id, e]) => ({ id, corpo: e.partes[0], enviado: e.enviadas >= e.partes.length }))
+        .filter(([, e]) => e.persistida && (e.estado === 'concluida' || ((e.estado === 'executando' || e.estado === 'a_conferir') && e.op)))
+        .map(([id, e]) =>
+          e.estado === 'concluida'
+            ? { id, corpo: e.partes[0], enviado: e.enviadas >= e.partes.length }
+            : { id, em_andamento: true, op: e.op },
+        )
         .slice(-MAX_PERSISTIDAS_POR_DEVICE);
       this.cfg.armazem.gravar(tudo);
     } catch (e) {
@@ -622,23 +694,32 @@ class ServicoGuarita {
       case 'cadastrar':
       case 'editar':
       case 'apagar': {
-        this._lembrar(op.id, { estado: 'executando' });
-        const r = await operacoes.gravar(sessao, { tipo: op.tipo, frameHex: op.frame_hex, esperado: op.esperado });
+        // Registrado em disco ANTES de escrever: se o agente parar no meio, a
+        // reentrega confere no Guarita em vez de repetir às cegas.
+        this._lembrar(op.id, {
+          estado: 'executando',
+          op: { id: op.id, tipo: op.tipo, frame_hex: op.frame_hex, esperado: op.esperado },
+          persistida: true,
+        });
+        this._persistirConcluidas();
+        let r = await operacoes.gravar(sessao, { tipo: op.tipo, frameHex: op.frame_hex, esperado: op.esperado });
+        if (r.escritoSemResposta) {
+          // Saiu e não respondeu (a sessão caiu): pode ter gravado. Confere
+          // numa sessão nova antes de dizer qualquer coisa à nuvem.
+          this.log.error(`${this.rotulo}: operação ${op.id} (${op.tipo}) sem resposta; conferindo no Guarita depois de reconectar`);
+          r = await this._conferirDepoisDaQueda(op);
+        }
+        // Serviço parado no meio (ouvinte recriado, agente encerrando): não
+        // conclui nada — o registro "em andamento" fica em disco e o próximo
+        // serviço confere no Guarita.
+        if (this.parado) return;
         if (r.naoEnviado) {
           // Nem chegou ao Guarita (sessão caiu antes): fica para a reentrega.
           this.executadas.delete(op.id);
+          this._persistirConcluidas();
           return;
         }
-        const corpo = r.ok ? { ok: true } : { ok: false, erro: r.mensagem };
-        if (Number.isInteger(r.codigo)) corpo.codigo = r.codigo;
-        if (r.ja_estava) corpo.ja_estava = true;
-        if (r.conflito) {
-          corpo.conflito = true;
-          corpo.lido = r.lido;
-        }
-        if (r.ok && !r.ja_estava) this._marcarGravacao();
-        this.log.log(`${this.rotulo}: operação ${op.id} (${op.tipo}) → ${r.ok ? 'OK' : `FALHA (${r.mensagem})`}${r.ja_estava ? ' (já estava assim no Guarita)' : ''}`);
-        await this._concluir(op.id, [corpo], { persistir: true });
+        await this._concluirGravacao(op, r);
         return;
       }
       case 'atualizar_receptores': {
@@ -653,12 +734,19 @@ class ServicoGuarita {
       case 'conferir': {
         this._lembrar(op.id, { estado: 'executando' });
         let partes;
+        const mudos = this._memoriaDoProcesso().semResposta;
         try {
+          if (mudos.has(7)) {
+            throw new Error(
+              'O Guarita não responde à leitura da quantidade de dispositivos (comando 7); importação e conferência não são possíveis.',
+            );
+          }
           const frames = await operacoes.lerTodosDispositivos(sessao);
           partes = partesDaImportacao(frames, this.iv.lotePorEnvio);
           this.info.totalDispositivos = frames.length;
           this.log.log(`${this.rotulo}: operação ${op.id} (${op.tipo}) → ${frames.length} dispositivo(s) lido(s)`);
         } catch (e) {
+          if (e && e.codigo === 'sem_resposta' && e.comando === 7) mudos.add(7);
           partes = [{ ok: false, erro: e.message }];
           this.log.error(`${this.rotulo}: operação ${op.id} (${op.tipo}) → FALHA (${e.message})`);
         }
@@ -670,6 +758,40 @@ class ServicoGuarita {
         this._lembrar(op.id, { estado: 'executando' });
         await this._concluir(op.id, [{ ok: false, erro: `Operação desconhecida pelo agente: ${String(op.tipo)}.` }]);
     }
+  }
+
+  /** Corpo do resultado de uma gravação (contrato) a partir do retorno das operações. */
+  _corpoDaGravacao(r) {
+    const corpo = r.ok ? { ok: true } : { ok: false, erro: r.mensagem };
+    if (Number.isInteger(r.codigo)) corpo.codigo = r.codigo;
+    if (r.ja_estava) corpo.ja_estava = true;
+    if (r.conflito) corpo.conflito = true;
+    if (r.incerto) corpo.incerto = true;
+    if (r.lido) corpo.lido = r.lido;
+    return corpo;
+  }
+
+  async _concluirGravacao(op, r) {
+    // Qualquer ok (inclusive conferido depois da queda) pede o 29 do lote.
+    if (r.ok) this._marcarGravacao();
+    this.log.log(`${this.rotulo}: operação ${op.id} (${op.tipo}) → ${r.ok ? 'OK' : `FALHA (${r.mensagem})`}${r.ja_estava ? ' (já estava assim no Guarita)' : ''}`);
+    await this._concluir(op.id, [this._corpoDaGravacao(r)], { persistir: true });
+  }
+
+  /**
+   * Operação que estava "em andamento" quando o agente parou: confere no
+   * Guarita. Se o resultado pedido está lá (ou houve conflito/incerteza),
+   * informa; se claramente não foi feito, executa normalmente agora.
+   */
+  async _conferirPendente(op, ja) {
+    const pedido = ja.op;
+    const r = await operacoes.conferirGravacao(this.sessao, { tipo: pedido.tipo, frameHex: pedido.frame_hex, esperado: pedido.esperado });
+    if (!r.ok && !r.conflito && !r.incerto) {
+      this.executadas.delete(op.id);
+      await this._executarOperacao({ ...pedido, ...op });
+      return;
+    }
+    await this._concluirGravacao(pedido, r);
   }
 
   async _concluir(id, partes, { persistir = false } = {}) {

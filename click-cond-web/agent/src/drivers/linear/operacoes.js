@@ -76,19 +76,38 @@ function deltaDoRelogio(dados12, agoraMs) {
   return Math.round((guaritaMs - agoraMs) / 1000);
 }
 
-async function identificar(sessao, { agora = () => Date.now() } = {}) {
-  const versao = await sessao.comando(38);
-  const rotulos = await sessao.comando(3);
-  const quantDisp = await sessao.comando(7);
-  const quantEvt = await sessao.comando(6, [0x02]);
-  const relogio = await sessao.comando(12);
-  return {
-    firmware: textoDe(versao),
-    rotulos: [textoDe(rotulos.subarray(0, 20)), textoDe(rotulos.subarray(20, 40))],
-    totalDispositivos: (quantDisp[0] << 8) | quantDisp[1],
-    totalEventos: (quantEvt[1] << 8) | quantEvt[2],
-    relogioDeltaS: deltaDoRelogio(relogio, agora()),
-  };
+/** Comandos da identificação, na ordem, com o nome que vai para o estado. */
+const IDENTIFICACAO = Object.freeze([
+  { comando: 38, nome: 'versão' },
+  { comando: 3, nome: 'rótulos' },
+  { comando: 7, nome: 'quantidade de dispositivos' },
+  { comando: 6, nome: 'quantidade de eventos' },
+  { comando: 12, nome: 'relógio' },
+]);
+
+/**
+ * Identificação ao conectar (38, 3, 7, 6, 12). Cada comando é opcional:
+ * `pular` traz os que este Guarita já mostrou não responder (não são
+ * enviados). Um que não responda lança (a sessão cai, regra do C1) com
+ * `e.comando`; quem chama o anota em `pular` e reconecta.
+ */
+async function identificar(sessao, { agora = () => Date.now(), pular = new Set() } = {}) {
+  const info = { relogioDeltaS: null };
+  if (!pular.has(38)) info.firmware = textoDe(await sessao.comando(38));
+  if (!pular.has(3)) {
+    const rotulos = await sessao.comando(3);
+    info.rotulos = [textoDe(rotulos.subarray(0, 20)), textoDe(rotulos.subarray(20, 40))];
+  }
+  if (!pular.has(7)) {
+    const q = await sessao.comando(7);
+    info.totalDispositivos = (q[0] << 8) | q[1];
+  }
+  if (!pular.has(6)) {
+    const q = await sessao.comando(6, [0x02]);
+    info.totalEventos = (q[1] << 8) | q[2];
+  }
+  if (!pular.has(12)) info.relogioDeltaS = deltaDoRelogio(await sessao.comando(12), agora());
+  return info;
 }
 
 async function contarDispositivos(sessao) {
@@ -182,6 +201,8 @@ async function lerPelaChave(exec, frame) {
     return { existe: true, frame: Buffer.from(dados.subarray(2, 41)) };
   }
   if (dados[1] === 0x03) return { existe: false };
+  // 0x00 com outra chave (ou tamanho errado): não diz nada sobre este dispositivo.
+  if (dados[1] === 0x00) throw new Error('O Guarita devolveu outro dispositivo na leitura.');
   throw new Error(mensagemDoCodigo(dados[1]));
 }
 
@@ -196,6 +217,8 @@ async function lerDispositivo(sessao, frame) {
 }
 
 const unidadeDe = (f) => f[6] * 100 + f[7];
+/** O que foi lido do Guarita, como vai no resultado: unidade, bloco e os 39 bytes. */
+const lidoDe = (f) => ({ unidade: unidadeDe(f), bloco: f[8], frame_hex: paraHex(f) });
 
 function esperadoValido(e) {
   return (
@@ -206,11 +229,68 @@ function esperadoValido(e) {
   );
 }
 
-function falhaDeComando(e) {
+function falhaDeComando(e, { escreveu = false } = {}) {
   const falha = { ok: false, codigo: null, mensagem: mensagemDeErro(e) };
   // Recusado antes de escrever (sessão já fechada): o Guarita nem viu.
   if (e && e.codigo === 'desconectado') falha.naoEnviado = true;
+  // A escrita saiu e a resposta não veio: pode ter gravado. Quem chama
+  // confere depois de reconectar (conferirGravacao).
+  else if (escreveu && e && (e.codigo === 'sem_resposta' || e.codigo === 'queda' || e.codigo === 'fechada')) falha.escritoSemResposta = true;
   return falha;
+}
+
+const MSG_NAO_GRAVADO = 'O Guarita não respondeu e o dispositivo não foi gravado.';
+const MSG_NAO_APAGADO = 'O Guarita não respondeu e o dispositivo não foi apagado.';
+const MSG_INCERTO = 'Não foi possível confirmar no Guarita.';
+const MSG_CONFIRMADO = 'Confirmado no Guarita depois da reconexão.';
+
+/** Iguais, ignorando o que é só leitura no byte 30 (último acionamento e bateria). */
+function mesmoFrameGravavel(a, b) {
+  const x = Buffer.from(a);
+  const y = Buffer.from(b);
+  x[29] &= 0x80;
+  y[29] &= 0x80;
+  return x.equals(y);
+}
+
+/**
+ * Desfecho de uma gravação que SAIU e ficou sem resposta (a sessão caiu):
+ * numa sessão nova, lê o dispositivo (67/3) e decide pelo que está no
+ * Guarita. Leitura impossível → incerto.
+ */
+async function conferirGravacao(sessao, { tipo, frameHex } = {}) {
+  const frame = Buffer.from(String(frameHex || ''), 'hex');
+  if (frame.length !== 39) return { ok: false, codigo: null, incerto: true, mensagem: MSG_INCERTO };
+  let r;
+  try {
+    r = await lerPelaChave((n, p, o) => sessao.comando(n, p, o), frame);
+  } catch {
+    return { ok: false, codigo: null, incerto: true, mensagem: MSG_INCERTO };
+  }
+  if (tipo === 'apagar') {
+    if (!r.existe) return { ok: true, codigo: null, ja_estava: true, mensagem: MSG_CONFIRMADO };
+    return { ok: false, codigo: null, lido: lidoDe(r.frame), mensagem: MSG_NAO_APAGADO };
+  }
+  if (!r.existe) return { ok: false, codigo: null, mensagem: MSG_NAO_GRAVADO };
+  const lido = lidoDe(r.frame);
+  if (tipo === 'editar') {
+    return mesmoFrameGravavel(r.frame, frame)
+      ? { ok: true, codigo: null, lido, mensagem: MSG_CONFIRMADO }
+      : { ok: false, codigo: null, lido, mensagem: MSG_NAO_GRAVADO };
+  }
+  // cadastrar: mesma unidade, mesmo bloco e, no RF, o mesmo contador.
+  const eRf = frame[0] >> 4 === 1;
+  const mesmoContador = !eRf || (r.frame[4] === frame[4] && r.frame[5] === frame[5]);
+  if (lido.unidade === unidadeDe(frame) && lido.bloco === frame[8] && mesmoContador) {
+    return { ok: true, codigo: null, ja_estava: true, lido, mensagem: MSG_CONFIRMADO };
+  }
+  return {
+    ok: false,
+    codigo: null,
+    conflito: true,
+    lido,
+    mensagem: 'Este dispositivo já está cadastrado no Guarita em outra unidade.',
+  };
 }
 
 /**
@@ -242,6 +322,7 @@ async function gravar(sessao, { tipo, frameHex, esperado } = {}) {
     // Só a chave: byte 1 inteiro (CT mantém o disp_dest; TA/TP zera o nibble) + bytes 2-4.
     chaveDoFrame(frame).copy(frame);
   }
+  let escreveu = false;
   try {
     return await sessao.sequencia(async (seq) => {
       const exec = (n, p, o) => seq.comando(n, p, o);
@@ -252,7 +333,7 @@ async function gravar(sessao, { tipo, frameHex, esperado } = {}) {
         }
         return { ok: false, codigo: 0x03, mensagem: mensagemDoCodigo(0x03) };
       }
-      const atual = { unidade: unidadeDe(lido.frame), bloco: lido.frame[8] };
+      const atual = lidoDe(lido.frame);
       if (atual.unidade !== esperado.unidade || atual.bloco !== esperado.bloco) {
         return {
           ok: false,
@@ -262,6 +343,7 @@ async function gravar(sessao, { tipo, frameHex, esperado } = {}) {
           mensagem: 'Este dispositivo está cadastrado no Guarita em outra unidade.',
         };
       }
+      escreveu = true;
       const dados = await exec(67, Buffer.concat([Buffer.from([OPCAO_POR_TIPO[tipo]]), frame]), { timeoutMs: TIMEOUT_67_MS });
       const codigo = dados[1];
       if (tipo === 'apagar' && codigo === 0x03) {
@@ -270,8 +352,8 @@ async function gravar(sessao, { tipo, frameHex, esperado } = {}) {
       return { ok: codigo === 0x00, codigo, mensagem: mensagemDoCodigo(codigo) };
     });
   } catch (e) {
-    // Sem resposta no Ler: a sessão caiu e NADA foi escrito.
-    return falhaDeComando(e);
+    // Sem resposta no Ler: a sessão caiu e NADA foi escrito. Na escrita: pode ter gravado.
+    return falhaDeComando(e, { escreveu });
   }
 }
 
@@ -282,7 +364,7 @@ async function cadastrar(sessao, frame) {
       timeoutMs: TIMEOUT_67_MS,
     });
   } catch (e) {
-    return falhaDeComando(e);
+    return falhaDeComando(e, { escreveu: true });
   }
   const codigo = dados[1];
   const base = { ok: codigo === 0x00, codigo, mensagem: mensagemDoCodigo(codigo) };
@@ -291,9 +373,12 @@ async function cadastrar(sessao, frame) {
   // confere pelo Ler se o objetivo já está atendido.
   const lido = await lerDispositivo(sessao, frame);
   if (!lido) return base;
-  const atual = { unidade: unidadeDe(lido), bloco: lido[8] };
-  if (atual.unidade === unidadeDe(frame) && atual.bloco === frame[8]) {
-    return { ok: true, codigo, ja_estava: true, mensagem: 'Este dispositivo já estava cadastrado no Guarita.' };
+  const atual = lidoDe(lido);
+  // ja_estava só com a mesma unidade, o mesmo bloco e, no RF, o mesmo contador.
+  const eRf = frame[0] >> 4 === 1;
+  const mesmoContador = !eRf || (lido[4] === frame[4] && lido[5] === frame[5]);
+  if (atual.unidade === unidadeDe(frame) && atual.bloco === frame[8] && mesmoContador) {
+    return { ok: true, codigo, ja_estava: true, lido: atual, mensagem: 'Este dispositivo já estava cadastrado no Guarita.' };
   }
   return {
     ok: false,
@@ -341,11 +426,14 @@ async function acionarRele(sessao, { tipoReceptor, numReceptor, rele } = {}, { p
 
 module.exports = {
   identificar,
+  IDENTIFICACAO,
   lerTodosDispositivos,
   lerTodosEventos,
   gravar,
   lerDispositivo,
   chaveDoFrame,
+  conferirGravacao,
+  MSG_INCERTO,
   atualizarReceptores,
   acionarRele,
   deltaDoRelogio,

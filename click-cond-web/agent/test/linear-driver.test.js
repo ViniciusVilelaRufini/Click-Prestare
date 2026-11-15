@@ -359,7 +359,7 @@ test('operações executam na ordem devolvida, uma de cada vez', async () => {
   });
 });
 
-test('queda do Guarita no meio de um cadastrar → resultado ok:false e a sessão reconecta', async () => {
+test('queda do Guarita no meio de um cadastrar → reconecta, confere e o resultado diz que não foi gravado', async () => {
   await cenario({}, async (c) => {
     c.escutar();
     await c.pronto();
@@ -368,12 +368,13 @@ test('queda do Guarita no meio de um cadastrar → resultado ok:false e a sessã
     await c.relogio.avancar(0); // 1º ciclo (o relógio não anda: o 67 fica esperando a resposta)
     await esperarAte(() => c.sim.comandosRecebidos(67).length === 1, { rotulo: 'o 67' });
     c.sim.derrubarConexoes();
-    await esperarAte(() => c.nuvem.resultados.length === 1, { rotulo: 'resultado' });
-    assert.deepEqual(c.nuvem.resultados[0], { id: 77, ok: false, erro: 'A conexão com o Guarita caiu antes da confirmação.' });
     await esperarAte(() => c.nuvem.estados.some((e) => e.conectado === false), { rotulo: 'estado desconectado' });
+    assert.equal(c.nuvem.resultados.length, 0, 'não informa nada antes de conferir');
     assert.equal(c.sim.conexoesAceitas, 1);
     await c.relogio.avancar(1000); // espera inicial de 1 s
     await esperarAte(() => c.sim.conexoesAceitas === 2 && c.servico().conectado, { rotulo: 'reconexão' });
+    await esperarAte(() => c.nuvem.resultados.length === 1, { rotulo: 'resultado' });
+    assert.deepEqual(c.nuvem.resultados[0], { id: 77, ok: false, erro: 'O Guarita não respondeu e o dispositivo não foi gravado.' });
     assert.equal(c.sim.memoria.dispositivos.length, 0, 'nada foi gravado sem a confirmação');
   });
 });
@@ -672,13 +673,21 @@ test('C1 (driver): A calado → falhou e a sessão cai; B só roda numa sessão 
     await c.relogio.avancar(0);
     await esperarAte(() => c.sim.comandosRecebidos(67).length === 1, { rotulo: 'o 67 de A' });
     await c.relogio.avancar(5000);
-    await esperarAte(() => c.nuvem.resultados.length === 1, { rotulo: 'resultado de A' });
-    assert.deepEqual(c.nuvem.resultados[0], { id: 1, ok: false, erro: 'O Guarita não respondeu.' });
+    await esperarAte(() => !c.servico().conectado, { rotulo: 'A caiu' });
     await new Promise((r) => setTimeout(r, 300)); // a resposta atrasada de A não acha ninguém
     assert.equal(c.sim.comandosRecebidos(67).length, 1, 'B não saiu na sessão suspeita');
+    assert.equal(c.nuvem.resultados.length, 0, 'A ainda não foi informado: falta conferir');
     await c.relogio.avancar(1000); // reconexão
     await c.pronto();
     assert.equal(c.sim.conexoesAceitas, 2);
+    // A foi gravado de fato: a conferência pelo Ler na sessão nova confirma.
+    await esperarAte(() => c.nuvem.resultados.some((r) => r.id === 1), { rotulo: 'resultado de A' });
+    assert.deepEqual(c.nuvem.resultados.find((r) => r.id === 1), {
+      id: 1,
+      ok: true,
+      ja_estava: true,
+      lido: { unidade: 1, bloco: 0, frame_hex: hex(dispositivo(1)) },
+    });
     await c.relogio.avancar(0);
     await esperarAte(() => c.nuvem.resultados.some((r) => r.id === 2), { rotulo: 'resultado de B' });
     const rB = c.nuvem.resultados.filter((r) => r.id === 2);
@@ -717,7 +726,7 @@ test('I1: operação já concluída não é reexecutada depois de o agente reini
     await c.pronto();
     await c.relogio.avancar(0);
     await esperarAte(() => c.sim.comandosRecebidos(67).length === 1, { rotulo: 'o 67' });
-    await esperarAte(() => (armazem.ler()['42'] || []).length === 1, { rotulo: 'persistido' });
+    await esperarAte(() => (armazem.ler()['42'] || []).some((e) => e.id === 10 && e.corpo), { rotulo: 'persistido' });
     assert.deepEqual(armazem.ler()['42'], [{ id: 10, corpo: { ok: true, codigo: 0 }, enviado: false }]);
     c.reiniciarAgente();
     c.nuvem.falharResultados = false;
@@ -743,7 +752,7 @@ test('I1: sem o registro (armazém perdido), o cadastrar repetido responde 0x02 
     await c.relogio.avancar(0);
     await esperarAte(() => c.nuvem.resultados.length === 2, { rotulo: 'resultados' });
     assert.deepEqual(c.nuvem.resultados, [
-      { id: 11, ok: true, codigo: 2, ja_estava: true },
+      { id: 11, ok: true, codigo: 2, ja_estava: true, lido: { unidade: 4, bloco: 0, frame_hex: hex(d) } },
       { id: 12, ok: true, ja_estava: true },
     ]);
     assert.equal(c.sim.memoria.dispositivos.length, 1);
@@ -966,10 +975,176 @@ test('item 1 (driver): resultado de conflito e de operação sem esperado no for
     await c.relogio.avancar(0);
     await esperarAte(() => c.nuvem.resultados.length === 2, { rotulo: 'resultados' });
     assert.deepEqual(c.nuvem.resultados, [
-      { id: 60, ok: false, erro: 'Este dispositivo está cadastrado no Guarita em outra unidade.', conflito: true, lido: { unidade: 6, bloco: 0 } },
+      { id: 60, ok: false, erro: 'Este dispositivo está cadastrado no Guarita em outra unidade.', conflito: true, lido: { unidade: 6, bloco: 0, frame_hex: hex(outro) } },
       { id: 61, ok: false, erro: 'Operação sem unidade esperada.' },
     ]);
     assert.equal(c.sim.memoria.dispositivos.length, 1);
     assert.deepEqual(c.sim.comandosRecebidos(67).map((f) => f[2]), [3], 'só o Ler do 60');
+  });
+});
+
+// ---------- revisão final, I2 ----------
+
+test('final I2 (driver): cadastrar gravado mas resposta perdida → reconecta, confere pelo Ler e devolve ok + ja_estava + lido', async () => {
+  await cenario({}, async (c) => {
+    c.escutar();
+    await c.pronto();
+    c.sim.falhas.atrasarResposta(300); // grava, mas a resposta passa dos 5 s
+    c.nuvem.ops.push({ id: 70, tipo: 'cadastrar', frame_hex: hex(dispositivo(3)) });
+    await c.relogio.avancar(0);
+    await esperarAte(() => c.sim.comandosRecebidos(67).length === 1, { rotulo: 'o 67' });
+    await c.relogio.avancar(5000); // sem resposta: a sessão cai
+    await esperarAte(() => !c.servico().conectado, { rotulo: 'caiu' });
+    await new Promise((r) => setTimeout(r, 350)); // a resposta atrasada morre com a conexão velha
+    await c.relogio.avancar(1000); // reconexão
+    await esperarAte(() => c.nuvem.resultados.some((r) => r.id === 70), { rotulo: 'resultado' });
+    assert.deepEqual(c.nuvem.resultados.find((r) => r.id === 70), {
+      id: 70,
+      ok: true,
+      ja_estava: true,
+      lido: { unidade: 3, bloco: 0, frame_hex: hex(dispositivo(3)) },
+    });
+    assert.deepEqual(c.sim.comandosRecebidos(67).map((f) => f[2]), [0, 3], 'escrita, depois o Ler na sessão nova');
+  });
+});
+
+test('final I2 (driver): cadastrar que o Guarita nem viu → reconecta, confere e devolve "não foi gravado"', async () => {
+  await cenario({}, async (c) => {
+    c.escutar();
+    await c.pronto();
+    c.sim.falhas.silencio(1);
+    c.nuvem.ops.push({ id: 71, tipo: 'cadastrar', frame_hex: hex(dispositivo(3)) });
+    await c.relogio.avancar(0);
+    await esperarAte(() => c.sim.comandosRecebidos(67).length === 1, { rotulo: 'o 67' });
+    await c.relogio.avancar(5000);
+    await esperarAte(() => !c.servico().conectado, { rotulo: 'caiu' });
+    await c.relogio.avancar(1000);
+    await esperarAte(() => c.nuvem.resultados.some((r) => r.id === 71), { rotulo: 'resultado' });
+    assert.deepEqual(c.nuvem.resultados.find((r) => r.id === 71), {
+      id: 71,
+      ok: false,
+      erro: 'O Guarita não respondeu e o dispositivo não foi gravado.',
+    });
+  });
+});
+
+test('final I2 (driver): apagar escrito sem resposta e o Guarita some → em 30 s sem reconectar: incerto', async () => {
+  await cenario({ sim: { dispositivos: [dispositivo(3)] } }, async (c) => {
+    c.escutar();
+    await c.pronto();
+    // O Ler responde; o apagar (67 opção 4) fica sem resposta.
+    let n67 = 0;
+    c.nuvem.ops.push({ id: 72, tipo: 'apagar', frame_hex: hex(dispositivo(3)), esperado: { unidade: 3, bloco: 0 } });
+    c.sim.falhas.silencioEm({ comando: 67, opcao: 4 });
+    await c.relogio.avancar(0);
+    await esperarAte(() => c.sim.comandosRecebidos(67).length === 2, { rotulo: 'Ler + apagar' });
+    n67 = c.sim.comandosRecebidos(67).length;
+    await c.sim.fechar(); // e o Guarita some da rede
+    await c.relogio.avancar(5000);
+    await esperarAte(() => !c.servico().conectado, { rotulo: 'caiu' });
+    for (let i = 0; i < 8 && !c.nuvem.resultados.some((r) => r.id === 72); i++) {
+      await c.relogio.avancar(5000);
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    await esperarAte(() => c.nuvem.resultados.some((r) => r.id === 72), { rotulo: 'resultado' });
+    assert.equal(n67, 2);
+    assert.deepEqual(c.nuvem.resultados.find((r) => r.id === 72), {
+      id: 72,
+      ok: false,
+      incerto: true,
+      erro: 'Não foi possível confirmar no Guarita.',
+    });
+  });
+});
+
+// ---------- revisão final, I3: identificação tolerante ----------
+
+const NOMES_IDENTIFICACAO = { 38: 'versão', 3: 'rótulos', 7: 'quantidade de dispositivos', 6: 'quantidade de eventos', 12: 'relógio' };
+
+for (const mudo of [38, 3, 7, 6, 12]) {
+  test(`final I3: Guarita que nunca responde ao ${mudo} (${NOMES_IDENTIFICACAO[mudo]}) → no máximo 2 reconexões, executa um cadastrar e o estado diz o que ficou de fora`, async () => {
+    await cenario({ sim: { eventos: [E1] } }, async (c) => {
+      c.sim.falhas.calar(mudo);
+      c.nuvem.ops.push({ id: 90 + mudo, tipo: 'cadastrar', frame_hex: hex(dispositivo(mudo)) });
+      c.escutar();
+      for (let i = 0; i < 12 && !c.nuvem.resultados.some((r) => r.id === 90 + mudo); i++) {
+        await esperarAte(() => c.servico().timers.ciclo || c.servico().timers.reconexao || c.sim.comandosRecebidos(mudo).length > 0, {
+          rotulo: 'algo armado',
+        });
+        await c.relogio.avancar(c.servico().timers.reconexao ? 1000 : c.servico().timers.ciclo ? 0 : 5000);
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      await esperarAte(() => c.nuvem.resultados.some((r) => r.id === 90 + mudo), { rotulo: 'resultado do cadastrar' });
+      assert.deepEqual(c.nuvem.resultados.find((r) => r.id === 90 + mudo), { id: 90 + mudo, ok: true, codigo: 0 });
+      assert.ok(c.sim.conexoesAceitas <= 3, `conexões: ${c.sim.conexoesAceitas}`);
+      assert.equal(c.sim.comandosRecebidos(mudo).length, 1, `o ${mudo} não é enviado de novo`);
+      const ultimo = c.nuvem.estados.at(-1);
+      assert.equal(ultimo.conectado, true);
+      assert.match(ultimo.erro || '', new RegExp(`O Guarita não respondeu à leitura de: .*${NOMES_IDENTIFICACAO[mudo]}`));
+      if (mudo === 12) {
+        c.sim.injetarEvento(E2);
+        await esperarAte(() => c.nuvem.lotesEventos.length >= 1, { rotulo: 'lote de eventos' });
+        const lote = c.nuvem.lotesEventos.at(-1);
+        assert.ok(Object.prototype.hasOwnProperty.call(lote, 'relogio_delta_s'));
+        assert.equal(lote.relogio_delta_s, null, 'sem relógio: null, não 0');
+        assert.ok(!Object.prototype.hasOwnProperty.call(ultimo, 'relogio_delta_s'), 'estado omite o campo');
+      }
+    });
+  });
+}
+
+test('final I3: com o 7 mudo, importar falha na hora com erro claro e sem derrubar a sessão de novo', async () => {
+  await cenario({}, async (c) => {
+    c.sim.falhas.calar(7);
+    c.escutar();
+    for (let i = 0; i < 6 && !(c.servico().conectado && c.servico().timers.ciclo); i++) {
+      await c.relogio.avancar(c.servico().timers.reconexao ? 1000 : 5000);
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    await c.pronto();
+    const conexoes = c.sim.conexoesAceitas;
+    c.nuvem.ops.push({ id: 99, tipo: 'importar' });
+    await c.relogio.avancar(0);
+    await esperarAte(() => c.nuvem.resultados.some((r) => r.id === 99), { rotulo: 'resultado' });
+    assert.deepEqual(c.nuvem.resultados.find((r) => r.id === 99), {
+      id: 99,
+      ok: false,
+      erro: 'O Guarita não responde à leitura da quantidade de dispositivos (comando 7); importação e conferência não são possíveis.',
+    });
+    assert.equal(c.sim.comandosRecebidos(7).length, 1);
+    assert.equal(c.sim.conexoesAceitas, conexoes);
+    assert.equal(c.servico().conectado, true);
+  });
+});
+
+
+test('final Menor 11: agente caiu entre escrever um editar e registrar o resultado → na reentrega confere (não reexecuta, não dá conflito falso)', async () => {
+  const { criarArmazemEmMemoria } = require('../src/drivers/linear-guarita');
+  const armazem = criarArmazemEmMemoria();
+  const antes = dispositivo(5); // unidade 5
+  const depois = Buffer.from(antes);
+  depois[7] = 6; // o editar mudou para a unidade 6 — e o Guarita já tem o novo
+  const op = { id: 80, tipo: 'editar', frame_hex: hex(depois), esperado: { unidade: 5, bloco: 0 } };
+  await cenario({ armazem, sim: { dispositivos: [antes] } }, async (c) => {
+    // 1ª vida do agente: registra "em andamento" ANTES de escrever.
+    c.nuvem.ops.push({ ...op });
+    c.sim.falhas.silencioEm({ comando: 67, opcao: 1 }); // o Ler responde; a escrita não volta e o agente "morre"
+    c.escutar();
+    await c.pronto();
+    await c.relogio.avancar(0);
+    await esperarAte(() => (armazem.ler()['42'] || []).some((e) => e.id === 80 && e.em_andamento), { rotulo: 'em andamento persistido' });
+    c.reiniciarAgente();
+  });
+  await cenario({ armazem, sim: { dispositivos: [depois] } }, async (c) => {
+    // 2ª vida: a nuvem reentrega a mesma operação.
+    c.nuvem.ops.push({ ...op });
+    c.escutar();
+    await c.pronto();
+    await c.relogio.avancar(0);
+    await esperarAte(() => c.nuvem.resultados.some((r) => r.id === 80), { rotulo: 'resultado' });
+    const r = c.nuvem.resultados.find((x) => x.id === 80);
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.equal(r.conflito, undefined);
+    assert.deepEqual(c.sim.comandosRecebidos(67).map((f) => f[2]), [3], 'só conferiu, não escreveu de novo');
   });
 });
