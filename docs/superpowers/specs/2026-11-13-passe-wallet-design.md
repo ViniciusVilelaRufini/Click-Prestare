@@ -70,6 +70,8 @@ O código `P2` **não** entra em `Credenciais_Leituras`: ele é reutilizado o di
 - um print do passe vale até o fim do dia seguinte;
 - uma **cópia** do passe (arquivo repassado antes de adicionar, link do Google aberto em outra conta, aparelho antigo) não é um print: ela recebe o código novo todo dia, até o cancelamento.
 
+Uma cópia do passe pode registrar até 10 aparelhos e tirar o aparelho do dono das atualizações; o cancelamento resolve.
+
 Compensações: cancelamento imediato pelo morador e pelo operador, opção por condomínio, `sharingProhibited` no passe da Apple (esconde o botão de compartilhar) e restrição a um usuário na classe do Google. Isso reduz o problema, não o elimina, e o texto da opção no console diz isso ao síndico.
 
 ### Validação
