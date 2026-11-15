@@ -97,6 +97,27 @@ describe('Guarita — frame do cadastro', () => {
     expect(db.linhas('guarita_Operacoes')).toHaveLength(0);
   });
 
+  it('I4: unidade em texto sem número compatível → não grava (sem operação) e a tag mostra o motivo', async () => {
+    const { db, ops } = montar();
+    db.linhas('moradores').find((m: any) => m.id === 50).apartamento = '308A';
+    tagComVeiculo(db, { idTag: 1, idVeiculo: 70, idMorador: 50, estado: 'a_vincular', serial: '0F086E' });
+    await expect(ops.enfileirarCadastro(1, 'x')).rejects.toThrow("A unidade 'B / 308A' não tem número compatível com o Guarita.");
+    expect(db.linhas('guarita_Operacoes')).toHaveLength(0);
+    expect(db.linhas('tags')[0]).toMatchObject({ guarita_estado: 'falhou', guarita_erro: "A unidade 'B / 308A' não tem número compatível com o Guarita." });
+  });
+
+  it('I4: bloco vazio vira A só se nenhum apartamento do condomínio tem bloco', async () => {
+    const { db, ops } = montar();
+    db.linhas('moradores').find((m: any) => m.id === 50).bloco = '';
+    tagComVeiculo(db, { idTag: 1, idVeiculo: 70, idMorador: 50, estado: 'a_vincular', serial: '0F086E' });
+    await expect(ops.enfileirarCadastro(1, 'x')).rejects.toThrow(/não tem número compatível/);
+    db.linhas('apartamentos')[0].bloco = null;
+    db.linhas('tags')[0].guarita_estado = 'a_vincular';
+    await ops.enfileirarCadastro(1, 'x');
+    const op = db.linhas('guarita_Operacoes').find((o: any) => o.tipo === 'cadastrar');
+    expect(op.frame_hex.slice(12, 18)).toBe('030800');
+  });
+
   it('nome curto do morador no rótulo', () => {
     expect(nomeCurto('Maria Conceição dos Santos')).toBe('Maria Santos');
     expect(nomeCurto('Ana')).toBe('Ana');

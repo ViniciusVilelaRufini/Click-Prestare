@@ -41,7 +41,8 @@ function montar() {
   ]);
   db.semear('apartamentos', [
     { id: 1, id_condominio: 7, bloco: 'A', apto: '101' },
-    { id: 2, id_condominio: 7, bloco: 'Bloco B', apto: 'Apto 202' },
+    { id: 2, id_condominio: 7, bloco: 'Bloco B', apto: '202' },
+    { id: 4, id_condominio: 7, bloco: 'C', apto: '303A' },
     { id: 3, id_condominio: 8, bloco: 'A', apto: '101' },
   ]);
   db.semear('moradores', [
@@ -226,6 +227,11 @@ describe('Guarita — casamento com unidade e veículo', () => {
     await m.agente.registrarResultado(m.device, id, { ok: true, parte: 0, frames_hex: [frame(2, '000001', { placa: 'ABC1D23' })], fim: true });
     expect(m.db.linhas('tags')[0].guarita_estado).toBe('a_vincular');
     expect(m.db.linhas('veiculos').find((v: any) => v.id === 70).id_tag).toBe(999);
+  });
+
+  it('I4: texto de unidade que não converte de forma estrita não casa ("303A" não é 303)', async () => {
+    const { db } = await importar([frame(3, '000008', { unidade: 303, bloco: 'C' })]);
+    expect(db.linhas('tags')[0]).toMatchObject({ id_apto: null, guarita_estado: 'a_vincular' });
   });
 
   it('unidade inexistente fica a_vincular sem id_apto', async () => {

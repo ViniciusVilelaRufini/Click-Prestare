@@ -16,7 +16,7 @@ import {
   decodificarDispositivo,
   marcaParaByte,
 } from './guarita-frame.util';
-import { buscarGuaritaDoCondominio, numeroDaUnidade } from './guarita-comum.util';
+import { buscarGuaritaDoCondominio, unidadeGuaritaDoTexto } from './guarita-comum.util';
 import { MSG_CODIGO_IMPRESSO_INVALIDO } from './guarita.constantes';
 import { wiegandParaSerial } from './guarita-frame.util';
 
@@ -117,7 +117,17 @@ export class GuaritaOperacoesService {
   /** Cadastro (67, opção 0) da tag no Guarita dela, com os dados do veículo vinculado. */
   async enfileirarCadastro(idTag: number, autor: string): Promise<{ id_operacao: number }> {
     const tag = await this.tagDoGuarita(idTag);
-    const frame = await this.montarFrame(tag, null);
+    let frame: string;
+    try {
+      frame = await this.montarFrame(tag, null);
+    } catch (err: any) {
+      // Não grava: a operação nem é criada, e a tag mostra o motivo.
+      await this.prisma.tags.update({
+        where: { id: tag.id },
+        data: { guarita_estado: ESTADO_TAG.falhou, guarita_erro: String(err?.message ?? err).slice(0, 255) },
+      });
+      throw err;
+    }
     return this.criarGravacao(tag, 'cadastrar', frame, autor, ESTADO_TAG.pendente);
   }
 
@@ -275,11 +285,8 @@ export class GuaritaOperacoesService {
         apto = a.apto;
       }
     }
-    const unidade = numeroDaUnidade(apto);
-    if (unidade === null || unidade > 9999) {
-      throw new BadRequestException('A unidade do morador não cabe no Guarita (número de 0 a 9999).');
-    }
-    const blocoGuarita = String(bloco ?? '').trim() ? String(bloco) : 'A';
+    const u = unidadeGuaritaDoTexto(bloco, apto, await this.condominioSemBlocos(tag.id_condominio));
+    if (!u.ok) throw new BadRequestException(u.erro);
     let grupo = 0x00;
     let receptores = 0xff;
     if (!base) {
@@ -293,8 +300,8 @@ export class GuaritaOperacoesService {
           tipo: tag.guarita_tipo,
           serialHex: tag.guarita_serial,
           contador: tag.guarita_contador ?? null,
-          unidade,
-          bloco: blocoGuarita,
+          unidade: u.unidade,
+          bloco: u.bloco,
           rotulo: nomeCurto(morador?.nome),
           marca: marcaParaByte(veiculo.marca_modelo),
           cor: corParaByte(veiculo.cor),
@@ -310,6 +317,12 @@ export class GuaritaOperacoesService {
       }
       throw new BadRequestException(`Dados do dispositivo inválidos para o Guarita: ${err?.message ?? err}`);
     }
+  }
+
+  /** Nenhum apartamento do condomínio tem bloco preenchido? (Só então bloco vazio vira A.) */
+  async condominioSemBlocos(idCondominio: number): Promise<boolean> {
+    const aptos = await this.prisma.apartamentos.findMany({ where: { id_condominio: Number(idCondominio) }, select: { bloco: true } });
+    return aptos.every((a: any) => !String(a.bloco ?? '').trim());
   }
 
   /** Grupo e receptores mais frequentes entre os dispositivos do mesmo tipo já lidos deste Guarita. */

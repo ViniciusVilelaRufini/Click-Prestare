@@ -217,7 +217,8 @@ export interface DadosDispositivo {
   /** Obrigatório no RF (vem da captura); ignorado nos demais (0x0000). */
   contador: number | null;
   unidade: number;
-  bloco: string;
+  /** Texto ("A", "12") ou o byte do bloco já convertido (unidadeGuaritaDoTexto). */
+  bloco: string | number;
   rotulo: string;
   marca: number;
   cor: number;
@@ -264,7 +265,12 @@ export function codificarDispositivo(d: DadosDispositivo, base?: string | null):
   const [uh, ul] = unidadeParaBytes(d.unidade);
   b[6] = uh;
   b[7] = ul;
-  b[8] = blocoParaByte(d.bloco);
+  if (typeof d.bloco === 'number') {
+    if (!Number.isInteger(d.bloco) || d.bloco < 0 || d.bloco > 0xff) throw new Error('Bloco não cabe no Guarita');
+    b[8] = d.bloco;
+  } else {
+    b[8] = blocoParaByte(d.bloco);
+  }
   b[9] = d.grupo & 0xff;
   b[10] = d.receptores & 0xff;
   const rotulo = sanearRotulo(d.rotulo, 18);

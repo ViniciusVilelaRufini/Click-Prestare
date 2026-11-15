@@ -20,13 +20,9 @@ import {
   TIPOS_DISPOSITIVO_GUARITA,
   TIPO_TAG_POR_GUARITA,
 } from './guarita.constantes';
-import { DispositivoGuarita, decodificarDispositivo } from './guarita-frame.util';
+import { DispositivoGuarita, blocoParaByte, decodificarDispositivo } from './guarita-frame.util';
 import type { GuaritaDoAgente, ResultadoOperacaoDto } from './guarita-agente.service';
-import {
-  blocoComparavel,
-  buscarGuaritaDoCondominio,
-  numeroDaUnidade,
-} from './guarita-comum.util';
+import { buscarGuaritaDoCondominio, unidadeGuaritaDoTexto } from './guarita-comum.util';
 import { hexDeTamanho } from './guarita-validacao.util';
 
 /** Operação como o console a enxerga (`GET …/operacoes/:id`, e a resposta de importar/conferir). */
@@ -410,16 +406,18 @@ export class GuaritaImportacaoService {
     });
   }
 
-  /** Unidade do Prestare para (unidade, bloco) do Guarita — só quando não há dúvida. */
-  casarUnidade(unidade: number, bloco: string, aptos: Array<{ id: number; bloco: string | null; apto: string | null }>): number | null {
-    const mesmoNumero = aptos.filter((a) => numeroDaUnidade(a.apto) === unidade);
-    const mesmoBloco = mesmoNumero.filter((a) => blocoComparavel(a.bloco) === blocoComparavel(bloco));
-    if (mesmoBloco.length === 1) return mesmoBloco[0].id;
-    // Condomínio sem blocos no Prestare: o número basta, se for único.
-    if (mesmoBloco.length === 0 && mesmoNumero.length === 1 && !blocoComparavel(mesmoNumero[0].bloco)) {
-      return mesmoNumero[0].id;
-    }
-    return null;
+  /**
+   * Unidade do Prestare para (unidade, byte do bloco) do Guarita — a mesma
+   * conversão estrita da gravação (unidadeGuaritaDoTexto), no sentido inverso.
+   * Só casa quando exatamente UM apartamento converte para esse par.
+   */
+  casarUnidade(unidade: number, blocoByte: number, aptos: Array<{ id: number; bloco: string | null; apto: string | null }>): number | null {
+    const semBlocos = aptos.every((a) => !String(a.bloco ?? '').trim());
+    const casam = aptos.filter((a) => {
+      const u = unidadeGuaritaDoTexto(a.bloco, a.apto, semBlocos);
+      return u.ok && u.unidade === unidade && u.bloco === blocoByte;
+    });
+    return casam.length === 1 ? casam[0].id : null;
   }
 
   /**
@@ -444,7 +442,7 @@ export class GuaritaImportacaoService {
       descricao: d.rotulo || null,
       ativo: 1,
       id_device: device.id,
-      id_apto: this.casarUnidade(d.unidade, d.bloco, aptos),
+      id_apto: this.casarUnidade(d.unidade, blocoParaByte(d.bloco), aptos),
       guarita_tipo: d.tipo,
       guarita_serial: d.serialHex,
       guarita_contador: d.tipo === 1 ? d.contador : null,
