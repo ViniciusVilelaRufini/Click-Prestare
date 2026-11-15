@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ehTokenDeUsuarioApp } from './usuario-app.guard';
 import { tokenAnteriorATrocaDeSenha } from './senha-alterada.util';
 import { carimboCredencialPortaria } from './credencial-portaria.util';
+import { loginPortariaDesativadoNoCondominio } from './login-portaria-desativado.util';
 
 /** Por quanto tempo a data da última troca de senha fica em cache por usuário. */
 const CACHE_TROCA_SENHA_MS = 30_000;
@@ -117,7 +118,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
             where: { id_user: idUser, id_condominio: idCondominio, condominio: { ativo: 1 } },
             select: { id: true },
           });
-      valor = !!vinculo;
+      // Funcionário (QR): login de portaria desativado neste condomínio derruba a sessão aberta, como o
+      // porteiroAtivo faz com o token do porteiro. O síndico nunca passa por aqui.
+      valor = !!vinculo && (sindico || !(await loginPortariaDesativadoNoCondominio(this.prisma, idUser, idCondominio)));
     } catch (e: any) {
       // Fail-open, como no porteiro: banco instável não derruba todos os consoles.
       this.logger.warn(`Não foi possível conferir o vínculo do usuário ${idUser} com o condomínio ${idCondominio}: ${e?.message ?? e}`);

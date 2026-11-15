@@ -42,6 +42,15 @@
       >
         Caminho de Leitores
       </button>
+      @if (ehSindico()) {
+        <button
+          data-aba-equipe
+          (click)="currentTab.set('equipe')"
+          [class.on]="abaAtual() === 'equipe'"
+        >
+          Equipe da portaria
+        </button>
+      }
     }
   </div>
 
@@ -280,6 +289,10 @@
     </div>
   } @else if (abaAtual() === 'caminho') {
     <app-caminho-leitores class="block" />
+  } @else if (abaAtual() === 'equipe' && ehSindico()) {
+    <div class="ps-panel p-6 animate-fadeIn">
+      <app-equipe-portaria />
+    </div>
   }
 
 </div>

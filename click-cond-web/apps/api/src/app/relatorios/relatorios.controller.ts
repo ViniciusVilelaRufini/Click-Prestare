@@ -4,7 +4,7 @@ import { RelatoriosService } from './relatorios.service';
 import { CondominiosExportService } from './condominios-export.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { assertOperador, assertSindico, isSindico } from '../auth/tenant.util';
+import { assertOperador, assertSindicoEstrito, isSindicoEstrito } from '../auth/tenant.util';
 import { TenantAccessService, ehFuncionarioDoApp } from '../auth/tenant-access.service';
 import { dataIsoOuErro, inteiroPositivoOuPadrao, textoUnico } from './relatorios-query.util';
 
@@ -39,7 +39,7 @@ export class RelatoriosController {
     @Res() res: Response,
     @ReqUser() payload: JwtPayload,
   ) {
-    assertSindico(payload, 'exportar os dados completos do condomínio');
+    assertSindicoEstrito(payload, 'exportar os dados completos do condomínio');
     if (!this.exportService) {
       res.status(500).send('Serviço de exportação indisponível');
       return;
@@ -70,7 +70,7 @@ export class RelatoriosController {
     @Query('incluirTaxasCondominiais') incluirTaxasCondominiais?: string,
   ) {
     if (tipo === 'financeiro') {
-      assertSindico(payload, 'baixar o relatório financeiro do condomínio');
+      assertSindicoEstrito(payload, 'baixar o relatório financeiro do condomínio');
     } else {
       assertOperador(payload, 'baixar relatórios operacionais do condomínio');
     }
@@ -119,7 +119,7 @@ export class RelatoriosController {
       dataIsoOuErro(dataFim, 'dataFim'),
       inteiroPositivoOuPadrao(pageStr, 1),
       inteiroPositivoOuPadrao(pageSizeStr, 50),
-      isSindico(payload),
+      isSindicoEstrito(payload),
       ocultarOcorrencias,
     );
   }
@@ -133,7 +133,7 @@ export class RelatoriosController {
     @Query('dataInicio') dataInicio?: unknown,
     @Query('dataFim') dataFim?: unknown,
   ) {
-    assertSindico(payload, 'exportar a auditoria do condomínio');
+    assertSindicoEstrito(payload, 'exportar a auditoria do condomínio');
     const { buffer, filename } = await this.service.exportAuditoriaCsv(
       idCondominio,
       textoUnico(modulo),
@@ -186,7 +186,7 @@ export class CondominiosExportController {
     @Res() res: Response,
     @ReqUser() payload: JwtPayload,
   ) {
-    assertSindico(payload, 'exportar os dados completos do condomínio');
+    assertSindicoEstrito(payload, 'exportar os dados completos do condomínio');
     const { buffer, filename } = await this.exportService.gerarPacoteExportacao(idCondominio, {
       nome: payload.nome || payload.email,
       email: payload.email,

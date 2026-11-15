@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from './jwt-payload.interface';
 import { idUsuarioDoToken } from './usuario-do-token.util';
+import { MSG_FUNCIONARIO_DESATIVADO, loginPortariaDesativadoNoCondominio } from './login-portaria-desativado.util';
 
 /**
  * Uma das oito colunas de permissão da tabela `Funcionarios` — as mesmas que
@@ -131,14 +132,19 @@ export class TenantAccessService {
         where: { id_user: userId, id_condominio: condId, condominio: { ativo: 1 } },
         select: { id: true },
       });
-      if (vincFunc) return;
-
       // Não há fallback por e-mail (Users.email = Funcionarios_Portaria.email): o e-mail de Users não é
       // verificado — o /sindico/signup é público —, então qualquer um que criasse conta com o e-mail de
       // um porteiro e obtivesse um token de funcionário em QUALQUER condomínio (o próprio, por exemplo)
       // passava a acessar o condomínio desse porteiro. O vínculo do funcionário do app é a linha em
       // Funcionarios, que o loginFuncionario e o cadastro do porteiro já criam.
-      throw new ForbiddenException('Acesso negado: você não trabalha neste condomínio.');
+      if (!vincFunc) throw new ForbiddenException('Acesso negado: você não trabalha neste condomínio.');
+
+      // Login de portaria desativado na aba "Equipe da portaria": enquanto inativo, o vínculo de equipe daqui não
+      // vale. Quem entrou neste ramo só pela flag is_funcionario (token de morador) segue para a regra do morador.
+      if (!(await loginPortariaDesativadoNoCondominio(this.prisma, userId, condId))) return;
+      if (ehFuncionarioDoApp(payload) || tipo === 'porteiro' || tipo === 'prestador') {
+        throw new ForbiddenException(MSG_FUNCIONARIO_DESATIVADO);
+      }
     }
 
     // Morador mobile: precisa ter ao menos um apartamento neste condomínio.
@@ -203,6 +209,9 @@ export class TenantAccessService {
     });
     if (!func) {
       throw new ForbiddenException('Acesso negado: você não trabalha neste condomínio.');
+    }
+    if (await loginPortariaDesativadoNoCondominio(this.prisma, userId, Number(idCondominio))) {
+      throw new ForbiddenException(MSG_FUNCIONARIO_DESATIVADO);
     }
     // A flag pode chegar como 1, "1" ou true conforme o driver.
     const valor = (func as Record<string, unknown>)[permissao];

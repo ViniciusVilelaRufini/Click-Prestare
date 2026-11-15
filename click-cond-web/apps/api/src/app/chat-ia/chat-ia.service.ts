@@ -9,7 +9,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
-import { assertSindico } from '../auth/tenant.util';
+import { assertSindicoEstrito } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { IaClient } from './ia.client';
@@ -1044,7 +1044,7 @@ ${docsTxt}`;
 
   /** Reindexa todas as atas e documentos do condomínio. Só síndico. */
   async reindexCondominio(idCondominio: number, user: JwtPayload) {
-    assertSindico(user, 'reindexar documentos do assistente');
+    assertSindicoEstrito(user, 'reindexar documentos do assistente');
     await this.tenant.assertCondominio(idCondominio, user);
 
     const docs = await this.prisma.documentos.findMany({

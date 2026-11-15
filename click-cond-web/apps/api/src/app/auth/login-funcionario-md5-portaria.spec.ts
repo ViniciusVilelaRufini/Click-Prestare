@@ -14,6 +14,8 @@ describe('loginFuncionario — senha MD5 legada da portaria', () => {
   function build(usuarioExistente: any) {
     const prisma: any = {
       isConnected: true,
+      // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
+      $queryRaw: jest.fn(async () => []),
       users: {
         findFirst: jest.fn(async () => usuarioExistente),
         create: jest.fn(async () => ({ id: 40, photo: null, password: 'h', funcionarios: [] })),

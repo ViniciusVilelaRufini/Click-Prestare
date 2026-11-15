@@ -23,6 +23,7 @@ import {
   UsersMobileController,
   NotificacoesMobileController,
 } from './mobile-auth.controller';
+import { EquipePortariaController } from './equipe-portaria.controller';
 
 import { OcorrenciasModule } from '../ocorrencias/ocorrencias.module';
 import { FacialModule } from '../facial/facial.module';
@@ -71,6 +72,7 @@ import { WalletModule } from '../wallet/wallet.module';
     VagasMobileController,
     UsersMobileController,
     NotificacoesMobileController,
+    EquipePortariaController,
   ],
   providers: [AuthService, MobileAuthService, MfaService, JwtStrategy, QrSessionStore],
   // MobileAuthService: o "Enviar Acesso" do console manda o mesmo link do "Esqueci a senha" do morador.

@@ -5,12 +5,13 @@ import { FacialService } from '../facial/facial.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import * as bcrypt from 'bcrypt';
-import { randomBytes } from 'crypto';
-import { assertEmailNaoReservado, DOMINIO_CONTA_REVOGADA } from '../common/email-reservado.util';
+import { assertEmailNaoReservado } from '../common/email-reservado.util';
 import { assertOperador, assertSindicoEstrito, isOperador, isSindicoEstrito } from '../auth/tenant.util';
 import { momentoTrocaSenha } from '../auth/senha-alterada.util';
-import { contaSoDaEquipeDoCondominio } from '../auth/conta-so-de-equipe.util';
+import { contaDoLoginNaEquipe, contaSoDestaEquipe, novaLapidePadrao, tirarContaDaEquipe } from '../auth/revogacao-conta-equipe.util';
 import { assertApartamentoGravavel } from '../common/apartamento-gravavel.util';
+import { ehLoginDoPrestador, nomeNormalizado } from './login-do-prestador.util';
+import { lerPermissoesSalvas, serializarPermissoesApp } from './permissoes-salvas.util';
 
 export interface CreatePrestadorDto {
   nome: string;
@@ -26,25 +27,13 @@ export interface CreatePrestadorDto {
   dias_semana?: string;
 }
 
-/** Nome para comparar: sem espaços nas pontas nem repetidos, minúsculas, sem acento. */
-function nomeNormalizado(nome: string | null | undefined): string {
-  return (nome ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
-}
-
 /**
- * Uma linha de Funcionarios_Portaria cujo login é o e-mail do prestador é o login DESTE prestador quando tem o turno
- * que só a concessão pelo cadastro de prestador grava ('Geral') ou, se o turno foi mudado depois (o síndico muda
- * pelo app), quando o nome é o mesmo do prestador. Não há FK entre as duas tabelas: sem essa corroboração, o login
- * de um colega com o mesmo e-mail é de outra pessoa e nunca é alterado, revogado nem tem a senha tocada.
+ * As permissões guardadas (permissoes_app_salvas) são estado interno da revogação: nunca saem nas respostas.
  */
-function ehLoginDoPrestador(
-  fp: { login: string; turno: string | null; nome: string | null },
-  p: { email: string | null; nome?: string | null },
-): boolean {
-  if ((fp.login ?? '').trim().toLowerCase() !== (p.email ?? '').trim().toLowerCase()) return false;
-  if (fp.turno === 'Geral') return true;
-  const nome = nomeNormalizado(p.nome);
-  return !!nome && nomeNormalizado(fp.nome) === nome;
+function semPermissoesSalvas<T>(linha: T): T {
+  if (!linha || typeof linha !== 'object') return linha;
+  const { permissoes_app_salvas: _ps, ...resto } = linha as any;
+  return resto as T;
 }
 
 /**
@@ -261,7 +250,8 @@ export class PrestadoresService {
     // Morador (resposta recortada): sem foto do documento nem biometria, que
     // são da portaria. Quem recebe `{}` de escopo é staff e vê tudo.
     const recortar = !!user && !isOperador(user);
-    return prestadores.map((p) => {
+    return prestadores.map((linha) => {
+      const p = semPermissoesSalvas(linha);
       const {
         foto_documento: _fd,
         face_id: _fi,
@@ -300,8 +290,9 @@ export class PrestadoresService {
     // Só o login deste prestador (loginPortariaDoPrestador): o de um colega com o mesmo e-mail não é acesso dele.
     const hasPortariaAccess = (await this.loginPortariaDoPrestador(p))?.ativo === 1;
 
-    const { foto_documento: _fd, face_id: _fi, face_enrolled_at: _fe, face_sync_status: _fs, face_sync_error: _fx, ...publico } = p;
-    return { ...(user && !isOperador(user) ? publico : p), hasPortariaAccess };
+    const { foto_documento: _fd, face_id: _fi, face_enrolled_at: _fe, face_sync_status: _fs, face_sync_error: _fx, ...publico } =
+      semPermissoesSalvas(p);
+    return { ...(user && !isOperador(user) ? publico : semPermissoesSalvas(p)), hasPortariaAccess };
   }
 
   /**
@@ -326,64 +317,21 @@ export class PrestadoresService {
   }
 
   /**
-   * Valor-lápide de login/e-mail para uma conta revogada que era só da equipe deste condomínio. Inalcançável: o
-   * domínio `.invalid` é reservado (RFC 2606) e nenhum cadastro o aceita (common/email-reservado.util). Com sufixo
-   * aleatório: a versão só com o id era previsível (o login do app devolve o id) e o prestador ocupava a lápide de
-   * antemão pelo signup, travando a própria revogação. ~70 caracteres, dentro do VarChar(255) das duas colunas.
-   * Método (não função solta) para o spec simular uma lápide já ocupada.
+   * Valor-lápide de login/e-mail para uma conta revogada que era só da equipe deste condomínio (aleatório, domínio
+   * `.invalid`; auth/revogacao-conta-equipe.util). Método (não função solta) para o spec simular uma lápide já ocupada.
    */
   protected novaLapide(idUser: number): string {
-    return `revogado-${idUser}-${randomBytes(16).toString('hex')}@${DOMINIO_CONTA_REVOGADA}`;
+    return novaLapidePadrao(idUser);
   }
 
-  /**
-   * Hash inutilizável: não começa com `$2` (não é bcrypt) e tem caracteres fora do hexadecimal, então nunca
-   * coincide com o md5 que o verifyPassword do app compara para senhas legadas.
-   */
-  private static senhaInutilizavel(idUser: number) {
-    return `!revogado:${idUser}`;
-  }
-
-  /**
-   * A conta do app ligada a um login de portaria. Users.login e Users.email são únicos cada um, então "login OU
-   * e-mail" pode achar duas contas: vale a que é da equipe deste condomínio e, sem ela, a mais antiga — antes era
-   * a que o banco devolvesse primeiro, e a revogação podia cair na conta errada.
-   */
+  /** A conta do app ligada a um login de portaria (auth/revogacao-conta-equipe.util, contaDoLoginNaEquipe). */
   private async contaDoLogin(login: string, idCondominio: number, db: any = this.prisma) {
-    const porLogin = { OR: [{ login }, { email: login }] };
-    return (
-      (await db.users.findFirst({
-        where: { ...porLogin, funcionarios: { some: { id_condominio: Number(idCondominio) } } },
-        orderBy: { id: 'asc' },
-      })) ?? (await db.users.findFirst({ where: porLogin, orderBy: { id: 'asc' } }))
-    );
+    return contaDoLoginNaEquipe(db, login, idCondominio);
   }
 
-  /**
-   * A conta não tem papel nenhum além de equipe deste condomínio: nenhum perfil ou vínculo de síndico, nenhum
-   * cadastro de morador ou unidade e nenhuma equipe em outro prédio. O critério do app
-   * (auth/conta-so-de-equipe.util), com as flags como trava extra.
-   */
-  private async contaSoDeEquipe(
-    conta: { id: number; is_sindico?: number | null; is_morador?: number | null },
-    idCondominio: number,
-    db: any = this.prisma,
-  ): Promise<boolean> {
-    if (conta.is_sindico || conta.is_morador) return false;
-    return contaSoDaEquipeDoCondominio(db, conta.id, idCondominio);
-  }
-
-  /**
-   * A conta já é da equipe deste condomínio E exclusivamente dela: só então quem gerencia a equipe daqui
-   * administra a conta inteira (lápide na revogação, senha nova no re-credenciamento). É a regra que o app aplica
-   * ao adotar a senha da portaria (mobile-auth, loginFuncionario).
-   */
+  /** A conta já é da equipe deste condomínio E exclusivamente dela (auth/revogacao-conta-equipe.util). */
   private async contaSoDestaEquipe(conta: { id: number; is_sindico?: number | null; is_morador?: number | null }, idCondominio: number, db: any = this.prisma) {
-    const daqui = await db.funcionarios.findFirst({
-      where: { id_user: conta.id, id_condominio: Number(idCondominio) },
-      select: { id: true },
-    });
-    return { daqui: !!daqui, soDaqui: !!daqui && (await this.contaSoDeEquipe(conta, idCondominio, db)) };
+    return contaSoDestaEquipe(db, conta, idCondominio);
   }
 
   /**
@@ -400,36 +348,6 @@ export class PrestadoresService {
         ? { is_funcionario: 1, password: hash, senha_alterada_em: momentoTrocaSenha() }
         : { is_funcionario: 1 },
     });
-  }
-
-  /**
-   * Inutiliza, dentro da transação da revogação, a conta que era só desta equipe: lápide em login e e-mail, CPF
-   * liberado (coluna @unique anulável), senha inutilizável e senha_alterada_em. A lápide nunca derruba a revogação:
-   * já ocupada (de antemão ou por corrida no @unique), tenta outra; depois de 3, segue sem ela — a conta fica com
-   * o e-mail ocupado, mas sem senha que entre e sem tokens.
-   */
-  private async inutilizarConta(tx: any, idUser: number) {
-    const base = {
-      password: PrestadoresService.senhaInutilizavel(idUser),
-      senha_alterada_em: momentoTrocaSenha(),
-      cpf: null,
-    };
-    for (let tentativa = 0; tentativa < 3; tentativa++) {
-      const lapide = this.novaLapide(idUser);
-      const ocupada = await tx.users.findFirst({
-        where: { OR: [{ login: lapide }, { email: lapide }], NOT: { id: idUser } },
-        select: { id: true },
-      });
-      if (ocupada) continue;
-      try {
-        await tx.users.update({ where: { id: idUser }, data: { ...base, login: lapide, email: lapide } });
-        return;
-      } catch (err: any) {
-        if (err?.code !== 'P2002') throw err;
-      }
-    }
-    this.logger.warn(`Lápide indisponível para a conta ${idUser}: revogada sem liberar o e-mail.`);
-    await tx.users.update({ where: { id: idUser }, data: base });
   }
 
   /**
@@ -478,6 +396,28 @@ export class PrestadoresService {
   }
 
   /**
+   * O nome é metade da prova de que um login de portaria é do prestador (ehLoginDoPrestador: mesmo e-mail e turno
+   * 'Geral' ou mesmo nome). Renomear o prestador para o nome do dono de um login que tem o e-mail dele e HOJE não é
+   * dele passaria esse login para o cadastro: a próxima vez que o síndico desligasse a chave ou removesse o
+   * prestador, o login do colega cairia. Só o síndico faz essa mudança; renomear para qualquer outro nome segue com a
+   * portaria.
+   */
+  private async assertRenomearNaoTomaLogin(
+    atual: { email: string | null; nome: string; id_condominio: number },
+    dto: Partial<CreatePrestadorDto>,
+    user?: JwtPayload,
+  ) {
+    if (dto.nome === undefined || isSindicoEstrito(user)) return;
+    if (nomeNormalizado(dto.nome) === nomeNormalizado(atual.nome)) return;
+    const email = (dto.email !== undefined ? dto.email ?? '' : atual.email ?? '').trim();
+    if (!email) return;
+    const fp = await this.prisma.funcionarios_Portaria.findFirst({ where: { login: email, id_condominio: atual.id_condominio } });
+    if (fp && !ehLoginDoPrestador(fp, { email, nome: atual.nome }) && ehLoginDoPrestador(fp, { email, nome: dto.nome })) {
+      assertSindicoEstrito(user, 'dar a este prestador o nome de quem tem o login de portaria com o mesmo e-mail');
+    }
+  }
+
+  /**
    * Tira de fato o acesso que o cadastro de prestador concedeu. Apagar só o Funcionarios_Portaria deixava a conta
    * do app e o vínculo Funcionarios criados na concessão: a pessoa seguia entrando no app como Funcionário e voltava
    * ao console pelo QR Code. Aqui sai também o vínculo de equipe DESTE condomínio (o JwtStrategy e o tenant do app
@@ -498,27 +438,65 @@ export class PrestadoresService {
    * novo e o login de portaria com login, e-mail e senha novos). Antes eram gravadas depois, fora da transação: se
    * o prestador falhasse, a conta antiga já tinha saído e o login seguia com o e-mail e a senha ANTIGOS.
    * Devolve o vínculo de equipe tirado da conta (para a conta nova herdar as permissões) e o que `noMesmoAto` devolveu.
+   *
+   * As permissões desse vínculo ficam guardadas no prestador (`permissoes_app_salvas`) para quando o acesso voltar:
+   * sem isso, religar a chave recriava o vínculo com todas ligadas. `guardarPermissoes: false` no remover (o cadastro
+   * é apagado logo depois).
    */
   private async revogarLoginDoPrestador<T = undefined>(
     login: { id: number; login: string; id_condominio: number },
     idPrestador: number,
-    opcoes: { manterLogin?: boolean; noMesmoAto?: (tx: any) => Promise<T>; mensagemErro?: string } = {},
+    opcoes: { manterLogin?: boolean; noMesmoAto?: (tx: any) => Promise<T>; mensagemErro?: string; guardarPermissoes?: boolean } = {},
+  ): Promise<{ vinculoRemovido: Record<string, any> | null; resultado?: T }> {
+    const r = await this.revogarNaTransacao(login, idPrestador, opcoes);
+    if (r.vinculoRemovido && opcoes.guardarPermissoes !== false) await this.guardarPermissoes(idPrestador, r.vinculoRemovido);
+    return r;
+  }
+
+  /**
+   * Fora da transação da revogação e sem nunca lançar: guardar as permissões é conveniência, e tirar o acesso é o
+   * que não pode falhar (a coluna ainda sem SQL aplicado, por exemplo, não derruba a revogação). Na falha, religar
+   * volta ao padrão de antes (todas ligadas).
+   */
+  private async guardarPermissoes(idPrestador: number, vinculo: Record<string, any>) {
+    try {
+      // `as any`: coluna nova (2026-11-14-prestador-permissoes-salvas.sql); o cliente Prisma é gerado no deploy.
+      await this.prisma.prestadores_servico.update({
+        where: { id: Number(idPrestador) },
+        data: { permissoes_app_salvas: serializarPermissoesApp(vinculo) } as any,
+      });
+    } catch (err: any) {
+      this.logger.warn(`Permissões do prestador ${idPrestador} não guardadas: ${err?.message ?? err}`);
+    }
+  }
+
+  /** As permissões guardadas na última revogação deste prestador; null se não há (ou não dá para ler). */
+  private async permissoesSalvas(idPrestador: number) {
+    try {
+      const p: any = await this.prisma.prestadores_servico.findUnique({
+        where: { id: Number(idPrestador) },
+        select: { permissoes_app_salvas: true } as any,
+      });
+      return lerPermissoesSalvas(p?.permissoes_app_salvas);
+    } catch (err: any) {
+      this.logger.warn(`Permissões guardadas do prestador ${idPrestador} ilegíveis: ${err?.message ?? err}`);
+      return null;
+    }
+  }
+
+  private async revogarNaTransacao<T = undefined>(
+    login: { id: number; login: string; id_condominio: number },
+    idPrestador: number,
+    opcoes: { manterLogin?: boolean; noMesmoAto?: (tx: any) => Promise<T>; mensagemErro?: string },
   ): Promise<{ vinculoRemovido: Record<string, any> | null; resultado?: T }> {
     try {
       return await this.prisma.$transaction(async (tx: any) => {
-        const conta = await this.contaDoLogin(login.login, login.id_condominio, tx);
-        // contaDoLogin cai na conta mais antiga com aquele login/e-mail quando nenhuma é da equipe daqui: essa não
-        // é nossa, e nunca recebe lápide nem perde os tokens.
-        const { daqui, soDaqui } = conta
-          ? await this.contaSoDestaEquipe(conta, login.id_condominio, tx)
-          : { daqui: false, soDaqui: false };
-        let vinculoRemovido: Record<string, any> | null = null;
-        if (conta && daqui) {
-          vinculoRemovido = await tx.funcionarios.findFirst({ where: { id_user: conta.id, id_condominio: login.id_condominio } });
-          await tx.funcionarios.deleteMany({ where: { id_user: conta.id, id_condominio: login.id_condominio } });
-          if (soDaqui) await this.inutilizarConta(tx, conta.id);
-          else await tx.users.update({ where: { id: conta.id }, data: { senha_alterada_em: momentoTrocaSenha() } });
-        }
+        // Rotina única (auth/revogacao-conta-equipe.util): conta que não é da equipe daqui não é nossa e nunca recebe
+        // lápide nem perde os tokens; a só desta equipe vira lápide; a compartilhada perde o vínculo e os tokens.
+        const vinculoRemovido = await tirarContaDaEquipe(tx, login.login, login.id_condominio, {
+          novaLapide: (id) => this.novaLapide(id),
+          logger: this.logger,
+        });
         // manterLogin: troca de e-mail — só a conta antiga sai; o login de portaria acompanha o e-mail novo.
         if (!opcoes.manterLogin) await tx.funcionarios_Portaria.deleteMany({ where: { id: login.id } });
         const resultado = opcoes.noMesmoAto ? await opcoes.noMesmoAto(tx) : undefined;
@@ -532,7 +510,8 @@ export class PrestadoresService {
 
   /**
    * Permissões do vínculo de equipe criado na concessão. Na troca de e-mail com a chave, a conta nova herda as do
-   * vínculo que a conta antiga tinha (o síndico pode tê-las restringido no app); sem ele, todas ligadas, como sempre.
+   * vínculo que a conta antiga tinha (o síndico pode tê-las restringido no app); religando depois de revogar, as
+   * guardadas no prestador (só as flags); sem nenhum dos dois, todas ligadas, como sempre.
    */
   private static permissoesDoVinculo(herdado?: Record<string, any> | null) {
     const flag = (k: string) => (herdado && herdado[k] != null ? Number(herdado[k]) : 1);
@@ -752,6 +731,8 @@ export class PrestadoresService {
           where: { id_user: user.id, id_condominio: dto.id_condominio },
         });
         if (!f) {
+          // Upsert por nome de quem já teve o acesso: volta com as permissões guardadas na revogação.
+          const salvas = !vinculoHerdado && existing ? await this.permissoesSalvas(existing.id) : null;
           await this.prisma.funcionarios.create({
             data: {
               nome: dto.nome,
@@ -759,7 +740,7 @@ export class PrestadoresService {
               telefone: dto.telefone ?? null,
               id_user: user.id,
               id_condominio: dto.id_condominio,
-              ...PrestadoresService.permissoesDoVinculo(vinculoHerdado),
+              ...PrestadoresService.permissoesDoVinculo(vinculoHerdado ?? salvas),
             },
           });
         }
@@ -769,7 +750,7 @@ export class PrestadoresService {
     }
 
     this.fireFacialSync(criado.id);
-    return criado;
+    return semPermissoesSalvas(criado);
   }
 
   async update(id: number, dto: Partial<CreatePrestadorDto>, idCondominio?: number, user?: JwtPayload) {
@@ -805,6 +786,7 @@ export class PrestadoresService {
     }
 
     if (dto.hasPortariaAccess) assertOperador(user, 'conceder acesso à portaria a um prestador');
+    await this.assertRenomearNaoTomaLogin(atual, dto, user);
     // Login de portaria que esta edição cria ou re-credencia, resolvido ANTES de gravar: criar um login
     // novo sem senha é recusado (antes virava '123456') sem deixar o cadastro meio salvo.
     const emailParaLogin = dto.email ? dto.email.trim() : dto.email === undefined ? (atual.email ?? '').trim() : '';
@@ -817,8 +799,12 @@ export class PrestadoresService {
     const loginProprio =
       dto.hasPortariaAccess !== undefined || dto.email !== undefined ? await this.loginPortariaDoPrestador(atual) : null;
     // Revogar: desligar a chave ou limpar o e-mail (que é o login). Pedir o acesso com e-mail vence.
+    // Login desativado (aba Equipe da portaria): a lista já devolve hasPortariaAccess false para ele, e o console
+    // reenvia esse estado em todo salvar — `false` aqui é "a chave como estava", não revogar de vez.
+    const chaveJaDesligada = dto.hasPortariaAccess === false && !!loginProprio && loginProprio.ativo !== 1;
     const revoga =
-      !(dto.hasPortariaAccess && emailParaLogin) && (dto.hasPortariaAccess === false || (dto.email === null && !!atual.email));
+      !(dto.hasPortariaAccess && emailParaLogin) &&
+      ((dto.hasPortariaAccess === false && !chaveJaDesligada) || (dto.email === null && !!atual.email));
 
     // Conceder, mudar (senha, e-mail = login, reativar) ou revogar o login de portaria é do síndico, como no app.
     // Editar o prestador com a chave como está (o console manda o estado atual) continua com a portaria.
@@ -910,6 +896,15 @@ export class PrestadoresService {
       if (!atualizado) {
         atualizado = await this.prisma.prestadores_servico.update({ where: { id: Number(id) }, data: dadosPrestador });
       }
+      // Renomear quem tem login próprio que só é "dele" pelo nome (turno mudado no app ou na aba): o nome do login
+      // acompanha, senão o elo some e remover/desligar o prestador deixa de alcançá-lo. Com a chave no pedido, o
+      // bloco abaixo já grava o nome.
+      if (!(dto.hasPortariaAccess && emailParaLogin) && !revoga && !trocaEmailDeAcesso && dto.nome !== undefined) {
+        const doNome = await this.loginPortariaDoPrestador(atual);
+        if (doNome && doNome.turno !== 'Geral' && doNome.nome !== dto.nome) {
+          await this.prisma.funcionarios_Portaria.update({ where: { id: doNome.id }, data: { nome: dto.nome } });
+        }
+      }
 
       if (dto.hasPortariaAccess && emailParaLogin) {
         if (atualPortaria && trocaEmailDeAcesso) {
@@ -971,6 +966,8 @@ export class PrestadoresService {
             where: { id_user: user.id, id_condominio: atualizado.id_condominio },
           });
           if (!f) {
+            // Religar depois de revogar (ou de trocar o e-mail sem a chave): as permissões guardadas voltam.
+            const salvas = vinculoHerdado ? null : await this.permissoesSalvas(Number(id));
             await this.prisma.funcionarios.create({
               data: {
                 nome: dto.nome ?? atualizado.nome,
@@ -978,7 +975,7 @@ export class PrestadoresService {
                 telefone: dto.telefone ?? atualizado.telefone ?? null,
                 id_user: user.id,
                 id_condominio: atualizado.id_condominio,
-                ...PrestadoresService.permissoesDoVinculo(vinculoHerdado),
+                ...PrestadoresService.permissoesDoVinculo(vinculoHerdado ?? salvas),
               },
             });
           } else {
@@ -999,10 +996,33 @@ export class PrestadoresService {
       // e-mail antigo, fora do alcance de re-credenciar, revogar e remover.
 
       this.fireFacialSync(atualizado.id);
-      return atualizado;
+      return semPermissoesSalvas(atualizado);
     } catch (e) {
       throw e instanceof BadRequestException ? e : new NotFoundException(`Prestador ${id} não encontrado`);
     }
+  }
+
+  /**
+   * Revogar de vez o login de portaria do prestador (o mesmo revogarLoginDoPrestador de desligar a chave). É o
+   * caminho explícito para o login DESATIVADO na aba "Equipe da portaria": para ele, a chave já aparece desligada e
+   * salvar com ela como está não revoga (update). Só o síndico.
+   */
+  async revogarAcessoPortaria(id: number, idCondominio?: number, user?: JwtPayload) {
+    if (!this.prisma.isConnected) return { success: true };
+    const atual = await this.prisma.prestadores_servico.findUnique({
+      where: { id: Number(id) },
+      select: { id: true, id_condominio: true, id_apartamento: true, email: true, nome: true },
+    });
+    if (!atual) throw new NotFoundException(`Prestador ${id} não encontrado`);
+    await this.tenant.assertEntidade(atual.id_condominio, user, `prestador #${id}`);
+    if (idCondominio != null && Number(idCondominio) !== atual.id_condominio) {
+      throw new NotFoundException(`Prestador ${id} não encontrado`);
+    }
+    assertSindicoEstrito(user, 'revogar o acesso à portaria de um prestador');
+    const loginProprio = await this.loginPortariaDoPrestador(atual);
+    if (!loginProprio) throw new BadRequestException('Este prestador não tem login de portaria.');
+    await this.revogarLoginDoPrestador(loginProprio, Number(id));
+    return { success: true };
   }
 
   async clearFoto(id: number, campo: 'pessoa' | 'documento', idCondominio?: number, user?: JwtPayload) {
@@ -1015,11 +1035,13 @@ export class PrestadoresService {
     await this.tenant.assertEntidade(atual.id_condominio, user, `prestador #${id}`);
     await this.assertPodeGerenciarPrestador(atual, user);
     await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'prestadores_servico', user);
-    return this.prisma.prestadores_servico.update({
-      where: { id: Number(id) },
-      data: campo === 'pessoa' ? { foto_pessoa: null } : { foto_documento: null },
-      include: { apartamento: { select: { bloco: true, apto: true } } },
-    });
+    return semPermissoesSalvas(
+      await this.prisma.prestadores_servico.update({
+        where: { id: Number(id) },
+        data: campo === 'pessoa' ? { foto_pessoa: null } : { foto_documento: null },
+        include: { apartamento: { select: { bloco: true, apto: true } } },
+      }),
+    );
   }
 
   async remove(id: number, idCondominio?: number, user?: JwtPayload) {
@@ -1042,7 +1064,7 @@ export class PrestadoresService {
     const loginProprio = await this.loginPortariaDoPrestador(atual);
     if (loginProprio) {
       assertSindicoEstrito(user, 'remover um prestador com acesso à portaria');
-      await this.revogarLoginDoPrestador(loginProprio, Number(id));
+      await this.revogarLoginDoPrestador(loginProprio, Number(id), { guardarPermissoes: false });
     }
 
     // Remove o rosto dos terminais faciais antes de apagar o cadastro, senão

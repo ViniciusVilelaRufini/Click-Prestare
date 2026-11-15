@@ -215,12 +215,24 @@
               <span class="ps-label !text-[var(--ink)] block">Dados de Acesso ao Sistema</span>
               <span class="text-[11px] text-slate-450">Permite que o funcionário acesse o console de Portaria Web com e-mail e senha.</span>
             </div>
+            @if (!(loginDesativado && !novo.hasPortariaAccess)) {
             <label class="relative inline-flex items-center cursor-pointer select-none">
               <input type="checkbox" [(ngModel)]="novo.hasPortariaAccess" class="sr-only peer" />
               <div class="w-11 h-6 bg-graphite border border-white/10 rounded-full peer peer-focus:ring-0 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-slate-400 after:border-slate-400 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent peer-checked:after:bg-white peer-checked:after:border-white"></div>
               <span class="ml-2 text-xs font-medium text-slate-350">Acesso Portaria Web</span>
             </label>
+            }
           </div>
+          <!-- Login desativado na aba Equipe da portaria: estado explícito, sem chave que finja salvar. -->
+          @if (loginDesativado && !novo.hasPortariaAccess) {
+            <div data-acesso-desativado class="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg border border-white/10 bg-graphite mb-2">
+              <span class="ps-tag"><span class="ps-dot"></span>Acesso desativado na Equipe da portaria</span>
+              <div class="flex items-center gap-1.5">
+                <button type="button" data-acao="reativar-acesso" (click)="novo.hasPortariaAccess = true" class="ps-btn ps-btn-sec ps-btn-sm">Reativar</button>
+                <button type="button" data-acao="revogar-acesso" (click)="revogarAcessoDeVez()" [disabled]="revogando()" class="ps-btn ps-btn-danger ps-btn-sm">Revogar acesso de vez</button>
+              </div>
+            </div>
+          }
 
           @if (novo.hasPortariaAccess) {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 animate-fade-in">

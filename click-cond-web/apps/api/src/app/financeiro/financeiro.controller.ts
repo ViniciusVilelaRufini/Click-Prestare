@@ -5,7 +5,7 @@ import { FechamentoService } from './fechamento.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { assertStaff, assertSindico, assertFinanceiroSomenteLeitura } from '../auth/tenant.util';
+import { assertStaff, assertSindicoEstrito, assertFinanceiroSomenteLeitura } from '../auth/tenant.util';
 import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 
 /**
@@ -93,13 +93,13 @@ export class FinanceiroController {
     @Query('ano') ano: string,
     @ReqUser() payload: JwtPayload,
   ) {
-    assertSindico(payload, 'consultar as taxas dos moradores');
+    assertSindicoEstrito(payload, 'consultar as taxas dos moradores');
     return this.service.getAllMoradores(Number(idCondominio), mes, ano, payload);
   }
 
   @Get('inadimplentes/get-all')
   getAllInadimplentes(@Query('id_condominio') idCondominio: string, @ReqUser() payload: JwtPayload) {
-    assertSindico(payload, 'consultar a lista de inadimplentes');
+    assertSindicoEstrito(payload, 'consultar a lista de inadimplentes');
     return this.service.getAllInadimplentes(Number(idCondominio), payload);
   }
 
@@ -110,7 +110,7 @@ export class FinanceiroController {
     @Query('ano') ano: string,
     @ReqUser() payload: JwtPayload,
   ) {
-    assertSindico(payload, 'abrir o dashboard de inadimplência');
+    assertSindicoEstrito(payload, 'abrir o dashboard de inadimplência');
     return this.service.getInadimplenciaDashboard(Number(idCondominio), mes, ano, payload);
   }
 
@@ -121,7 +121,7 @@ export class FinanceiroController {
     @Query('bloco') bloco: string,
     @ReqUser() payload: JwtPayload,
   ) {
-    assertSindico(payload, 'consultar a dívida de um apartamento');
+    assertSindicoEstrito(payload, 'consultar a dívida de um apartamento');
     return this.service.getInadimplenteDetail(Number(idCondominio), apto, bloco, payload);
   }
 
@@ -132,7 +132,7 @@ export class FinanceiroController {
     @Body('bloco') bloco: string,
     @ReqUser() payload: JwtPayload,
   ) {
-    assertSindico(payload, 'notificar inadimplente');
+    assertSindicoEstrito(payload, 'notificar inadimplente');
     return this.service.notifyInadimplente(Number(idCondominio), apto, bloco, payload);
   }
 

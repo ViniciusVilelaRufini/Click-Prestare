@@ -1,5 +1,5 @@
 import {
-  Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put, Query,
+  Body, Controller, Delete, Get, HttpCode, Param, ParseIntPipe, Patch, Post, Put, Query,
 } from '@nestjs/common';
 import { CreatePrestadorDto, PrestadoresService } from './prestadores.service';
 import { ReqUser } from '../auth/req-user.decorator';
@@ -67,6 +67,18 @@ export class PrestadoresController {
   ) {
     assertOperador(payload, 'remover a foto de um prestador');
     return this.service.clearFoto(id, body.campo, idCondominio, payload);
+  }
+
+  /** Revoga de vez o login de portaria do prestador (caminho explícito para o login desativado). Só síndico. */
+  @Post(':id/revogar-acesso')
+  @HttpCode(200)
+  revogarAcesso(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('id', ParseIntPipe) id: number,
+    @ReqUser() payload: JwtPayload,
+  ) {
+    assertOperador(payload, 'revogar o acesso à portaria pelo console');
+    return this.service.revogarAcessoPortaria(id, idCondominio, payload);
   }
 
   @Delete(':id')

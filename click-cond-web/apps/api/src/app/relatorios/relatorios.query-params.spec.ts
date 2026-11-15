@@ -20,7 +20,8 @@ describe('RelatoriosController — parâmetros de auditoria/eventos', () => {
   }
 
   const sindico: JwtPayload = { sub: 11, nome: 'Síndico', email: 's@x.com', typeAccess: 'Sindico' };
-  const sindicoConsole: JwtPayload = { sub: 13, nome: 'Síndico Web', id_condominio: 1, turno: 'Síndico' };
+  // O login do console sempre carimba typeAccess 'Sindico' no síndico (montarSessaoPortaria, QR, troca de condomínio).
+  const sindicoConsole: JwtPayload = { sub: 13, nome: 'Síndico Web', id_condominio: 1, turno: 'Síndico', typeAccess: 'Sindico' };
   const porteiro: JwtPayload = { sub: 12, nome: 'Porteiro', id_condominio: 1, turno: 'Diurno' };
 
   describe('paginação', () => {

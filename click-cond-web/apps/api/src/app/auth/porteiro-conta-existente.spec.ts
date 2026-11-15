@@ -36,6 +36,8 @@ export function prismaFalso(opts: {
 
   return {
     isConnected: true,
+    // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
+    $queryRaw: jest.fn(async () => []),
     users: {
       findFirst: jest.fn(async ({ where }: any) => {
         const login = where?.login ?? where?.OR?.[0]?.login;

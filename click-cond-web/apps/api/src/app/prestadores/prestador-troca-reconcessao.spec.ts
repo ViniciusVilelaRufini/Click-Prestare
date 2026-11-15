@@ -539,4 +539,206 @@ describe('Prestador × login de portaria — troca de e-mail, upsert por nome e 
       expect(equipeAqui(db)).toEqual([expect.objectContaining({ id_user: nova.id, ...flags, funcao: 'Zelador', ch: 'Noite' })]);
     });
   });
+
+  describe('Rodada 4 (raia e) — renomear o prestador para o nome do dono de um login com o mesmo e-mail', () => {
+    // O login com o e-mail do prestador é de um COLEGA (turno 'Diurno', outro nome). Renomear o prestador para o nome
+    // do colega faria o critério (mesmo nome) tratar o login como do prestador — e a próxima vez que o síndico
+    // desligasse a chave ou removesse o cadastro, o login do colega cairia.
+    const colega = (db: any) => Object.assign(db.fp[0], { nome: 'Porteiro C', turno: 'Diurno' });
+
+    it.each([['Porteiro C'], ['  porteiro   c '], ['Pórteiro C']])('porteiro renomeando para %p → 403 e nada muda', async (nome) => {
+      const { svc, db, prisma } = banco();
+      colega(db);
+      await expect(svc.update(1, { nome }, 1, porteiro)).rejects.toThrow(
+        'Acesso negado: dar a este prestador o nome de quem tem o login de portaria com o mesmo e-mail exige síndico.',
+      );
+      expect(prisma.prestadores_servico.update).not.toHaveBeenCalled();
+      expect(db.prestadores[0].nome).toBe('Eletricista');
+      const [p] = await svc.findAll(1, undefined, sindico);
+      expect(p.loginPortariaProprio).toBe(false);
+    });
+
+    it('síndico pode renomear (e então o login passa a contar como do prestador)', async () => {
+      const { svc, db } = banco();
+      colega(db);
+      await svc.update(1, { nome: 'Porteiro C' }, 1, sindico);
+      expect(db.prestadores[0].nome).toBe('Porteiro C');
+      const [p] = await svc.findAll(1, undefined, sindico);
+      expect(p.loginPortariaProprio).toBe(true);
+    });
+
+    it('porteiro segue renomeando para outro nome, e renomeando quem tem o próprio login', async () => {
+      const a = banco();
+      colega(a.db);
+      await a.svc.update(1, { nome: 'Eletricista 24h' }, 1, porteiro);
+      expect(a.db.prestadores[0].nome).toBe('Eletricista 24h');
+
+      const b = banco(); // login próprio (turno 'Geral')
+      await b.svc.update(1, { nome: 'Eletricista Silva' }, 1, porteiro);
+      expect(b.db.prestadores[0].nome).toBe('Eletricista Silva');
+      expect(b.db.fp).toHaveLength(1);
+    });
+
+    it('o console reenviando o mesmo nome não exige síndico', async () => {
+      const { svc, db } = banco();
+      colega(db);
+      await svc.update(1, { nome: 'Eletricista', telefone: '(11) 7777' }, 1, porteiro);
+      expect(db.prestadores[0].telefone).toBe('(11) 7777');
+    });
+  });
+
+  describe('Rodada 4 (raia e) — login desativado na aba Equipe da portaria', () => {
+    // A lista devolve hasPortariaAccess false para o login inativo, e o console reenvia esse estado em todo salvar.
+    it.each([['síndico', sindico], ['porteiro', porteiro]])('%s salvando a edição com a chave desligada não revoga o login desativado', async (_n, user) => {
+      const { svc, db } = banco();
+      db.fp[0].ativo = 0;
+      await svc.update(1, { nome: 'Eletricista', email: 'a@x.com', telefone: '(11) 6666', hasPortariaAccess: false }, 1, user);
+      expect(db.prestadores[0].telefone).toBe('(11) 6666');
+      expect(db.fp).toEqual([expect.objectContaining({ id: 12, ativo: 0, login: 'a@x.com' })]);
+      expect(equipeAqui(db)).toHaveLength(1);
+      expect(conta(db, 5)).toEqual(expect.objectContaining({ login: 'a@x.com', password: '$2b$04$antiga', senha_alterada_em: null }));
+    });
+
+    it('limpar o e-mail de quem tem o login desativado continua revogando (síndico)', async () => {
+      const { svc, db } = banco();
+      db.fp[0].ativo = 0;
+      await svc.update(1, { email: null, hasPortariaAccess: false }, 1, sindico);
+      expect(db.fp).toHaveLength(0);
+      contaInutilizada(conta(db, 5));
+    });
+
+    it('ligar a chave reativa o login desativado (síndico), sem exigir senha', async () => {
+      const { svc, db } = banco();
+      db.fp[0].ativo = 0;
+      await svc.update(1, { email: 'a@x.com', hasPortariaAccess: true }, 1, sindico);
+      expect(db.fp).toEqual([expect.objectContaining({ id: 12, ativo: 1 })]);
+    });
+  });
+
+  describe('Rodada 4 (raia e), correção — revogar de vez o login desativado (I3)', () => {
+    it('síndico: revoga o login desativado pelo caminho explícito (login, vínculo e conta)', async () => {
+      const { svc, db } = banco();
+      db.fp[0].ativo = 0;
+      await expect(svc.revogarAcessoPortaria(1, 1, sindico)).resolves.toEqual({ success: true });
+      expect(db.fp).toHaveLength(0);
+      expect(equipeAqui(db)).toHaveLength(0);
+      contaInutilizada(conta(db, 5));
+      expect(db.users).toHaveLength(1);
+    });
+
+    it('porteiro → 403 e nada muda; sem login → 400; condomínio da rota diferente → 404', async () => {
+      const { svc, db } = banco();
+      db.fp[0].ativo = 0;
+      await expect(svc.revogarAcessoPortaria(1, 1, porteiro)).rejects.toThrow('exige síndico');
+      expect(db.fp).toHaveLength(1);
+      await expect(svc.revogarAcessoPortaria(1, 2, sindico)).rejects.toThrow('não encontrado');
+      expect(db.fp).toHaveLength(1);
+      db.fp.splice(0, 1);
+      await expect(svc.revogarAcessoPortaria(1, 1, sindico)).rejects.toThrow('Este prestador não tem login de portaria.');
+    });
+  });
+
+  describe('Rodada 4 (raia e), correção — elo pelo nome ao renomear e permissões fora das respostas', () => {
+    it('renomear quem tem login próprio só pelo nome (turno mudado): o nome do login acompanha e o elo fica', async () => {
+      const { svc, db } = banco();
+      db.fp[0].turno = 'Noturno'; // é do prestador pelo nome
+      await svc.update(1, { nome: 'Eletricista Silva' }, 1, porteiro);
+      expect(db.fp[0].nome).toBe('Eletricista Silva');
+      const [p] = await svc.findAll(1, undefined, sindico);
+      expect(p.loginPortariaProprio).toBe(true);
+      // E o login 'Geral' não é tocado (o elo não depende do nome).
+      const b = banco();
+      await b.svc.update(1, { nome: 'Outro Nome' }, 1, porteiro);
+      expect(b.db.fp[0].nome).toBe('Eletricista');
+    });
+
+    it('permissoes_app_salvas nunca sai nas respostas (lista, detalhe, edição)', async () => {
+      const { svc, db } = banco();
+      db.prestadores[0].permissoes_app_salvas = JSON.stringify({ comunicados: 0 });
+      const [lista] = await svc.findAll(1, undefined, sindico);
+      expect(lista).not.toHaveProperty('permissoes_app_salvas');
+      expect(await svc.findOne(1, 1, sindico)).not.toHaveProperty('permissoes_app_salvas');
+      expect(await svc.update(1, { telefone: '(11) 1' }, 1, sindico)).not.toHaveProperty('permissoes_app_salvas');
+      expect(db.prestadores[0].permissoes_app_salvas).toBeTruthy(); // segue guardado no banco
+    });
+  });
+
+  describe('Rodada 4 (raia e) — permissões guardadas ao desligar o acesso', () => {
+    const flags = { areas_sociais: 1, comunicados: 0, ocorrencias: 1, manutencoes_programadas: 0, prestadores_servico: 1, agendar_mudanca: 0, cadastrar_visitante: 1, apartamentos: 0 };
+    const todas = { areas_sociais: 1, comunicados: 1, ocorrencias: 1, manutencoes_programadas: 1, prestadores_servico: 1, agendar_mudanca: 1, cadastrar_visitante: 1, apartamentos: 1 };
+
+    it('desligar a chave guarda as permissões no prestador; religar cria a conta nova com elas', async () => {
+      const { svc, db } = banco();
+      Object.assign(db.func[0], flags);
+      await svc.update(1, { hasPortariaAccess: false }, 1, sindico);
+      expect(equipeAqui(db)).toHaveLength(0);
+      expect(JSON.parse(db.prestadores[0].permissoes_app_salvas)).toEqual(flags);
+
+      await svc.update(1, { hasPortariaAccess: true, senha: 'Volta#123' }, 1, sindico);
+      const nova = db.users.find((u: Linha) => u.login === 'a@x.com')!;
+      expect(nova.id).not.toBe(5); // conta nova (a antiga virou lápide)
+      expect(equipeAqui(db)).toEqual([expect.objectContaining({ id_user: nova.id, ...flags })]);
+    });
+
+    it('"Novo" com o mesmo nome depois de revogar (upsert) também restaura as permissões guardadas', async () => {
+      const { svc, db } = banco();
+      Object.assign(db.func[0], flags);
+      await svc.update(1, { hasPortariaAccess: false }, 1, sindico);
+      await svc.create({ id_condominio: 1, nome: 'Eletricista', email: 'a@x.com', senha: 'Volta#123', hasPortariaAccess: true } as any, sindico);
+      const nova = db.users.find((u: Linha) => u.login === 'a@x.com')!;
+      expect(equipeAqui(db)).toEqual([expect.objectContaining({ id_user: nova.id, ...flags })]);
+    });
+
+    it('trocar o e-mail sem a chave também guarda (a conta nova nasce depois, no app)', async () => {
+      const { svc, db } = banco();
+      Object.assign(db.func[0], flags);
+      await svc.update(1, { email: 'b@x.com', senha: 'Nova#123' }, 1, sindico);
+      expect(JSON.parse(db.prestadores[0].permissoes_app_salvas)).toEqual(flags);
+      // Ligar a chave depois (com senha): a conta do e-mail novo nasce com as permissões guardadas.
+      await svc.update(1, { hasPortariaAccess: true, senha: 'Outra#123' }, 1, sindico);
+      const nova = db.users.find((u: Linha) => u.login === 'b@x.com')!;
+      expect(equipeAqui(db)).toEqual([expect.objectContaining({ id_user: nova.id, ...flags })]);
+    });
+
+    it('sem nada guardado, a primeira concessão continua com todas ligadas', async () => {
+      const { svc, db } = banco();
+      db.prestadores.push({ id: 2, nome: 'Jardineiro', email: null, telefone: null, categorias: null, id_condominio: 1, id_apartamento: null,
+        face_id: null, foto_pessoa: null, foto_documento: null, dias_semana: null });
+      await svc.update(2, { email: 'j@x.com', hasPortariaAccess: true, senha: 'Jard#123' }, 1, sindico);
+      const nova = db.users.find((u: Linha) => u.login === 'j@x.com')!;
+      expect(equipeAqui(db)).toEqual(expect.arrayContaining([expect.objectContaining({ id_user: nova.id, ...todas })]));
+    });
+
+    it('JSON guardado inválido é ignorado: volta ao padrão, sem erro', async () => {
+      const { svc, db } = banco();
+      await svc.update(1, { hasPortariaAccess: false }, 1, sindico);
+      db.prestadores[0].permissoes_app_salvas = '{"comunicados": "sim"';
+      await svc.update(1, { hasPortariaAccess: true, senha: 'Volta#123' }, 1, sindico);
+      const nova = db.users.find((u: Linha) => u.login === 'a@x.com')!;
+      expect(equipeAqui(db)).toEqual([expect.objectContaining({ id_user: nova.id, ...todas })]);
+    });
+
+    it('revogar um login sem vínculo de equipe aqui não apaga o que estava guardado', async () => {
+      const { svc, db } = banco();
+      db.prestadores[0].permissoes_app_salvas = JSON.stringify(flags);
+      db.func.splice(0, db.func.length); // a conta não é (mais) da equipe daqui
+      await svc.update(1, { hasPortariaAccess: false }, 1, sindico);
+      expect(db.fp).toHaveLength(0);
+      expect(JSON.parse(db.prestadores[0].permissoes_app_salvas)).toEqual(flags);
+    });
+
+    it('falha ao guardar as permissões não derruba a revogação', async () => {
+      const { svc, db, prisma } = banco();
+      Object.assign(db.func[0], flags);
+      const original = prisma.prestadores_servico.update.getMockImplementation();
+      prisma.prestadores_servico.update.mockImplementation(async (args: any) => {
+        if (args?.data && 'permissoes_app_salvas' in args.data) throw new Error('Unknown column');
+        return original!(args);
+      });
+      await svc.update(1, { hasPortariaAccess: false }, 1, sindico);
+      expect(db.fp).toHaveLength(0);
+      expect(equipeAqui(db)).toHaveLength(0);
+      contaInutilizada(conta(db, 5));
+    });
+  });
 });
