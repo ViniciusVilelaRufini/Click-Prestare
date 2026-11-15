@@ -197,6 +197,9 @@
                     @if (v.status === 1 && podeGerir() && !ehFinalizada(sel.assembleia)) {
                       <button (click)="encerrarVotacao(v.id, sel.assembleia.id)" class="ps-btn ps-btn-sec ps-btn-sm">Encerrar votação</button>
                     }
+                    @if (v.status === 2 && podeGerir()) {
+                      <button (click)="abrirMapa(v)" class="ps-btn ps-btn-sec ps-btn-sm" title="Quem votou em quê, com a trilha dos votos substituídos">Mapa de votação</button>
+                    }
                   </div>
                 </div>
               }
@@ -374,6 +377,9 @@
               @if (e.status === 1 && podeGerir()) {
                 <button (click)="encerrarVotacao(e.id)" class="ps-btn ps-btn-sec ps-btn-sm">Encerrar Imediatamente</button>
               }
+              @if (e.status === 2 && podeGerir()) {
+                <button (click)="abrirMapa(e)" class="ps-btn ps-btn-sec ps-btn-sm" title="Quem votou em quê, com a trilha dos votos substituídos">Mapa de votação</button>
+              }
             </div>
           </div>
         }
@@ -515,6 +521,96 @@
           >
             {{ finalizando() ? 'Finalizando…' : 'Finalizar e publicar ATA' }}
           </button>
+        </div>
+    </div>
+  }
+
+  <!-- MAPA DE VOTAÇÃO (nominal, só de votação encerrada) -->
+  @if (modalMapa()) {
+    <div class="ps-scrim on" (click)="fecharMapa()"></div>
+    <div class="ps-drawer on !w-[min(960px,100%)]">
+        <div class="ps-drawer-head gap-3">
+          <div class="min-w-0">
+            <h3 class="ps-h2">Mapa de votação</h3>
+            <p class="text-xs text-slate-400 mt-0.5 truncate">{{ mapa()?.votacao?.titulo || tituloMapa() }}</p>
+          </div>
+          <button (click)="fecharMapa()" class="ps-ibtn" aria-label="Fechar" title="Fechar">×</button>
+        </div>
+
+        <div class="ps-drawer-body">
+          @if (carregandoMapa()) {
+            <div class="p-8 text-center">
+              <div class="inline-block w-6 h-6 border-2 border-slate-300 border-t-[var(--ink)] rounded-full animate-spin"></div>
+            </div>
+          } @else if (mapa(); as m) {
+            <div class="flex items-center gap-2 flex-wrap text-xs text-slate-400">
+              @if (textoParticipacao($any(m))) {
+                <span>{{ textoParticipacao($any(m)) }}</span>
+              }
+              @if (m.votacao.encerrada_em) {
+                <span>· Encerrada em {{ dataHora(m.votacao.encerrada_em) }}</span>
+              }
+              @if (somenteProprietarios($any(m.votacao))) {
+                <span class="ps-tag">Somente proprietários</span>
+              }
+            </div>
+
+            @if (m.opcoes.length) {
+              <div class="flex flex-wrap gap-2">
+                @for (o of m.opcoes; track o.id) {
+                  <span class="ps-tag">{{ o.nome }}: {{ o.votos }}</span>
+                }
+              </div>
+            }
+
+            @if (m.votos.length === 0) {
+              <p class="text-xs text-slate-500 italic">Nenhum voto registrado nesta votação.</p>
+            } @else {
+              <div class="ps-tablewrap">
+                <table class="w-full text-xs !min-w-[760px]">
+                  <thead>
+                    <tr class="ps-label">
+                      <th>Unidade</th>
+                      <th>Votante</th>
+                      <th>Vínculo</th>
+                      <th>Opção</th>
+                      <th>Data/hora</th>
+                      <th>Situação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (voto of m.votos; track $index) {
+                      <tr [class.opacity-60]="voto.vigente === false">
+                        <td class="text-slate-200">{{ voto.unidade }}</td>
+                        <td class="text-slate-200">{{ voto.votante || '—' }}</td>
+                        <td class="text-slate-400">{{ rotuloVinculo(voto.tipo_vinculo) }}</td>
+                        <td class="text-slate-200">{{ opcaoDoVoto(m, voto) }}</td>
+                        <td class="text-slate-400 font-mono">{{ dataHora(voto.registrado_em) }}</td>
+                        <td>
+                          @if (voto.vigente === false) {
+                            <span class="ps-tag text-amber-400">Substituído{{ voto.substituido_em ? ' em ' + dataHora(voto.substituido_em) : '' }}</span>
+                          } @else {
+                            <span class="ps-tag text-emerald-400">Vigente</span>
+                          }
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              <p class="text-[11px] text-slate-500">
+                Voto substituído não conta na apuração; fica no mapa como trilha.
+              </p>
+            }
+          }
+        </div>
+
+        @if (erroMapa()) {
+          <p class="mx-6 mb-3 px-3 py-2 border border-slate-300 text-xs text-red-400" role="alert">{{ erroMapa() }}</p>
+        }
+        <div class="ps-drawer-foot">
+          <button (click)="fecharMapa()" class="ps-btn ps-btn-sec">Fechar</button>
+          <button (click)="exportarMapaCsv()" [disabled]="!mapa()" class="ps-btn disabled:opacity-50">Exportar CSV</button>
         </div>
     </div>
   }

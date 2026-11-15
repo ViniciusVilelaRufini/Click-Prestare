@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { API_BASE } from '../shared/api.config';
 import { AuthService } from '../auth/auth.service';
+import type { MapaVotacao } from './mapa-votacao';
 
 export interface Assembleia {
   id: number;
@@ -96,6 +97,12 @@ export class AssembleiasApi {
   finishVotacao(id: number): Observable<any> {
     const url = `${API_BASE}/assembleias/votacoes/finish`;
     return this.http.post(url, { id });
+  }
+
+  /** Mapa nominal de votação encerrada (só síndico/equipe; a API recusa o porteiro). */
+  mapaVotacao(id: number): Observable<MapaVotacao> {
+    const url = `${API_BASE}/assembleias/votacoes/mapa?id=${id}`;
+    return this.http.get<MapaVotacao>(url);
   }
 
   listEnquetes(): Observable<Votacao[]> {

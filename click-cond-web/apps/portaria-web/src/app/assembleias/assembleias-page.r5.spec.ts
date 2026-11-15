@@ -20,6 +20,7 @@ function jwt(payload: Record<string, unknown>): string {
   return `${b64({ alg: 'HS256' })}.${b64(payload)}.assinatura`;
 }
 const SINDICO = jwt({ sub: 7, nome: 'Síndico', id_condominio: 1, typeAccess: 'Sindico' });
+const PORTEIRO = jwt({ sub: 3, nome: 'João', id_condominio: 1, turno: 'Diurno', tipo_sub: 'funcionario_portaria' });
 
 const ASSEMBLEIA = { id: 2, titulo: 'AGE próxima', data: '20/11/2026', hora: '19:30' };
 const PAUTA_OCULTA = {
@@ -37,7 +38,7 @@ const PAUTA_ENCERRADA = {
 const PAUTA_ANTIGA = { id: 12, titulo: 'Fachada', data_inicio: '01/11/2026', data_termino: '25/11/2026', status: 1, opcoes: ['5;Aprovar;2'] };
 
 describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participação)', () => {
-  function render(over: Record<string, any> = {}) {
+  function render(over: Record<string, any> = {}, token = SINDICO) {
     const api: any = {
       listAssembleias: jest.fn(() => of([ASSEMBLEIA])),
       listEnquetes: jest.fn(() => of([])),
@@ -49,7 +50,7 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
       providers: [
         { provide: AssembleiasApi, useValue: api },
         { provide: ConfirmService, useValue: { ask: jest.fn(async () => true) } },
-        { provide: AuthService, useValue: { porteiroInfo: signal({ nome: 'X', turno: 'Diurno', id_condominio: 1 }), token: SINDICO } },
+        { provide: AuthService, useValue: { porteiroInfo: signal({ nome: 'X', turno: 'Diurno', id_condominio: 1 }), token } },
         { provide: ServerClockService, useValue: { agora: () => new Date('2026-11-13T15:00:00Z') } },
       ],
     });
@@ -196,6 +197,132 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
         'A assembleia fica guardada no histórico com as votações; nada é apagado.',
       );
       expect(el.querySelector('.ps-drawer')?.textContent).not.toContain('sai da lista');
+    });
+  });
+
+  describe('Mapa de votação', () => {
+    const MAPA = {
+      votacao: { id: 11, titulo: 'Obra', somente_proprietarios: 1, encerrada_em: '2026-11-05T18:00:00.000Z' },
+      participacao: { unidades_votaram: 2, unidades_total: 12 },
+      opcoes: [{ id: 3, nome: 'Aprovar', votos: 1 }, { id: 4, nome: 'Rejeitar', votos: 1 }],
+      votos: [
+        { unidade: 'Bloco A - 101', votante: 'Ana Lima', tipo_vinculo: 'inquilino', opcao: 'Rejeitar',
+          registrado_em: '2026-11-02T13:00:00.000Z', vigente: false, substituido_em: '2026-11-03T14:30:00.000Z' },
+        { unidade: 'Bloco A - 101', votante: 'Bruno Souza', tipo_vinculo: 'proprietario', opcao: 'Aprovar',
+          registrado_em: '2026-11-03T14:30:00.000Z', vigente: true, substituido_em: null },
+        { unidade: '102', votante: 'Carla', tipo_vinculo: 'inquilino', opcao: 4,
+          registrado_em: '2026-11-04T12:00:00.000Z', vigente: true, substituido_em: null },
+      ],
+    };
+    const DET = { assembleia: ASSEMBLEIA, votacoes: [PAUTA_OCULTA, PAUTA_ENCERRADA], meusVotos: [] };
+    const botoesMapa = (el: HTMLElement) =>
+      Array.from(el.querySelectorAll('button')).filter((b) => b.textContent?.trim() === 'Mapa de votação');
+
+    it('síndico: botão só na pauta encerrada', () => {
+      const { fixture, el, comp } = render({ getAssembleia: jest.fn(() => of(DET)) });
+      comp.verAssembleia(2);
+      fixture.detectChanges();
+      expect(botoesMapa(cartao(el, 'Obra'))).toHaveLength(1);
+      expect(botoesMapa(cartao(el, 'Contas'))).toHaveLength(0);
+    });
+
+    it('porteiro do console: não vê o botão (nem em pauta nem em enquete encerrada)', () => {
+      const { fixture, el, comp } = render(
+        { getAssembleia: jest.fn(() => of(DET)), listEnquetes: jest.fn(() => of([{ ...PAUTA_ENCERRADA, id: 31, titulo: 'Pet' }])) },
+        PORTEIRO,
+      );
+      comp.verAssembleia(2);
+      fixture.detectChanges();
+      expect(cartao(el, 'Obra')).toBeTruthy();
+      expect(botoesMapa(el)).toHaveLength(0);
+      comp.voltarLista();
+      comp.tab.set('enquetes');
+      fixture.detectChanges();
+      expect(cartao(el, 'Pet')).toBeTruthy();
+      expect(botoesMapa(el)).toHaveLength(0);
+    });
+
+    it('enquete encerrada: síndico também tem o mapa', () => {
+      const { fixture, el, comp } = render({ listEnquetes: jest.fn(() => of([{ ...PAUTA_ENCERRADA, id: 31, titulo: 'Pet' }])) });
+      comp.tab.set('enquetes');
+      fixture.detectChanges();
+      expect(botoesMapa(cartao(el, 'Pet'))).toHaveLength(1);
+    });
+
+    it('abre o drawer com a tabela nominal; voto não vigente aparece como substituído', () => {
+      const mapaVotacao = jest.fn(() => of(MAPA));
+      const { fixture, el, comp } = render({ getAssembleia: jest.fn(() => of(DET)), mapaVotacao });
+      comp.verAssembleia(2);
+      fixture.detectChanges();
+      botoesMapa(cartao(el, 'Obra'))[0].click();
+      fixture.detectChanges();
+      expect(mapaVotacao).toHaveBeenCalledWith(11);
+      const drawer = el.querySelector('.ps-drawer') as HTMLElement;
+      expect(drawer.textContent).toContain('Mapa de votação');
+      expect(drawer.textContent).toContain('2 de 12 unidades votaram');
+      const cab = Array.from(drawer.querySelectorAll('th')).map((t) => t.textContent?.trim());
+      expect(cab).toEqual(['Unidade', 'Votante', 'Vínculo', 'Opção', 'Data/hora', 'Situação']);
+      const linhas = Array.from(drawer.querySelectorAll('tbody tr')).map((tr) =>
+        Array.from(tr.querySelectorAll('td')).map((td) => td.textContent?.replace(/\s+/g, ' ').trim()),
+      );
+      expect(linhas).toEqual([
+        ['Bloco A - 101', 'Ana Lima', 'Inquilino', 'Rejeitar', '02/11/2026 10:00', 'Substituído em 03/11/2026 11:30'],
+        ['Bloco A - 101', 'Bruno Souza', 'Proprietário', 'Aprovar', '03/11/2026 11:30', 'Vigente'],
+        ['102', 'Carla', 'Inquilino', 'Rejeitar', '04/11/2026 09:00', 'Vigente'],
+      ]);
+    });
+
+    it('erro da API: aparece no drawer como veio', () => {
+      const msg = 'O mapa de votação fica disponível quando a votação é encerrada.';
+      const { fixture, el, comp } = render({
+        getAssembleia: jest.fn(() => of(DET)),
+        mapaVotacao: jest.fn(() => throwError(() => ({ status: 400, error: { message: msg } }))),
+      });
+      comp.verAssembleia(2);
+      fixture.detectChanges();
+      comp.abrirMapa(PAUTA_ENCERRADA as any);
+      fixture.detectChanges();
+      expect(el.querySelector('.ps-drawer')?.textContent).toContain(msg);
+      expect(comp.carregandoMapa()).toBe(false);
+    });
+
+    it('Exportar CSV: gera o arquivo no navegador (Blob + link) com BOM', async () => {
+      const urlApi = URL as any;
+      const originais = { create: urlApi.createObjectURL, revoke: urlApi.revokeObjectURL };
+      let blob: Blob | null = null;
+      urlApi.createObjectURL = jest.fn((b: Blob) => { blob = b; return 'blob:mapa'; });
+      urlApi.revokeObjectURL = jest.fn();
+      const vistos: { href: string; download: string }[] = [];
+      const clique = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+        vistos.push({ href: this.href, download: this.download });
+      });
+      try {
+        const { fixture, el, comp } = render({ getAssembleia: jest.fn(() => of(DET)), mapaVotacao: jest.fn(() => of(MAPA)) });
+        comp.verAssembleia(2);
+        fixture.detectChanges();
+        comp.abrirMapa(PAUTA_ENCERRADA as any);
+        fixture.detectChanges();
+        const exportar = Array.from(el.querySelectorAll('.ps-drawer button')).find((b) =>
+          b.textContent?.includes('Exportar CSV'),
+        ) as HTMLButtonElement;
+        exportar.click();
+        expect(vistos).toHaveLength(1);
+        expect(vistos[0].href).toBe('blob:mapa');
+        expect(vistos[0].download).toMatch(/^mapa-votacao-11.*\.csv$/);
+        expect(blob!.type).toContain('text/csv');
+        const bytes = await new Promise<Uint8Array>((ok, falha) => {
+          const r = new FileReader();
+          r.onload = () => ok(new Uint8Array(r.result as ArrayBuffer));
+          r.onerror = () => falha(r.error);
+          r.readAsArrayBuffer(blob!);
+        });
+        expect(Array.from(bytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
+        expect(urlApi.revokeObjectURL).toHaveBeenCalledWith('blob:mapa');
+      } finally {
+        urlApi.createObjectURL = originais.create;
+        urlApi.revokeObjectURL = originais.revoke;
+        clique.mockRestore();
+      }
     });
   });
 

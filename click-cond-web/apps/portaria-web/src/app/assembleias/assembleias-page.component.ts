@@ -7,6 +7,15 @@ import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 import { AuthService } from '../auth/auth.service';
 import { papelDoToken } from '../auth/papel';
 import { ServerClockService } from '../core/server-clock.service';
+import {
+  MapaVotacao,
+  VotoDoMapa,
+  csvMapaVotacao,
+  dataHoraBrasilia,
+  nomeArquivoMapa,
+  nomeOpcaoDoVoto,
+  rotuloVinculo,
+} from './mapa-votacao';
 
 /** Mensagem do servidor quando houver; senão a do cliente; senão a padrão. */
 function msgErro(e: any, padrao: string): string {
@@ -228,17 +237,65 @@ export class AssembleiasPageComponent implements OnInit {
 
   /** Data/hora para a tela. ISO → "DD/MM/AAAA HH:mm" no horário de Brasília; outro texto segue como veio. */
   dataHora(v: string | null | undefined): string {
-    const s = String(v ?? '').trim();
-    if (!/^\d{4}-\d{2}-\d{2}T/.test(s)) return s;
-    const d = new Date(s);
-    if (Number.isNaN(d.getTime())) return s;
-    const p = Object.fromEntries(
-      new Intl.DateTimeFormat('pt-BR', {
-        timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-      }).formatToParts(d).map((x) => [x.type, x.value]),
-    );
-    return `${p['day']}/${p['month']}/${p['year']} ${p['hour']}:${p['minute']}`;
+    return dataHoraBrasilia(v);
+  }
+
+  // Mapa de votação (nominal): só pauta/enquete encerrada e só para quem gere.
+  readonly modalMapa = signal(false);
+  readonly carregandoMapa = signal(false);
+  readonly erroMapa = signal<string | null>(null);
+  readonly mapa = signal<MapaVotacao | null>(null);
+  /** Título da votação aberta no drawer (antes de o mapa chegar). */
+  readonly tituloMapa = signal('');
+
+  abrirMapa(v: Votacao) {
+    this.tituloMapa.set(v?.titulo ?? '');
+    this.mapa.set(null);
+    this.erroMapa.set(null);
+    this.carregandoMapa.set(true);
+    this.modalMapa.set(true);
+    this.api.mapaVotacao(v.id).subscribe({
+      next: (m) => {
+        this.carregandoMapa.set(false);
+        this.mapa.set({
+          ...m,
+          votacao: m?.votacao ?? { id: v.id, titulo: v.titulo },
+          opcoes: Array.isArray(m?.opcoes) ? m.opcoes : [],
+          votos: Array.isArray(m?.votos) ? m.votos : [],
+        });
+      },
+      error: (e) => {
+        this.carregandoMapa.set(false);
+        this.erroMapa.set(msgErro(e, 'Não foi possível carregar o mapa de votação.'));
+      },
+    });
+  }
+
+  fecharMapa() {
+    this.modalMapa.set(false);
+  }
+
+  rotuloVinculo(t: string | null | undefined): string {
+    return rotuloVinculo(t) || '—';
+  }
+
+  opcaoDoVoto(m: MapaVotacao, voto: VotoDoMapa): string {
+    return nomeOpcaoDoVoto(m, voto);
+  }
+
+  /** CSV gerado no navegador (Blob + link), pronto para o Excel pt-BR. */
+  exportarMapaCsv() {
+    const m = this.mapa();
+    if (!m) return;
+    const blob = new Blob([csvMapaVotacao(m)], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nomeArquivoMapa(m);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   // Ações de Votação/Enquete
