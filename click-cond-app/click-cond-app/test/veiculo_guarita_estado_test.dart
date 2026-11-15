@@ -12,7 +12,7 @@ void main() {
       expect(rotuloEstadoGuarita('aguardando_aprovacao'),
           'Aguardando aprovação da portaria');
       expect(rotuloEstadoGuarita('pendente'), 'Enviando ao portão');
-      expect(rotuloEstadoGuarita('gravado'), 'Gravado no portão');
+      expect(rotuloEstadoGuarita('gravado'), 'Gravado. Começa a valer em instantes.');
       expect(rotuloEstadoGuarita('ativo'), 'Ativo nos portões');
       expect(rotuloEstadoGuarita('falhou'), 'Não foi possível gravar no portão');
       expect(rotuloEstadoGuarita('removendo'), 'Removendo do portão');
@@ -29,14 +29,44 @@ void main() {
   });
 
   group('sinalEstadoGuarita', () {
-    test('gravado e ativo são ok; em andamento é aviso; falhou é perigo', () {
+    test('ativo é ok; gravado e em andamento são aviso; falhou é perigo', () {
       expect(sinalEstadoGuarita('ativo'), AppSignal.ok);
-      expect(sinalEstadoGuarita('gravado'), AppSignal.ok);
+      expect(sinalEstadoGuarita('gravado'), AppSignal.warn);
       expect(sinalEstadoGuarita('aguardando_aprovacao'), AppSignal.warn);
       expect(sinalEstadoGuarita('pendente'), AppSignal.warn);
       expect(sinalEstadoGuarita('removendo'), AppSignal.warn);
       expect(sinalEstadoGuarita('falhou'), AppSignal.danger);
       expect(sinalEstadoGuarita('recusada'), AppSignal.danger);
+    });
+
+    test('guarita_vale_no_portao true é verde, seja qual for o estado', () {
+      expect(sinalEstadoGuarita('gravado', valeNoPortao: true), AppSignal.ok);
+      expect(sinalEstadoGuarita('pendente', valeNoPortao: true), AppSignal.ok);
+      expect(sinalEstadoGuarita('ativo', valeNoPortao: true), AppSignal.ok);
+    });
+
+    test('guarita_vale_no_portao ausente ou false segue a regra do estado', () {
+      expect(sinalEstadoGuarita('gravado', valeNoPortao: null), AppSignal.warn);
+      expect(sinalEstadoGuarita('gravado', valeNoPortao: false), AppSignal.warn);
+      expect(sinalEstadoGuarita('ativo', valeNoPortao: false), AppSignal.ok);
+      expect(sinalEstadoGuarita('falhou', valeNoPortao: false), AppSignal.danger);
+    });
+  });
+
+  group('valeNoPortaoDoJson', () {
+    test('aceita bool, 1/0 e texto', () {
+      expect(valeNoPortaoDoJson(true), isTrue);
+      expect(valeNoPortaoDoJson(false), isFalse);
+      expect(valeNoPortaoDoJson(1), isTrue);
+      expect(valeNoPortaoDoJson(0), isFalse);
+      expect(valeNoPortaoDoJson('true'), isTrue);
+      expect(valeNoPortaoDoJson('false'), isFalse);
+    });
+
+    test('ausente ou estranho fica nulo', () {
+      expect(valeNoPortaoDoJson(null), isNull);
+      expect(valeNoPortaoDoJson('talvez'), isNull);
+      expect(valeNoPortaoDoJson(<String, dynamic>{}), isNull);
     });
   });
 
@@ -48,20 +78,32 @@ void main() {
         'tag_codigo': 'G2-0F086E',
         'guarita_estado': 'falhou',
         'guarita_erro': 'Guarita não respondeu',
+        'guarita_vale_no_portao': false,
       });
       expect(v.guaritaEstado, 'falhou');
       expect(v.guaritaErro, 'Guarita não respondeu');
+      expect(v.guaritaValeNoPortao, isFalse);
+    });
+
+    test('lê guarita_vale_no_portao true', () {
+      final v = VeiculoModel.fromJson(
+          {'id': 1, 'guarita_estado': 'ativo', 'guarita_vale_no_portao': true});
+      expect(v.guaritaValeNoPortao, isTrue);
     });
 
     test('sem os campos (API antiga / sem Guarita) ficam nulos', () {
       final v = VeiculoModel.fromJson({'id': 1, 'placa': 'ABC1D23'});
       expect(v.guaritaEstado, isNull);
       expect(v.guaritaErro, isNull);
+      expect(v.guaritaValeNoPortao, isNull);
     });
 
     test('o estado não é enviado de volta ao salvar', () {
-      final v = VeiculoModel(id: 1, placa: 'ABC1D23', guaritaEstado: 'ativo');
-      expect(v.toJson(incluirTag: true).containsKey('guarita_estado'), isFalse);
+      final v = VeiculoModel(
+          id: 1, placa: 'ABC1D23', guaritaEstado: 'ativo', guaritaValeNoPortao: true);
+      final json = v.toJson(incluirTag: true);
+      expect(json.containsKey('guarita_estado'), isFalse);
+      expect(json.containsKey('guarita_vale_no_portao'), isFalse);
     });
   });
 
@@ -143,6 +185,23 @@ void main() {
     testWidgets('recusada mostra o selo', (t) async {
       await montar(t, estado: 'recusada');
       expect(find.text('RECUSADA PELA PORTARIA'), findsOneWidget);
+    });
+
+    testWidgets('gravado mostra o texto novo, com ponto de aviso', (t) async {
+      await montar(t, estado: 'gravado');
+      expect(find.text('GRAVADO. COMEÇA A VALER EM INSTANTES.'), findsOneWidget);
+      final dot = t.widget<AppDot>(find.byType(AppDot));
+      expect(dot.signal, AppSignal.warn);
+      expect(t.takeException(), isNull);
+    });
+
+    testWidgets('vale no portão deixa o ponto verde', (t) async {
+      await t.pumpWidget(const MaterialApp(
+        home: Scaffold(
+          body: SeloEstadoGuarita(estado: 'gravado', valeNoPortao: true),
+        ),
+      ));
+      expect(t.widget<AppDot>(find.byType(AppDot)).signal, AppSignal.ok);
     });
 
     testWidgets('o erro só aparece em falhou', (t) async {

@@ -338,6 +338,7 @@ class _VeiculoCard extends StatelessWidget {
                     SeloEstadoGuarita(
                       estado: veiculo.guaritaEstado,
                       erro: veiculo.guaritaErro,
+                      valeNoPortao: veiculo.guaritaValeNoPortao,
                     ),
                   ],
                 ],

@@ -1,3 +1,15 @@
+/// `guarita_vale_no_portao` opcional: bool, 1/0 ou "true"/"false"; o resto é nulo.
+bool? valeNoPortaoDoJson(dynamic v) {
+  if (v is bool) return v;
+  if (v is num) return v != 0;
+  if (v is String) {
+    final s = v.trim().toLowerCase();
+    if (s == 'true' || s == '1') return true;
+    if (s == 'false' || s == '0') return false;
+  }
+  return null;
+}
+
 class VeiculoModel {
   int? id;
   String? placa;
@@ -8,6 +20,8 @@ class VeiculoModel {
   // Estado da tag no Módulo Guarita (somente leitura; ausente sem Guarita).
   String? guaritaEstado;
   String? guaritaErro;
+  // true só quando a tag já vale no portão (`ativo`); ausente = regra do estado.
+  bool? guaritaValeNoPortao;
 
   VeiculoModel({
     this.id,
@@ -18,6 +32,7 @@ class VeiculoModel {
     this.tagCodigo,
     this.guaritaEstado,
     this.guaritaErro,
+    this.guaritaValeNoPortao,
   });
 
   factory VeiculoModel.fromJson(Map<String, dynamic> json) {
@@ -30,6 +45,7 @@ class VeiculoModel {
       tagCodigo: json['tag_codigo'],
       guaritaEstado: json['guarita_estado']?.toString(),
       guaritaErro: json['guarita_erro']?.toString(),
+      guaritaValeNoPortao: valeNoPortaoDoJson(json['guarita_vale_no_portao']),
     );
   }
 

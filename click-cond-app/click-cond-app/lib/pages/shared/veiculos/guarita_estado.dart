@@ -10,7 +10,7 @@ import 'package:flutter/material.dart';
 const _rotulos = <String, String>{
   'aguardando_aprovacao': 'Aguardando aprovação da portaria',
   'pendente': 'Enviando ao portão',
-  'gravado': 'Gravado no portão',
+  'gravado': 'Gravado. Começa a valer em instantes.',
   'ativo': 'Ativo nos portões',
   'falhou': 'Não foi possível gravar no portão',
   'removendo': 'Removendo do portão',
@@ -24,11 +24,13 @@ String? rotuloEstadoGuarita(String? estado) {
   return _rotulos[estado.trim()];
 }
 
-/// Sinal (ponto) do selo: gravado/ativo ok, falhou/recusada perigo, o resto em
-/// andamento.
-AppSignal sinalEstadoGuarita(String? estado) {
+/// Sinal (ponto) do selo. Verde só quando a tag já vale no portão:
+/// `guarita_vale_no_portao == true` ou, sem esse campo, o estado `ativo`.
+/// `gravado` ainda não vale (falta o portão aplicar) e fica em aviso.
+/// falhou/recusada são perigo; o resto, em andamento.
+AppSignal sinalEstadoGuarita(String? estado, {bool? valeNoPortao}) {
+  if (valeNoPortao == true) return AppSignal.ok;
   switch (estado?.trim()) {
-    case 'gravado':
     case 'ativo':
       return AppSignal.ok;
     case 'falhou':
@@ -77,8 +79,10 @@ String? estadoGuaritaDaResposta(String body) {
 class SeloEstadoGuarita extends StatelessWidget {
   final String? estado;
   final String? erro;
+  final bool? valeNoPortao;
 
-  const SeloEstadoGuarita({super.key, required this.estado, this.erro});
+  const SeloEstadoGuarita(
+      {super.key, required this.estado, this.erro, this.valeNoPortao});
 
   @override
   Widget build(BuildContext context) {
@@ -94,7 +98,7 @@ class SeloEstadoGuarita extends StatelessWidget {
         FittedBox(
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
-          child: AppTag(label: rotulo, signal: sinalEstadoGuarita(estado)),
+          child: AppTag(label: rotulo, signal: sinalEstadoGuarita(estado, valeNoPortao: valeNoPortao)),
         ),
         if (motivo != null) ...[
           const SizedBox(height: 4),
