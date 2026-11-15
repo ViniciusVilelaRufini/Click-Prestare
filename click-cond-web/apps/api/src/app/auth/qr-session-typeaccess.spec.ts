@@ -3,6 +3,13 @@ import { AuthService } from './auth.service';
 import { assertStaff } from './tenant.util';
 import type { JwtPayload } from './jwt-payload.interface';
 
+// Este spec não é sobre o bloqueio do porteiro desativado (funcionario-desativado.spec): a conferência responde
+// "não desativado". Ela é falha fechada no login do app e no QR, e os mocks daqui não têm as tabelas dela.
+jest.mock('./login-portaria-desativado.util', () => ({
+  ...jest.requireActual('./login-portaria-desativado.util'),
+  loginPortariaDesativadoNoCondominio: jest.fn(async () => false),
+}));
+
 /**
  * O login por QR Code da portaria-web troca o token do app por um token de
  * console (com id_condominio). Esse token saía SEM `typeAccess`, e o módulo
@@ -21,8 +28,6 @@ describe('AuthService.authorizeQrSession — papel no token de portaria', () => 
     let assinado: JwtPayload | null = null;
     const prisma: any = {
       isConnected: vinculos.conectado ?? true,
-      // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
-      $queryRaw: jest.fn(async () => []),
       condominios: { findUnique: jest.fn(async () => ({ nome: 'Edifício Demo' })) },
       sindicos_Condominios: { findFirst: jest.fn(async () => (vinculos.sindico ? { id: 1 } : null)) },
       funcionarios: { findFirst: jest.fn(async () => (vinculos.funcionario ? { id: 2 } : null)) },

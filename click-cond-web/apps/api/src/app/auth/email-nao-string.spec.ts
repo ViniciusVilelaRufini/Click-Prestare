@@ -16,8 +16,6 @@ function mobile() {
   const zero = () => jest.fn(async () => 0);
   const prisma: any = {
     isConnected: true,
-    // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
-    $queryRaw: jest.fn(async () => []),
     moradores: {
       findUnique: jest.fn(async () => ({
         id: 10, id_user: 40, id_condominio: 1, email: 'v@x.com', nome: 'V', data_nascimento: null, extra2: null,
@@ -61,8 +59,6 @@ function web() {
   };
   const prisma: any = {
     isConnected: true,
-    // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
-    $queryRaw: jest.fn(async () => []),
     moradores: {
       findUnique: jest.fn(async () => ({
         id: 10, id_user: 40, id_condominio: 1, email: 'v@x.com', nome: 'V',

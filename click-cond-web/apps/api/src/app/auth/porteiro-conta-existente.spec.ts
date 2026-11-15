@@ -4,6 +4,13 @@ import { MobileAuthService } from './mobile-auth.service';
 import { TenantAccessService } from './tenant-access.service';
 import type { JwtPayload } from './jwt-payload.interface';
 
+// Este spec não é sobre o bloqueio do porteiro desativado (funcionario-desativado.spec): a conferência responde
+// "não desativado". Ela é falha fechada no login do app e no QR, e os mocks daqui não têm as tabelas dela.
+jest.mock('./login-portaria-desativado.util', () => ({
+  ...jest.requireActual('./login-portaria-desativado.util'),
+  loginPortariaDesativadoNoCondominio: jest.fn(async () => false),
+}));
+
 /**
  * Users é global e o login do porteiro é livre. Um síndico (inclusive de
  * signup anônimo + /condominio/register) cadastrava um porteiro com o e-mail
@@ -36,8 +43,6 @@ export function prismaFalso(opts: {
 
   return {
     isConnected: true,
-    // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
-    $queryRaw: jest.fn(async () => []),
     users: {
       findFirst: jest.fn(async ({ where }: any) => {
         const login = where?.login ?? where?.OR?.[0]?.login;

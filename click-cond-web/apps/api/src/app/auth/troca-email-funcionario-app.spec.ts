@@ -91,12 +91,6 @@ describe('saveFuncionario (app) — trocar o e-mail do porteiro tira a conta ant
       moradores: tabela(db.moradores),
       apartamentos_Users: tabela(db.aptUsers),
       prestadores_servico: tabela(db.prestadores),
-      $queryRaw: jest.fn(async (_s: TemplateStringsArray, idUser: number, idCond: number) => {
-        const u = db.users.find((x) => x.id === idUser);
-        if (!u) return [];
-        const chaves = [u.login, u.email].filter(Boolean);
-        return db.fp.filter((f) => f.id_condominio === idCond && (chaves.includes(f.login) || chaves.includes(f.email))).map((f) => ({ ativo: f.ativo }));
-      }),
     };
     prisma.$transaction = jest.fn(async (fn: any) => {
       const copia = JSON.parse(JSON.stringify(db));

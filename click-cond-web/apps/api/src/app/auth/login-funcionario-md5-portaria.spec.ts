@@ -1,6 +1,13 @@
 import { createHash } from 'crypto';
 import { MobileAuthService } from './mobile-auth.service';
 
+// Este spec não é sobre o bloqueio do porteiro desativado (funcionario-desativado.spec): a conferência responde
+// "não desativado". Ela é falha fechada no login do app e no QR, e os mocks daqui não têm as tabelas dela.
+jest.mock('./login-portaria-desativado.util', () => ({
+  ...jest.requireActual('./login-portaria-desativado.util'),
+  loginPortariaDesativadoNoCondominio: jest.fn(async () => false),
+}));
+
 /**
  * verifyPassword migrava hash MD5 para bcrypt sempre em Users, com o id que
  * recebia. O loginFuncionario passava Funcionarios_Portaria.id — outra tabela,
@@ -14,8 +21,6 @@ describe('loginFuncionario — senha MD5 legada da portaria', () => {
   function build(usuarioExistente: any) {
     const prisma: any = {
       isConnected: true,
-      // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
-      $queryRaw: jest.fn(async () => []),
       users: {
         findFirst: jest.fn(async () => usuarioExistente),
         create: jest.fn(async () => ({ id: 40, photo: null, password: 'h', funcionarios: [] })),

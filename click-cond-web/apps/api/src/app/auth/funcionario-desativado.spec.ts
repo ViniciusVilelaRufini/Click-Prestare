@@ -77,15 +77,6 @@ describe('Login de portaria desativado — corta o funcionário deste condomíni
       condominios: { findUnique: jest.fn(async () => ({ nome: 'Edifício Demo' })) },
       encomendas: { count: jest.fn(async () => 0) },
     };
-    // A consulta única do helper (JOIN Users × Funcionarios_Portaria): login OU e-mail da linha = login OU e-mail da conta.
-    prisma.$queryRaw = jest.fn(async (_sql: TemplateStringsArray, idUser: number, idCond: number) => {
-      const u = db.users.find((x) => x.id === idUser);
-      if (!u) return [];
-      const chaves = [u.login, u.email].filter(Boolean);
-      return db.fp
-        .filter((f) => f.id_condominio === idCond && (chaves.includes(f.login) || chaves.includes(f.email)))
-        .map((f) => ({ ativo: f.ativo }));
-    });
     prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
     // loginFuncionario: a conta vem com os vínculos de equipe (include funcionarios).
     const usersFindFirst = prisma.users.findFirst;
@@ -121,9 +112,9 @@ describe('Login de portaria desativado — corta o funcionário deste condomíni
     expect(await loginPortariaDesativadoNoCondominio(prisma, 5, 1)).toBe(true);
     expect(await loginPortariaDesativadoNoCondominio(prisma, 5, 2)).toBe(false); // sem linha de portaria no 2
     limparCacheLoginPortariaDesativado();
-    prisma.$queryRaw.mockRejectedValueOnce(new Error('banco instável'));
+    prisma.funcionarios_Portaria.findMany.mockRejectedValueOnce(new Error('banco instável'));
     expect(await loginPortariaDesativadoNoCondominio(prisma, 5, 1)).toBe(false); // rotas: segue o vínculo, como o JwtStrategy
-    prisma.$queryRaw.mockRejectedValueOnce(new Error('banco instável'));
+    prisma.users.findUnique.mockRejectedValueOnce(new Error('banco instável'));
     await expect(loginPortariaDesativadoNoCondominio(prisma, 5, 1, { falhaFechada: true })).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     ); // autenticação: recusa
@@ -135,19 +126,45 @@ describe('Login de portaria desativado — corta o funcionário deste condomíni
     expect(await loginPortariaDesativadoNoCondominio(prisma, 5, 1)).toBe(true);
   });
 
-  it('M4: uma consulta só, com cache de 30 s por (conta, condomínio); limpar o cache refaz', async () => {
+  it('sem comparar coluna com coluna: a conta é lida por id e as linhas consultadas pelos valores dela', async () => {
+    const { prisma } = banco();
+    await loginPortariaDesativadoNoCondominio(prisma, 5, 1);
+    expect(prisma.users.findUnique).toHaveBeenCalledWith({ where: { id: 5 }, select: { login: true, email: true } });
+    expect(prisma.funcionarios_Portaria.findMany).toHaveBeenCalledWith({
+      where: { id_condominio: 1, OR: [{ login: { in: ['ana@x.com'] } }, { email: { in: ['ana@x.com'] } }] },
+      select: { login: true, email: true, ativo: true },
+    });
+    expect(prisma.$queryRaw).toBeUndefined();
+  });
+
+  it('caixa e espaços não importam (em memória, além da collation); vazio e nulo nunca casam', async () => {
+    const { db, prisma } = banco();
+    // O banco devolve a linha (collation sem caixa); a comparação em memória confirma em minúsculas.
+    prisma.funcionarios_Portaria.findMany.mockResolvedValueOnce([{ login: ' ANA@X.com ', email: null, ativo: 0 }]);
+    expect(await loginPortariaDesativadoNoCondominio(prisma, 5, 1)).toBe(true);
+    // Conta sem e-mail e linha com e-mail vazio: não casam.
+    db.users.push({ id: 6, login: 'semEmail', email: null, password: hash, photo: null, senha_alterada_em: null });
+    prisma.funcionarios_Portaria.findMany.mockResolvedValueOnce([{ login: 'outro', email: '', ativo: 0 }]);
+    expect(await loginPortariaDesativadoNoCondominio(prisma, 6, 1)).toBe(false);
+    // Conta sem login nem e-mail: nem consulta as linhas.
+    db.users.push({ id: 7, login: '', email: null, password: hash, photo: null, senha_alterada_em: null });
+    prisma.funcionarios_Portaria.findMany.mockClear();
+    expect(await loginPortariaDesativadoNoCondominio(prisma, 7, 1)).toBe(false);
+    expect(prisma.funcionarios_Portaria.findMany).not.toHaveBeenCalled();
+  });
+
+  it('M4: cache de 30 s por (conta, condomínio); limpar o cache refaz', async () => {
     const { prisma } = banco();
     await loginPortariaDesativadoNoCondominio(prisma, 5, 1);
     await loginPortariaDesativadoNoCondominio(prisma, 5, 1);
-    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
-    expect(prisma.users.findUnique).not.toHaveBeenCalled();
-    expect(prisma.funcionarios_Portaria.findMany).not.toHaveBeenCalled();
+    expect(prisma.users.findUnique).toHaveBeenCalledTimes(1);
+    expect(prisma.funcionarios_Portaria.findMany).toHaveBeenCalledTimes(1);
     await loginPortariaDesativadoNoCondominio(prisma, 5, 2); // outro condomínio: outra chave
-    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(prisma.funcionarios_Portaria.findMany).toHaveBeenCalledTimes(2);
     limparCacheLoginPortariaDesativado(1);
     await loginPortariaDesativadoNoCondominio(prisma, 5, 1);
     await loginPortariaDesativadoNoCondominio(prisma, 5, 2);
-    expect(prisma.$queryRaw).toHaveBeenCalledTimes(3);
+    expect(prisma.funcionarios_Portaria.findMany).toHaveBeenCalledTimes(3);
   });
 
   it('M6: com o primeiro vínculo desativado, o app cai no próximo ativo; sem nenhum, em nenhum', async () => {
@@ -237,7 +254,7 @@ describe('Login de portaria desativado — corta o funcionário deste condomíni
   describe('falha fechada na autenticação (M3)', () => {
     it('erro na conferência: login do app e QR recusam (503, tente de novo); a rota do app segue o vínculo', async () => {
       const { prisma } = banco();
-      prisma.$queryRaw.mockRejectedValue(new Error('banco instável'));
+      prisma.funcionarios_Portaria.findMany.mockRejectedValue(new Error('banco instável'));
       const app = new MobileAuthService(prisma, { sign: jest.fn(() => 't') } as any, {} as any, {} as any, {} as any, {} as any);
       await expect(app.loginFuncionario('ana@x.com', SENHA)).rejects.toBeInstanceOf(ServiceUnavailableException);
       const qrStore: any = { get: jest.fn(async () => ({ status: 'pending' })), confirm: jest.fn(async () => true) };

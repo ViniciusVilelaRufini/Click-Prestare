@@ -3,6 +3,13 @@ import * as bcrypt from 'bcrypt';
 import { MobileAuthService } from './mobile-auth.service';
 import { TenantAccessService } from './tenant-access.service';
 
+// Este spec não é sobre o bloqueio do porteiro desativado (funcionario-desativado.spec): a conferência responde
+// "não desativado". Ela é falha fechada no login do app e no QR, e os mocks daqui não têm as tabelas dela.
+jest.mock('./login-portaria-desativado.util', () => ({
+  ...jest.requireActual('./login-portaria-desativado.util'),
+  loginPortariaDesativadoNoCondominio: jest.fn(async () => false),
+}));
+
 /**
  * Condomínio desativado no CRM precisa derrubar o app junto: a web já corta
  * (`condominio: { ativo: 1 }`), mas assertCondominio e os logins do app não olhavam.
@@ -22,8 +29,6 @@ describe('assertCondominio — condomínio inativo', () => {
   function build(ativo: boolean) {
     const prisma: any = {
       isConnected: true,
-      // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
-      $queryRaw: jest.fn(async () => []),
       sindicos_Condominios: { findFirst: vinculoQueRespeitaAtivo(ativo) },
       funcionarios: { findFirst: vinculoQueRespeitaAtivo(ativo) },
       apartamentos_Users: { findFirst: vinculoQueRespeitaAtivo(ativo) },
@@ -74,8 +79,6 @@ describe('logins do app — condomínio inativo', () => {
   it('loginSindico: só vínculos inativos → recusa com a mensagem de suspensão', async () => {
     const prisma: any = {
       isConnected: true,
-      // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
-      $queryRaw: jest.fn(async () => []),
       users: {
         findFirst: jest.fn(async () => ({
           id: 1, login: 'a', password: hash, sindicos: [{ name: 'S' }], sindicosCondominios: [inativo],
@@ -90,8 +93,6 @@ describe('logins do app — condomínio inativo', () => {
   it('loginSindico: um ativo e um inativo → entra', async () => {
     const prisma: any = {
       isConnected: true,
-      // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
-      $queryRaw: jest.fn(async () => []),
       users: {
         findFirst: jest.fn(async () => ({
           id: 1, login: 'a', password: hash, sindicos: [{ name: 'S' }], sindicosCondominios: [inativo, ativo],
@@ -104,8 +105,6 @@ describe('logins do app — condomínio inativo', () => {
   it('loginMorador: só vínculos inativos → recusa', async () => {
     const prisma: any = {
       isConnected: true,
-      // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
-      $queryRaw: jest.fn(async () => []),
       users: {
         findFirst: jest.fn(async () => ({
           id: 1, login: 'a', password: hash,
@@ -122,8 +121,6 @@ describe('logins do app — condomínio inativo', () => {
   it('loginMorador: um ativo e um inativo → entra', async () => {
     const prisma: any = {
       isConnected: true,
-      // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
-      $queryRaw: jest.fn(async () => []),
       users: {
         findFirst: jest.fn(async () => ({
           id: 1, login: 'a', password: hash,
@@ -138,8 +135,6 @@ describe('logins do app — condomínio inativo', () => {
   it('loginFuncionario: só vínculos inativos → recusa', async () => {
     const prisma: any = {
       isConnected: true,
-      // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
-      $queryRaw: jest.fn(async () => []),
       users: {
         findFirst: jest.fn(async () => ({
           id: 1, login: 'a', password: hash, funcionarios: [{ id_condominio: 1, nome: 'F', condominio: { ativo: 0 } }],
@@ -154,8 +149,6 @@ describe('logins do app — condomínio inativo', () => {
   it('loginFuncionario: um ativo e um inativo → entra', async () => {
     const prisma: any = {
       isConnected: true,
-      // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
-      $queryRaw: jest.fn(async () => []),
       users: {
         findFirst: jest.fn(async () => ({
           id: 1, login: 'a', password: hash,

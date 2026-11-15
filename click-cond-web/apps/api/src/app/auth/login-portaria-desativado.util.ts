@@ -4,7 +4,8 @@ const logger = new Logger('LoginPortariaDesativado');
 
 /** Por quanto tempo a resposta fica em cache por (conta, condomínio) — o mesmo prazo do JwtStrategy. */
 const CACHE_MS = 30_000;
-const cache = new Map<string, { valor: boolean; expira: number }>();
+/** Resposta e o par login/e-mail da conta com que ela foi calculada. */
+const cache = new Map<string, { valor: boolean; chaves: string[]; expira: number }>();
 
 /**
  * Esquece o que está em cache. A aba "Equipe da portaria" chama ao ativar/desativar, para valer na hora nesta
@@ -23,7 +24,8 @@ export const MSG_CONFERENCIA_INDISPONIVEL = 'Não foi possível conferir seu ace
  * "Login de portaria desativado neste condomínio": a conta Users tem, NESTE condomínio, linha(s) em
  * Funcionarios_Portaria ligadas a ela — `login` ou `email` da linha igual ao login ou ao e-mail da conta (o elo do
  * cadastro do porteiro e o do fallback do loginFuncionario, que liga também pelo e-mail) —, todas com `ativo = 0`, e
- * nenhuma ativa. Uma consulta só (JOIN com Users), com cache de 30 s por (conta, condomínio).
+ * nenhuma ativa. Duas consultas por parâmetro (a conta por id; as linhas deste condomínio pelos valores dela), com
+ * cache de 30 s por (conta, condomínio).
  *
  * O síndico desativa o porteiro na aba "Equipe da portaria" (ativo = 0). O vínculo de equipe do app (Funcionarios)
  * não tem "ativo" — muitos pontos conferem só a existência da linha —, então é este helper que corta, enquanto a
@@ -49,17 +51,22 @@ export async function loginPortariaDesativadoNoCondominio(
   const agora = Date.now();
   const emCache = cache.get(chave);
   if (emCache && emCache.expira > agora) return emCache.valor;
+  let chaves: string[];
   let linhas: unknown;
   try {
-    linhas = await db.$queryRaw`
-      SELECT fp.ativo AS ativo
-        FROM Funcionarios_Portaria fp
-        JOIN Users u ON u.id = ${Number(idUser)}
-       WHERE fp.id_condominio = ${Number(idCondominio)}
-         AND (
-              (u.login IS NOT NULL AND u.login <> '' AND (fp.login = u.login OR fp.email = u.login))
-           OR (u.email IS NOT NULL AND u.email <> '' AND (fp.login = u.email OR fp.email = u.email))
-         )`;
+    // Nunca coluna × coluna entre tabelas em SQL (Users e Funcionarios_Portaria podem ter collations diferentes, e a
+    // comparação daria erro 1267 em toda chamada): lê os VALORES da conta e consulta as linhas por parâmetro.
+    const conta = await db.users.findUnique({ where: { id: Number(idUser) }, select: { login: true, email: true } });
+    chaves = [...new Set([conta?.login, conta?.email].map(normalizar).filter((v): v is string => !!v))];
+    if (chaves.length === 0) {
+      linhas = [];
+    } else {
+      const valores = [...new Set([conta?.login, conta?.email].filter((v): v is string => typeof v === 'string' && !!v.trim()).flatMap((v) => [v, v.trim()]))];
+      linhas = await db.funcionarios_Portaria.findMany({
+        where: { id_condominio: Number(idCondominio), OR: [{ login: { in: valores } }, { email: { in: valores } }] },
+        select: { login: true, email: true, ativo: true },
+      });
+    }
     if (!Array.isArray(linhas)) throw new Error('resposta inesperada');
   } catch (e: any) {
     if (opcoes.falhaFechada) {
@@ -69,8 +76,23 @@ export async function loginPortariaDesativadoNoCondominio(
     logger.warn(`Não foi possível conferir o login de portaria do usuário ${idUser} no condomínio ${idCondominio}: ${e?.message ?? e}`);
     return false;
   }
-  const valor = linhas.length > 0 && linhas.every((l: any) => l?.ativo != null && Number(l.ativo) !== 1);
+  // Em memória, em minúsculas dos dois lados (além do que a collation do banco fizer); login/e-mail vazio da linha
+  // nunca casa (a conta sem e-mail não casa com linha de e-mail vazio).
+  const daConta = new Set(chaves);
+  const ligadas = (linhas as any[]).filter((l) => {
+    const login = normalizar(l?.login);
+    const email = normalizar(l?.email);
+    return (!!login && daConta.has(login)) || (!!email && daConta.has(email));
+  });
+  const valor = ligadas.length > 0 && ligadas.every((l: any) => l?.ativo != null && Number(l.ativo) !== 1);
   if (cache.size > 10_000) cache.clear();
-  cache.set(chave, { valor, expira: agora + CACHE_MS });
+  cache.set(chave, { valor, chaves, expira: agora + CACHE_MS });
   return valor;
+}
+
+/** Login/e-mail para comparar: sem espaços nas pontas, minúsculo; vazio vira null. */
+function normalizar(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const t = v.trim().toLowerCase();
+  return t || null;
 }
