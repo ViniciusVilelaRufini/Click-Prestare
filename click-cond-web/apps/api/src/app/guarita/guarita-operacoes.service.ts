@@ -10,6 +10,8 @@ import {
   TIPO_DEVICE_GUARITA,
 } from './guarita.constantes';
 import {
+  blocoParaByte,
+  byteParaBloco,
   codificarApagar,
   codificarDispositivo,
   corParaByte,
@@ -34,7 +36,16 @@ export interface ResultadoGravacao {
   ok: boolean;
   codigo?: number;
   erro?: string;
+  /** O dispositivo lido no Guarita está em outra unidade/bloco: o agente NÃO escreveu. */
+  conflito?: boolean;
+  /** Unidade e byte do bloco que o agente leu no Guarita (com `conflito`). */
+  lido?: { unidade: number; bloco: number } | null;
+  /** Cadastrar (0x02 na mesma unidade) ou apagar (0x03): já estava como pedido. */
+  ja_estava?: boolean;
 }
+
+/** Código de tag criado pelos fluxos do Guarita (importação, captura, digitado): G<tipo>-<serial>[-D<id>]. */
+const CODIGO_DO_GUARITA = /^G[1236]-[0-9A-F]+(-D\d+)?$/;
 
 const TIPOS_GRAVACAO: string[] = [...OPERACOES_DE_GRAVACAO];
 const TIPOS_LEITURA: string[] = [...OPERACOES_DE_LEITURA];
@@ -131,20 +142,137 @@ export class GuaritaOperacoesService {
     return this.criarGravacao(tag, 'cadastrar', frame, autor, ESTADO_TAG.pendente);
   }
 
-  /** Edição (67, opção 1) usando o frame lido/confirmado do Guarita como base (grupo, receptores e flags ficam). */
-  async enfileirarEdicao(idTag: number, autor: string): Promise<{ id_operacao: number }> {
+  /**
+   * Edição (67, opção 1) usando o frame do Guarita como base (grupo, receptores
+   * e flags ficam). Cadastro desta tag ainda não entregue: só troca o frame
+   * dele. Tag fora da lista branca (podeEscrever) → null, nada é enfileirado.
+   * Frame que não monta: o motivo fica em `guarita_erro` e a exceção sobe.
+   */
+  async enfileirarEdicao(idTag: number, autor: string): Promise<{ id_operacao: number } | null> {
     const tag = await this.tagDoGuarita(idTag);
-    let base: string | null = tag.guarita_frame ?? null;
-    if (!base) {
-      const cad = await this.prisma.guarita_Operacoes.findFirst({
-        where: { id_tag: tag.id, tipo: 'cadastrar', frame_hex: { not: null } },
-        orderBy: { id: 'desc' },
-        select: { frame_hex: true },
+    const cadastroPendente = await this.prisma.guarita_Operacoes.findFirst({
+      where: { id_tag: tag.id, tipo: 'cadastrar', estado: ESTADO_OP.pendente },
+      orderBy: { id: 'desc' },
+      select: { id: true },
+    });
+    if (cadastroPendente) {
+      const frame = await this.montarFrameOuRegistrar(tag, null);
+      const r = await this.prisma.guarita_Operacoes.updateMany({
+        where: { id: cadastroPendente.id, estado: ESTADO_OP.pendente },
+        data: { frame_hex: frame },
       });
-      base = cad?.frame_hex ?? null;
+      if (r.count === 1) return { id_operacao: cadastroPendente.id };
     }
-    const frame = await this.montarFrame(tag, base);
+    // Cadastro entregue e ainda sem resultado: a edição entra atrás dele (a fila
+    // só a entrega depois do resultado, e a cancela se o cadastro não der ok).
+    const cadastroEmVoo = await this.prisma.guarita_Operacoes.count({
+      where: { id_tag: tag.id, tipo: 'cadastrar', estado: { in: [ESTADO_OP.enviada, ESTADO_OP.processando] } },
+    });
+    if (cadastroEmVoo === 0 && !(await this.podeEscrever(tag))) return null;
+    const base = (await this.frameConhecido(tag)) ?? null;
+    const frame = await this.montarFrameOuRegistrar(tag, base);
     return this.criarGravacao(tag, 'editar', frame, autor, ESTADO_TAG.pendente);
+  }
+
+  private async montarFrameOuRegistrar(tag: any, base: string | null): Promise<string> {
+    try {
+      return await this.montarFrame(tag, base);
+    } catch (err: any) {
+      await this.prisma.tags.update({
+        where: { id: tag.id },
+        data: { guarita_erro: String(err?.message ?? err).slice(0, 255) },
+      });
+      throw err;
+    }
+  }
+
+  /**
+   * A ÚNICA regra que decide se uma tag pode gerar escrita (editar/apagar) no
+   * Guarita. Lista branca: `gravado`, `ativo`, `removendo` (só nasce de uma
+   * destas) e `pendente`/`falhou` quando o Prestare já teve a confirmação de
+   * que o dispositivo é dele no Guarita — um `cadastrar` desta tag concluído
+   * `ok`, ou um `editar` (que só existe para tag já confirmada). Qualquer outro
+   * estado (`a_vincular`, `conflito`, `ausente`, `aguardando_aprovacao`,
+   * `recusada`, nulo) nunca escreve.
+   */
+  async podeEscrever(tag: any): Promise<boolean> {
+    if (!tag || tag.id_device == null || tag.guarita_tipo == null || !tag.guarita_serial) return false;
+    const e = tag.guarita_estado;
+    if (e === ESTADO_TAG.gravado || e === ESTADO_TAG.ativo || e === ESTADO_TAG.removendo) return true;
+    if (e !== ESTADO_TAG.pendente && e !== ESTADO_TAG.falhou) return false;
+    const confirmacoes = await this.prisma.guarita_Operacoes.count({
+      where: {
+        id_tag: tag.id,
+        OR: [{ tipo: 'cadastrar', estado: ESTADO_OP.ok }, { tipo: 'editar' }],
+      },
+    });
+    return confirmacoes > 0;
+  }
+
+  /** O frame que o Prestare acredita estar no Guarita: o lido/confirmado, ou o do último cadastro. */
+  async frameConhecido(tag: any): Promise<string | null> {
+    if (tag?.guarita_frame) return tag.guarita_frame;
+    const cad = await this.prisma.guarita_Operacoes.findFirst({
+      where: { id_tag: tag.id, tipo: 'cadastrar', frame_hex: { not: null } },
+      orderBy: { id: 'desc' },
+      select: { frame_hex: true },
+    });
+    return cad?.frame_hex ?? null;
+  }
+
+  /**
+   * Desfaz a tag SÓ no Prestare (nada vai para o Guarita): cancela as
+   * operações abertas dela; tag criada pelo Guarita (código G…) sai, tag
+   * digitada no app só perde o vínculo com o Guarita.
+   */
+  async desfazerNoPrestare(tag: any): Promise<void> {
+    await this.prisma.guarita_Operacoes.updateMany({
+      where: { id_tag: tag.id, estado: ESTADO_OP.pendente },
+      data: { estado: ESTADO_OP.cancelada, concluida_em: new Date() },
+    });
+    if (CODIGO_DO_GUARITA.test(String(tag.codigo ?? ''))) {
+      await this.prisma.$transaction([
+        this.prisma.veiculos.updateMany({ where: { id_tag: tag.id }, data: { id_tag: null } }),
+        this.prisma.tags.deleteMany({ where: { id: tag.id } }),
+      ]);
+      return;
+    }
+    await this.prisma.tags.update({
+      where: { id: tag.id },
+      data: {
+        id_device: null,
+        guarita_estado: null,
+        guarita_erro: null,
+        guarita_tipo: null,
+        guarita_serial: null,
+        guarita_contador: null,
+        guarita_frame: null,
+      },
+    });
+  }
+
+  /**
+   * `POST …/dispositivos/:idTag/desfazer`: tag em `conflito` (ou `ausente`)
+   * sai do Prestare — a linha some, nenhuma operação vai para o Guarita.
+   */
+  async desfazer(idCondominio: number, deviceId: number, idTag: number) {
+    const device = await buscarGuaritaDoCondominio(this.prisma, idCondominio, deviceId);
+    const tag = await this.prisma.tags.findFirst({
+      where: { id: Number(idTag), id_device: device.id, id_condominio: device.id_condominio },
+    });
+    if (!tag) throw new NotFoundException('Dispositivo não encontrado neste Guarita.');
+    if (tag.guarita_estado !== ESTADO_TAG.conflito && tag.guarita_estado !== ESTADO_TAG.ausente) {
+      throw new BadRequestException('Só dá para desfazer o vínculo de um dispositivo em conflito ou que não está mais no Guarita.');
+    }
+    await this.prisma.guarita_Operacoes.updateMany({
+      where: { id_tag: tag.id, estado: ESTADO_OP.pendente },
+      data: { estado: ESTADO_OP.cancelada, concluida_em: new Date() },
+    });
+    await this.prisma.$transaction([
+      this.prisma.veiculos.updateMany({ where: { id_tag: tag.id }, data: { id_tag: null } }),
+      this.prisma.tags.deleteMany({ where: { id: tag.id } }),
+    ]);
+    return { id_tag: tag.id, desfeito: true };
   }
 
   /**
@@ -157,15 +285,28 @@ export class GuaritaOperacoesService {
     const tag = await this.prisma.tags.findUnique({ where: { id: Number(idTag) } });
     if (!tag || tag.id_device == null) return false;
     const estado = tag.guarita_estado;
-    if (estado === ESTADO_TAG.aguardandoAprovacao) {
-      await this.prisma.tags.update({
-        where: { id: tag.id },
-        data: { id_device: null, guarita_estado: null, guarita_erro: null },
-      });
+    if (estado === ESTADO_TAG.aguardandoAprovacao || estado === ESTADO_TAG.recusada) {
+      await this.desfazerNoPrestare(tag);
       return false;
     }
-    // a_vincular: o Prestare não gravou este dispositivo — NUNCA apaga do Guarita.
-    if (estado === ESTADO_TAG.aVincular || estado == null) return false;
+    // Cadastro desta tag ainda não entregue: cancela (nada chegou ao Guarita).
+    await this.prisma.guarita_Operacoes.updateMany({
+      where: { id_tag: tag.id, tipo: 'cadastrar', estado: ESTADO_OP.pendente },
+      data: { estado: ESTADO_OP.cancelada, concluida_em: new Date() },
+    });
+    // Cadastro já entregue e sem resultado: o apagar entra na fila e só sai
+    // depois do resultado dele (a fila não entrega nada com lote em voo), e é
+    // cancelado se o cadastro não der ok.
+    const cadastroEmVoo = await this.prisma.guarita_Operacoes.count({
+      where: { id_tag: tag.id, tipo: 'cadastrar', estado: { in: [ESTADO_OP.enviada, ESTADO_OP.processando] } },
+    });
+    if (cadastroEmVoo === 0 && !(await this.podeEscrever(tag))) {
+      // a_vincular, conflito, ausente: o Prestare não gravou — NUNCA apaga do
+      // Guarita (fica como está, o síndico decide). Pendente que nunca chegou
+      // ao Guarita: só desfaz no Prestare.
+      if (estado === ESTADO_TAG.pendente || estado === ESTADO_TAG.falhou) await this.desfazerNoPrestare(tag);
+      return false;
+    }
     if (tag.guarita_tipo == null || !tag.guarita_serial) return false;
     if (estado === ESTADO_TAG.removendo) {
       const aberta = await this.prisma.guarita_Operacoes.count({
@@ -452,6 +593,14 @@ export class GuaritaOperacoesService {
   async aplicarResultado(idOperacao: number, r: ResultadoGravacao): Promise<void> {
     const op = await this.prisma.guarita_Operacoes.findUnique({ where: { id: Number(idOperacao) } });
     if (!op) return;
+    // Conflito: o agente leu o dispositivo em outra unidade e não escreveu; ou
+    // o cadastro voltou 0x02 sem ser "já estava" (o serial é de outra pessoa).
+    const conflito =
+      r.conflito === true || (op.tipo === 'cadastrar' && !r.ok && r.codigo === 0x02 && r.ja_estava !== true);
+    if (conflito) {
+      await this.marcarConflito(op, r);
+      return;
+    }
     const apagouJa = op.tipo === 'apagar' && !r.ok && r.codigo === 0x03;
     const ok = r.ok || apagouJa;
     const mensagem = ok ? null : (r.erro ?? (r.codigo !== undefined ? MENSAGENS_67[r.codigo] : undefined) ?? 'O Guarita não respondeu.');
@@ -527,6 +676,73 @@ export class GuaritaOperacoesService {
         ...(maisNova === 0 && { guarita_estado: ESTADO_TAG.falhou }),
       },
     });
+    // Cadastro que não deu ok: o dispositivo não está no Guarita por nós. As
+    // gravações seguintes desta tag ainda na fila (editar/apagar) não têm o que
+    // escrever: são canceladas; se ela estava saindo, sai só do Prestare.
+    if (op.tipo === 'cadastrar') {
+      await this.prisma.guarita_Operacoes.updateMany({
+        where: { id_tag: tag.id, estado: ESTADO_OP.pendente, id: { gt: op.id }, tipo: { in: ['editar', 'apagar'] } },
+        data: { estado: ESTADO_OP.cancelada, concluida_em: agora },
+      });
+      if (tag.guarita_estado === ESTADO_TAG.removendo && !(await this.podeEscrever({ ...tag, guarita_estado: ESTADO_TAG.pendente }))) {
+        await this.desfazerNoPrestare(tag);
+      }
+    }
+  }
+
+  /**
+   * O serial está no Guarita em OUTRA unidade/bloco: a tag vira `conflito` (nunca
+   * recebe apagar nem editar) e as operações dela ainda na fila são canceladas.
+   * Só sai daí pelo "desfazer vínculo" do síndico.
+   */
+  private async marcarConflito(op: any, r: ResultadoGravacao) {
+    const agora = new Date();
+    const lido =
+      r.lido && Number.isInteger(r.lido.unidade) && Number.isInteger(r.lido.bloco)
+        ? ` (lá está na unidade ${r.lido.unidade} bloco ${byteParaBloco(r.lido.bloco)})`
+        : '';
+    const mensagem = `Este dispositivo já está no Guarita em outra unidade${lido}. Nada foi gravado.`;
+    const reivindicou = await this.prisma.guarita_Operacoes.updateMany({
+      where: { id: op.id, estado: { in: ABERTAS } },
+      data: { estado: ESTADO_OP.falhou, codigo: r.codigo ?? null, erro: mensagem.slice(0, 255), concluida_em: agora },
+    });
+    if (reivindicou.count !== 1 || op.id_tag == null) return;
+    await this.marcarTagEmConflito(op.id_tag, mensagem);
+  }
+
+  /** Tag → `conflito` e operações pendentes dela canceladas (usado também pela importação/conferência). */
+  async marcarTagEmConflito(idTag: number, mensagem: string) {
+    await this.prisma.guarita_Operacoes.updateMany({
+      where: { id_tag: idTag, estado: ESTADO_OP.pendente },
+      data: { estado: ESTADO_OP.cancelada, concluida_em: new Date() },
+    });
+    await this.prisma.tags.updateMany({
+      where: { id: idTag },
+      data: { guarita_estado: ESTADO_TAG.conflito, guarita_erro: mensagem.slice(0, 255) },
+    });
+  }
+
+  /**
+   * (unidade, byte do bloco) que o Prestare espera para esta tag no Guarita: a
+   * do frame conhecido (lido/confirmado ou do último cadastro) ou, sem frame, a
+   * do morador dono do veículo. null = não há como saber.
+   */
+  async unidadeEsperada(tag: any): Promise<{ unidade: number; bloco: number } | null> {
+    const frame = await this.frameConhecido(tag);
+    if (frame) {
+      try {
+        const d = decodificarDispositivo(frame);
+        return { unidade: d.unidade, bloco: blocoParaByte(d.bloco) };
+      } catch {
+        /* cai para o morador */
+      }
+    }
+    const veiculo = await this.prisma.veiculos.findFirst({ where: { id_tag: tag.id, ativo: 1 }, select: { id_morador: true } });
+    if (!veiculo) return null;
+    const m = await this.prisma.moradores.findUnique({ where: { id: veiculo.id_morador }, select: { bloco: true, apartamento: true } });
+    if (!m) return null;
+    const u = unidadeGuaritaDoTexto(m.bloco, m.apartamento, await this.condominioSemBlocos(tag.id_condominio));
+    return u.ok ? { unidade: u.unidade, bloco: u.bloco } : null;
   }
 
   /**

@@ -192,7 +192,7 @@ export class VeiculosService {
       (antes.cor ?? null) !== (depois.cor ?? null) ||
       (antes.marca_modelo ?? null) !== (depois.marca_modelo ?? null);
     if (!tag || tag.id_device == null || !mudou) return;
-    if (!['gravado', 'ativo', 'falhou', 'pendente'].includes(tag.guarita_estado)) return;
+    // Quem pode ser regravado decide a fila (GuaritaOperacoesService.podeEscrever).
     try {
       await g.enfileirarEdicao(tag.id, 'Portaria (edição do veículo)');
     } catch (err: any) {

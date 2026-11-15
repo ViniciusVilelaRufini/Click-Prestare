@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
@@ -21,6 +22,7 @@ import {
   TIPO_TAG_POR_GUARITA,
 } from './guarita.constantes';
 import { DispositivoGuarita, blocoParaByte, decodificarDispositivo } from './guarita-frame.util';
+import { GuaritaOperacoesService } from './guarita-operacoes.service';
 import type { GuaritaDoAgente, ResultadoOperacaoDto } from './guarita-agente.service';
 import { buscarGuaritaDoCondominio, unidadeGuaritaDoTexto } from './guarita-comum.util';
 import { hexDeTamanho } from './guarita-validacao.util';
@@ -105,8 +107,14 @@ export class GuaritaImportacaoService {
   private readonly logger = new Logger(GuaritaImportacaoService.name);
   private readonly estado: EstadoCompartilhado;
 
-  constructor(private readonly prisma: PrismaService) {
+  private readonly ops: GuaritaOperacoesService;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() operacoes?: GuaritaOperacoesService,
+  ) {
     this.estado = new EstadoCompartilhado(prisma);
+    this.ops = operacoes ?? new GuaritaOperacoesService(prisma);
   }
 
   // ----------------------------------------------------------- pedir leitura
@@ -301,7 +309,16 @@ export class GuaritaImportacaoService {
 
     const conhecidas = await this.prisma.tags.findMany({
       where: { id_device: device.id },
-      select: { id: true, guarita_tipo: true, guarita_serial: true, guarita_estado: true, guarita_frame: true },
+      select: {
+        id: true,
+        id_condominio: true,
+        id_device: true,
+        codigo: true,
+        guarita_tipo: true,
+        guarita_serial: true,
+        guarita_estado: true,
+        guarita_frame: true,
+      },
     });
     const porChave = new Map<string, any>();
     for (const t of conhecidas) {
@@ -320,8 +337,34 @@ export class GuaritaImportacaoService {
     const resumo = { total: lidos.size, novos: 0, atualizados: 0, vinculados: 0 };
     const dif: DiferencasConferencia = { so_no_guarita: [], so_no_prestare: [], divergente: [] };
 
+    // I11: o serial de uma tag que o Prestare ainda NÃO confirmou no Guarita
+    // (pendente/falhou sem cadastro ok, aguardando aprovação) já está lá em
+    // OUTRA unidade → conflito, e as gravações dela são canceladas.
+    const emConflito = new Set<number>();
+    for (const t of conhecidas) {
+      const naoConfirmada =
+        t.guarita_estado === ESTADO_TAG.aguardandoAprovacao ||
+        ((t.guarita_estado === ESTADO_TAG.pendente || t.guarita_estado === ESTADO_TAG.falhou) && !(await this.ops.podeEscrever(t)));
+      if (!naoConfirmada || !t.guarita_serial) continue;
+      const noGuarita = [...lidos.values()].filter(
+        (d) => d.serialHex === t.guarita_serial && (t.guarita_tipo == null || d.tipo === t.guarita_tipo),
+      );
+      if (!noGuarita.length) continue;
+      const esperada = await this.ops.unidadeEsperada(t);
+      const outra = noGuarita.find(
+        (d) => !esperada || d.unidade !== esperada.unidade || blocoParaByte(d.bloco) !== esperada.bloco,
+      );
+      if (!outra) continue;
+      await this.ops.marcarTagEmConflito(
+        t.id,
+        `Este dispositivo já está no Guarita em outra unidade (lá está na unidade ${outra.unidade} bloco ${outra.bloco}). Nada foi gravado.`,
+      );
+      emConflito.add(t.id);
+    }
+
     for (const [chave, d] of lidos) {
       const conhecida = porChave.get(chave);
+      if (conhecida && (emConflito.has(conhecida.id) || conhecida.guarita_estado === ESTADO_TAG.conflito)) continue;
       if (conhecida) {
         if (!conferencia) {
           await this.atualizarFrame(conhecida.id, d, agora);

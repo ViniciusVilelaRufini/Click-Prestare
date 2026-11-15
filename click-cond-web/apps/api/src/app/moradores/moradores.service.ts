@@ -1771,13 +1771,10 @@ export class MoradoresService {
         await g.enfileirarRemocoes(ids, autor);
         return;
       }
-      const tags = await this.prisma.tags.findMany({
-        where: { id: { in: ids }, guarita_estado: { in: ['gravado', 'ativo', 'falhou', 'pendente'] } },
-        select: { id: true },
-      });
-      for (const t of tags) {
-        await g.enfileirarEdicao(t.id, autor).catch((err: any) =>
-          this.logger.warn(`Edição da tag ${t.id} no Guarita (troca de unidade) não entrou na fila: ${err?.message ?? err}`),
+      // Quem pode ser regravado decide a fila (GuaritaOperacoesService.podeEscrever).
+      for (const id of ids) {
+        await g.enfileirarEdicao(id, autor).catch((err: any) =>
+          this.logger.warn(`Edição da tag ${id} no Guarita (troca de unidade) não entrou na fila: ${err?.message ?? err}`),
         );
       }
     } catch (err: any) {

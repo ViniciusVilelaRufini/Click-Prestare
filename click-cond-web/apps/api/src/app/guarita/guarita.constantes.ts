@@ -58,6 +58,12 @@ export const ESTADO_TAG = {
   falhou: 'falhou',
   aVincular: 'a_vincular',
   removendo: 'removendo',
+  /** O serial existe no Guarita em OUTRA unidade/bloco: nunca recebe apagar nem editar. */
+  conflito: 'conflito',
+  /** Veio da importação e sumiu do Guarita (o Prestare não o gravou): o síndico decide. */
+  ausente: 'ausente',
+  /** Tag do app recusada pela portaria: o mesmo código não volta para a fila. */
+  recusada: 'recusada',
 } as const;
 
 /** Tipos de dispositivo do Guarita aceitos pela integração (sem BM e SN). */

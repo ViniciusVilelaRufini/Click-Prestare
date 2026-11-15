@@ -136,13 +136,21 @@ describe('Guarita — fila e resultado', () => {
     expect(r.operacoes.map((o) => o.tipo)).toEqual(['importar']);
   });
 
-  it('dois pedidos para a mesma tag: operações em ordem e o resultado da 1ª não sobrescreve o estado antes do da 2ª', async () => {
+  it('dois pedidos para a mesma tag: em ordem, e o resultado da 1ª não sobrescreve o estado antes do da 2ª', async () => {
     const { db, ops } = montar();
     tagComVeiculo(db, { idTag: 1, idVeiculo: 70, idMorador: 50, estado: 'a_vincular', serial: '0F086E' });
-    const outraInstancia = new GuaritaOperacoesService(db as any);
-    const [a, b] = await Promise.all([ops.enfileirarCadastro(1, 'A'), outraInstancia.enfileirarEdicao(1, 'B')]);
+    const a = await ops.enfileirarCadastro(1, 'A');
+    // Edição com o cadastro ainda NÃO entregue: só troca o frame dele.
+    db.linhas('veiculos')[0].placa = 'NEW1A23';
+    const fundido = await new GuaritaOperacoesService(db as any).enfileirarEdicao(1, 'B');
+    expect(fundido?.id_operacao).toBe(a.id_operacao);
+    expect(db.linhas('guarita_Operacoes').filter((o: any) => o.tipo === 'editar')).toHaveLength(0);
+    // Cadastro entregue (em voo): a edição entra atrás dele.
+    db.linhas('guarita_Operacoes').find((o: any) => o.id === a.id_operacao).estado = 'enviada';
+    db.linhas('veiculos')[0].placa = 'NEW2B34';
+    const b = (await new GuaritaOperacoesService(db as any).enfileirarEdicao(1, 'B'))!;
     expect(a.id_operacao).toBeLessThan(b.id_operacao);
-    expect(db.linhas('guarita_Operacoes').filter((o: any) => o.tipo === 'atualizar_receptores')).toHaveLength(1);
+    expect(db.linhas('guarita_Operacoes').filter((o: any) => o.tipo === 'atualizar_receptores' && o.estado === 'pendente')).toHaveLength(1);
 
     await ops.aplicarResultado(a.id_operacao, { ok: true, codigo: 0 });
     const tag = () => db.linhas('tags')[0];

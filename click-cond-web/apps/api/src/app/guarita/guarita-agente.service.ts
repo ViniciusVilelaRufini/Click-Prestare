@@ -5,6 +5,7 @@ import { EstadoCompartilhado } from '../common/estado-compartilhado';
 import { GuaritaImportacaoService } from './guarita-importacao.service';
 import { GuaritaOperacoesService } from './guarita-operacoes.service';
 import { GuaritaEventosService } from './guarita-eventos.service';
+import { blocoParaByte, decodificarDispositivo } from './guarita-frame.util';
 import {
   ESTADO_OP,
   ESTADO_TTL_MS,
@@ -40,6 +41,12 @@ export interface OperacaoEntregue {
   id: number;
   tipo: string;
   frame_hex?: string;
+  /**
+   * `editar` e `apagar`: unidade e byte do bloco que o Prestare acredita estarem
+   * no Guarita para este dispositivo. O agente lê antes de escrever e, se forem
+   * outros, NÃO escreve e devolve `{ ok:false, conflito:true, lido }`.
+   */
+  esperado?: { unidade: number; bloco: number };
 }
 
 /** Corpo de `POST operacoes/:id/resultado` (contrato fixo com o driver do agente). */
@@ -50,6 +57,12 @@ export interface ResultadoOperacaoDto {
   frames_hex?: string[];
   parte?: number;
   fim?: boolean;
+  /** editar/apagar/cadastrar: o dispositivo está no Guarita em outra unidade; nada foi escrito. */
+  conflito?: boolean;
+  /** Com `conflito`: unidade e byte do bloco lidos no Guarita. */
+  lido?: { unidade: number; bloco: number } | null;
+  /** cadastrar 0x02 na mesma unidade / apagar 0x03: já estava como pedido (ok normal). */
+  ja_estava?: boolean;
 }
 
 /** Corpo de `POST estado`. */
@@ -178,7 +191,7 @@ export class GuaritaAgenteService {
       },
       orderBy: { id: 'asc' },
       take: MAX_OPERACOES_POR_PEDIDO * 4,
-      select: { id: true, tipo: true, frame_hex: true, estado: true, enviada_em: true },
+      select: { id: true, tipo: true, frame_hex: true, estado: true, enviada_em: true, id_tag: true },
     });
 
     // Importação que ficou "processando" (instância caiu no meio) além do
@@ -208,6 +221,14 @@ export class GuaritaAgenteService {
         if (temCopia === null) temCopia = await this.temCopiaDeSeguranca(device.id);
         if (!temCopia) break;
       }
+      // editar/apagar levam o que o Prestare acredita estar no Guarita; sem
+      // isso não há como o agente conferir, e a operação não sai.
+      let esperado: { unidade: number; bloco: number } | undefined;
+      if ((op.tipo === 'editar' || op.tipo === 'apagar') && this.operacoes) {
+        const conferencia = await this.esperadoDaOperacao(op);
+        if (!conferencia) continue;
+        esperado = conferencia;
+      }
       const r = await this.prisma.guarita_Operacoes.updateMany({
         where: {
           id: op.id,
@@ -219,10 +240,44 @@ export class GuaritaAgenteService {
         data: { estado: ESTADO_OP.enviada, enviada_em: agora },
       });
       if (r.count !== 1) break;
-      lote.push(op.frame_hex ? { id: op.id, tipo: op.tipo, frame_hex: op.frame_hex } : { id: op.id, tipo: op.tipo });
+      lote.push({
+        id: op.id,
+        tipo: op.tipo,
+        ...(op.frame_hex ? { frame_hex: op.frame_hex } : {}),
+        ...(esperado ? { esperado } : {}),
+      });
       if (TIPOS_LEITURA.includes(op.tipo)) break;
     }
     return { operacoes: lote };
+  }
+
+  /**
+   * (unidade, bloco) que o Prestare acredita estar no Guarita para a tag desta
+   * operação, tirado do frame conhecido (lido na importação ou confirmado pela
+   * última gravação). Sem frame conhecido, ou tag fora da lista branca: a
+   * operação é cancelada (nunca sai às cegas) e o motivo fica na tag.
+   */
+  private async esperadoDaOperacao(op: { id: number; id_tag: number | null }): Promise<{ unidade: number; bloco: number } | null> {
+    const ops = this.operacoes as GuaritaOperacoesService;
+    const tag = op.id_tag != null ? await this.prisma.tags.findUnique({ where: { id: op.id_tag } }) : null;
+    const frame = tag && (await ops.podeEscrever(tag)) ? await ops.frameConhecido(tag) : null;
+    let esperado: { unidade: number; bloco: number } | null = null;
+    if (frame) {
+      try {
+        const d = decodificarDispositivo(frame);
+        esperado = { unidade: d.unidade, bloco: blocoParaByte(d.bloco) };
+      } catch {
+        esperado = null;
+      }
+    }
+    if (esperado) return esperado;
+    const motivo = 'Sem dados do Guarita para conferir este dispositivo antes de escrever. Faça a conferência.';
+    await this.prisma.guarita_Operacoes.updateMany({
+      where: { id: op.id, estado: { in: [ESTADO_OP.pendente, ESTADO_OP.enviada] } },
+      data: { estado: ESTADO_OP.cancelada, erro: motivo, concluida_em: new Date() },
+    });
+    if (tag) await this.prisma.tags.update({ where: { id: tag.id }, data: { guarita_erro: motivo } });
+    return null;
   }
 
   /** Há cópia de segurança completa (importação ou conferência) deste Guarita? */
@@ -286,6 +341,15 @@ export class GuaritaAgenteService {
     }
     const parte = inteiroOuNulo(b.parte, 'parte', 0, 100000);
     const fim = booleanoOpcional(b.fim);
+    const conflito = b.conflito === true;
+    const jaEstava = b.ja_estava === true;
+    let lido: { unidade: number; bloco: number } | null = null;
+    if (b.lido && typeof b.lido === 'object') {
+      const l = b.lido as Record<string, unknown>;
+      const unidade = inteiroOuNulo(l.unidade, 'lido.unidade', 0, 9999);
+      const bloco = inteiroOuNulo(l.bloco, 'lido.bloco', 0, 255);
+      lido = unidade !== null && bloco !== null ? { unidade, bloco } : null;
+    }
     return {
       ok,
       ...(codigo !== null && { codigo }),
@@ -293,6 +357,8 @@ export class GuaritaAgenteService {
       ...(frames !== undefined && { frames_hex: frames }),
       ...(parte !== null && { parte }),
       ...(fim !== undefined && { fim }),
+      ...(conflito && { conflito, lido }),
+      ...(jaEstava && { ja_estava: true }),
     };
   }
 

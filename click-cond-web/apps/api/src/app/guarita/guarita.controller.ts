@@ -245,6 +245,18 @@ export class GuaritaController {
     return this.operacoes.aprovar(idCondominio, deviceId, idTag, body, autorDoUsuario(user));
   }
 
+  /** Dispositivo em conflito (ou que não está mais no Guarita): sai do Prestare, nada vai para o Guarita. */
+  @Post(':deviceId/dispositivos/:idTag/desfazer')
+  async desfazer(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @Param('idTag', ParseIntPipe) idTag: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'desfazer vínculo de dispositivo do Guarita');
+    return this.operacoes.desfazer(idCondominio, deviceId, idTag);
+  }
+
   /** Tag vinculada pelo morador no app: não vai para o Guarita (continua como tag comum do veículo). */
   @Post(':deviceId/dispositivos/:idTag/recusar')
   async recusar(
