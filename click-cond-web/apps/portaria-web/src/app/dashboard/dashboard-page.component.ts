@@ -1,5 +1,5 @@
 import { MaskDocPipe } from '../shared/mask-doc.pipe';
-import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -12,11 +12,12 @@ import { statusVisitante } from '../core/status-visitante.util';
 import { NetworkStatusService } from '../core/network-status.service';
 import { direcaoLabel as direcaoLabelUtil } from '../shared/direcao-label.util';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
+import { GuaritaPortariaComponent } from '../guarita/guarita-portaria.component';
 
 @Component({
   selector: 'app-dashboard-page',
   standalone: true,
-  imports: [CommonModule, RouterLink, FormsModule, MaskDocPipe, SlideIndicatorDirective],
+  imports: [CommonModule, RouterLink, FormsModule, MaskDocPipe, SlideIndicatorDirective, GuaritaPortariaComponent],
   templateUrl: './dashboard-page.component.html',
   host: {
     '(window:keydown.escape)': 'onEscapePressed()'
@@ -31,6 +32,8 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   readonly network = inject(NetworkStatusService);
 
   readonly data = signal<DashboardSummary | null>(null);
+  /** Bloco do Módulo Guarita (só desenha algo se o condomínio tiver um). */
+  private readonly guaritaPortaria = viewChild(GuaritaPortariaComponent);
   readonly loading = signal(true);
   readonly agora = signal(new Date());
   readonly eventoSelecionado = signal<any | null>(null);
@@ -571,6 +574,8 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   };
 
   private load() {
+    // Alertas do Guarita vêm na mesma consulta periódica do painel (sem canal novo).
+    this.guaritaPortaria()?.atualizarAlertas();
     this.api.get().subscribe({
       next: (d) => { this.data.set(d); this.loading.set(false); },
       error: () => this.loading.set(false),

@@ -14,7 +14,7 @@
         </svg>
         Novo Veículo
       </button>
-    } @else {
+    } @else if (tab() === 'tags') {
       <button (click)="abrirNovaTag()" class="ps-btn">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4"/>
@@ -35,6 +35,12 @@
       Tags RFID
       <span class="ml-1.5">{{ tags().length }}</span>
     </button>
+    @if (temGuarita()) {
+      <button (click)="tab.set('a_vincular')" [class.on]="tab() === 'a_vincular'" data-aba-a-vincular>
+        A vincular
+        <span class="ml-1.5">{{ totalAVincular() }}</span>
+      </button>
+    }
   </div>
 
   @if (loading()) {
@@ -58,6 +64,9 @@
 
     @if (erroAcaoVeiculo()) {
       <div role="alert" class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ erroAcaoVeiculo() }}</div>
+    }
+    @if (temGuarita() && erroGuarita()) {
+      <div role="alert" data-erro-guarita class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ erroGuarita() }}</div>
     }
 
     @if (veiculosFiltrados().length === 0) {
@@ -99,12 +108,37 @@
                     @if (tagBloqueada(v)) {
                       <span class="ps-tag ml-1" title="Tag bloqueada: não abre no leitor"><span class="ps-dot ps-dot-danger"></span>Bloqueada</span>
                     }
+                    @if (seloGuarita(v); as selo) {
+                      <span class="ps-tag ml-1" data-guarita-estado [title]="selo.dica ? selo.texto + ' · ' + selo.dica : selo.texto"><span class="ps-dot" [ngClass]="selo.dot"></span>{{ selo.texto }}</span>
+                      @if (selo.dica) {
+                        <span class="block text-xs text-slate-500 mt-0.5" data-guarita-dica>{{ selo.dica }}</span>
+                      }
+                    }
                   } @else {
                     <span class="text-slate-500 text-xs">Sem tag</span>
                   }
                 </td>
                 <td class="text-right">
                   <div class="flex items-center justify-end gap-2">
+                    @if (temGuarita()) {
+                      @if (aguardandoAprovacao(v)) {
+                        <button type="button" (click)="aprovarTag(v)" [disabled]="guaritaEmAcao() === v.id_tag"
+                          class="ps-btn ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Aprovar</button>
+                        <button type="button" (click)="recusarTag(v)" [disabled]="guaritaEmAcao() === v.id_tag"
+                          class="ps-btn ps-btn-danger ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Recusar</button>
+                      }
+                      @if (podeRegravar(v.id_tag)) {
+                        <button type="button" (click)="regravarNoGuarita(v.id_tag)" [disabled]="guaritaEmAcao() === v.id_tag"
+                          class="ps-btn ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Regravar</button>
+                      }
+                      @if (podeDesfazer(v.id_tag)) {
+                        <button type="button" (click)="desfazerVinculo(v.id_tag)" [disabled]="guaritaEmAcao() === v.id_tag"
+                          class="ps-btn ps-btn-danger ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Desfazer vínculo</button>
+                      }
+                      @if (!v.id_tag) {
+                        <button type="button" (click)="abrirCapturaGuarita(v)" class="ps-btn ps-btn-sec ps-btn-sm">Cadastrar controle/tag</button>
+                      }
+                    }
                     <button
                       (click)="abrirEditarVeiculo(v)"
                       aria-label="Editar veículo"
@@ -134,11 +168,99 @@
       </div>
     }
 
+  } @else if (tab() === 'a_vincular' && temGuarita()) {
+
+    <!-- A vincular: dispositivos que estão no Guarita e o Prestare ainda não ligou a um veículo.
+         Paginada e com busca no servidor (prédio com centenas de controles importados). -->
+    <div class="flex flex-wrap items-center gap-3">
+      @if (guaritas().length > 1) {
+        <select
+          [ngModel]="guaritaVincular"
+          (ngModelChange)="trocarGuaritaVincular($event)"
+          aria-label="Módulo Guarita"
+          class="px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm focus:outline-none focus:border-accent transition"
+        >
+          @for (g of guaritas(); track g.id) {
+            <option [ngValue]="g.id">{{ g.nome }}</option>
+          }
+        </select>
+      }
+      <label class="ps-field max-w-md flex-1">
+        <svg class="w-4 h-4 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        <input
+          [ngModel]="buscaVincular"
+          (ngModelChange)="onBuscaVincular($event)"
+          name="busca_a_vincular"
+          type="text"
+          placeholder="Buscar por serial, unidade, bloco, rótulo ou placa..."
+        />
+      </label>
+    </div>
+    @if (erroGuarita()) {
+      <div role="alert" class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ erroGuarita() }}</div>
+    }
+    @if (aVincular().length === 0) {
+      <div class="ps-panel ps-empty">
+        @if (carregandoVincular()) {
+          <div class="inline-block w-6 h-6 border-2 border-t-[var(--ink)] border-[var(--line-200)] rounded-full animate-spin"></div>
+        } @else {
+          <p class="text-sm text-slate-300 font-medium">{{ buscaVincular.trim() ? 'Nada encontrado' : 'Nada a vincular' }}</p>
+          <p class="text-xs text-slate-500 mt-1">Dispositivos importados do Guarita sem veículo aparecem aqui</p>
+        }
+      </div>
+    } @else {
+      <div class="ps-tablewrap">
+        <table class="w-full text-sm !min-w-[720px]">
+          <thead>
+            <tr>
+              <th>Dispositivo</th>
+              <th>No Guarita</th>
+              <th class="!text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (d of aVincular(); track d.id_device + '-' + d.id) {
+              <tr data-a-vincular>
+                <td>
+                  <span class="font-mono font-semibold tracking-wider">{{ d.guarita_serial || d.codigo }}</span>
+                  <span class="block text-xs text-slate-500 mt-0.5">{{ rotuloTipoGuarita[d.guarita_tipo ?? 0] ?? 'Dispositivo' }}</span>
+                </td>
+                <td>
+                  {{ unidadeDoDispositivo(d) }}
+                  @if (d.rotulo || d.placa) {
+                    <span class="block text-xs text-slate-500 mt-0.5">{{ d.rotulo }}{{ d.rotulo && d.placa ? ' · ' : '' }}{{ d.placa }}</span>
+                  }
+                </td>
+                <td class="text-right">
+                  <button type="button" (click)="abrirVincular(d)" [disabled]="guaritaEmAcao() === d.id"
+                    class="ps-btn ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Vincular</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+    @if (totalPaginasVincular() > 1) {
+      <div data-paginas-a-vincular class="flex items-center justify-end gap-3 text-xs text-slate-500">
+        <span>Página {{ pagVincular()?.pagina ?? 1 }} de {{ totalPaginasVincular() }} · {{ totalAVincular() }} dispositivo(s)</span>
+        <button type="button" (click)="paginaVincular(-1)" [disabled]="(pagVincular()?.pagina ?? 1) <= 1 || carregandoVincular()"
+          class="ps-btn ps-btn-sec ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Anterior</button>
+        <button type="button" (click)="paginaVincular(1)" [disabled]="(pagVincular()?.pagina ?? 1) >= totalPaginasVincular() || carregandoVincular()"
+          class="ps-btn ps-btn-sec ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Próxima</button>
+      </div>
+    }
+
   } @else {
 
     <!-- Tags -->
     @if (erroAcaoTag()) {
       <div role="alert" class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ erroAcaoTag() }}</div>
+    }
+    @if (temGuarita() && erroGuarita()) {
+      <div role="alert" class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ erroGuarita() }}</div>
     }
 
     @if (erroTags()) {
@@ -180,7 +302,9 @@
                   }
                 </td>
                 <td>
-                  @if (t.ativo === 0) {
+                  @if ((tagNoGuarita(t) || tagConflitoOuAusente(t)) && seloGuaritaDaTag(t); as selo) {
+                    <span class="ps-tag" data-guarita-estado-tag [title]="selo.texto"><span class="ps-dot" [ngClass]="selo.dot"></span>{{ selo.texto }}</span>
+                  } @else if (t.ativo === 0) {
                     <span class="ps-tag"><span class="ps-dot ps-dot-danger"></span>Bloqueada</span>
                   } @else {
                     <span class="ps-tag"><span class="ps-dot ps-dot-ok"></span>Ativa</span>
@@ -188,7 +312,23 @@
                 </td>
                 <td class="text-right">
                   <div class="flex items-center justify-end gap-2">
-                    @if (t.ativo === 0) {
+                    @if (tagNoGuarita(t)) {
+                      <!-- Tag de Guarita: bloquear é apagar do Guarita, sem "Reativar". -->
+                      @if (!tagRemovendo(t)) {
+                        <button type="button" (click)="removerDoGuarita(t)" [disabled]="tagEmAcao() === t.id"
+                          class="ps-btn ps-btn-sec ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Remover do Guarita</button>
+                      }
+                    } @else if (tagConflitoOuAusente(t)) {
+                      <!-- Conflito / não está mais no Guarita: sem bloquear nem remover do Guarita. -->
+                      @if (podeRegravar(t.id)) {
+                        <button type="button" (click)="regravarNoGuarita(t.id)" [disabled]="guaritaEmAcao() === t.id"
+                          class="ps-btn ps-btn-sec ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Regravar</button>
+                      }
+                      @if (podeDesfazer(t.id)) {
+                        <button type="button" (click)="desfazerVinculo(t.id)" [disabled]="guaritaEmAcao() === t.id"
+                          class="ps-btn ps-btn-sec ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Desfazer vínculo</button>
+                      }
+                    } @else if (t.ativo === 0) {
                       <button type="button" (click)="definirTagAtiva(t, true)" [disabled]="tagEmAcao() === t.id"
                         class="ps-btn ps-btn-sec ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Reativar</button>
                     } @else {
@@ -351,6 +491,142 @@
           </button>
         </div>
     </div>
+  }
+
+  <!-- VINCULAR DISPOSITIVO DO GUARITA A UM VEÍCULO: busca sob demanda, no máximo 20 -->
+  @if (vinculando(); as vd) {
+    <div class="ps-scrim on"></div>
+    <div class="ps-drawer on" data-guarita-vincular>
+      <div class="ps-drawer-head">
+        <h3 class="ps-h2">Vincular a um veículo</h3>
+        <button type="button" (click)="fecharVincular()" aria-label="Fechar vínculo do dispositivo" class="ps-ibtn">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="ps-drawer-body">
+        <p class="text-sm">
+          <span class="font-semibold">{{ rotuloTipoGuarita[vd.guarita_tipo ?? 0] ?? 'Dispositivo' }}</span>
+          · <span class="font-mono">{{ vd.guarita_serial || vd.codigo }}</span>
+          <span class="block text-xs text-slate-500 mt-0.5">{{ unidadeDoDispositivo(vd) }}{{ vd.placa ? ' · ' + vd.placa : '' }}</span>
+        </p>
+        <div>
+          <label class="ps-label block mb-1.5" for="veiculos-vincular-busca">Veículo</label>
+          <input id="veiculos-vincular-busca" name="busca_veiculo_vincular"
+            [ngModel]="buscaVeiculoVincular"
+            (ngModelChange)="onBuscaVeiculoVincular($event)"
+            type="text"
+            autocomplete="off"
+            placeholder="Placa, nome do morador ou unidade"
+            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm focus:outline-none focus:border-accent transition placeholder:text-slate-600"
+          />
+          <p class="text-xs text-slate-500 mt-1.5">Só veículos sem tag; mostra até 20 por busca.</p>
+        </div>
+        @if (buscandoVeiculoVincular()) {
+          <p class="text-xs text-slate-500">Buscando…</p>
+        }
+        @for (op of opcoesVincular(); track op.id) {
+          <button type="button" (click)="escolherVeiculoParaVincular(op)" [disabled]="guaritaEmAcao() !== null"
+            data-opcao-vincular
+            class="w-full text-left px-3.5 py-2.5 rounded-xl border border-white/10 text-sm hover:bg-white/5 transition disabled:opacity-50">
+            <span class="font-mono font-semibold tracking-wider">{{ op.placa }}</span>
+            @if (op.morador_nome) { <span class="text-slate-500"> · {{ op.morador_nome }}</span> }
+            @if (op.apartamento) { <span class="text-slate-500"> · Apto {{ op.apartamento }}{{ op.bloco ? ' ' + op.bloco : '' }}</span> }
+          </button>
+        } @empty {
+          @if (!buscandoVeiculoVincular()) {
+            <p class="text-xs text-slate-500">Nenhum veículo sem tag encontrado.</p>
+          }
+        }
+        @if (erroVincular()) {
+          <div role="alert" class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ erroVincular() }}</div>
+        }
+      </div>
+      <div class="ps-drawer-foot">
+        <button type="button" (click)="fecharVincular()" class="ps-btn ps-btn-sec">Cancelar</button>
+      </div>
+    </div>
+  }
+
+  <!-- APROVAR TAG DO MORADOR NO GUARITA: tipo e código impresso conferidos antes de gravar -->
+  @if (aprovacao(); as ap) {
+    <div class="ps-scrim on"></div>
+    <div class="ps-drawer on" data-guarita-aprovacao>
+      <div class="ps-drawer-head">
+        <h3 class="ps-h2">Aprovar tag no Guarita</h3>
+        <button type="button" (click)="fecharAprovacao()" aria-label="Fechar aprovação da tag" class="ps-ibtn">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="ps-drawer-body">
+        <p class="text-sm">
+          Veículo <span class="font-mono font-semibold tracking-wider">{{ ap.v.placa }}</span>
+          @if (ap.v.morador?.nome) {
+            <span class="text-slate-500"> · {{ ap.v.morador?.nome }}</span>
+          }
+        </p>
+        <p class="text-xs text-slate-500">Confira o tipo e o código impresso no dispositivo: é isso que será gravado no Guarita.</p>
+
+        <div>
+          <label class="ps-label block mb-1.5" for="veiculos-aprov-tipo">Tipo do dispositivo</label>
+          <select id="veiculos-aprov-tipo" name="aprov_tipo"
+            [(ngModel)]="aprovTipo"
+            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm focus:outline-none focus:border-accent transition"
+          >
+            <option [ngValue]="null">Escolha o tipo</option>
+            @for (t of tiposAprovacao; track t.valor) {
+              <option [ngValue]="t.valor">{{ t.rotulo }}</option>
+            }
+          </select>
+        </div>
+
+        @if (aprovTipo === 1) {
+          <div data-aprov-controle class="p-3 border border-[var(--line-200)] text-xs">
+            Controle remoto só pode ser cadastrado por captura no Guarita: o Guarita exige o contador do controle, que não está impresso.
+          </div>
+        } @else {
+          <div>
+            <label class="ps-label block mb-1.5" for="veiculos-aprov-codigo">Código impresso</label>
+            <input id="veiculos-aprov-codigo" name="aprov_codigo"
+              [(ngModel)]="aprovCodigo"
+              type="text"
+              autocomplete="off"
+              placeholder="015 02158"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm font-mono focus:outline-none focus:border-accent transition placeholder:text-slate-600"
+            />
+            <p class="text-xs text-slate-500 mt-1.5">Como está impresso na TAG ou no cartão (ex.: W: 015 02158). Veio preenchido com o que o morador digitou; corrija se preciso.</p>
+          </div>
+        }
+
+        @if (erroAprovacao()) {
+          <div role="alert" class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ erroAprovacao() }}</div>
+        }
+      </div>
+
+      <div class="ps-drawer-foot">
+        <button type="button" (click)="fecharAprovacao()" class="ps-btn ps-btn-sec">Cancelar</button>
+        @if (aprovTipo === 1) {
+          <button type="button" (click)="capturarAgora()" class="ps-btn">Capturar agora</button>
+        } @else {
+          <button type="button" (click)="confirmarAprovacao()" [disabled]="enviandoAprovacao()" class="ps-btn disabled:opacity-50 disabled:cursor-not-allowed">
+            {{ enviandoAprovacao() ? 'Enviando…' : 'Aprovar e gravar' }}
+          </button>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- CADASTRO DE CONTROLE/TAG NO GUARITA -->
+  @if (capturaVeiculo(); as cv) {
+    <app-guarita-captura
+      [veiculo]="cv"
+      [guaritas]="guaritas()"
+      (fechar)="fecharCapturaGuarita()"
+      (cadastrado)="onGuaritaCadastrado()" />
   }
 
   <!-- MODAL DE TAG -->

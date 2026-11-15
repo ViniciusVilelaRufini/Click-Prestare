@@ -784,7 +784,7 @@
                     'bg-accent/15 text-accent border border-accent/25':
                       t.tipo === 'facial' || !t.tipo,
                     'bg-amber-500/15 text-amber-500 border border-amber-500/25':
-                      t.tipo === 'botoeira',
+                      t.tipo === 'botoeira' || t.tipo === 'guarita',
                     'bg-blue-500/15 text-blue-500 border border-blue-500/25':
                       t.tipo === 'tag_reader',
                     'bg-teal-500/15 text-teal-500 border border-teal-500/25':
@@ -804,7 +804,9 @@
                             ? 'Catraca Eletrônica IP'
                             : t.tipo === 'qrcode_reader'
                               ? 'Leitor de QR Code'
-                              : t.tipo
+                              : t.tipo === 'guarita'
+                                ? 'Módulo Guarita'
+                                : t.tipo
                   }}
                 </span>
 
@@ -1069,6 +1071,8 @@
                 <span>Ver Câmera</span>
               </button>
             }
+            <!-- Guarita: a porta cadastrada é a TCP do protocolo (não há página web nela) e não há webhook. -->
+            @if (t.tipo !== 'guarita') {
             <a
               href="http://{{ t.ip }}:{{ t.porta }}"
               target="_blank"
@@ -1095,6 +1099,7 @@
             >
               Rotacionar Token
             </button>
+            }
             <button
               (click)="openEdit(t)"
               class="px-3 py-1.5 rounded-lg text-[11px] font-bold text-accent bg-accent/10 hover:bg-accent/15 border border-accent/20 transition"
@@ -1118,6 +1123,11 @@
         </div>
       }
     </div>
+
+    <!-- Painel de cada Módulo Guarita (só existe quando há aparelho do tipo guarita) -->
+    @for (g of guaritas(); track g.id) {
+      <app-guarita-config [device]="g" />
+    }
   }
 
   <!-- Modal -->
@@ -1425,7 +1435,7 @@
                 [(ngModel)]="form.porta"
                 name="porta"
                 type="number"
-                placeholder="80"
+                [placeholder]="ehGuarita ? '9000' : '80'"
                 class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-xs font-mono placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
               />
             </div>
@@ -1463,6 +1473,37 @@
                   class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-xs placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
                 />
               </div>
+            </div>
+          } @else if (ehGuarita) {
+            <!-- Palavra de autorização TCP do Guarita: segredo, nunca volta para a tela. -->
+            <div class="space-y-1.5">
+              <label
+                class="block text-xs font-semibold text-slate-500 dark:text-slate-400"
+                for="terminais-palavra-guarita"
+                >Palavra de autorização (opcional)</label
+              >
+              <input
+                id="terminais-palavra-guarita"
+                [(ngModel)]="form.api_password"
+                name="palavra_guarita"
+                type="password"
+                placeholder="••••••••"
+                autocomplete="new-password"
+                maxlength="15"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-xs placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
+              />
+              <p data-nota-palavra class="text-[10px] text-slate-400 dark:text-slate-500">
+                @if (editingId()) {
+                  @if (temPalavraEmEdicao() === true) {
+                    Há uma palavra gravada.
+                  } @else if (temPalavraEmEdicao() === false) {
+                    Nenhuma palavra gravada.
+                  }
+                  Em branco mantém a palavra atual. Ela nunca é mostrada de novo.
+                } @else {
+                  Só se o Guarita foi programado para pedir autorização na conexão TCP (até 15 caracteres). Ela nunca é mostrada de novo.
+                }
+              </p>
             </div>
           } @else {
             <div class="text-[11px] text-slate-500 dark:text-slate-400 italic">

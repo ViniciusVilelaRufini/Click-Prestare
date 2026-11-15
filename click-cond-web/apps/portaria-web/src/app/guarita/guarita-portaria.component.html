@@ -1,0 +1,85 @@
+@if (temGuarita()) {
+<div class="space-y-5">
+  <!-- Pânico em destaque: acima de tudo, um por linha -->
+  @for (a of panicos(); track a.id) {
+    <div data-guarita-panico role="alert" class="ps-panel border-[var(--signal-danger)]">
+      <div class="flex items-center gap-3.5 px-5 py-4">
+        <span class="ps-dot ps-dot-danger ps-dot-pulse shrink-0"></span>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-semibold text-[var(--signal-danger)]">Pânico · {{ nomeDoGuarita(a.id_device) }}</p>
+          <p class="ps-cap">{{ a.descricao }} · {{ a.created_at | date: 'dd/MM HH:mm:ss' }}</p>
+        </div>
+        <button type="button" (click)="marcarVisto(a)" [disabled]="alertaEmAcao() === a.id"
+          class="ps-btn ps-btn-sec ps-btn-sm shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">Marcar como visto</button>
+      </div>
+    </div>
+  }
+
+  <!-- Logo abaixo do pânico: ex-morador cujo dispositivo ainda abre o portão -->
+  @for (a of remocoesPendentes(); track a.id) {
+    <div data-guarita-remocao-pendente role="alert" class="ps-panel border-[var(--signal-warn)]">
+      <div class="flex items-center gap-3.5 px-5 py-4">
+        <span class="ps-dot ps-dot-warn shrink-0"></span>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-semibold">Ex-morador ainda abre o portão · {{ nomeDoGuarita(a.id_device) }}</p>
+          <p class="ps-cap">{{ a.descricao }} · {{ a.created_at | date: 'dd/MM HH:mm' }}</p>
+        </div>
+        <button type="button" (click)="marcarVisto(a)" [disabled]="alertaEmAcao() === a.id"
+          class="ps-btn ps-btn-sec ps-btn-sm shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">Marcar como visto</button>
+      </div>
+    </div>
+  }
+
+  <div class="ps-panel" data-guarita-portaria>
+    <div class="ps-panel-head">
+      <h2 class="ps-h2">Garagem</h2>
+      @if (!validadaEmAparelho) {
+        <span class="ps-cap" data-guarita-aviso>{{ avisoNaoValidada }}</span>
+      }
+    </div>
+
+    <!-- Portões (somem se a API disser que esta sessão não pode abrir) -->
+    @if (semPermissaoAbrir(); as msg) {
+      <p data-guarita-sem-permissao role="alert" class="px-5 py-3.5 text-xs text-[var(--signal-danger)]">{{ msg }}</p>
+    } @else {
+    <div class="px-5 py-3.5 flex flex-wrap items-center gap-2">
+      @for (p of portoes(); track chave(p)) {
+        <button type="button" (click)="abrir(p)" [disabled]="abrindo() !== null"
+          [attr.data-guarita-abrir]="chave(p)"
+          class="ps-btn ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">
+          @if (abrindo() === chave(p)) {
+            <span class="w-3.5 h-3.5 border-2 border-[var(--on-brand)] border-t-transparent rounded-full animate-spin"></span>
+            <span>Abrindo…</span>
+          } @else {
+            <span>Abrir {{ p.portao.nome }}</span>
+          }
+        </button>
+      } @empty {
+        <p class="text-sm text-[var(--ink-muted)]">Nenhum portão com relé cadastrado no Guarita.</p>
+      }
+    </div>
+    }
+    @if (mensagem(); as m) {
+      <div [attr.role]="m.erro ? 'alert' : 'status'" data-guarita-msg
+        class="mx-5 mb-3.5 p-3 border border-[var(--line-200)] text-xs"
+        [ngClass]="m.erro ? 'text-[var(--signal-danger)]' : ''">{{ m.texto }}</div>
+    }
+
+    <!-- Alertas pendentes (fora o pânico, que fica em destaque acima) -->
+    @if (erroAlerta(); as e) {
+      <div role="alert" class="mx-5 mb-3.5 p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ e }}</div>
+    }
+    @for (a of outrosAlertas(); track a.id) {
+      <div data-guarita-alerta class="flex items-center gap-3.5 px-5 py-3 border-t border-[var(--line-100)]">
+        <span class="ps-dot ps-dot-warn shrink-0"></span>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-medium">{{ a.descricao }}</p>
+          <p class="ps-cap">{{ nomeDoGuarita(a.id_device) }} · {{ a.created_at | date: 'dd/MM HH:mm' }}</p>
+        </div>
+        <button type="button" (click)="marcarVisto(a)" [disabled]="alertaEmAcao() === a.id"
+          class="ps-btn ps-btn-sec ps-btn-sm shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">Marcar como visto</button>
+      </div>
+    }
+  </div>
+</div>
+}

@@ -5,6 +5,7 @@ import { VeiculosApi } from '../moradores/veiculos.service';
 import { MoradoresApi } from '../moradores/moradores.service';
 import { ConfirmService } from '../shared/confirm.service';
 import { AuthService } from '../auth/auth.service';
+import { GuaritaService } from '../guarita/guarita.service';
 
 /**
  * Tag na tela Veículos: digitar/capturar o código no formulário do veículo,
@@ -49,6 +50,8 @@ function build(extra: Record<string, unknown> = {}, confirma = true) {
       { provide: MoradoresApi, useValue: { list: jest.fn(() => of([])) } },
       { provide: ConfirmService, useValue: confirm },
       { provide: AuthService, useValue: { porteiroInfo: () => ({ id_condominio: 3 }) } },
+      // Condomínio sem Módulo Guarita: a tela é a de sempre.
+      { provide: GuaritaService, useValue: { listarGuaritas: () => of([]) } },
     ],
   });
   const f = TestBed.createComponent(VeiculosPageComponent);
