@@ -532,6 +532,45 @@ describe('Tag com operação pendente no Guarita não é livre para vincular', (
   });
 });
 
+describe('FC1 — importação/conferência no meio de uma remoção', () => {
+  async function ler(m: ReturnType<typeof montar>, frames: string[], tipo: 'importar' | 'conferir') {
+    const op = await m.db.guarita_Operacoes.create({ data: { id_condominio: 7, id_device: 10, tipo, estado: 'enviada', enviada_em: new Date() } });
+    await m.imp.receberResultado(DEV as any, op, { ok: true, frames_hex: frames, parte: 1, fim: true });
+  }
+  const abertos = (db: any) => ops(db, 'apagar').filter((o: any) => o.estado === 'pendente' || o.estado === 'enviada');
+  const emOutra = (db: any) => db.linhas('guarita_Alertas').filter((a: any) => a.tipo === 'dispositivo_em_outra_unidade');
+
+  it.each([['importar'], ['conferir']] as const)(
+    '%s com o Guarita mostrando outra unidade: a tag continua removendo, o apagar fica, só o alerta (uma vez)',
+    async (tipo) => {
+      const { TagsService } = require('../veiculos/tags.service');
+      const m = montar();
+      await new TagsService(m.db as any, m.ops).definirAtivo(7, 1, false);
+      expect(tag(m.db).guarita_estado).toBe('removendo');
+      m.guarita.set('0F086E', fr(202, 'B', 'BRUNO'));
+      await ler(m, [fr(202, 'B', 'BRUNO')], tipo);
+      await ler(m, [fr(202, 'B', 'BRUNO')], tipo);
+      expect(tag(m.db).guarita_estado).toBe('removendo');
+      expect(tag(m.db).guarita_frame).toBe(fr(308, 'B')); // o frame do Prestare fica
+      expect(abertos(m.db)).toHaveLength(1);
+      expect(emOutra(m.db)).toHaveLength(1);
+      // A remoção segue o ciclo: o agente confere a unidade, não apaga o do Bruno, e alerta.
+      for (const o of m.db.linhas('guarita_Operacoes')) if (o.estado === 'enviada' && o.tipo !== 'apagar') o.estado = 'ok';
+      await rodarAgente(m);
+      expect(m.guarita.get('0F086E')).toBe(fr(202, 'B', 'BRUNO'));
+      expect(m.db.linhas('guarita_Alertas').filter((a: any) => a.tipo === 'remocao_pendente')).toHaveLength(1);
+    },
+  );
+
+  it('remocao_falhou: estado e texto ficam; nada é cancelado', async () => {
+    const m = montar();
+    Object.assign(tag(m.db), { guarita_estado: 'remocao_falhou', guarita_erro: 'Remoção não confirmada depois de 5 tentativas: x' });
+    await ler(m, [fr(202, 'B', 'BRUNO')], 'conferir');
+    expect(tag(m.db)).toMatchObject({ guarita_estado: 'remocao_falhou', guarita_erro: 'Remoção não confirmada depois de 5 tentativas: x' });
+    expect(emOutra(m.db)).toHaveLength(1);
+  });
+});
+
 describe('C1 — duas gravações da mesma tag no mesmo lote', () => {
   it('cenário A: troca de unidade e saída logo depois → o dispositivo é removido do Guarita', async () => {
     const m = montar();

@@ -383,7 +383,29 @@ export class GuaritaImportacaoService {
           outra = false;
         }
         if (outra) {
-          await this.ops.marcarTagEmConflito(conhecida.id, MSG_OUTRA_UNIDADE_NO_GUARITA);
+          // FC1: tag em remoção nunca muda de estado nem perde o `apagar` por uma
+          // leitura; só ganha o alerta (uma vez). O agente só apaga se a unidade bater.
+          const emRemocao =
+            conhecida.guarita_estado === ESTADO_TAG.removendo || conhecida.guarita_estado === ESTADO_TAG.remocaoFalhou;
+          if (emRemocao) {
+            const abertos = await this.prisma.guarita_Alertas.findMany({
+              where: { id_device: device.id, tipo: 'dispositivo_em_outra_unidade', visto_em: null },
+              select: { dados: true },
+            });
+            const jaAvisado = abertos.some((a: any) => {
+              try {
+                return JSON.parse(String(a.dados ?? '{}')).id_tag === conhecida.id;
+              } catch {
+                return false;
+              }
+            });
+            if (jaAvisado) {
+              if (conferencia) dif.divergente.push({ id_tag: conhecida.id, tipo: d.tipo, serial: d.serialHex });
+              continue;
+            }
+          } else {
+            await this.ops.marcarTagEmConflito(conhecida.id, MSG_OUTRA_UNIDADE_NO_GUARITA);
+          }
           await this.prisma.guarita_Alertas.create({
             data: {
               id_condominio: device.id_condominio,
