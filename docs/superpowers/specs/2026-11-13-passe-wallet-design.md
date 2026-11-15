@@ -138,7 +138,7 @@ Opção por condomínio "Passe na carteira", desligada por padrão, e só dispon
 - Celular sem internet por mais de um dia: o passe mostra código vencido e é negado; ao reconectar ele se atualiza. O app continua funcionando sem internet.
 - Morador em dois condomínios: um passe por condomínio.
 - Troca de aparelho: o passe antigo segue válido até ser removido; "Remover passe" cancela todos.
-- Opção desligada pelo síndico: todos os passes do condomínio são negados de imediato na validação e aparecem inválidos na próxima atualização, sem revogar as credenciais; religar a opção os revalida.
+- Opção desligada pelo síndico: todos os passes do condomínio são negados de imediato na validação (`carteira_desligada`), sem revogar as credenciais. O passe **não** é anulado nem vencido: na próxima atualização ele segue na carteira com o código e o texto "Passe pausado pelo condomínio" no verso; religar a opção tira o aviso e a validação volta a aceitar. O passe anulado (`voided`) fica só para revogação e morador removido.
 - Conta Google ainda sem aprovação de publicação: o botão do Android fica oculto por uma chave de configuração.
 
 ## Testes

@@ -30,9 +30,16 @@ export type DadosDoPasse = {
   condominio: string;
   morador: string;
   unidade: string;
-  /** null = passe inválido (cancelado, morador removido, opção desligada). */
+  /** null = passe anulado (revogado ou morador removido). */
   codigo: string | null;
+  /**
+   * Opção do condomínio desligada: o passe segue com o código (a validação é
+   * que nega, por `carteira_desligada`) e o verso avisa. Religar tira o aviso.
+   */
+  pausado?: boolean;
 };
+
+export const TEXTO_PASSE_PAUSADO = 'Passe pausado pelo condomínio';
 
 export const MENSAGEM_PASSE_CANCELADO = 'PRESTARE-PASSE-CANCELADO';
 
@@ -67,6 +74,7 @@ export function montarPassJson(dados: DadosDoPasse, agora: Date = new Date()): R
         { key: 'unidade', label: 'UNIDADE', value: dados.unidade },
       ],
       backFields: [
+        ...(valido && dados.pausado ? [{ key: 'pausado', label: 'Situação', value: TEXTO_PASSE_PAUSADO }] : []),
         {
           key: 'como_atualizar',
           label: 'Código não abre?',

@@ -153,9 +153,18 @@ describe('montarPasseApple', () => {
     expect(pass.barcodes).toEqual([
       { format: 'PKBarcodeFormatQR', message: 'PRESTARE-PASSE-CANCELADO', messageEncoding: 'iso-8859-1' },
     ]);
-    // Continua atualizável: um passe cancelado por opção desligada volta a valer.
     expect(pass.serialNumber).toBe('c7');
     expect(pass.authenticationToken).toBe(DADOS.authToken);
+  });
+
+  it('passe pausado (opção do condomínio desligada): não anula nem vence, mantém o código e avisa no verso', () => {
+    const pausado = { ...DADOS, pausado: true };
+    const pass = JSON.parse(abrir(montarPasseApple(pausado, CHAVES, imagens, AGORA))['pass.json'].toString('utf8'));
+    expect(pass.voided).toBeUndefined();
+    expect(pass.expirationDate).toBeUndefined();
+    expect(pass.barcodes[0].message).toBe(DADOS.codigo);
+    expect(pass.generic.backFields[0]).toEqual({ key: 'pausado', label: 'Situação', value: 'Passe pausado pelo condomínio' });
+    expect(pass.generic.backFields.map((f: any) => f.key)).toEqual(['pausado', 'como_atualizar', 'cancelar']);
   });
 
   it('pass.json não contém CPF, foto, e-mail nem telefone', () => {

@@ -280,9 +280,12 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * O .pkpass atual de uma credencial `wallet_apple`, para o serviço de
-   * atualização da Apple: válido com o código do dia, ou inválido (voided)
-   * quando revogada, morador removido ou opção desligada. null quando a
-   * credencial não existe ou não é wallet_apple. Sem chaves: 503.
+   * atualização da Apple: válido com o código do dia, ou anulado (voided)
+   * quando revogada ou morador removido. Opção do condomínio desligada não
+   * anula: o passe segue com o código e o aviso "Passe pausado pelo
+   * condomínio" no verso, e a validação nega (`carteira_desligada`); religar
+   * volta ao normal. null quando a credencial não existe ou não é
+   * wallet_apple. Sem chaves: 503.
    */
   async passeAppleDaCredencial(
     idCredencial: number,
@@ -306,10 +309,13 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
     ]);
     const moradorValido = morador && morador.id_condominio === cred.id_condominio ? morador : null;
     const segredo = this.segredoDe(cred);
-    const valido = !cred.revogada_em && !!moradorValido && habilitado && !!segredo;
+    const valido = !cred.revogada_em && !!moradorValido && !!segredo;
     const codigo = valido ? gerarCodigo('P2', cred.id, diaBrasiliaDe(agora), segredo as Buffer) : null;
     const pkpass = montarPasseApple(
-      this.dadosDoPasse(cred.id, cond?.nome, moradorValido ?? { nome: 'Passe cancelado' }, codigo),
+      {
+        ...this.dadosDoPasse(cred.id, cond?.nome, moradorValido ?? { nome: 'Passe cancelado' }, codigo),
+        pausado: !habilitado,
+      },
       chaves,
       carregarImagensDoPasse(),
       agora,
@@ -446,7 +452,7 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * A opção do condomínio mudou de efeito: os passes ativos passam a ser
-   * entregues inválidos (ou válidos de novo). Não revoga. Nunca lança.
+   * entregues pausados (ou sem o aviso de novo). Não revoga. Nunca lança.
    */
   async marcarCondominio(idCondominio: number): Promise<void> {
     try {

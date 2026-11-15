@@ -268,8 +268,8 @@ export class CredenciaisService {
    *
    * "Passe na carteira" só liga com "QR no app" ligado, e desligar o QR
    * desliga o passe junto. Quando o efeito para a carteira muda, os passes
-   * ativos do condomínio são marcados para atualizar (entregues inválidos ou
-   * válidos de novo), sem revogar. Aceita o booleano antigo (só o QR).
+   * ativos do condomínio são marcados para atualizar (entregues pausados ou
+   * sem o aviso de novo), sem revogar. Aceita o booleano antigo (só o QR).
    */
   async definirOpcao(
     idCondominio: number,

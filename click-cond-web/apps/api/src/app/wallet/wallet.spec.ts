@@ -378,21 +378,41 @@ describe('WalletService', () => {
       expect(estado.condominios[0]).toMatchObject({ qr_app_habilitado: false, wallet_habilitado: false });
     });
 
-    it('desligar wallet não revoga: religar volta a entregar passe válido com o mesmo número de série', async () => {
-      const { svc, credenciais, estado } = build();
+    it('desligar wallet não revoga nem anula: o passe fica pausado (código mantido, aviso no verso) e a validação nega; religar tira o aviso', async () => {
+      const { svc, credenciais, estado, validacao } = build();
       const a = passJson(await svc.emitirApple(MORADOR, { id_condominio: 1 }, AGORA));
       const id = estado.creds[0].id;
+      const pausado = (pass: any) => pass.generic.backFields.some((f: any) => f.value === 'Passe pausado pelo condomínio');
+      expect(pausado(a)).toBe(false);
 
       const antes = estado.creds[0].wallet_atualizado_em;
       await credenciais.definirOpcao(1, { wallet_habilitado: false }, SINDICO);
       expect(estado.creds[0].revogada_em).toBeNull();
       expect(estado.creds[0].wallet_atualizado_em).not.toEqual(antes);
-      expect(passJson((await svc.passeAppleDaCredencial(id, AGORA))!.pkpass).voided).toBe(true);
+      const desligado = passJson((await svc.passeAppleDaCredencial(id, AGORA))!.pkpass);
+      expect(desligado.voided).toBeUndefined();
+      expect(desligado.expirationDate).toBeUndefined();
+      expect(desligado.barcodes[0].message).toBe(a.barcodes[0].message);
+      expect(pausado(desligado)).toBe(true);
+      expect(await validacao.validarLeitura(desligado.barcodes[0].message, { id: 42, id_condominio: 1 }, AGORA)).toMatchObject({
+        ok: false,
+        motivo: 'carteira_desligada',
+      });
 
       await credenciais.definirOpcao(1, { wallet_habilitado: true }, SINDICO);
       const b = passJson((await svc.passeAppleDaCredencial(id, AGORA))!.pkpass);
       expect(b.voided).toBeUndefined();
+      expect(pausado(b)).toBe(false);
       expect(b.serialNumber).toBe(a.serialNumber);
+    });
+
+    it('QR no app desligado também só pausa o passe', async () => {
+      const { svc, credenciais, estado } = build();
+      await svc.emitirApple(MORADOR, { id_condominio: 1 }, AGORA);
+      await credenciais.definirOpcao(1, { qr_app_habilitado: false }, SINDICO);
+      const pass = passJson((await svc.passeAppleDaCredencial(estado.creds[0].id, AGORA))!.pkpass);
+      expect(pass.voided).toBeUndefined();
+      expect(pass.barcodes[0].message).toMatch(/^P2[A-Z2-7]{26}$/);
     });
 
     it('mudança que não altera o efeito não marca os passes', async () => {
