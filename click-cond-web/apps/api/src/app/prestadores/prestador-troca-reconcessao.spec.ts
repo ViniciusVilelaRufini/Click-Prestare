@@ -540,6 +540,53 @@ describe('Prestador × login de portaria — troca de e-mail, upsert por nome e 
     });
   });
 
+  describe('Rodada 4 (raia e) — renomear o prestador para o nome do dono de um login com o mesmo e-mail', () => {
+    // O login com o e-mail do prestador é de um COLEGA (turno 'Diurno', outro nome). Renomear o prestador para o nome
+    // do colega faria o critério (mesmo nome) tratar o login como do prestador — e a próxima vez que o síndico
+    // desligasse a chave ou removesse o cadastro, o login do colega cairia.
+    const colega = (db: any) => Object.assign(db.fp[0], { nome: 'Porteiro C', turno: 'Diurno' });
+
+    it.each([['Porteiro C'], ['  porteiro   c '], ['Pórteiro C']])('porteiro renomeando para %p → 403 e nada muda', async (nome) => {
+      const { svc, db, prisma } = banco();
+      colega(db);
+      await expect(svc.update(1, { nome }, 1, porteiro)).rejects.toThrow(
+        'Acesso negado: dar a este prestador o nome de quem tem o login de portaria com o mesmo e-mail exige síndico.',
+      );
+      expect(prisma.prestadores_servico.update).not.toHaveBeenCalled();
+      expect(db.prestadores[0].nome).toBe('Eletricista');
+      const [p] = await svc.findAll(1, undefined, sindico);
+      expect(p.loginPortariaProprio).toBe(false);
+    });
+
+    it('síndico pode renomear (e então o login passa a contar como do prestador)', async () => {
+      const { svc, db } = banco();
+      colega(db);
+      await svc.update(1, { nome: 'Porteiro C' }, 1, sindico);
+      expect(db.prestadores[0].nome).toBe('Porteiro C');
+      const [p] = await svc.findAll(1, undefined, sindico);
+      expect(p.loginPortariaProprio).toBe(true);
+    });
+
+    it('porteiro segue renomeando para outro nome, e renomeando quem tem o próprio login', async () => {
+      const a = banco();
+      colega(a.db);
+      await a.svc.update(1, { nome: 'Eletricista 24h' }, 1, porteiro);
+      expect(a.db.prestadores[0].nome).toBe('Eletricista 24h');
+
+      const b = banco(); // login próprio (turno 'Geral')
+      await b.svc.update(1, { nome: 'Eletricista Silva' }, 1, porteiro);
+      expect(b.db.prestadores[0].nome).toBe('Eletricista Silva');
+      expect(b.db.fp).toHaveLength(1);
+    });
+
+    it('o console reenviando o mesmo nome não exige síndico', async () => {
+      const { svc, db } = banco();
+      colega(db);
+      await svc.update(1, { nome: 'Eletricista', telefone: '(11) 7777' }, 1, porteiro);
+      expect(db.prestadores[0].telefone).toBe('(11) 7777');
+    });
+  });
+
   describe('Rodada 4 (raia e) — permissões guardadas ao desligar o acesso', () => {
     const flags = { areas_sociais: 1, comunicados: 0, ocorrencias: 1, manutencoes_programadas: 0, prestadores_servico: 1, agendar_mudanca: 0, cadastrar_visitante: 1, apartamentos: 0 };
     const todas = { areas_sociais: 1, comunicados: 1, ocorrencias: 1, manutencoes_programadas: 1, prestadores_servico: 1, agendar_mudanca: 1, cadastrar_visitante: 1, apartamentos: 1 };

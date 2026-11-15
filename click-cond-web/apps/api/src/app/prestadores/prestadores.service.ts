@@ -11,7 +11,7 @@ import { assertOperador, assertSindicoEstrito, isOperador, isSindicoEstrito } fr
 import { momentoTrocaSenha } from '../auth/senha-alterada.util';
 import { contaSoDaEquipeDoCondominio } from '../auth/conta-so-de-equipe.util';
 import { assertApartamentoGravavel } from '../common/apartamento-gravavel.util';
-import { ehLoginDoPrestador } from './login-do-prestador.util';
+import { ehLoginDoPrestador, nomeNormalizado } from './login-do-prestador.util';
 import { lerPermissoesSalvas, serializarPermissoesApp } from './permissoes-salvas.util';
 
 export interface CreatePrestadorDto {
@@ -459,6 +459,28 @@ export class PrestadoresService {
   }
 
   /**
+   * O nome é metade da prova de que um login de portaria é do prestador (ehLoginDoPrestador: mesmo e-mail e turno
+   * 'Geral' ou mesmo nome). Renomear o prestador para o nome do dono de um login que tem o e-mail dele e HOJE não é
+   * dele passaria esse login para o cadastro: a próxima vez que o síndico desligasse a chave ou removesse o
+   * prestador, o login do colega cairia. Só o síndico faz essa mudança; renomear para qualquer outro nome segue com a
+   * portaria.
+   */
+  private async assertRenomearNaoTomaLogin(
+    atual: { email: string | null; nome: string; id_condominio: number },
+    dto: Partial<CreatePrestadorDto>,
+    user?: JwtPayload,
+  ) {
+    if (dto.nome === undefined || isSindicoEstrito(user)) return;
+    if (nomeNormalizado(dto.nome) === nomeNormalizado(atual.nome)) return;
+    const email = (dto.email !== undefined ? dto.email ?? '' : atual.email ?? '').trim();
+    if (!email) return;
+    const fp = await this.prisma.funcionarios_Portaria.findFirst({ where: { login: email, id_condominio: atual.id_condominio } });
+    if (fp && !ehLoginDoPrestador(fp, { email, nome: atual.nome }) && ehLoginDoPrestador(fp, { email, nome: dto.nome })) {
+      assertSindicoEstrito(user, 'dar a este prestador o nome de quem tem o login de portaria com o mesmo e-mail');
+    }
+  }
+
+  /**
    * Tira de fato o acesso que o cadastro de prestador concedeu. Apagar só o Funcionarios_Portaria deixava a conta
    * do app e o vínculo Funcionarios criados na concessão: a pessoa seguia entrando no app como Funcionário e voltava
    * ao console pelo QR Code. Aqui sai também o vínculo de equipe DESTE condomínio (o JwtStrategy e o tenant do app
@@ -834,6 +856,7 @@ export class PrestadoresService {
     }
 
     if (dto.hasPortariaAccess) assertOperador(user, 'conceder acesso à portaria a um prestador');
+    await this.assertRenomearNaoTomaLogin(atual, dto, user);
     // Login de portaria que esta edição cria ou re-credencia, resolvido ANTES de gravar: criar um login
     // novo sem senha é recusado (antes virava '123456') sem deixar o cadastro meio salvo.
     const emailParaLogin = dto.email ? dto.email.trim() : dto.email === undefined ? (atual.email ?? '').trim() : '';
