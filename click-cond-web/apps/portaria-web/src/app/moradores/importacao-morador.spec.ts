@@ -16,6 +16,13 @@ describe('dataNascimentoDaPlanilha', () => {
     expect(dataNascimentoDaPlanilha(31182)).toBe('1985-05-15');
   });
 
+  it('número fora do intervalo plausível (ano solto, série pequena ou futura) não vira data', () => {
+    expect(dataNascimentoDaPlanilha(1985)).toBe('1985');
+    expect(dataNascimentoDaPlanilha(9999)).toBe('9999');
+    expect(dataNascimentoDaPlanilha(80000)).toBe('80000'); // ~2119
+    expect(dataNascimentoDaPlanilha(10000)).toBe('1927-05-18');
+  });
+
   it('vazio fica vazio; outro formato volta como veio (a API explica a recusa)', () => {
     expect(dataNascimentoDaPlanilha('')).toBe('');
     expect(dataNascimentoDaPlanilha(undefined)).toBe('');

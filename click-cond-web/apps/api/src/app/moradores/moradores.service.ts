@@ -1930,6 +1930,11 @@ export class MoradoresService {
         const aptoStr = item.lote?.toString().trim() || item.apartamento?.toString().trim() || '';
         const dataNascimento = this.dataNascimentoDaPlanilha(item.data_nascimento);
 
+        // "Bloco" sozinho normaliza para vazio e casaria com a unidade sem bloco: recusa explicando.
+        if (blocoStr && !normalizarBloco(blocoStr)) {
+          throw new BadRequestException(`Bloco "${blocoStr}" inválido: informe o bloco (ex.: A) ou deixe a coluna vazia.`);
+        }
+
         if (blocoStr || aptoStr) {
           // Tenta encontrar o apartamento no condominio
           let dbApto: { id: number } | null = await this.prisma.apartamentos.findFirst({

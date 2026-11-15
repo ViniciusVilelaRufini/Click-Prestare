@@ -4,11 +4,16 @@
  * - Texto: DD/MM/AAAA (dia e mês com 1 ou 2 dígitos) ou AAAA-MM-DD (com ou sem hora).
  * Vazio → ''. Outro formato volta como veio: a API recusa a linha explicando o formato.
  */
+/** Série 10000 do Excel = 18/05/1927. Abaixo disso o número não é tratado como data de nascimento. */
+const SERIE_MINIMA = 10000;
+
 export function dataNascimentoDaPlanilha(valor: unknown): string {
   if (valor == null) return '';
   if (typeof valor === 'number' && Number.isFinite(valor)) {
-    if (valor < 1 || valor > 2958465) return String(valor);
+    // Só é data de série do Excel num intervalo plausível de nascimento: de 10000 (1927) até hoje.
+    // Um número como 1985 (ano solto) volta como texto e a API recusa a linha pedindo DD/MM/AAAA.
     const d = new Date(Date.UTC(1899, 11, 30) + Math.round(valor) * 86400000);
+    if (valor < SERIE_MINIMA || d.getTime() > Date.now()) return String(valor);
     return d.toISOString().slice(0, 10);
   }
   if (valor instanceof Date) {

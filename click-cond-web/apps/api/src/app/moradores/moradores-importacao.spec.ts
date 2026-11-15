@@ -96,7 +96,35 @@ describe('MoradoresService.importBulk — unidade que não existe', () => {
   });
 });
 
+describe('MoradoresService.importBulk — bloco da planilha (revisão, item 8)', () => {
+  it('bloco escrito só "Bloco" não casa com a unidade sem bloco: a linha é recusada com o motivo', async () => {
+    const prisma = prismaBase({ unidades: [{ id: 60, id_condominio: 1, bloco: null, apto: '101' }] });
+    const { svc } = servico(prisma);
+    const r = await svc.importBulk(1, [linha({ bloco: 'Bloco', apartamento: '101' })], { podeCriarUnidade: true });
+    expect(r.total).toBe(0);
+    expect(r.erros).toEqual([{ nome: 'Ana', erro: 'Bloco "Bloco" inválido: informe o bloco (ex.: A) ou deixe a coluna vazia.' }]);
+    expect(prisma.apartamentos.create).not.toHaveBeenCalled();
+    expect(prisma.moradores.create).not.toHaveBeenCalled();
+  });
+
+  it('"A" na planilha não casa com a unidade "AA"', async () => {
+    const prisma = prismaBase({ unidades: [{ id: 61, id_condominio: 1, bloco: 'AA', apto: '101' }] });
+    const { svc } = servico(prisma);
+    const r = await svc.importBulk(1, [linha({ bloco: 'A', apartamento: '101' })], { podeCriarUnidade: false });
+    expect(r.total).toBe(0);
+    expect(r.erros[0].erro).toBe('Unidade não cadastrada — peça ao síndico para cadastrá-la.');
+  });
+});
+
 describe('MoradoresService.importBulk — data de nascimento', () => {
+  it('número solto (ano 1985) é recusado pedindo o formato, não vira 1905', async () => {
+    const prisma = prismaBase();
+    const { svc } = servico(prisma);
+    const r = await svc.importBulk(1, [linha({ bloco: 'A', apartamento: '101', data_nascimento: 1985 })], { podeCriarUnidade: false });
+    expect(r.total).toBe(0);
+    expect(r.erros[0].erro).toBe('Data de nascimento inválida: use DD/MM/AAAA ou AAAA-MM-DD.');
+  });
+
   const naUnidade = (extra: any = {}) => linha({ bloco: 'A', apartamento: '101', ...extra });
 
   it('DD/MM/AAAA e AAAA-MM-DD chegam ao cadastro', async () => {
