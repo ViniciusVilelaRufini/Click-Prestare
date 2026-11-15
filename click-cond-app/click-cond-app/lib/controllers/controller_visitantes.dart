@@ -180,15 +180,31 @@ apiCheckOutVisitante(int idVisitante) async {
 // CPF e foto pelo próprio celular. O que volta é um RASCUNHO: nada entra na
 // portaria antes de o morador confirmar.
 
-/// Gera o convite. O backend decide condomínio e apartamento pelo vínculo do
-/// morador — o app não manda (nem poderia: aceitaria convidar para a unidade
-/// dos outros).
+/// Corpo do POST /convites. Leva a unidade em que o morador está navegando
+/// (`Singleton.id_apartamento`, o `apto_id` do condomínio aberto): sem ela a
+/// API usava a primeira unidade da conta, e quem tem duas gerava o link para
+/// a errada. A API só aceita unidade vinculada ao próprio morador. Sem
+/// unidade válida (síndico sem apto, -1), vai só o tipo e a API escolhe como
+/// antes.
+Map<String, dynamic> corpoGerarConvite({required bool isPrestador, dynamic idApartamento}) {
+  final id = int.tryParse(idApartamento?.toString() ?? '');
+  return {
+    'is_prestador': isPrestador,
+    if (id != null && id > 0) 'id_apartamento': id,
+  };
+}
+
+/// Gera o convite. O backend decide o condomínio pelo vínculo do morador e
+/// confere a unidade enviada contra esses vínculos.
 apiGerarConvite({bool isPrestador = false}) async {
   var url = ApiConfig.buildUri('/convites');
   try {
     var response = await ApiClient.post(
       url,
-      body: jsonEncode({ "is_prestador": isPrestador }),
+      body: jsonEncode(corpoGerarConvite(
+        isPrestador: isPrestador,
+        idApartamento: Singleton.instance.id_apartamento,
+      )),
     );
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
