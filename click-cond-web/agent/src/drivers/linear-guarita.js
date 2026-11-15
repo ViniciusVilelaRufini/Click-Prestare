@@ -34,8 +34,46 @@
  * A palavra de autorização (`device.api_password`) nunca vai para log.
  */
 
+const fs = require('node:fs');
+const path = require('node:path');
 const { SessaoGuarita } = require('./linear/sessao');
 const operacoes = require('./linear/operacoes');
+
+// Operações de gravação já concluídas, em disco ao lado do estado do agente:
+// sem isso, reiniciar o agente (ou recriar o ouvinte) reexecutava uma
+// operação que a nuvem devolve de novo.
+const ARQUIVO_OPERACOES = 'guarita-operacoes.json';
+const MAX_PERSISTIDAS_POR_DEVICE = 500;
+
+/** Armazém em memória (padrão dos testes e do criarDriverGuarita sem opção). */
+function criarArmazemEmMemoria() {
+  let dados = {};
+  return {
+    ler: () => JSON.parse(JSON.stringify(dados)),
+    gravar: (o) => {
+      dados = JSON.parse(JSON.stringify(o));
+    },
+  };
+}
+
+/** Armazém num arquivo JSON (gravação atômica: .tmp + rename). Nunca lança na leitura. */
+function criarArmazemEmArquivo(arquivo) {
+  return {
+    ler() {
+      try {
+        const o = JSON.parse(fs.readFileSync(arquivo, 'utf8'));
+        return o && typeof o === 'object' ? o : {};
+      } catch {
+        return {};
+      }
+    },
+    gravar(o) {
+      const tmp = `${arquivo}.tmp`;
+      fs.writeFileSync(tmp, JSON.stringify(o), 'utf8');
+      fs.renameSync(tmp, arquivo);
+    },
+  };
+}
 
 const ID = 'linear-guarita';
 const PADROES = Object.freeze({
@@ -153,6 +191,7 @@ class ServicoGuarita {
     this.filaEventos = [];
     this.filaNaoCadastrados = [];
     this.executadas = new Map();
+    this._carregarConcluidas();
     this.ops29 = [];
     this.precisa29 = false;
     this.ultimaGravacaoEm = null;
@@ -501,12 +540,41 @@ class ServicoGuarita {
     }
   }
 
+  // ---------- operações concluídas em disco ----------
+
+  _carregarConcluidas() {
+    let lista = [];
+    try {
+      const tudo = this.cfg.armazem.ler() || {};
+      lista = Array.isArray(tudo[String(this.device.id)]) ? tudo[String(this.device.id)] : [];
+    } catch (e) {
+      this.log.error(`${this.rotulo}: não consegui ler as operações concluídas (${(e && e.message) || e})`);
+    }
+    for (const item of lista) {
+      if (!item || !Number.isInteger(item.id) || !item.corpo || typeof item.corpo !== 'object') continue;
+      this.executadas.set(item.id, { estado: 'concluida', partes: [item.corpo], enviadas: item.enviado ? 1 : 0, persistida: true });
+    }
+  }
+
+  _persistirConcluidas() {
+    try {
+      const tudo = this.cfg.armazem.ler() || {};
+      tudo[String(this.device.id)] = [...this.executadas]
+        .filter(([, e]) => e.persistida && e.estado === 'concluida')
+        .map(([id, e]) => ({ id, corpo: e.partes[0], enviado: e.enviadas >= e.partes.length }))
+        .slice(-MAX_PERSISTIDAS_POR_DEVICE);
+      this.cfg.armazem.gravar(tudo);
+    } catch (e) {
+      this.log.error(`${this.rotulo}: não consegui gravar as operações concluídas (${(e && e.message) || e})`);
+    }
+  }
+
   _lembrar(id, entrada) {
     this.executadas.set(id, entrada);
     if (this.executadas.size > 1000) {
       for (const [k, v] of this.executadas) {
         if (this.executadas.size <= 1000) break;
-        if (v.estado === 'concluida' && v.enviadas >= v.partes.length) this.executadas.delete(k);
+        if (v.estado === 'concluida' && v.enviadas >= v.partes.length && !v.persistida) this.executadas.delete(k);
       }
     }
   }
@@ -519,11 +587,17 @@ class ServicoGuarita {
       case 'apagar': {
         this._lembrar(op.id, { estado: 'executando' });
         const r = await operacoes.gravar(sessao, { tipo: op.tipo, frameHex: op.frame_hex });
+        if (r.naoEnviado) {
+          // Nem chegou ao Guarita (sessão caiu antes): fica para a reentrega.
+          this.executadas.delete(op.id);
+          return;
+        }
         const corpo = r.ok ? { ok: true, codigo: r.codigo } : { ok: false, erro: r.mensagem };
         if (!r.ok && Number.isInteger(r.codigo)) corpo.codigo = r.codigo;
-        if (r.ok) this._marcarGravacao();
-        this.log.log(`${this.rotulo}: operação ${op.id} (${op.tipo}) → ${r.ok ? 'OK' : `FALHA (${r.mensagem})`}`);
-        await this._concluir(op.id, [corpo]);
+        if (r.ja_estava) corpo.ja_estava = true;
+        if (r.ok && !r.ja_estava) this._marcarGravacao();
+        this.log.log(`${this.rotulo}: operação ${op.id} (${op.tipo}) → ${r.ok ? 'OK' : `FALHA (${r.mensagem})`}${r.ja_estava ? ' (já estava assim no Guarita)' : ''}`);
+        await this._concluir(op.id, [corpo], { persistir: true });
         return;
       }
       case 'atualizar_receptores': {
@@ -557,10 +631,12 @@ class ServicoGuarita {
     }
   }
 
-  async _concluir(id, partes) {
-    const entrada = { estado: 'concluida', partes, enviadas: 0 };
+  async _concluir(id, partes, { persistir = false } = {}) {
+    const entrada = { estado: 'concluida', partes, enviadas: 0, persistida: persistir };
     this._lembrar(id, entrada);
-    await this._enviarResultado(id, entrada);
+    if (persistir) this._persistirConcluidas();
+    const ok = await this._enviarResultado(id, entrada);
+    if (persistir && ok) this._persistirConcluidas();
   }
 
   /** Manda as partes que faltam, em ordem. Para na primeira falha transitória. */
@@ -582,6 +658,7 @@ class ServicoGuarita {
     for (const [id, e] of this.executadas) {
       if (e.estado === 'concluida' && e.enviadas < e.partes.length) {
         const ok = await this._enviarResultado(id, e);
+        if (ok && e.persistida) this._persistirConcluidas();
         if (!ok) return;
       }
     }
@@ -618,7 +695,7 @@ class ServicoGuarita {
     this.log.log(`${this.rotulo}: receptores ${r.ok ? 'atualizados' : `NÃO atualizados (${r.mensagem})`}`);
     const corpo = r.ok ? { ok: true, codigo: 0 } : { ok: false, erro: r.mensagem };
     if (!r.ok && Number.isInteger(r.codigo)) corpo.codigo = r.codigo;
-    for (const id of ids) await this._concluir(id, [{ ...corpo }]);
+    for (const id of ids) await this._concluir(id, [{ ...corpo }], { persistir: true });
   }
 
   // ---------- testar / relé ----------
@@ -670,6 +747,7 @@ function criarDriverGuarita(opcoes = {}) {
     temporizador: opcoes.temporizador || temporizadorReal,
     abrirSocket: opcoes.abrirSocket,
     log: opcoes.log || console,
+    armazem: opcoes.armazem || criarArmazemEmMemoria(),
     intervalos: { ...PADROES, ...(opcoes.intervalos || {}) },
   };
   const servicos = new Map();
@@ -717,11 +795,18 @@ function criarDriverGuarita(opcoes = {}) {
   return { id: ID, configurar, testar, executar, escutar, _servicos: servicos };
 }
 
-const padrao = criarDriverGuarita();
+// O driver do processo guarda as operações concluídas ao lado do estado do
+// agente (mesma pasta do device-baselines.json).
+const padrao = criarDriverGuarita({
+  armazem: criarArmazemEmArquivo(path.join(require('../core/estado').configDir(), ARQUIVO_OPERACOES)),
+});
 
 module.exports = {
   ...padrao,
   criarDriverGuarita,
+  criarArmazemEmMemoria,
+  criarArmazemEmArquivo,
+  ARQUIVO_OPERACOES,
   PADROES,
   naoCadastradoDe,
   eventosDoEspontaneo,

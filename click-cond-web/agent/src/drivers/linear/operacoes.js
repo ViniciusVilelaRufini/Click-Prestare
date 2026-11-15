@@ -152,10 +152,47 @@ async function gravar(sessao, { tipo, frameHex } = {}) {
       timeoutMs: TIMEOUT_67_MS,
     });
   } catch (e) {
-    return { ok: false, codigo: null, mensagem: mensagemDeErro(e) };
+    const falha = { ok: false, codigo: null, mensagem: mensagemDeErro(e) };
+    // Recusado antes de escrever (sessão já fechada): o Guarita nem viu.
+    if (e && e.codigo === 'desconectado') falha.naoEnviado = true;
+    return falha;
   }
   const codigo = dados[1];
-  return { ok: codigo === 0x00, codigo, mensagem: mensagemDoCodigo(codigo) };
+  const base = { ok: codigo === 0x00, codigo, mensagem: mensagemDoCodigo(codigo) };
+  // Operação repetida (agente reiniciou, resposta perdida, nuvem reentregou):
+  // o objetivo pode já estar atendido.
+  if (tipo === 'apagar' && codigo === 0x03) {
+    return { ok: true, codigo, ja_estava: true, mensagem: 'O dispositivo já não estava no Guarita.' };
+  }
+  if (tipo === 'cadastrar' && codigo === 0x02) {
+    const lido = await lerDispositivo(sessao, frame);
+    if (!lido) return base;
+    // Mesmo tipo + serial (a chave) e mesma unidade/bloco (bytes 7, 8 e 9).
+    if (lido[6] === frame[6] && lido[7] === frame[7] && lido[8] === frame[8]) {
+      return { ok: true, codigo, ja_estava: true, mensagem: 'Este dispositivo já estava cadastrado no Guarita.' };
+    }
+    return { ok: false, codigo, mensagem: 'Este dispositivo já está cadastrado no Guarita em outra unidade.' };
+  }
+  return base;
+}
+
+/**
+ * Comando 67 opção 3 (Ler) pela chave (tipo + serial, bytes 1-4; resto
+ * 0x00). Devolve o frame de 39 bytes lido, ou null (não existe / sem
+ * resposta — sem resposta derruba a sessão, ver SessaoGuarita).
+ */
+async function lerDispositivo(sessao, frame) {
+  const chave = Buffer.alloc(39, 0x00);
+  frame.copy(chave, 0, 0, 4);
+  let dados;
+  try {
+    dados = await sessao.comando(67, Buffer.concat([Buffer.from([0x03]), chave]), { timeoutMs: TIMEOUT_67_MS });
+  } catch {
+    return null;
+  }
+  if (dados.length !== 41 || dados[1] !== 0x00) return null;
+  const lido = dados.subarray(2, 41);
+  return lido.subarray(0, 4).equals(chave.subarray(0, 4)) ? Buffer.from(lido) : null;
 }
 
 /** Comando 29 (atualizar receptores): a resposta só chega no fim, até 180 s. */
@@ -197,6 +234,7 @@ module.exports = {
   lerTodosDispositivos,
   lerTodosEventos,
   gravar,
+  lerDispositivo,
   atualizarReceptores,
   acionarRele,
   deltaDoRelogio,

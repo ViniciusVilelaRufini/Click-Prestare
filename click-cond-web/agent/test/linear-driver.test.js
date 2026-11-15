@@ -54,6 +54,7 @@ function criarNuvemFalsa() {
     ops: [],
     reentregar: false,
     foraDoAr: false,
+    falharResultados: false,
     semRotas: false,
     resultados: [],
     eventos: [],
@@ -82,6 +83,7 @@ function criarNuvemFalsa() {
         return responder(200, { operacoes: lista.map(({ _entregue, ...o }) => o) });
       }
       const r = rota.match(/^operacoes\/(\d+)\/resultado$/);
+      if (req.method === 'POST' && r && st.falharResultados) return responder(503, {});
       if (req.method === 'POST' && r) {
         st.resultados.push({ id: Number(r[1]), ...json });
         return responder(200, {});
@@ -114,7 +116,7 @@ function criarNuvemFalsa() {
 
 // ---------- cenário ----------
 
-async function cenario({ sim: simOpcoes = {}, device = {}, intervalos } = {}, fn) {
+async function cenario({ sim: simOpcoes = {}, device = {}, intervalos, armazem } = {}, fn) {
   const relogio = criarRelogioFalso();
   const sim = criarGuaritaSimulado({ horaDoGuarita: () => new Date(relogio.agora() + 200000), ...simOpcoes });
   const { porta } = await sim.escutar();
@@ -122,14 +124,17 @@ async function cenario({ sim: simOpcoes = {}, device = {}, intervalos } = {}, fn
   nuvemCore.configurar({ apiUrl: nuvem.url });
   const logs = [];
   const log = { log: (m) => logs.push(String(m)), error: (m) => logs.push(String(m)) };
-  const driver = criarDriverGuarita({
-    requisitarNuvem: (metodo, caminho, corpo) =>
-      nuvemCore.cloudRequest(metodo, `/api/facial/agent/condo/${TOKEN}${caminho}`, corpo),
-    agora: relogio.agora,
-    temporizador: relogio,
-    log,
-    intervalos,
-  });
+  const novoDriver = () =>
+    criarDriverGuarita({
+      requisitarNuvem: (metodo, caminho, corpo) =>
+        nuvemCore.cloudRequest(metodo, `/api/facial/agent/condo/${TOKEN}${caminho}`, corpo),
+      agora: relogio.agora,
+      temporizador: relogio,
+      log,
+      intervalos,
+      armazem,
+    });
+  let driver = novoDriver();
   const dev = {
     id: 42,
     nome: 'Guarita teste',
@@ -146,10 +151,18 @@ async function cenario({ sim: simOpcoes = {}, device = {}, intervalos } = {}, fn
     sim,
     nuvem,
     relogio,
-    driver,
     dev,
     logs,
+    get driver() {
+      return driver;
+    },
     servico: () => driver._servicos.get(dev.id),
+    /** Simula reinício do agente: para o driver atual e cria outro (mesmo armazém). */
+    reiniciarAgente() {
+      if (parar) parar();
+      parar = null;
+      driver = novoDriver();
+    },
     escutar() {
       parar = driver.escutar(dev, () => {
         throw new Error('o Guarita nunca usa aoEvento (forwardAccessEvent)');
@@ -337,8 +350,9 @@ test('operações executam na ordem devolvida, uma de cada vez', async () => {
     await c.pronto();
     await c.relogio.avancar(0);
     await esperarAte(() => c.nuvem.resultados.length === 4, { rotulo: '4 resultados' });
-    assert.deepEqual(c.nuvem.resultados.map((r) => [r.id, r.ok]), [[3, true], [4, true], [5, true], [6, false]]);
-    assert.deepEqual(c.nuvem.resultados[3], { id: 6, ok: false, codigo: 3, erro: 'Dispositivo não encontrado no Guarita.' });
+    assert.deepEqual(c.nuvem.resultados.map((r) => [r.id, r.ok]), [[3, true], [4, true], [5, true], [6, true]]);
+    // Apagar de novo: já não está no Guarita → objetivo atendido (I1).
+    assert.deepEqual(c.nuvem.resultados[3], { id: 6, ok: true, codigo: 3, ja_estava: true });
     assert.deepEqual(c.sim.comandosRecebidos(67).map((f) => f[2]), [0, 1, 4, 4]);
   });
 });
@@ -688,4 +702,76 @@ test('C2 (driver): palavra do cadastro que formaria o comando 77 → não conect
     await new Promise((r) => setTimeout(r, 20));
     assert.equal(c.sim.conexoesAceitas, 0);
   });
+});
+
+test('I1: operação já concluída não é reexecutada depois de o agente reiniciar (persistida); o resultado pendente sai na volta', async () => {
+  const { criarArmazemEmMemoria } = require('../src/drivers/linear-guarita');
+  const armazem = criarArmazemEmMemoria();
+  await cenario({ armazem }, async (c) => {
+    c.nuvem.reentregar = true;
+    c.nuvem.falharResultados = true; // o resultado não chega à nuvem antes do reinício
+    c.nuvem.ops.push({ id: 10, tipo: 'cadastrar', frame_hex: hex(dispositivo(4)) });
+    c.escutar();
+    await c.pronto();
+    await c.relogio.avancar(0);
+    await esperarAte(() => c.sim.comandosRecebidos(67).length === 1, { rotulo: 'o 67' });
+    await esperarAte(() => (armazem.ler()['42'] || []).length === 1, { rotulo: 'persistido' });
+    assert.deepEqual(armazem.ler()['42'], [{ id: 10, corpo: { ok: true, codigo: 0 }, enviado: false }]);
+    c.reiniciarAgente();
+    c.nuvem.falharResultados = false;
+    c.escutar();
+    await c.pronto();
+    await c.relogio.avancar(0);
+    await esperarAte(() => c.nuvem.resultados.some((r) => r.id === 10), { rotulo: 'resultado depois do reinício' });
+    await c.relogio.avancar(5000);
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(c.sim.comandosRecebidos(67).length, 1, 'não reexecutou');
+    assert.ok(c.nuvem.resultados.every((r) => r.id === 10 && r.ok === true && r.codigo === 0));
+    await esperarAte(() => armazem.ler()['42'][0].enviado === true, { rotulo: 'marcado como enviado' });
+  });
+});
+
+test('I1: sem o registro (armazém perdido), o cadastrar repetido responde 0x02 e vira ok com ja_estava, não "falhou"', async () => {
+  const d = dispositivo(4);
+  await cenario({ sim: { dispositivos: [d] } }, async (c) => {
+    c.nuvem.ops.push({ id: 11, tipo: 'cadastrar', frame_hex: hex(d) });
+    c.nuvem.ops.push({ id: 12, tipo: 'apagar', frame_hex: hex(dispositivo(77)) });
+    c.escutar();
+    await c.pronto();
+    await c.relogio.avancar(0);
+    await esperarAte(() => c.nuvem.resultados.length === 2, { rotulo: 'resultados' });
+    assert.deepEqual(c.nuvem.resultados, [
+      { id: 11, ok: true, codigo: 2, ja_estava: true },
+      { id: 12, ok: true, codigo: 3, ja_estava: true },
+    ]);
+    assert.equal(c.sim.memoria.dispositivos.length, 1);
+  });
+});
+
+test('I1: armazém em arquivo grava/relê atômico e guarda no máximo 500 operações por Guarita', async () => {
+  const os = require('node:os');
+  const { criarArmazemEmArquivo, criarDriverGuarita: criar } = require('../src/drivers/linear-guarita');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'guarita-'));
+  const arq = path.join(dir, 'guarita-operacoes.json');
+  try {
+    const armazem = criarArmazemEmArquivo(arq);
+    assert.deepEqual(armazem.ler(), {});
+    const lista = Array.from({ length: 600 }, (_, i) => ({ id: i + 1, corpo: { ok: true, codigo: 0 }, enviado: true }));
+    armazem.gravar({ 5: lista });
+    assert.equal(fs.existsSync(`${arq}.tmp`), false);
+    // Um serviço carrega e regrava: corta para os 500 mais recentes.
+    const driver = criar({ armazem, log: { log() {}, error() {} }, requisitarNuvem: async () => ({ status: 200, data: {} }) });
+    const parar = driver.escutar({ id: 5, nome: 'G', tipo: 'guarita', ip: '127.0.0.1', porta: 1 }, () => {});
+    const servico = driver._servicos.get(5);
+    assert.equal(servico.executadas.size, 600);
+    servico._persistirConcluidas();
+    parar();
+    const relido = criarArmazemEmArquivo(arq).ler()['5'];
+    assert.equal(relido.length, 500);
+    assert.equal(relido[0].id, 101);
+    fs.writeFileSync(arq, '{corrompido');
+    assert.deepEqual(criarArmazemEmArquivo(arq).ler(), {});
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

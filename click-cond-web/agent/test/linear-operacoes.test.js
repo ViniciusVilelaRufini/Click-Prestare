@@ -152,8 +152,6 @@ test('gravar: cadastrar, editar e apagar reais; ok só com 0x00; apagar manda s�
     let r = await ops.gravar(sessao, { tipo: 'cadastrar', frameHex: hex(d) });
     assert.deepEqual(r, { ok: true, codigo: 0, mensagem: 'ok' });
     assert.equal(sim.memoria.dispositivos.length, 1);
-    r = await ops.gravar(sessao, { tipo: 'cadastrar', frameHex: hex(d) });
-    assert.deepEqual(r, { ok: false, codigo: 2, mensagem: 'Este dispositivo já está cadastrado no Guarita.' });
     const editado = Buffer.from(d);
     Buffer.from('NOVO ROTULO'.padEnd(18, ' ')).copy(editado, 11);
     r = await ops.gravar(sessao, { tipo: 'editar', frameHex: hex(editado) });
@@ -166,8 +164,42 @@ test('gravar: cadastrar, editar e apagar reais; ok só com 0x00; apagar manda s�
     assert.equal(ultimo67[2], 0x04);
     assert.equal(hex(ultimo67.subarray(3, 7)), hex(d.subarray(0, 4)));
     assert.ok(ultimo67.subarray(7, 42).every((b) => b === 0), 'apagar leva só tipo + serial');
-    r = await ops.gravar(sessao, { tipo: 'apagar', frameHex: hex(editado) });
-    assert.deepEqual(r, { ok: false, codigo: 3, mensagem: 'Dispositivo não encontrado no Guarita.' });
+  });
+});
+
+test('I1: cadastrar repetido (0x02) é conferido pelo 67 opção 3 — mesma unidade/bloco → ok com ja_estava', async () => {
+  await cenario({}, async ({ sim, sessao }) => {
+    const d = dispositivo(7, 3);
+    assert.equal((await ops.gravar(sessao, { tipo: 'cadastrar', frameHex: hex(d) })).ok, true);
+    const outroRotulo = Buffer.from(d);
+    Buffer.from('OUTRO ROTULO'.padEnd(18, ' ')).copy(outroRotulo, 11);
+    const r = await ops.gravar(sessao, { tipo: 'cadastrar', frameHex: hex(outroRotulo) });
+    assert.deepEqual(r, { ok: true, codigo: 2, ja_estava: true, mensagem: 'Este dispositivo já estava cadastrado no Guarita.' });
+    const leitura = sim.comandosRecebidos(67).at(-1);
+    assert.equal(leitura[2], 0x03, 'conferiu com o Ler');
+    assert.equal(hex(leitura.subarray(3, 7)), hex(d.subarray(0, 4)));
+    assert.ok(leitura.subarray(7, 42).every((b) => b === 0), 'o Ler leva só a chave');
+    assert.equal(sim.memoria.dispositivos.length, 1);
+  });
+});
+
+test('I1: cadastrar com 0x02 mas o Guarita tem o dispositivo em OUTRA unidade → falha com mensagem clara', async () => {
+  const d = dispositivo(7, 3);
+  await cenario({ dispositivos: [d] }, async ({ sessao }) => {
+    const outraUnidade = Buffer.from(d);
+    outraUnidade[7] = (outraUnidade[7] + 1) % 100;
+    const r = await ops.gravar(sessao, { tipo: 'cadastrar', frameHex: hex(outraUnidade) });
+    assert.deepEqual(r, { ok: false, codigo: 2, mensagem: 'Este dispositivo já está cadastrado no Guarita em outra unidade.' });
+    const outroBloco = Buffer.from(d);
+    outroBloco[8] = 0x05;
+    assert.equal((await ops.gravar(sessao, { tipo: 'cadastrar', frameHex: hex(outroBloco) })).ok, false);
+  });
+});
+
+test('I1: apagar o que já não está no Guarita (0x03) → ok com ja_estava (o objetivo está atendido)', async () => {
+  await cenario({}, async ({ sessao }) => {
+    const r = await ops.gravar(sessao, { tipo: 'apagar', frameHex: hex(dispositivo(9)) });
+    assert.deepEqual(r, { ok: true, codigo: 3, ja_estava: true, mensagem: 'O dispositivo já não estava no Guarita.' });
   });
 });
 
