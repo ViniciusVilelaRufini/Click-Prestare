@@ -47,7 +47,9 @@ class _ModalFinalizarAssembleiaState extends State<ModalFinalizarAssembleia> {
       if (!mounted) return;
       changeLoading(false);
       if(res.ok){
-        await displayMessageWithReturn(context, getText('alert_success'), getText('assembleia_encerrada'));
+        // A API diz onde ficou a ATA; sem a mensagem, o texto de sempre.
+        await displayMessageWithReturn(
+            context, getText('alert_success'), res.mensagemSucesso ?? getText('assembleia_encerrada'));
         if (!mounted) return;
         Navigator.of(context).pop();
         Navigator.of(context).pop();

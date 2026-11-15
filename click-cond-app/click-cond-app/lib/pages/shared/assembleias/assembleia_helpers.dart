@@ -99,6 +99,15 @@ String? linkAta(dynamic assembleia) {
   return s.isEmpty ? null : s;
 }
 
+/// O link assinado da ATA ainda abre, pela resposta de um GET de teste:
+/// 2xx/3xx sim; 4xx não (assinatura expirada vem 403); 5xx ou outro → nulo
+/// (não dá para saber; a tela abre assim mesmo).
+bool? linkAtaValido(int statusCode) {
+  if (statusCode >= 200 && statusCode < 400) return true;
+  if (statusCode >= 400 && statusCode < 500) return false;
+  return null;
+}
+
 /// Se a data da assembleia já passou (dia anterior a hoje).
 bool assembleiaPassou(dynamic data, {DateTime? agora}) {
   final dt = dataAssembleia(data);
