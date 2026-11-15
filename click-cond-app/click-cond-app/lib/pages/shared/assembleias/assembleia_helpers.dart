@@ -54,6 +54,51 @@ int? _diasAteAssembleia(dynamic data, DateTime? agora) {
 /// o texto de [quandoAssembleia]).
 bool assembleiaEhHoje(dynamic data, {DateTime? agora}) => _diasAteAssembleia(data, agora) == 0;
 
+/// Se a assembleia foi finalizada com a ATA (`finalizada` da API nova; a
+/// antiga apagava a assembleia e não manda o campo → falso).
+bool assembleiaFinalizada(dynamic assembleia) {
+  if (assembleia is! Map) return false;
+  final v = assembleia['finalizada'];
+  if (v is bool) return v;
+  if (v is num) return v != 0;
+  final s = textoLimpo(v).toLowerCase();
+  return s == 'true' || s == '1';
+}
+
+/// Separa a lista da API (com `incluir_finalizadas=1`) em abertas e
+/// finalizadas, mantendo a ordem de cada uma. Itens que não são mapa somem.
+({List<Map> abertas, List<Map> finalizadas}) separarAssembleias(dynamic lista) {
+  final abertas = <Map>[];
+  final finalizadas = <Map>[];
+  if (lista is List) {
+    for (final a in lista) {
+      if (a is! Map) continue;
+      (assembleiaFinalizada(a) ? finalizadas : abertas).add(a);
+    }
+  }
+  return (abertas: abertas, finalizadas: finalizadas);
+}
+
+/// Data de `finalizada_em` para a tela (`'dd/MM/yyyy'`): aceita ISO (vira o
+/// dia local) ou já `'dd/MM/yyyy'`. Vazio ou ilegível → `''`.
+String dataFinalizacao(dynamic v) {
+  final s = textoLimpo(v);
+  final br = RegExp(r'^(\d{2})/(\d{2})/(\d{4})').firstMatch(s);
+  if (br != null) return br.group(0)!;
+  final iso = DateTime.tryParse(s);
+  if (iso == null) return '';
+  final d = iso.isUtc ? iso.toLocal() : iso;
+  String dois(int n) => n.toString().padLeft(2, '0');
+  return '${dois(d.day)}/${dois(d.month)}/${d.year}';
+}
+
+/// Link da ATA da assembleia finalizada (`link_ata`), ou nulo.
+String? linkAta(dynamic assembleia) {
+  if (assembleia is! Map) return null;
+  final s = textoLimpo(assembleia['link_ata']);
+  return s.isEmpty ? null : s;
+}
+
 /// Se a data da assembleia já passou (dia anterior a hoje).
 bool assembleiaPassou(dynamic data, {DateTime? agora}) {
   final dt = dataAssembleia(data);

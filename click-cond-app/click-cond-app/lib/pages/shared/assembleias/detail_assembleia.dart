@@ -8,6 +8,7 @@ import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/alerts/modal_finalizar_assembleia.dart';
+import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:click/widgets/cells/cell_votacao.dart';
 import 'package:click/widgets/votacao/votacao_helpers.dart';
@@ -22,6 +23,9 @@ class DetailAssembleia extends StatefulWidget {
 
   /// Botão "Nova votação" (síndico).
   static const chaveNovaVotacao = Key('assembleia-nova-votacao');
+
+  /// Botão "Abrir ATA" da assembleia finalizada.
+  static const chaveAbrirAta = Key('assembleia-abrir-ata');
 
   @override
   _DetailAssembleiaPageState createState() => _DetailAssembleiaPageState();
@@ -93,9 +97,15 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
     }
   }
 
+  /// Finalizada com a ATA: somente leitura (sem editar, finalizar, nova
+  /// votação, excluir nem votar).
+  bool get _finalizada => assembleiaFinalizada(obj);
+
   @override
   Widget build(BuildContext context) {
+    final finalizada = _finalizada;
     final isSindico = getUserType() == 'sindico';
+    final gerencia = isSindico && !finalizada;
 
     // Spinner de tela cheia só no primeiro carregamento; depois (votar,
     // excluir, recarregar) o conteúdo fica e os botões mostram o estado.
@@ -111,9 +121,13 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _cabecalho(isSindico),
+              if (finalizada) ...[
+                _cardFinalizada(),
+                const SizedBox(height: AppSpacing.lg),
+              ],
+              _cabecalho(gerencia),
               const SizedBox(height: AppSpacing.xl),
-              _tituloVotacoes(isSindico),
+              _tituloVotacoes(gerencia),
               const SizedBox(height: AppSpacing.md),
               if (votacoes.isEmpty)
                 _semVotacoes()
@@ -128,6 +142,7 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
                       meusVotos: meus_votos,
                       unidades: unidadesDaVotacao(votos_por_unidade, item['id']),
                       carregando: _isLoading,
+                      somenteLeitura: finalizada,
                       onPressedDelete: () => delete(item['id']),
                       onPressedChoice: (id, idApto) => insertVoto(id, item['id'], id_apto: idApto),
                     ),
@@ -140,7 +155,7 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
 
     return AppScaffold(
       title: getText('lb_assembleia'),
-      actions: isSindico
+      actions: gerencia
           ? [
               IconButton(
                 onPressed: () => Navigator.push(context,
@@ -257,6 +272,71 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  /// Faixa da assembleia finalizada: quando, que nada foi apagado e a ATA.
+  Widget _cardFinalizada() {
+    final quando = dataFinalizacao(obj['finalizada_em']);
+    final ata = linkAta(obj);
+    final cor = statusVotacaoInfo(2).cor;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Semantics(
+      container: true,
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: cor.withValues(alpha: isDark ? 0.14 : 0.07),
+          borderRadius: AppRadius.rmd,
+          border: Border.all(color: cor.withValues(alpha: isDark ? 0.35 : 0.25)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(PhosphorIcons.lockSimple, size: 20, color: AppColors.textSecondary(context)),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        quando.isEmpty ? 'Assembleia finalizada' : 'Assembleia finalizada em $quando',
+                        style: AppTypography.bodyMedium(context).copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary(context),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Guardada no histórico com as votações e o resultado final.',
+                        style: AppTypography.caption(context).copyWith(
+                          fontSize: 13,
+                          color: AppColors.textSecondary(context),
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (ata != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              AppButton(
+                key: DetailAssembleia.chaveAbrirAta,
+                label: 'Abrir ATA',
+                icon: PhosphorIcons.filePdf,
+                variant: AppButtonVariant.secondary,
+                size: AppButtonSize.md,
+                onPressed: () => launchInBrowser(ata, context),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

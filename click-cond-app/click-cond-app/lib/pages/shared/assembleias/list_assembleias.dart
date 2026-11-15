@@ -33,12 +33,34 @@ class _ListAssembleiasPageState extends State<ListAssembleias> {
   Future<void> loadList() async {
     try {
       setState(() => _isLoading = true);
-      list = await apiGetAll("assembleias");
+      // A API nova devolve as finalizadas só com este parâmetro (a 1.2.48
+      // não manda e recebe só as abertas); a antiga o ignora.
+      list = await apiGetAll("assembleias", extras: {'incluir_finalizadas': '1'});
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// Abertas primeiro; as finalizadas (API nova) numa seção própria abaixo.
+  /// Sem abertas, o aviso de vazio fica no topo.
+  Widget _lista(bool isSindico, EdgeInsets padding) {
+    final grupos = separarAssembleias(list);
+    final itens = <Widget>[
+      if (grupos.abertas.isEmpty) _EstadoVazio(isSindico: isSindico),
+      for (final a in grupos.abertas) AssembleiaCard(item: a, onTap: () => _abrir(a)),
+      if (grupos.finalizadas.isNotEmpty) const _TituloSecao(texto: 'Finalizadas'),
+      for (final a in grupos.finalizadas) AssembleiaCard(item: a, onTap: () => _abrir(a)),
+    ];
+    return ListView.separated(
+      // Rolável para o "puxar para atualizar" funcionar no vazio.
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: padding,
+      itemCount: itens.length,
+      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.md),
+      itemBuilder: (_, i) => itens[i],
+    );
   }
 
   void _abrir(dynamic item) {
@@ -75,24 +97,32 @@ class _ListAssembleiasPageState extends State<ListAssembleias> {
             )
           : RefreshIndicator(
               onRefresh: loadList,
-              child: list.isEmpty
-                  ? ListView(
-                      // Rolável para o "puxar para atualizar" funcionar no vazio.
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: padding,
-                      children: [_EstadoVazio(isSindico: isSindico)],
-                    )
-                  : ListView.separated(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: padding,
-                      itemCount: list.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.md),
-                      itemBuilder: (_, i) => AssembleiaCard(
-                        item: list[i],
-                        onTap: () => _abrir(list[i]),
-                      ),
-                    ),
+              child: _lista(isSindico, padding),
             ),
+    );
+  }
+}
+
+/// Título de seção da lista ("FINALIZADAS").
+class _TituloSecao extends StatelessWidget {
+  final String texto;
+  const _TituloSecao({required this.texto});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.md),
+      child: Semantics(
+        header: true,
+        child: Text(
+          texto.toUpperCase(),
+          style: AppTypography.captionMedium(context).copyWith(
+            fontWeight: FontWeight.w700,
+            color: AppColors.textSecondary(context),
+            letterSpacing: 0.8,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -117,15 +147,22 @@ class AssembleiaCard extends StatelessWidget {
     final titulo = textoLimpo(m['titulo']);
     final descricao = textoLimpo(m['descricao']);
     final data = dataAssembleia(m['data']);
-    final quando = quandoAssembleia(m['data'], agora: agora);
-    final passou = assembleiaPassou(m['data'], agora: agora);
+    final finalizada = assembleiaFinalizada(m);
+    final finalizadaEm = dataFinalizacao(m['finalizada_em']);
+    // Finalizada: no lugar de "Hoje/Em N dias", quando foi finalizada.
+    final quando = finalizada
+        ? (finalizadaEm.isEmpty ? 'Finalizada' : 'Finalizada em $finalizadaEm')
+        : quandoAssembleia(m['data'], agora: agora);
+    final passou = finalizada || assembleiaPassou(m['data'], agora: agora);
     final dataHora = dataHoraAssembleia(m['data'], m['hora']);
 
     final destaque = corDestaqueVotacao(context);
     final corBloco = passou ? AppColors.textTertiary(context) : destaque;
-    final corQuando = assembleiaEhHoje(m['data'], agora: agora)
-        ? statusVotacaoInfo(1).corTexto(context)
-        : statusVotacaoInfo(0).corTexto(context);
+    final corQuando = finalizada
+        ? AppColors.textSecondary(context)
+        : assembleiaEhHoje(m['data'], agora: agora)
+            ? statusVotacaoInfo(1).corTexto(context)
+            : statusVotacaoInfo(0).corTexto(context);
     final secundario = AppTypography.caption(context).copyWith(fontSize: 13);
 
     final semantica = [

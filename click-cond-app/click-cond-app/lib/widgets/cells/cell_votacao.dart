@@ -44,6 +44,9 @@ class CellVotacao extends StatefulWidget {
   /// A tela está enviando/recarregando: desabilita opções e botões.
   final bool carregando;
 
+  /// Assembleia finalizada: mostra como encerrada, sem votar nem excluir.
+  final bool somenteLeitura;
+
   const CellVotacao({
     super.key,
     required this.item,
@@ -53,6 +56,7 @@ class CellVotacao extends StatefulWidget {
     required this.onPressedChoice,
     this.carregando = false,
     this.unidades = const [],
+    this.somenteLeitura = false,
   });
 
   /// Botão do rodapé da votação (votar / confirmar / alterar voto).
@@ -138,8 +142,9 @@ class _CellVotacaoState extends State<CellVotacao> {
 
   bool get _jaVotou => _opcoes.any((o) => votouNaOpcao(o.id, _meusVotos));
 
-  SituacaoVoto get _situacao =>
-      situacaoVoto(status: _status, jaVotou: _jaVotou, alterando: _alterando, unidade: _unidadeAtual);
+  SituacaoVoto get _situacao => widget.somenteLeitura
+      ? SituacaoVoto.encerrada
+      : situacaoVoto(status: _status, jaVotou: _jaVotou, alterando: _alterando, unidade: _unidadeAtual);
 
   bool get _escolhendo => !widget.isRegister && podeEscolher(_situacao);
 
@@ -240,7 +245,7 @@ class _CellVotacaoState extends State<CellVotacao> {
               unidades: widget.unidades,
               opcoes: opcoes,
               selecionada: _unidade,
-              habilitado: !widget.carregando,
+              habilitado: !widget.carregando && !widget.somenteLeitura,
               onChanged: (idApto) {
                 if (idApto == _unidade) return;
                 setState(() {
@@ -261,11 +266,11 @@ class _CellVotacaoState extends State<CellVotacao> {
             ..._listaOpcoes(opcoes),
 
           // ── Ações ──
-          if (!widget.isRegister && status == 1 && _situacao != SituacaoVoto.semDireito) ...[
+          if (!widget.isRegister && !widget.somenteLeitura && status == 1 && _situacao != SituacaoVoto.semDireito) ...[
             const SizedBox(height: AppSpacing.xs),
             _acoes(),
           ],
-          if (isSindico && !widget.isRegister) ...[
+          if (isSindico && !widget.isRegister && !widget.somenteLeitura) ...[
             const SizedBox(height: AppSpacing.sm),
             Align(
               alignment: Alignment.centerRight,

@@ -186,11 +186,15 @@ Future<ResultadoApi> apiDeleteObjectResultado(String route, int idObj) async {
   }
 }
 
-apiGetAll(String route) async {
+/// [extras] entra na query junto dos parâmetros de sempre (ex.:
+/// `{'incluir_finalizadas': '1'}` na lista de assembleias); sem ele a chamada
+/// é a mesma de antes.
+apiGetAll(String route, {Map<String, String>? extras}) async {
   final url = _buildUri('/$route/get-all', {
     'id_condominio': Singleton.instance.id_condominio.toString(),
     'offset': '0',
     'id_apto': Singleton.instance.getIdApartamento(),
+    ...?extras,
   });
   logDebug('[apiGetAll] $route | id_condominio=${Singleton.instance.id_condominio} | id_apto=${Singleton.instance.getIdApartamento()}');
   try {

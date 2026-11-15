@@ -1,4 +1,5 @@
 import 'package:click/theme/app_colors.dart';
+import 'package:click/theme/app_typography.dart';
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
@@ -13,6 +14,9 @@ class ModalFinalizarAssembleia extends StatefulWidget {
     super.key, required this.assembleia, 
     });
     final dynamic assembleia;
+
+  /// Finalizar não apaga mais nada (rodada 5): explica isso ao síndico.
+  static const textoNadaApagado = 'A assembleia fica guardada no histórico com as votações; nada é apagado.';
 
   @override
   _ModalFinalizarAssembleiaState createState() => _ModalFinalizarAssembleiaState();
@@ -39,16 +43,17 @@ class _ModalFinalizarAssembleiaState extends State<ModalFinalizarAssembleia> {
         data: widget.assembleia['data'],
         doc: base64,
       );
-      var res = await apiSaveObject("assembleias/finish", "assembleia", obj, false);
+      final res = await apiSaveObjectResultado("assembleias/finish", "assembleia", obj);
       if (!mounted) return;
       changeLoading(false);
-      if(res.toString().isEmpty){
+      if(res.ok){
         await displayMessageWithReturn(context, getText('alert_success'), getText('assembleia_encerrada'));
         if (!mounted) return;
         Navigator.of(context).pop();
         Navigator.of(context).pop();
       }else{
-        displayMessage(context, getText('alert_error'), res.toString());
+        // Ex.: "Assembleia já finalizada."
+        displayMessage(context, getText('alert_error'), res.mensagemOu(getText('alert_generic_error')));
       }
     }catch(e){
       if (!mounted) return;
@@ -108,6 +113,12 @@ class _ModalFinalizarAssembleiaState extends State<ModalFinalizarAssembleia> {
                 ],
               ),
               Text(getText('assembleia_finalize_upload'),  textAlign: TextAlign.center, style: TextStyle(fontSize: 22,fontWeight: FontWeight.w900, color: AppColors.textPrimary(context)),),
+              const SizedBox(height: 12),
+              Text(
+                ModalFinalizarAssembleia.textoNadaApagado,
+                textAlign: TextAlign.center,
+                style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context), height: 1.4),
+              ),
               SizedBox(height: 25,),
               uploadFile(title: getText('assembleia_upload_ata'), types: ['pdf'], maxDocs: 1,
                 onPressed: (listFiles){
