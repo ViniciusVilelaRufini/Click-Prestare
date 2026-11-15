@@ -542,7 +542,7 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
 
     const tokenPedido = novoToken();
     // Pedido criado e ligado ao atendimento na mesma transação, dentro do lock da unidade.
-    const chegada = await this.delivery.registrarChegadaAutoatendimento(
+    const chegada: { id: number; pedido: any } = await this.delivery.registrarChegadaAutoatendimento(
       { idCondominio: portao.id_condominio, idApartamento, nomeEntregador: nome, plataforma },
       (tx, idAtendimento) =>
         tx.deliveryPedidosPortao.create({
