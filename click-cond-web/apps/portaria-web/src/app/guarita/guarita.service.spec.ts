@@ -112,6 +112,8 @@ describe('GuaritaService — rotas do console', () => {
     ['vincular', () => api.vincular(7, 30, 101), `${base}/7/dispositivos/30/vincular`, { id_veiculo: 101 }],
     ['aprovar', () => api.aprovar(7, 30), `${base}/7/dispositivos/30/aprovar`, {}],
     ['recusar', () => api.recusar(7, 30), `${base}/7/dispositivos/30/recusar`, {}],
+    ['desfazer', () => api.desfazer(7, 30), `${base}/7/dispositivos/30/desfazer`, {}],
+    ['regravar', () => api.regravar(7, 30), `${base}/7/dispositivos/30/regravar`, {}],
     ['abrirCaptura', () => api.abrirCaptura(7, 101), `${base}/7/captura`, { id_veiculo: 101 }],
     [
       'confirmarCaptura',

@@ -48,6 +48,8 @@ function build(opts: {
     listarGuaritas: jest.fn(() => of(opts.guaritas ?? [])),
     dispositivos: jest.fn(opts.dispositivos ?? (() => pagina([]))),
     veiculosParaVincular: jest.fn(() => of([] as any[])),
+    desfazer: jest.fn(() => of({ ok: true })),
+    regravar: jest.fn(() => of({ ok: true })),
     aprovar: jest.fn(() => of({ ok: true })),
     recusar: jest.fn(() => of({ ok: true })),
     vincular: jest.fn(() => of({ ok: true })),
@@ -108,6 +110,8 @@ describe('VeiculosPageComponent — selo do estado no Guarita', () => {
     ['falhou', 'Memória do Guarita cheia.', 'Falhou: Memória do Guarita cheia.'],
     ['removendo', null, 'Removendo'],
     ['recusada', null, 'Recusada pela portaria'],
+    ['conflito', null, 'Conflito: código já usado em outra unidade no Guarita'],
+    ['ausente', null, 'Não está mais no Guarita'],
   ])('%s → "%s"', (estado, erro, texto) => {
     const { el } = build({
       guaritas: [guarita],
@@ -320,6 +324,65 @@ describe('VeiculosPageComponent — tag de Guarita na aba "Tags RFID"', () => {
     const linha = el.querySelector('tbody tr') as HTMLElement;
     expect(botoes(linha, 'Bloquear').length).toBe(1);
     expect(linha.querySelector('[data-guarita-estado-tag]')).toBeNull();
+  });
+});
+
+describe('VeiculosPageComponent — conflito e "não está mais no Guarita"', () => {
+  const conflito = tagG(1, { guarita_estado: 'conflito', id_device: 7 });
+  const ausente = tagG(2, { guarita_estado: 'ausente', id_device: 7 });
+  const veiculos = [carro(100, 1, 'ABC1D23'), carro(102, 2, 'GHI7J89')];
+
+  it('conflito: só "Desfazer vínculo"; ausente: "Regravar" e "Desfazer vínculo"; nenhum aprova nem remove do Guarita', () => {
+    const { el } = build({ guaritas: [guarita], veiculos, tags: [conflito, ausente] });
+    const [l1, l2] = Array.from(el.querySelectorAll('tbody tr')) as HTMLElement[];
+    expect(botoes(l1, 'Desfazer vínculo').length).toBe(1);
+    expect(botoes(l1, 'Regravar').length).toBe(0);
+    expect(botoes(l2, 'Regravar').length).toBe(1);
+    expect(botoes(l2, 'Desfazer vínculo').length).toBe(1);
+    for (const l of [l1, l2]) {
+      expect(botoes(l, 'Aprovar').length).toBe(0);
+      expect(botoes(l, 'Remover do Guarita').length).toBe(0);
+    }
+  });
+
+  it('desfazer pede confirmação com o texto certo e chama a API', async () => {
+    const { tela, guaritaApi, confirm } = build({ guaritas: [guarita], veiculos, tags: [conflito, ausente] });
+    await tela.desfazerVinculo(1);
+    expect(confirm.ask).toHaveBeenCalledWith(expect.objectContaining({ message: 'A tag sai do Prestare. Nada é alterado no Guarita.' }));
+    expect(guaritaApi.desfazer).toHaveBeenCalledWith(7, 1);
+  });
+
+  it('regravar chama a API', () => {
+    const { tela, guaritaApi } = build({ guaritas: [guarita], veiculos, tags: [conflito, ausente] });
+    tela.regravarNoGuarita(2);
+    expect(guaritaApi.regravar).toHaveBeenCalledWith(7, 2);
+  });
+
+  it('rota ausente (404): o botão some, sem erro', async () => {
+    const { f, el, tela } = build({
+      guaritas: [guarita], veiculos, tags: [conflito, ausente],
+      guaritaExtra: {
+        regravar: jest.fn(() => throwError(() => ({ status: 404 }))),
+        desfazer: jest.fn(() => throwError(() => ({ status: 404 }))),
+      },
+    });
+    tela.regravarNoGuarita(2);
+    await tela.desfazerVinculo(1);
+    f.detectChanges();
+    expect(botoes(el, 'Regravar').length).toBe(0);
+    expect(botoes(el, 'Desfazer vínculo').length).toBe(0);
+    expect(el.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('na aba Tags RFID: selo e as mesmas ações, sem Bloquear', () => {
+    const { f, el, tela } = build({ guaritas: [guarita], veiculos, tags: [conflito, ausente] });
+    tela.tab.set('tags');
+    f.detectChanges();
+    const [l1, l2] = Array.from(el.querySelectorAll('tbody tr')) as HTMLElement[];
+    expect(l1.querySelector('[data-guarita-estado-tag]')?.textContent?.trim()).toBe('Conflito: código já usado em outra unidade no Guarita');
+    expect(botoes(l1, 'Bloquear').length).toBe(0);
+    expect(botoes(l1, 'Desfazer vínculo').length).toBe(1);
+    expect(botoes(l2, 'Regravar').length).toBe(1);
   });
 });
 

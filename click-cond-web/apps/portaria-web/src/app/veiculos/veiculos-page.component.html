@@ -127,6 +127,14 @@
                         <button type="button" (click)="recusarTag(v)" [disabled]="guaritaEmAcao() === v.id_tag"
                           class="ps-btn ps-btn-danger ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Recusar</button>
                       }
+                      @if (podeRegravar(v.id_tag)) {
+                        <button type="button" (click)="regravarNoGuarita(v.id_tag)" [disabled]="guaritaEmAcao() === v.id_tag"
+                          class="ps-btn ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Regravar</button>
+                      }
+                      @if (podeDesfazer(v.id_tag)) {
+                        <button type="button" (click)="desfazerVinculo(v.id_tag)" [disabled]="guaritaEmAcao() === v.id_tag"
+                          class="ps-btn ps-btn-danger ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Desfazer vínculo</button>
+                      }
                       <button type="button" (click)="abrirCapturaGuarita(v)" class="ps-btn ps-btn-sec ps-btn-sm">Cadastrar controle/tag</button>
                     }
                     <button
@@ -249,6 +257,9 @@
     @if (erroAcaoTag()) {
       <div role="alert" class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ erroAcaoTag() }}</div>
     }
+    @if (temGuarita() && erroGuarita()) {
+      <div role="alert" class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ erroGuarita() }}</div>
+    }
 
     @if (erroTags()) {
       <div class="ps-panel ps-empty">
@@ -289,7 +300,7 @@
                   }
                 </td>
                 <td>
-                  @if (tagNoGuarita(t) && seloGuaritaDaTag(t); as selo) {
+                  @if ((tagNoGuarita(t) || tagConflitoOuAusente(t)) && seloGuaritaDaTag(t); as selo) {
                     <span class="ps-tag" data-guarita-estado-tag [title]="selo.texto"><span class="ps-dot" [ngClass]="selo.dot"></span>{{ selo.texto }}</span>
                   } @else if (t.ativo === 0) {
                     <span class="ps-tag"><span class="ps-dot ps-dot-danger"></span>Bloqueada</span>
@@ -304,6 +315,16 @@
                       @if (!tagRemovendo(t)) {
                         <button type="button" (click)="removerDoGuarita(t)" [disabled]="tagEmAcao() === t.id"
                           class="ps-btn ps-btn-sec ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Remover do Guarita</button>
+                      }
+                    } @else if (tagConflitoOuAusente(t)) {
+                      <!-- Conflito / não está mais no Guarita: sem bloquear nem remover do Guarita. -->
+                      @if (podeRegravar(t.id)) {
+                        <button type="button" (click)="regravarNoGuarita(t.id)" [disabled]="guaritaEmAcao() === t.id"
+                          class="ps-btn ps-btn-sec ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Regravar</button>
+                      }
+                      @if (podeDesfazer(t.id)) {
+                        <button type="button" (click)="desfazerVinculo(t.id)" [disabled]="guaritaEmAcao() === t.id"
+                          class="ps-btn ps-btn-sec ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Desfazer vínculo</button>
                       }
                     } @else if (t.ativo === 0) {
                       <button type="button" (click)="definirTagAtiva(t, true)" [disabled]="tagEmAcao() === t.id"

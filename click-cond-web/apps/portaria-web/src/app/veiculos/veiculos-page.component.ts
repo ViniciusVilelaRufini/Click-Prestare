@@ -570,6 +570,12 @@ export class VeiculosPageComponent implements OnInit {
     return e ? rotuloEstadoGuarita(e.estado, e.erro) : null;
   }
 
+  /** Conflito ou "não está mais no Guarita": só desfazer o vínculo (e regravar, no ausente). */
+  tagConflitoOuAusente(t: Tag): boolean {
+    const e = this.estadoGuaritaDaTag(t)?.estado;
+    return e === 'conflito' || e === 'ausente';
+  }
+
   tagRemovendo(t: Tag): boolean {
     return this.estadoGuaritaDaTag(t)?.estado === 'removendo';
   }
@@ -714,7 +720,7 @@ export class VeiculosPageComponent implements OnInit {
     this.executarNoGuarita(idTag, this.guaritaApi.recusar(deviceId, idTag), 'Não foi possível recusar a tag.');
   }
 
-  private executarNoGuarita(idTag: number, req: Observable<unknown>, padrao: string) {
+  private executarNoGuarita(idTag: number, req: Observable<unknown>, padrao: string, seRotaAusente?: () => void) {
     this.guaritaEmAcao.set(idTag);
     this.erroGuarita.set(null);
     req.subscribe({
@@ -724,9 +730,64 @@ export class VeiculosPageComponent implements OnInit {
       },
       error: (e) => {
         this.guaritaEmAcao.set(null);
+        if (e?.status === 404 && seRotaAusente) {
+          seRotaAusente();
+          return;
+        }
         this.erroGuarita.set(mensagemDaApi(e, padrao));
       },
     });
+  }
+
+  // ---- Conflito / ausente: desfazer o vínculo ou regravar ----
+
+  /** API sem a rota (404): o botão some. */
+  readonly semRotaDesfazer = signal(false);
+  readonly semRotaRegravar = signal(false);
+
+  estadoGuaritaDaTagId(idTag: number | null | undefined): string | null {
+    if (!idTag) return null;
+    return this.estadoGuaritaDaTag(this.tags().find((t) => t.id === idTag))?.estado ?? null;
+  }
+
+  podeDesfazer(idTag: number | null | undefined): boolean {
+    const e = this.estadoGuaritaDaTagId(idTag);
+    return (e === 'conflito' || e === 'ausente') && !this.semRotaDesfazer();
+  }
+
+  podeRegravar(idTag: number | null | undefined): boolean {
+    return this.estadoGuaritaDaTagId(idTag) === 'ausente' && !this.semRotaRegravar();
+  }
+
+  async desfazerVinculo(idTag: number | null | undefined) {
+    if (!idTag || this.guaritaEmAcao() !== null) return;
+    const deviceId = this.guaritaDaTag(idTag);
+    if (deviceId == null) {
+      this.erroGuarita.set('Não foi possível saber de qual Guarita é esta tag.');
+      return;
+    }
+    const ok = await this.confirm.ask({
+      title: 'Desfazer vínculo',
+      message: 'A tag sai do Prestare. Nada é alterado no Guarita.',
+      confirmLabel: 'Desfazer vínculo',
+      variant: 'danger',
+    });
+    if (!ok || this.guaritaEmAcao() !== null) return;
+    this.executarNoGuarita(idTag, this.guaritaApi.desfazer(deviceId, idTag), 'Não foi possível desfazer o vínculo.', () =>
+      this.semRotaDesfazer.set(true),
+    );
+  }
+
+  regravarNoGuarita(idTag: number | null | undefined) {
+    if (!idTag || this.guaritaEmAcao() !== null) return;
+    const deviceId = this.guaritaDaTag(idTag);
+    if (deviceId == null) {
+      this.erroGuarita.set('Não foi possível saber de qual Guarita é esta tag.');
+      return;
+    }
+    this.executarNoGuarita(idTag, this.guaritaApi.regravar(deviceId, idTag), 'Não foi possível regravar no Guarita.', () =>
+      this.semRotaRegravar.set(true),
+    );
   }
 
   abrirCapturaGuarita(v: VeiculoComMorador) {

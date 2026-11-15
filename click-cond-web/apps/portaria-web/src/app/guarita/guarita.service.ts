@@ -120,7 +120,11 @@ export type GuaritaEstadoTag =
   | 'a_vincular'
   | 'removendo'
   /** A portaria recusou a tag do app: não vale para o portão e não volta sozinha para a fila. */
-  | 'recusada';
+  | 'recusada'
+  /** O código já está no Guarita em outra unidade: não grava; só desfazer o vínculo. */
+  | 'conflito'
+  /** Estava gravada e sumiu do Guarita (conferência): regravar ou desfazer o vínculo. */
+  | 'ausente';
 
 /**
  * Campos de Guarita que a tag pode trazer em `GET condominios/:id/tags` e no
@@ -209,6 +213,10 @@ export function rotuloEstadoGuarita(
       return { texto: 'A vincular', dot: 'ps-dot-warn' };
     case 'recusada':
       return { texto: 'Recusada pela portaria', dot: 'ps-dot-danger' };
+    case 'conflito':
+      return { texto: 'Conflito: código já usado em outra unidade no Guarita', dot: 'ps-dot-danger' };
+    case 'ausente':
+      return { texto: 'Não está mais no Guarita', dot: 'ps-dot-warn' };
     default:
       return null;
   }
@@ -411,6 +419,16 @@ export class GuaritaService {
   /** Recusar: a tag não é gravada no Guarita e fica `recusada` (o morador vê no app). */
   recusar(deviceId: number, idTag: number): Observable<unknown> {
     return this.http.post(`${this.dev(deviceId)}/dispositivos/${idTag}/recusar`, {});
+  }
+
+  /** Tira a tag do Prestare; nada muda no Guarita (estados `conflito`/`ausente`). API nova; 404 = sem a rota. */
+  desfazer(deviceId: number, idTag: number): Observable<unknown> {
+    return this.http.post(`${this.dev(deviceId)}/dispositivos/${idTag}/desfazer`, {});
+  }
+
+  /** Grava de novo no Guarita a tag que sumiu dele (estado `ausente`). API nova; 404 = sem a rota. */
+  regravar(deviceId: number, idTag: number): Observable<unknown> {
+    return this.http.post(`${this.dev(deviceId)}/dispositivos/${idTag}/regravar`, {});
   }
 
   /** Abre a janela de 60 s de captura ("dispositivo não cadastrado") para um veículo. */
