@@ -241,9 +241,29 @@ function build(
       findFirst: jest.fn(async ({ where }: any) => documentos.find((d) => casa(d, where)) ?? null),
     },
   };
-  prisma.$queryRaw = jest.fn(async () => {
+  // Travas (SELECT ... FOR UPDATE / FOR SHARE): devolvem a linha ATUAL do
+  // banco em memória — é a releitura que o serviço faz sob a trava.
+  const travas: string[] = [];
+  prisma.$queryRaw = jest.fn(async (strings: TemplateStringsArray, ...vals: any[]) => {
     ordem.push('lock');
-    return [];
+    const sql = strings.join('?');
+    const modo = /FOR UPDATE/.test(sql) ? 'X' : /FOR SHARE/.test(sql) ? 'S' : '?';
+    if (/FROM Assembleias WHERE id =/.test(sql)) {
+      travas.push(`Assembleias ${vals[0]} ${modo}`);
+      const a = assembleias.find((x) => x.id === vals[0]);
+      return a ? [{ id: a.id, id_condominio: a.id_condominio, finalizada_em: a.finalizada_em }] : [];
+    }
+    if (/FROM Votacoes WHERE id_assembleia =/.test(sql)) {
+      travas.push(`Votacoes da assembleia ${vals[0]} ${modo}`);
+      return votacoes.filter((v) => v.id_assembleia === vals[0]).map((v) => ({ id: v.id }));
+    }
+    if (/FROM Votacoes WHERE id =/.test(sql)) {
+      travas.push(`Votacoes ${vals[0]} ${modo}`);
+      const v = votacoes.find((x) => x.id === vals[0]);
+      return v ? [{ id: v.id, id_assembleia: v.id_assembleia, encerrada_em: v.encerrada_em, data_inicio: v.data_inicio, data_termino: v.data_termino }] : [];
+    }
+    travas.push(`Apartamentos ${vals[0]} ${modo}`);
+    return [{ id: vals[0] }];
   });
   // Como o banco: erro dentro da transação desfaz o que ela gravou.
   prisma.$transaction = jest.fn(async (fn: any) => {
@@ -265,7 +285,7 @@ function build(
     chaveDoArquivo: jest.fn(() => null),
   };
   const svc = new AssembleiasService(prisma, storage, tenant);
-  return { svc, prisma, votos, votacoes, assembleias, documentos, storage, ordem };
+  return { svc, prisma, votos, votacoes, assembleias, documentos, storage, ordem, travas };
 }
 
 const morador = (id: number) => ({ sub: id, nome: `U${id}`, typeAccess: 'Morador', user: { id } }) as any;
@@ -467,11 +487,11 @@ describe('2.1 — quem vota e quem pode trocar o voto', () => {
   });
 
   describe('transação', () => {
-    it('trava a unidade (FOR UPDATE) antes de ler o voto vigente e de gravar; nunca apaga voto', async () => {
+    it('trava assembleia, votação e unidade antes de ler o voto vigente e de gravar; nunca apaga voto', async () => {
       const { svc, prisma, ordem } = build();
       await votar(svc, 11, 5, 52);
       await votar(svc, 10, 5, 51);
-      expect(ordem).toEqual(['lock', 'create', 'lock', 'updateMany', 'create']);
+      expect(ordem).toEqual(['lock', 'lock', 'lock', 'create', 'lock', 'lock', 'lock', 'updateMany', 'create']);
       expect(prisma.votacoes_Usuarios.deleteMany).not.toHaveBeenCalled();
       expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'ReadCommitted' });
     });
@@ -907,9 +927,12 @@ describe('2.5 — nada some', () => {
       expect(prisma.votacoes.delete).not.toHaveBeenCalled();
     });
 
-    it('votar: 400', async () => {
-      const { svc } = finalizada();
-      await expect(votar(svc, 10, 5, 51)).rejects.toBeInstanceOf(BadRequestException);
+    it('votar: 400 com a mensagem', async () => {
+      const { svc, votos } = finalizada();
+      await expect(votar(svc, 10, 5, 51)).rejects.toThrow(
+        new BadRequestException('Esta assembleia já foi finalizada; a votação está encerrada.'),
+      );
+      expect(votos).toHaveLength(3);
     });
   });
 
@@ -1003,27 +1026,6 @@ describe('2.5 — nada some', () => {
 });
 
 describe('2.5 — corridas e bordas da finalização', () => {
-  const PDF = 'data:application/pdf;base64,JVBERi0xLjQK';
-  const umVoto = [{ id: 1, id_opcao: 51, id_user: 10, id_apto: 100, tipo_vinculo: 'proprietario', nome_votante: 'P', rotulo_unidade: 'Apto 11 Bloco A' }] as any;
-
-  it('voto que chega enquanto a ATA sobe: a finalização desfaz (409) e os arquivos enviados saem do bucket', async () => {
-    const { svc, prisma, storage, assembleias, votos } = build({ votos: umVoto });
-    // O segundo upload (apuração) é o momento em que outro morador vota.
-    const real = storage.uploadDataUrl.getMockImplementation();
-    storage.uploadDataUrl.mockImplementation(async (d: string, pasta: string) => {
-      if (storage.uploadDataUrl.mock.calls.length === 2) {
-        votos.push({ id: 2, id_opcao: 52, id_user: 20, id_apto: 200, created_at: new Date(), tipo_vinculo: 'proprietario', nome_votante: 'V', rotulo_unidade: 'Apto 21 Bloco A', substituido_em: null });
-      }
-      return real(d, pasta);
-    });
-    await expect(svc.finish(COND, { id: 3, doc: PDF }, sindico)).rejects.toThrow(
-      new ConflictException('Chegaram votos durante a finalização. Confira a apuração e finalize de novo.'),
-    );
-    expect(assembleias[0].finalizada_em).toBeNull();
-    expect(storage.deleteUrl).toHaveBeenCalledTimes(2);
-    expect(prisma.assembleias.delete).not.toHaveBeenCalled();
-  });
-
   it('"Encerrar" pauta de assembleia finalizada: sucesso sem regravar', async () => {
     const { svc, prisma, votacoes } = build({ assembleias: [{ id: 3, finalizada_em: new Date('2026-11-15T13:00:00Z') }] });
     votacoes[0].data_termino = new Date('2026-11-01T00:00:00Z'); // encerrada pela data, sem encerrada_em
@@ -1031,3 +1033,139 @@ describe('2.5 — corridas e bordas da finalização', () => {
     expect(prisma.votacoes.update).not.toHaveBeenCalled();
   });
 });
+
+describe('2.5 — corridas: as recusas são refeitas sob a trava (revisão I-1, I-2, M-1)', () => {
+  const PDF = 'data:application/pdf;base64,JVBERi0xLjQK';
+  const t = (hhmm: string) => new Date(`2026-11-14T${hhmm}:00Z`);
+  const umVoto = () =>
+    ({ id: 1, id_opcao: 51, id_user: 10, id_apto: 100, tipo_vinculo: 'proprietario', nome_votante: 'P', rotulo_unidade: 'Apto 11 Bloco A', created_at: t('10:00'), substituido_em: null }) as any;
+
+  /** Faz `mudar` rodar no instante em que a transação começa (entre as leituras de fora e as travas). */
+  function antesDaTransacao(prisma: any, mudar: () => void) {
+    const real = prisma.$transaction;
+    prisma.$transaction = jest.fn(async (fn: any, o: any) => {
+      mudar();
+      return real(fn, o);
+    });
+  }
+
+  it('voto: assembleia finalizada depois da leitura inicial → 400 com a mensagem, nada gravado', async () => {
+    const { svc, prisma, assembleias, votos } = build();
+    antesDaTransacao(prisma, () => (assembleias[0].finalizada_em = new Date()));
+    await expect(votar(svc, 10, 5, 51)).rejects.toThrow(
+      new BadRequestException('Esta assembleia já foi finalizada; a votação está encerrada.'),
+    );
+    expect(votos).toEqual([]);
+  });
+
+  it('voto: votação encerrada depois da leitura inicial → 400, nada gravado', async () => {
+    const { svc, prisma, votacoes, votos } = build();
+    antesDaTransacao(prisma, () => (votacoes[1].encerrada_em = new Date()));
+    await expect(votar(svc, 10, 6, 61)).rejects.toThrow(new BadRequestException('Votação já foi finalizada'));
+    expect(votos).toEqual([]);
+  });
+
+  it('voto: pauta apagada depois da leitura inicial → 404', async () => {
+    const { svc, prisma, votacoes } = build();
+    antesDaTransacao(prisma, () => votacoes.splice(0, 1));
+    await expect(votar(svc, 10, 5, 51)).rejects.toThrow('Votação não encontrada');
+  });
+
+  it('voto: ordem das travas assembleia (S) → votação (S) → apartamento (X); enquete sem assembleia', async () => {
+    const { svc, travas } = build();
+    await votar(svc, 10, 5, 51);
+    await votar(svc, 10, 6, 61);
+    expect(travas).toEqual(['Assembleias 3 S', 'Votacoes 5 S', 'Apartamentos 100 X', 'Votacoes 6 S', 'Apartamentos 100 X']);
+  });
+
+  it('finish: trava a assembleia (X) e as pautas (X) primeiro', async () => {
+    const { svc, travas } = build();
+    await svc.finish(COND, { id: 3, doc: PDF }, sindico);
+    expect(travas.slice(0, 2)).toEqual(['Assembleias 3 X', 'Votacoes da assembleia 3 X']);
+  });
+
+  it('finish: outra finalização confirmou entre a leitura e a trava → 400 e o PDF enviado sai do bucket', async () => {
+    const { svc, prisma, assembleias, storage, documentos } = build();
+    antesDaTransacao(prisma, () => (assembleias[0].finalizada_em = new Date()));
+    await expect(svc.finish(COND, { id: 3, doc: PDF }, sindico)).rejects.toThrow(new BadRequestException('Assembleia já finalizada.'));
+    expect(storage.deleteUrl).toHaveBeenCalledTimes(1);
+    expect(documentos).toEqual([]);
+  });
+
+  it('finish: voto que confirmou durante o upload do PDF entra na apuração e no hash (calculados depois da trava)', async () => {
+    const { svc, storage, votos, assembleias } = build({ votos: [umVoto()] });
+    const real = storage.uploadDataUrl.getMockImplementation();
+    storage.uploadDataUrl.mockImplementation(async (d: string, pasta: string) => {
+      if (storage.uploadDataUrl.mock.calls.length === 1) {
+        votos.push({ ...umVoto(), id: 2, id_opcao: 52, id_user: 20, id_apto: 200, rotulo_unidade: 'Apto 21 Bloco A', created_at: t('10:05') });
+      }
+      return real(d, pasta);
+    });
+    await svc.finish(COND, { id: 3, doc: PDF }, sindico);
+    const texto = Buffer.from(storage.uploadDataUrl.mock.calls[1][0].split('base64,')[1], 'base64').toString('utf8');
+    expect(texto).toContain('- Aprovar: 1 voto(s)');
+    expect(texto).toContain('- Rejeitar: 1 voto(s)');
+    expect(hashMapas([await svc.mapaVotacao(5, sindico)])).toBe(assembleias[0].apuracao_hash);
+  });
+
+  it('encerrar: trava assembleia (S) → votação (X); encerrada por outro entre a leitura e a trava → não regrava', async () => {
+    const { svc, prisma, travas, votacoes } = build();
+    await svc.finishVotacao(5, sindico);
+    expect(travas).toEqual(['Assembleias 3 S', 'Votacoes 5 X']);
+    const b = build();
+    const antes = new Date('2026-11-14T08:00:00Z');
+    antesDaTransacao(b.prisma, () => (b.votacoes[0].encerrada_em = antes));
+    await b.svc.finishVotacao(5, sindico);
+    expect(b.prisma.votacoes.update).not.toHaveBeenCalled();
+    expect(b.votacoes[0].encerrada_em).toBe(antes);
+    expect(votacoes[0].encerrada_em).toBeInstanceOf(Date);
+    expect(prisma.votacoes.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('excluir assembleia: voto confirmado entre a leitura e a trava é contado → 400 e nada é apagado', async () => {
+    const { svc, prisma, votos, travas } = build();
+    antesDaTransacao(prisma, () => votos.push(umVoto()));
+    await expect(svc.remove(3, sindico)).rejects.toThrow(
+      new BadRequestException('Esta assembleia já tem votos e não pode ser excluída. Finalize-a com a ATA.'),
+    );
+    expect(prisma.assembleias.delete).not.toHaveBeenCalled();
+    expect(travas).toEqual(['Assembleias 3 X']);
+  });
+
+  it('excluir pauta: voto confirmado entre a leitura e a trava é contado → 400; travas assembleia → votação', async () => {
+    const { svc, prisma, votos, travas } = build();
+    antesDaTransacao(prisma, () => votos.push(umVoto()));
+    await expect(svc.removeVotacao(5, sindico)).rejects.toThrow(
+      new BadRequestException('Esta pauta já tem votos e não pode ser excluída. Encerre a votação.'),
+    );
+    expect(prisma.votacoes.delete).not.toHaveBeenCalled();
+    expect(travas).toEqual(['Assembleias 3 X', 'Votacoes 5 X']);
+  });
+
+  it('excluir pauta: assembleia finalizada entre a leitura e a trava → 400', async () => {
+    const { svc, prisma, assembleias } = build();
+    antesDaTransacao(prisma, () => (assembleias[0].finalizada_em = new Date()));
+    await expect(svc.removeVotacao(5, sindico)).rejects.toThrow('Pauta de assembleia finalizada não pode ser excluída.');
+    expect(prisma.votacoes.delete).not.toHaveBeenCalled();
+  });
+
+  it('nova pauta: assembleia finalizada entre a leitura e a trava → 400, nada criado', async () => {
+    const { svc, prisma, assembleias } = build();
+    antesDaTransacao(prisma, () => (assembleias[0].finalizada_em = new Date()));
+    await expect(
+      svc.insertVotacao({ titulo: 'Nova', data_inicio: '01/12/2026', data_termino: '10/12/2026', opcoes: ['Sim', 'Não'], id_assembleia: 3 }, COND, sindico),
+    ).rejects.toThrow(new BadRequestException('Assembleia finalizada não aceita novas pautas.'));
+    expect(prisma.votacoes.create).not.toHaveBeenCalled();
+  });
+
+  it('editar: assembleia finalizada entre a leitura e a trava → 400, nada gravado e o anexo novo sai do bucket', async () => {
+    const { svc, prisma, assembleias, storage } = build();
+    antesDaTransacao(prisma, () => (assembleias[0].finalizada_em = new Date()));
+    await expect(svc.update(COND, { id: 3, titulo: 'Outro', docs: [PDF] }, 7, sindico)).rejects.toThrow(
+      new BadRequestException('Assembleia finalizada não pode ser editada.'),
+    );
+    expect(prisma.assembleias.updateMany).not.toHaveBeenCalled();
+    expect(storage.deleteUrl).toHaveBeenCalledWith(expect.stringContaining('/assembleias/'), ['assembleias/']);
+  });
+});
+

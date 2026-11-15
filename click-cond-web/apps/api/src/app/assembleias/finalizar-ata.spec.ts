@@ -82,6 +82,17 @@ describe('AssembleiasService.finish — ATA obrigatória e apuração preservada
       },
     };
     prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
+    // Travas (SELECT ... FOR UPDATE / FOR SHARE): assembleia não finalizada; a
+    // votação vem do findUnique do próprio fake.
+    prisma.$queryRaw = jest.fn(async (strings: TemplateStringsArray, ...vals: unknown[]) => {
+      const sql = strings.join('?');
+      if (/FROM Assembleias/.test(sql)) return [{ id: vals[0], id_condominio: 1, finalizada_em: null }];
+      if (/FROM Votacoes WHERE id =/.test(sql)) {
+        const v = await prisma.votacoes?.findUnique?.({ where: { id: vals[0] } });
+        return v ? [{ id: vals[0], id_assembleia: null, encerrada_em: null, data_inicio: null, data_termino: null, ...v }] : [];
+      }
+      return [];
+    });
     const uploads = [...(opts.uploads ?? [URL_PDF, URL_TXT])];
     const storage: any = {
       isDataUrl: (v: unknown) => typeof v === 'string' && v.startsWith('data:') && v.includes('base64,'),
@@ -197,9 +208,13 @@ describe('AssembleiasService.finish — ATA obrigatória e apuração preservada
       expect(storage.deleteUrl).toHaveBeenCalledTimes(1);
     });
 
-    it('transação falhou: apaga o PDF e a apuração enviados, e repassa o erro', async () => {
+    it('transação falhou (no commit): apaga o PDF e a apuração enviados, e repassa o erro', async () => {
       const { service, prisma, storage } = build();
-      prisma.$transaction.mockRejectedValue(new Error('deadlock'));
+      // A apuração sobe DENTRO da transação (depois da trava); a falha vem no fim.
+      prisma.$transaction.mockImplementation(async (fn: any) => {
+        await fn(prisma);
+        throw new Error('deadlock');
+      });
       await expect(service.finish(1, assembleia(PDF), sindico)).rejects.toThrow('deadlock');
       expect(storage.deleteUrl).toHaveBeenCalledWith(URL_PDF, ['atas/']);
       expect(storage.deleteUrl).toHaveBeenCalledWith(URL_TXT, ['atas/']);
@@ -208,7 +223,10 @@ describe('AssembleiasService.finish — ATA obrigatória e apuração preservada
     it('ATA que já era anexo da assembleia: nunca é apagada, só a apuração nova', async () => {
       const ANEXO = 'https://bucket.s3.amazonaws.com/assembleias/1-edital.pdf';
       const { service, prisma, storage } = build({ uploads: [URL_TXT] });
-      prisma.$transaction.mockRejectedValue(new Error('falhou'));
+      prisma.$transaction.mockImplementation(async (fn: any) => {
+        await fn(prisma);
+        throw new Error('falhou');
+      });
       await expect(service.finish(1, assembleia(ANEXO), sindico)).rejects.toThrow('falhou');
       expect(storage.deleteUrl).toHaveBeenCalledWith(URL_TXT, ['atas/']);
       expect(storage.deleteUrl).not.toHaveBeenCalledWith(ANEXO, expect.anything());

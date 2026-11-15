@@ -239,6 +239,16 @@ type MapaCalculado = {
   data_termino: Date | null;
 };
 
+/** Linhas lidas com trava (SELECT ... FOR UPDATE / FOR SHARE). */
+type LinhaAssembleiaTravada = { id: number; id_condominio: number; finalizada_em: Date | null };
+type LinhaVotacaoTravada = {
+  id: number;
+  id_assembleia: number | null;
+  encerrada_em: Date | null;
+  data_inicio: Date | null;
+  data_termino: Date | null;
+};
+
 /** O que votosPorUnidade precisa saber de cada votação. */
 type DadosDaVotacao = { status: number; id_assembleia: number | null; somente_proprietarios: number };
 
@@ -394,7 +404,8 @@ export class AssembleiasService {
     const dataObj = dataDaAssembleia(assembleia.data);
     if (!this.prisma.isConnected) return { success: true };
 
-    // Finalizada é imutável (antes do upload: nada sobe para o bucket).
+    // Finalizada é imutável. Conferida aqui para nada subir ao bucket à toa, e
+    // de novo sob a trava, na transação da gravação.
     const situacao = await this.prisma.assembleias.findFirst({
       where: { id: Number(assembleia.id), id_condominio: Number(idCondominio) },
       select: { finalizada_em: true },
@@ -424,22 +435,35 @@ export class AssembleiasService {
       }
     }
 
-    await this.prisma.assembleias.updateMany({
-      where: {
-        id: Number(assembleia.id),
-        id_condominio: Number(idCondominio),
-      },
-      data: {
-        titulo: assembleia.titulo,
-        descricao: assembleia.descricao,
-        ...(dataObj ? { data: dataObj } : {}),
-        ...(horaObj ? { hora: horaObj } : {}),
-        local: assembleia.local,
-        link: assembleia.link ?? '',
-        user: finalUserId,
-        ...(listDocs.length > 0 ? { anexos: listDocs.join(';') } : {}),
-      },
-    });
+    try {
+      await this.emTransacao(async (tx) => {
+        const linha = await this.travarAssembleia(tx, Number(assembleia.id), 'exclusiva');
+        if (linha?.finalizada_em) throw new BadRequestException('Assembleia finalizada não pode ser editada.');
+        await tx.assembleias.updateMany({
+          where: {
+            id: Number(assembleia.id),
+            id_condominio: Number(idCondominio),
+          },
+          data: {
+            titulo: assembleia.titulo,
+            descricao: assembleia.descricao,
+            ...(dataObj ? { data: dataObj } : {}),
+            ...(horaObj ? { hora: horaObj } : {}),
+            local: assembleia.local,
+            link: assembleia.link ?? '',
+            user: finalUserId,
+            ...(listDocs.length > 0 ? { anexos: listDocs.join(';') } : {}),
+          },
+        });
+      });
+    } catch (e) {
+      // Anexo que ESTA chamada subiu (veio como data URL) sai do bucket.
+      const enviados = Array.isArray(assembleia.docs) ? assembleia.docs : [];
+      for (const url of listDocs.filter((u) => !enviados.includes(u))) {
+        await this.storage.deleteUrl(url, ['assembleias/']);
+      }
+      throw e;
+    }
 
     return { success: true };
   }
@@ -453,16 +477,22 @@ export class AssembleiasService {
     });
     if (!atual) throw new NotFoundException('Assembleia não encontrada');
     await this.tenant.assertEntidade(atual.id_condominio, requester, `assembleia #${id}`);
-    if (atual.finalizada_em) throw new BadRequestException('Assembleia finalizada não pode ser excluída.');
     // O delete leva pautas, opções e votos (cascata): com qualquer voto, vigente
     // ou substituído, a assembleia só sai do ar sendo finalizada com a ATA.
-    const votos = await this.prisma.votacoes_Usuarios.count({
-      where: { opcao: { votacao: { id_assembleia: Number(id) } } },
+    // Conferência e delete sob a trava da assembleia: um voto em andamento
+    // termina antes (e é contado) ou espera e não acha mais a pauta.
+    await this.emTransacao(async (tx) => {
+      const linha = await this.travarAssembleia(tx, Number(id), 'exclusiva');
+      if (!linha) throw new NotFoundException('Assembleia não encontrada');
+      if (linha.finalizada_em) throw new BadRequestException('Assembleia finalizada não pode ser excluída.');
+      const votos = await tx.votacoes_Usuarios.count({
+        where: { opcao: { votacao: { id_assembleia: Number(id) } } },
+      });
+      if (votos > 0) {
+        throw new BadRequestException('Esta assembleia já tem votos e não pode ser excluída. Finalize-a com a ATA.');
+      }
+      await tx.assembleias.delete({ where: { id: Number(id) } });
     });
-    if (votos > 0) {
-      throw new BadRequestException('Esta assembleia já tem votos e não pode ser excluída. Finalize-a com a ATA.');
-    }
-    await this.prisma.assembleias.delete({ where: { id: Number(id) } });
     return { success: true };
   }
 
@@ -628,95 +658,99 @@ export class AssembleiasService {
       // NADA é apagado (rodada 5): a assembleia fica, imutável, com as pautas e
       // os votos; a apuração (totais, sem nomes) vai num arquivo de texto
       // publicado junto da ATA, com o código de integridade do mapa nominal.
-      // Contagem real (as pautas ainda abertas são encerradas agora, na mesma
-      // transação que marca a finalização).
+      //
+      // Tudo sob a trava da assembleia (FOR UPDATE como primeira instrução):
+      // os votos em andamento terminam antes (o voto trava a assembleia em
+      // modo compartilhado), e os que chegam depois esperam e recebem 400.
+      // Por isso a apuração e o hash são calculados DEPOIS de travar e de
+      // encerrar as pautas, e o texto sobe ao bucket dentro da transação (com
+      // prazo maior; sem refazer, para não subir duas vezes).
       const agora = new Date();
       const hoje = hojeBrasilia();
-      const pautas = await this.mapasDasVotacoes({ id_assembleia: Number(assembleia.id), id_condominio: idCond });
-      const abertas = pautas.filter((p) => p.status !== 2).map((p) => p.mapa.votacao.id);
-      const hash = pautas.length > 0 ? hashMapas(pautas.map((p) => p.mapa)) : null;
-      let linkApuracao: string | null = null;
-      if (pautas.length > 0) {
-        const texto = textoApuracao(
-          tituloAta,
-          dataAta,
-          pautas.map((p) => {
-            // Término como fica depois de encerrar: o futuro vira hoje.
-            const fim = p.status !== 2 && p.data_termino && diaUtc(p.data_termino) > hoje ? hoje : p.data_termino;
-            const fimExibido = fim && p.data_inicio && fim.getTime() < p.data_inicio.getTime() ? p.data_inicio : fim;
-            const periodo = p.data_inicio || fimExibido ? `${dataDbBr(p.data_inicio)} a ${dataDbBr(fimExibido)}` : '';
-            return { mapa: p.mapa, descricao: p.descricao, periodo };
-          }),
-          hash,
-          agora,
-        );
-        // BOM: o navegador abre o .txt como UTF-8 (acentos).
-        const dataUrl = `data:text/plain;base64,${Buffer.from(`\uFEFF${texto}`, 'utf8').toString('base64')}`;
-        linkApuracao = (await this.storage.uploadDataUrl(dataUrl, 'atas')) ?? '';
-        if (!/^https?:\/\//i.test(linkApuracao)) {
-          throw new BadRequestException(
-            'Não foi possível guardar a apuração das pautas. A assembleia não foi finalizada; tente de novo.',
-          );
-        }
-        enviados.push(linkApuracao);
-      }
-
-      // ATA, apuração, a marca de finalizada e o encerramento das pautas
-      // juntos: se algo falha, nada muda.
       let idAta: number | undefined;
-      await this.prisma.$transaction(async (tx) => {
-        const ata = await tx.documentos.create({
-          data: {
-            id_condominio: idCond,
-            is_ata: 1,
-            nome: nomeAta,
-            link_doc: linkDoc,
-          },
-        });
-        idAta = ata?.id;
-        if (linkApuracao) {
-          await tx.documentos.create({
+      await this.emTransacao(
+        async (tx) => {
+          const linha = await this.travarAssembleia(tx, Number(assembleia.id), 'exclusiva');
+          if (!linha) throw new NotFoundException('Assembleia não encontrada');
+          if (linha.finalizada_em) throw new BadRequestException(MSG_JA_FINALIZADA);
+          await this.travarPautasDaAssembleia(tx, Number(assembleia.id));
+
+          const doBanco = { id_assembleia: Number(assembleia.id), id_condominio: idCond };
+          const antes = await this.mapasDasVotacoes(doBanco, tx);
+          const abertas = antes.filter((p) => p.status !== 2).map((p) => p.mapa.votacao.id);
+          if (abertas.length > 0) {
+            await tx.votacoes.updateMany({
+              where: { id: { in: abertas }, data_termino: { gt: hoje } },
+              data: { data_termino: hoje },
+            });
+            await tx.votacoes.updateMany({
+              where: { id: { in: abertas }, encerrada_em: null },
+              data: { encerrada_em: agora },
+            });
+          }
+          const pautas = abertas.length > 0 ? await this.mapasDasVotacoes(doBanco, tx) : antes;
+          const hash = pautas.length > 0 ? hashMapas(pautas.map((p) => p.mapa)) : null;
+
+          let linkApuracao: string | null = null;
+          if (pautas.length > 0) {
+            const texto = textoApuracao(
+              tituloAta,
+              dataAta,
+              pautas.map((p) => {
+                const fimExibido =
+                  p.data_termino && p.data_inicio && p.data_termino.getTime() < p.data_inicio.getTime()
+                    ? p.data_inicio
+                    : p.data_termino;
+                const periodo = p.data_inicio || fimExibido ? `${dataDbBr(p.data_inicio)} a ${dataDbBr(fimExibido)}` : '';
+                return { mapa: p.mapa, descricao: p.descricao, periodo };
+              }),
+              hash,
+              agora,
+            );
+            // BOM: o navegador abre o .txt como UTF-8 (acentos).
+            const dataUrl = `data:text/plain;base64,${Buffer.from(`\uFEFF${texto}`, 'utf8').toString('base64')}`;
+            linkApuracao = (await this.storage.uploadDataUrl(dataUrl, 'atas')) ?? '';
+            if (!/^https?:\/\//i.test(linkApuracao)) {
+              throw new BadRequestException(
+                'Não foi possível guardar a apuração das pautas. A assembleia não foi finalizada; tente de novo.',
+              );
+            }
+            enviados.push(linkApuracao);
+          }
+
+          const ata = await tx.documentos.create({
             data: {
               id_condominio: idCond,
               is_ata: 1,
-              nome: `Apuração das pautas - ${nomeAta}`.slice(0, 255),
-              link_doc: linkApuracao,
+              nome: nomeAta,
+              link_doc: linkDoc,
             },
           });
-        }
-        // Condicional: duas finalizações simultâneas não publicam duas ATAs —
-        // a segunda não acha a linha "não finalizada" e desfaz a transação.
-        const marcada = await tx.assembleias.updateMany({
-          where: { id: Number(assembleia.id), finalizada_em: null },
-          data: {
-            finalizada_em: agora,
-            finalizada_por: idUsuarioDoToken(requester),
-            id_documento_ata: idAta ?? null,
-            apuracao_hash: hash,
-          },
-        });
-        if (marcada.count === 0) throw new BadRequestException(MSG_JA_FINALIZADA);
-        // Voto gravado depois que a apuração foi calculada (durante o upload)
-        // ficaria fora do texto publicado e do hash: desfaz e pede de novo.
-        if (pautas.length > 0) {
-          const linhas = await tx.votacoes_Usuarios.count({
-            where: { opcao: { votacao: { id_assembleia: Number(assembleia.id) } } },
-          });
-          if (linhas !== pautas.reduce((n, p) => n + p.mapa.votos.length, 0)) {
-            throw new ConflictException('Chegaram votos durante a finalização. Confira a apuração e finalize de novo.');
+          idAta = ata?.id;
+          if (linkApuracao) {
+            await tx.documentos.create({
+              data: {
+                id_condominio: idCond,
+                is_ata: 1,
+                nome: `Apuração das pautas - ${nomeAta}`.slice(0, 255),
+                link_doc: linkApuracao,
+              },
+            });
           }
-        }
-        if (abertas.length > 0) {
-          await tx.votacoes.updateMany({
-            where: { id: { in: abertas }, data_termino: { gt: hoje } },
-            data: { data_termino: hoje },
+          // Condicional (defesa extra: a trava já serializa as finalizações).
+          const marcada = await tx.assembleias.updateMany({
+            where: { id: Number(assembleia.id), finalizada_em: null },
+            data: {
+              finalizada_em: agora,
+              finalizada_por: idUsuarioDoToken(requester),
+              id_documento_ata: idAta ?? null,
+              apuracao_hash: hash,
+            },
           });
-          await tx.votacoes.updateMany({
-            where: { id: { in: abertas }, encerrada_em: null },
-            data: { encerrada_em: agora },
-          });
-        }
-      });
+          if (marcada.count === 0) throw new BadRequestException(MSG_JA_FINALIZADA);
+        },
+        { refazer: false, timeout: 30_000 },
+      );
       // Um aviso pela ATA (a apuração vai junto, sem push próprio).
       this.avisarMoradores(idCond, 'ATA publicada', nomeAta, { type: 'ata', id: String(idAta ?? '') });
     } catch (e) {
@@ -789,9 +823,17 @@ export class AssembleiasService {
       if (assembleia.finalizada_em) throw new BadRequestException('Assembleia finalizada não aceita novas pautas.');
     }
 
-    // Votação e opções juntas: sem votação órfã sem opções.
+    // Votação e opções juntas: sem votação órfã sem opções. A assembleia é
+    // conferida de novo sob trava: uma finalização simultânea não ganha pauta.
     let idVotacao: number | undefined;
-    await this.prisma.$transaction(async (tx) => {
+    await this.emTransacao(async (tx) => {
+      if (idAssembleia) {
+        const linha = await this.travarAssembleia(tx, idAssembleia, 'compartilhada');
+        if (!linha || Number(linha.id_condominio) !== Number(idCondominio)) {
+          throw new BadRequestException('Assembleia não encontrada neste condomínio.');
+        }
+        if (linha.finalizada_em) throw new BadRequestException('Assembleia finalizada não aceita novas pautas.');
+      }
       const created = await tx.votacoes.create({
         data: {
           titulo,
@@ -832,22 +874,30 @@ export class AssembleiasService {
     if (!this.prisma.isConnected) return { success: true };
     const atual = await this.prisma.votacoes.findUnique({
       where: { id: Number(id) },
-      select: { id_condominio: true, id_assembleia: true, assembleia: { select: { finalizada_em: true } } },
+      select: { id_condominio: true, id_assembleia: true },
     });
     if (!atual) throw new NotFoundException('Votação não encontrada');
     await this.tenant.assertEntidade(atual.id_condominio, requester, `votação #${id}`);
     // Pauta de assembleia: o delete levaria os votos (cascata). Enquete avulsa
-    // (consultiva) continua podendo ser excluída.
-    if (atual.id_assembleia != null) {
-      if (atual.assembleia?.finalizada_em) {
-        throw new BadRequestException('Pauta de assembleia finalizada não pode ser excluída.');
+    // (consultiva) continua podendo ser excluída. Conferência e delete sob as
+    // travas (assembleia → votação), para um voto em andamento não sumir.
+    await this.emTransacao(async (tx) => {
+      if (atual.id_assembleia != null) {
+        const assembleia = await this.travarAssembleia(tx, atual.id_assembleia, 'exclusiva');
+        if (assembleia?.finalizada_em) {
+          throw new BadRequestException('Pauta de assembleia finalizada não pode ser excluída.');
+        }
       }
-      const votos = await this.prisma.votacoes_Usuarios.count({ where: { opcao: { id_votacao: Number(id) } } });
-      if (votos > 0) {
-        throw new BadRequestException('Esta pauta já tem votos e não pode ser excluída. Encerre a votação.');
+      const linha = await this.travarVotacao(tx, Number(id), 'exclusiva');
+      if (!linha) throw new NotFoundException('Votação não encontrada');
+      if (linha.id_assembleia != null) {
+        const votos = await tx.votacoes_Usuarios.count({ where: { opcao: { id_votacao: Number(id) } } });
+        if (votos > 0) {
+          throw new BadRequestException('Esta pauta já tem votos e não pode ser excluída. Encerre a votação.');
+        }
       }
-    }
-    await this.prisma.votacoes.delete({ where: { id: Number(id) } });
+      await tx.votacoes.delete({ where: { id: Number(id) } });
+    });
     return { success: true };
   }
 
@@ -863,23 +913,31 @@ export class AssembleiasService {
     if (!this.prisma.isConnected) return { success: true };
     const atual = await this.prisma.votacoes.findUnique({
       where: { id: Number(id) },
-      select: {
-        id_condominio: true, encerrada_em: true, data_termino: true,
-        assembleia: { select: { finalizada_em: true } },
-      },
+      select: { id_condominio: true, id_assembleia: true },
     });
     if (!atual) throw new NotFoundException('Votação não encontrada');
     await this.tenant.assertEntidade(atual.id_condominio, requester, `votação #${id}`);
-    // Já encerrada, ou pauta de assembleia finalizada (imutável): nada a gravar.
-    if (atual.encerrada_em || atual.assembleia?.finalizada_em) return { success: true };
 
-    const hoje = hojeBrasilia();
-    await this.prisma.votacoes.update({
-      where: { id: Number(id) },
-      data: {
-        encerrada_em: new Date(),
-        ...(atual.data_termino && diaUtc(atual.data_termino) > hoje ? { data_termino: hoje } : {}),
-      },
+    // Sob as travas (assembleia → votação): o voto em andamento termina antes;
+    // o que chega depois espera e vê a votação encerrada.
+    await this.emTransacao(async (tx) => {
+      if (atual.id_assembleia != null) {
+        const assembleia = await this.travarAssembleia(tx, atual.id_assembleia, 'compartilhada');
+        // Pauta de assembleia finalizada (imutável): nada a gravar.
+        if (assembleia?.finalizada_em) return;
+      }
+      const linha = await this.travarVotacao(tx, Number(id), 'exclusiva');
+      if (!linha) throw new NotFoundException('Votação não encontrada');
+      if (linha.encerrada_em) return; // encerrar de novo: sucesso sem regravar
+
+      const hoje = hojeBrasilia();
+      await tx.votacoes.update({
+        where: { id: Number(id) },
+        data: {
+          encerrada_em: new Date(),
+          ...(linha.data_termino && diaUtc(linha.data_termino) > hoje ? { data_termino: hoje } : {}),
+        },
+      });
     });
 
     return { success: true };
@@ -926,9 +984,7 @@ export class AssembleiasService {
     if (votacao.assembleia?.finalizada_em) {
       throw new BadRequestException(MSG_ASSEMBLEIA_FINALIZADA_VOTO);
     }
-    const status = this.calcStatusInt(votacao.data_inicio, votacao.data_termino, votacao.encerrada_em);
-    if (status === 0) throw new BadRequestException('Votação ainda não foi iniciada');
-    if (status === 2) throw new BadRequestException('Votação já foi finalizada');
+    this.exigirAberta(votacao);
 
     const idsOpcoes = votacao.opcoes.map(o => o.id);
     if (!idsOpcoes.includes(Number(opcaoId))) {
@@ -975,56 +1031,57 @@ export class AssembleiasService {
 
     // READ COMMITTED: em REPEATABLE READ a leitura/escrita que não acha linhas
     // deixa gap lock no idx_vu_apto_opcao, e duas unidades DIFERENTES votando
-    // pela primeira vez ao mesmo tempo podiam dar deadlock. A mesma unidade
-    // segue serializada pelo FOR UPDATE. Deadlock residual (P2034): refaz até 2 vezes.
-    for (let tentativa = 0; ; tentativa++) {
-      try {
-        await this.prisma.$transaction(
-          async (tx) => {
-            // Serializa os votos da unidade: o segundo espera o primeiro
-            // confirmar e então vê o voto que ele gravou como vigente.
-            await tx.$queryRaw`SELECT id FROM Apartamentos WHERE id = ${unidade} FOR UPDATE`;
-            const vigentes = await tx.votacoes_Usuarios.findMany({
-              where: {
-                id_opcao: { in: idsOpcoes },
-                substituido_em: null,
-                OR: [{ id_apto: unidade }, { id_apto: null, tipo_vinculo: null, id_user: { in: antigosDe } }],
-              },
-              select: { id: true, id_opcao: true, id_user: true, tipo_vinculo: true, created_at: true },
-              orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
-            });
-            const atual = vigentes[0];
-            if (atual) {
-              const nivelAtual = atual.tipo_vinculo
-                ? normalizarTipoVinculo(atual.tipo_vinculo)
-                : nivelDoAutorAntigo(atual.id_user);
-              if (nivelVinculo(minha.tipo) < nivelVinculo(nivelAtual)) {
-                throw new ConflictException(mensagemVotoProtegido(nivelAtual, minha.tipo));
-              }
-              if (atual.id_user === Number(userId) && atual.id_opcao === Number(opcaoId)) return;
-              await tx.votacoes_Usuarios.updateMany({
-                where: { id: { in: vigentes.map((v) => v.id) } },
-                data: { substituido_em: new Date() },
-              });
-            }
-            await tx.votacoes_Usuarios.create({
-              data: {
-                id_opcao: Number(opcaoId),
-                id_user: Number(userId),
-                id_apto: unidade,
-                tipo_vinculo: minha.tipo,
-                nome_votante: nomeVotante,
-                rotulo_unidade: minha.rotulo.slice(0, 120),
-              },
-            });
-          },
-          { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
-        );
-        break;
-      } catch (e) {
-        if ((e as { code?: string })?.code !== 'P2034' || tentativa >= AssembleiasService.NOVAS_TENTATIVAS_VOTO) throw e;
+    // pela primeira vez ao mesmo tempo podiam dar deadlock. Deadlock residual
+    // (P2034): refaz até 2 vezes (emTransacao).
+    await this.emTransacao(async (tx) => {
+      // Travas na ordem assembleia → votação → apartamento (ver emTransacao) e
+      // as recusas REFEITAS sob elas: entre a leitura lá de cima e aqui a
+      // assembleia pode ter sido finalizada ou a votação encerrada/apagada.
+      if (votacao.id_assembleia != null) {
+        const assembleia = await this.travarAssembleia(tx, votacao.id_assembleia, 'compartilhada');
+        if (!assembleia) throw new NotFoundException('Votação não encontrada');
+        if (assembleia.finalizada_em) throw new BadRequestException(MSG_ASSEMBLEIA_FINALIZADA_VOTO);
       }
-    }
+      const linha = await this.travarVotacao(tx, votacao.id, 'compartilhada');
+      if (!linha) throw new NotFoundException('Votação não encontrada');
+      this.exigirAberta(linha);
+      // Serializa os votos da unidade: o segundo espera o primeiro confirmar e
+      // então vê o voto que ele gravou como vigente.
+      await tx.$queryRaw`SELECT id FROM Apartamentos WHERE id = ${unidade} FOR UPDATE`;
+      const vigentes = await tx.votacoes_Usuarios.findMany({
+        where: {
+          id_opcao: { in: idsOpcoes },
+          substituido_em: null,
+          OR: [{ id_apto: unidade }, { id_apto: null, tipo_vinculo: null, id_user: { in: antigosDe } }],
+        },
+        select: { id: true, id_opcao: true, id_user: true, tipo_vinculo: true, created_at: true },
+        orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      });
+      const atual = vigentes[0];
+      if (atual) {
+        const nivelAtual = atual.tipo_vinculo
+          ? normalizarTipoVinculo(atual.tipo_vinculo)
+          : nivelDoAutorAntigo(atual.id_user);
+        if (nivelVinculo(minha.tipo) < nivelVinculo(nivelAtual)) {
+          throw new ConflictException(mensagemVotoProtegido(nivelAtual, minha.tipo));
+        }
+        if (atual.id_user === Number(userId) && atual.id_opcao === Number(opcaoId)) return;
+        await tx.votacoes_Usuarios.updateMany({
+          where: { id: { in: vigentes.map((v) => v.id) } },
+          data: { substituido_em: new Date() },
+        });
+      }
+      await tx.votacoes_Usuarios.create({
+        data: {
+          id_opcao: Number(opcaoId),
+          id_user: Number(userId),
+          id_apto: unidade,
+          tipo_vinculo: minha.tipo,
+          nome_votante: nomeVotante,
+          rotulo_unidade: minha.rotulo.slice(0, 120),
+        },
+      });
+    });
 
     return { success: true };
   }
@@ -1045,8 +1102,80 @@ export class AssembleiasService {
     return (user?.name ?? '').trim().slice(0, 255) || null;
   }
 
-  /** Quantas vezes o voto é refeito depois de um deadlock (P2034). */
+  /** Quantas vezes uma transação é refeita depois de um deadlock (P2034). */
   private static readonly NOVAS_TENTATIVAS_VOTO = 2;
+
+  /**
+   * Transação em READ COMMITTED com retry de deadlock (P2034).
+   *
+   * Travas de linha: em TODOS os caminhos a ordem é Assembleias → Votacoes →
+   * Apartamentos, sem ciclo de espera:
+   *  - voto: Assembleias (S, se pauta) → Votacoes (S) → Apartamentos (X);
+   *  - finalizar: Assembleias (X) → Votacoes da assembleia (X);
+   *  - encerrar: Assembleias (S, se pauta) → Votacoes (X);
+   *  - excluir assembleia / editar: Assembleias (X);
+   *  - excluir pauta: Assembleias (X, se pauta) → Votacoes (X);
+   *  - nova pauta: Assembleias (S).
+   * Assim o voto em andamento termina antes da finalização/encerramento/exclusão
+   * (que esperam a trava S dele) ou espera e então vê a assembleia finalizada,
+   * a votação encerrada ou a linha apagada — e as recusas são refeitas sob a
+   * trava. `refazer: false` quando a transação sobe arquivo (finish).
+   */
+  private async emTransacao<T>(
+    fn: (tx: Prisma.TransactionClient) => Promise<T>,
+    opcoes: { refazer?: boolean; timeout?: number } = {},
+  ): Promise<T> {
+    for (let tentativa = 0; ; tentativa++) {
+      try {
+        return await this.prisma.$transaction(fn, {
+          isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+          ...(opcoes.timeout ? { timeout: opcoes.timeout } : {}),
+        });
+      } catch (e) {
+        const deadlock = (e as { code?: string })?.code === 'P2034';
+        if (!deadlock || opcoes.refazer === false || tentativa >= AssembleiasService.NOVAS_TENTATIVAS_VOTO) throw e;
+      }
+    }
+  }
+
+  /** Linha da assembleia travada (FOR UPDATE / FOR SHARE); null se não existe. Só parâmetros, sem comparar texto. */
+  private async travarAssembleia(
+    tx: Prisma.TransactionClient,
+    id: number,
+    modo: 'exclusiva' | 'compartilhada',
+  ): Promise<LinhaAssembleiaTravada | null> {
+    const linhas =
+      modo === 'exclusiva'
+        ? await tx.$queryRaw<LinhaAssembleiaTravada[]>`SELECT id, id_condominio, finalizada_em FROM Assembleias WHERE id = ${id} FOR UPDATE`
+        : await tx.$queryRaw<LinhaAssembleiaTravada[]>`SELECT id, id_condominio, finalizada_em FROM Assembleias WHERE id = ${id} FOR SHARE`;
+    return linhas?.[0] ?? null;
+  }
+
+  /** Linha da votação travada (FOR UPDATE / FOR SHARE); null se não existe. */
+  private async travarVotacao(
+    tx: Prisma.TransactionClient,
+    id: number,
+    modo: 'exclusiva' | 'compartilhada',
+  ): Promise<LinhaVotacaoTravada | null> {
+    const linhas =
+      modo === 'exclusiva'
+        ? await tx.$queryRaw<LinhaVotacaoTravada[]>`SELECT id, id_assembleia, encerrada_em, data_inicio, data_termino FROM Votacoes WHERE id = ${id} FOR UPDATE`
+        : await tx.$queryRaw<LinhaVotacaoTravada[]>`SELECT id, id_assembleia, encerrada_em, data_inicio, data_termino FROM Votacoes WHERE id = ${id} FOR SHARE`;
+    return linhas?.[0] ?? null;
+  }
+
+  /** As pautas da assembleia travadas (FOR UPDATE), em ordem de id. */
+  private async travarPautasDaAssembleia(tx: Prisma.TransactionClient, idAssembleia: number): Promise<void> {
+    await tx.$queryRaw`SELECT id FROM Votacoes WHERE id_assembleia = ${idAssembleia} ORDER BY id FOR UPDATE`;
+  }
+
+  /** 400 se a votação não está aberta (agendada ou encerrada). */
+  private exigirAberta(v: { data_inicio?: Date | null; data_termino?: Date | null; encerrada_em?: Date | null }) {
+    const status = this.calcStatusInt(v.data_inicio, v.data_termino, v.encerrada_em);
+    if (status === 0) throw new BadRequestException('Votação ainda não foi iniciada');
+    if (status === 2) throw new BadRequestException('Votação já foi finalizada');
+  }
+
 
   /**
    * Mapa de votação nominal (`GET assembleias/votacoes/mapa?id=`): todos os
@@ -1084,8 +1213,11 @@ export class AssembleiasService {
    * pela regra antiga). Unidade e votante vêm do retrato do voto; no voto
    * antigo, do cadastro atual (morador no condomínio, senão Users.name).
    */
-  private async mapasDasVotacoes(where: Prisma.VotacoesWhereInput): Promise<MapaCalculado[]> {
-    const votacoesDb = await this.prisma.votacoes.findMany({
+  private async mapasDasVotacoes(
+    where: Prisma.VotacoesWhereInput,
+    db: Prisma.TransactionClient | PrismaService = this.prisma,
+  ): Promise<MapaCalculado[]> {
+    const votacoesDb = await db.votacoes.findMany({
       where,
       include: {
         opcoes: {
