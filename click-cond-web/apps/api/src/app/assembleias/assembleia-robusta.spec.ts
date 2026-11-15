@@ -799,7 +799,10 @@ describe('2.5 — nada some', () => {
       try {
         const { svc, prisma, assembleias, votacoes, votos, documentos } = comDuasPautas();
         const res: any = await svc.finish(COND, { id: 3, doc: PDF }, sindico);
-        expect(res.message).toContain('ATA');
+        // O app 1.2.48 não mostra este texto no sucesso (usa o dele); o console mostra num alert.
+        expect(res).toEqual({
+          message: 'Assembleia finalizada.\nA ATA está no menu "Docs" e a assembleia fica guardada no histórico, com as votações.',
+        });
         expect(prisma.assembleias.delete).not.toHaveBeenCalled();
         expect(prisma.votacoes.delete).not.toHaveBeenCalled();
         expect(votos).toHaveLength(3);

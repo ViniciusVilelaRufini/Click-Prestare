@@ -726,7 +726,8 @@ export class AssembleiasService {
     }
 
     return {
-      message: 'Assembléia Finalizada!\nA ATA se encontra disponível no menu "Docs" na tela de seu condomínio.',
+      // O app 1.2.48 mostra o texto dele no sucesso (só lê o status); o console mostra este num alert.
+      message: 'Assembleia finalizada.\nA ATA está no menu "Docs" e a assembleia fica guardada no histórico, com as votações.',
     };
   }
 
