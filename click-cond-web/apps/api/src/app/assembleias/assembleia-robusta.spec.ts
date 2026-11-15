@@ -725,11 +725,21 @@ describe('2.6 — mapa de votação (nominal, só síndico/staff)', () => {
     expect(mapa.participacao).toEqual({ unidades_votaram: 3, unidades_total: 3 });
     expect(mapa.opcoes).toEqual([{ id: 51, nome: 'Aprovar', votos: 2 }, { id: 52, nome: 'Rejeitar', votos: 1 }]);
     expect(mapa.votos).toEqual([
-      { unidade: 'Apto 11 Bloco A', votante: 'Igor Inquilino', tipo_vinculo: 'inquilino', opcao: 'Rejeitar', registrado_em: '14/11/2026 09:00:00', vigente: false, substituido_em: '14/11/2026 10:00:00' },
-      { unidade: 'Apto 11 Bloco A', votante: 'Paula Proprietária', tipo_vinculo: 'proprietario', opcao: 'Aprovar', registrado_em: '14/11/2026 10:00:00', vigente: true, substituido_em: null },
-      { unidade: 'Apto 21 Bloco A', votante: 'Vinte', tipo_vinculo: 'proprietario', opcao: 'Rejeitar', registrado_em: '14/11/2026 08:00:00', vigente: true, substituido_em: null },
-      { unidade: 'Apto 31', votante: 'Ex-morador', tipo_vinculo: 'proprietario', opcao: 'Aprovar', registrado_em: '14/11/2026 07:00:00', vigente: true, substituido_em: null },
+      { unidade: 'Apto 11 Bloco A', votante: 'Igor Inquilino', tipo_vinculo: 'inquilino', opcao: 'Rejeitar', registrado_em: '14/11/2026 09:00:00', vigente: false, substituido_em: '14/11/2026 10:00:00', situacao: 'substituido' },
+      { unidade: 'Apto 11 Bloco A', votante: 'Paula Proprietária', tipo_vinculo: 'proprietario', opcao: 'Aprovar', registrado_em: '14/11/2026 10:00:00', vigente: true, substituido_em: null, situacao: 'vigente' },
+      { unidade: 'Apto 21 Bloco A', votante: 'Vinte', tipo_vinculo: 'proprietario', opcao: 'Rejeitar', registrado_em: '14/11/2026 08:00:00', vigente: true, substituido_em: null, situacao: 'vigente' },
+      { unidade: 'Apto 31', votante: 'Ex-morador', tipo_vinculo: 'proprietario', opcao: 'Aprovar', registrado_em: '14/11/2026 07:00:00', vigente: true, substituido_em: null, situacao: 'vigente' },
     ]);
+  });
+
+  it('situacao "nao_conta": voto antigo de quem perdeu o vínculo (não substituído, mas fora da apuração)', async () => {
+    const b = build({ votos: [{ id: 9, id_opcao: 51, id_user: 99, id_apto: 300, created_at: t('09:30') }] });
+    b.votacoes[0].encerrada_em = new Date('2026-11-14T20:00:00Z');
+    const mapa = await b.svc.mapaVotacao(5, sindico);
+    expect(mapa.votos).toEqual([
+      expect.objectContaining({ unidade: 'Apto 31', votante: 'Conta 99', vigente: false, substituido_em: null, situacao: 'nao_conta' }),
+    ]);
+    expect(mapa.opcoes.map((o) => o.votos)).toEqual([0, 0]);
   });
 
   it('confere o condomínio da votação (tenant)', async () => {

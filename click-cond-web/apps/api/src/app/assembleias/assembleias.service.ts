@@ -188,6 +188,8 @@ export type MapaVotacao = {
     registrado_em: string;
     vigente: boolean;
     substituido_em: string | null;
+    /** 'vigente' conta; 'substituido' foi trocado por outro voto; 'nao_conta' ficou fora da apuração sem ser trocado. */
+    situacao: 'vigente' | 'substituido' | 'nao_conta';
   }>;
 };
 
@@ -1176,7 +1178,8 @@ export class AssembleiasService {
             registrado_em: formatarDataHoraSegundosBrasilia(x.created_at),
             vigente: contados.has(x.id),
             substituido_em: x.substituido_em ? formatarDataHoraSegundosBrasilia(x.substituido_em) : null,
-          },
+            situacao: contados.has(x.id) ? 'vigente' : x.substituido_em ? 'substituido' : 'nao_conta',
+          } as MapaVotacao['votos'][number],
           t: new Date(x.created_at).getTime(),
           id: x.id,
         };
