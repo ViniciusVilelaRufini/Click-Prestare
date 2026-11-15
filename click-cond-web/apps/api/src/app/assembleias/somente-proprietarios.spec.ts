@@ -16,6 +16,17 @@ describe('insertVotacao — somente_proprietarios', () => {
       votacoes_Opcoes: { createMany: jest.fn(async () => ({ count: 2 })) },
     };
     prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
+    // Travas (SELECT ... FOR UPDATE / FOR SHARE): assembleia não finalizada; a
+    // votação vem do findUnique do próprio fake.
+    prisma.$queryRaw = jest.fn(async (strings: TemplateStringsArray, ...vals: unknown[]) => {
+      const sql = strings.join('?');
+      if (/FROM Assembleias/.test(sql)) return [{ id: vals[0], id_condominio: 1, finalizada_em: null }];
+      if (/FROM Votacoes WHERE id =/.test(sql)) {
+        const v = await prisma.votacoes?.findUnique?.({ where: { id: vals[0] } });
+        return v ? [{ id: vals[0], id_assembleia: null, encerrada_em: null, data_inicio: null, data_termino: null, ...v }] : [];
+      }
+      return [];
+    });
     const tenant: any = { assertCondominio: jest.fn(async () => undefined) };
     return { svc: new AssembleiasService(prisma, {} as any, tenant), prisma };
   }

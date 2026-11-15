@@ -181,8 +181,15 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
     };
     const raw = jest.fn(async (strings: TemplateStringsArray, ...valores: unknown[]) => {
       ordem.push('lock');
-      locks.push({ sql: strings.join('?'), valores });
-      return [];
+      const sql = strings.join('?');
+      locks.push({ sql, valores });
+      // Assembleia 3 não finalizada; votação aberta (as linhas travadas que o voto relê).
+      if (/FROM Assembleias/.test(sql)) return [{ id: valores[0], id_condominio: 1, finalizada_em: null }];
+      if (/FROM Votacoes/.test(sql)) {
+        const vt = VOTACOES.find((v) => v.id === valores[0]);
+        return vt ? [{ id: vt.id, id_assembleia: vt.id_assembleia, encerrada_em: null, data_inicio: new Date('2020-01-01T00:00:00Z'), data_termino: new Date('2099-01-01T00:00:00Z') }] : [];
+      }
+      return [{ id: valores[0] }];
     });
     prisma.$queryRaw = raw;
     prisma.$executeRaw = raw;
@@ -311,9 +318,14 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
     it('trava a linha da unidade (FOR UPDATE) na transação antes de substituir e gravar', async () => {
       const { svc, ordem, locks } = build({ votos: [{ id: 1, id_user: 61, id_apto: 300, id_opcao: 10, created_at: t('10:00') }] });
       await votar(svc, 60, 9, 300);
-      expect(ordem).toEqual(['tx', 'lock', 'updateMany', 'create']);
-      expect(locks[0].sql).toMatch(/FROM\s+`?Apartamentos`?\s+WHERE\s+`?id`?\s*=\s*\?\s+FOR UPDATE/i);
-      expect(locks[0].valores).toEqual([300]);
+      // Ordem das travas igual em todos os caminhos: assembleia (S) → votação (S) → apartamento (X).
+      expect(ordem).toEqual(['tx', 'lock', 'lock', 'lock', 'updateMany', 'create']);
+      expect(locks[0].sql).toMatch(/FROM\s+`?Assembleias`?\s+WHERE\s+`?id`?\s*=\s*\?\s+FOR SHARE/i);
+      expect(locks[0].valores).toEqual([3]);
+      expect(locks[1].sql).toMatch(/FROM\s+`?Votacoes`?\s+WHERE\s+`?id`?\s*=\s*\?\s+FOR SHARE/i);
+      expect(locks[1].valores).toEqual([5]);
+      expect(locks[2].sql).toMatch(/FROM\s+`?Apartamentos`?\s+WHERE\s+`?id`?\s*=\s*\?\s+FOR UPDATE/i);
+      expect(locks[2].valores).toEqual([300]);
     });
   });
 

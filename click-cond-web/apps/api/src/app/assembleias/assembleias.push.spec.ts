@@ -47,11 +47,21 @@ function prismaBase(extra: Record<string, any> = {}) {
     },
     votacoes_Opcoes: { createMany: jest.fn(async () => ({ count: 2 })) },
     apartamentos_Users: { findMany: jest.fn(async () => []) },
-    votacoes_Usuarios: { count: jest.fn(async () => 0) },
     documentos: { create: jest.fn(async ({ data }: any) => ({ id: 62, ...data })) },
     ...extra,
   };
   prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
+  // Travas (SELECT ... FOR UPDATE / FOR SHARE): assembleia não finalizada; a
+  // votação vem do findUnique do próprio fake.
+  prisma.$queryRaw = jest.fn(async (strings: TemplateStringsArray, ...vals: unknown[]) => {
+    const sql = strings.join('?');
+    if (/FROM Assembleias/.test(sql)) return [{ id: vals[0], id_condominio: 1, finalizada_em: null }];
+    if (/FROM Votacoes WHERE id =/.test(sql)) {
+      const v = await prisma.votacoes?.findUnique?.({ where: { id: vals[0] } });
+      return v ? [{ id: vals[0], id_assembleia: null, encerrada_em: null, data_inicio: null, data_termino: null, ...v }] : [];
+    }
+    return [];
+  });
   return prisma;
 }
 
