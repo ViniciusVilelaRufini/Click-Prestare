@@ -33,6 +33,7 @@ import { PessoasService, pessoaTemVisitaForaDosAptos } from '../pessoas/pessoas.
 import { VisitasService } from '../visitas/visitas.service';
 import { CardAoVivoService, type QuemRespondeu } from '../card-ao-vivo/card-ao-vivo.service';
 import { AUTORIZACAO_EXPIRACAO_MS } from '../common/autorizacao-expiracao';
+import { ehAutorizacaoRemota } from '../common/janela-visita';
 
 /**
  * Migração Visitantes → Pessoas/Visitas: as tabelas `pessoas`/`visitas` estão
@@ -3556,6 +3557,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           auth_respondido_por: idUsuarioDoToken(payload),
         }),
         ...(ref.auth_status === 'negado' && { auth_status: null }),
+        // Autorização remota do morador (10 min no portão): liberar por cima
+        // é decisão de quem liberou e vale pela janela, como toda liberação.
+        ...(ehAutorizacaoRemota(ref) && { auth_status: null }),
       },
       include: {
         pessoa: true,

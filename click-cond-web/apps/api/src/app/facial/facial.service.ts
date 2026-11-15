@@ -47,6 +47,14 @@ import { normalizarPayloadNativo } from './webhook-payload.util';
 import { gruposCodigoTag } from '../common/tag-codigo.util';
 import { VISITA_NAO_ENCERRADA } from '../common/tag-em-uso.util';
 import { whereVagaVigente } from '../vagas/vaga-vigente.util';
+import { AUTORIZACAO_EXPIRACAO_MS } from '../common/autorizacao-expiracao';
+import { prazoAutorizacaoRemotaMs } from '../common/janela-visita';
+import {
+  contextoVisita,
+  prazoRemotoEfetivoMs,
+  visitaAtiva as visitaAtivaNoTerminal,
+  type ContextoVisita,
+} from './escolha-visita.util';
 import { decryptSecret, encryptSecret } from './device-secret.util';
 import { calcularIdade, temTermoResponsavel } from '../common/idade.util';
 import { normalizarMac } from './descoberta.service';
@@ -3200,35 +3208,11 @@ export class FacialService {
       return { skipped: true, reason: 'sem_consentimento_biometria' };
     }
 
-    const agora = Date.now();
-    const GRACE = 15 * 60 * 1000;
-    const VINTE_QUATRO_HORAS_MS = 24 * 60 * 60 * 1000;
-    const mapDiasSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
-    const agoraBRT = new Date(
-      new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }),
-    );
-    const diaSemanaAtual = mapDiasSemana[agoraBRT.getDay()];
-
+    // Janela (com a tolerância) e dia da semana, prazo de 10 min da
+    // autorização remota, ou já dentro do condomínio — ver escolha-visita.util.
     const visitas = pessoa.visitas ?? [];
-    const autorizado =
-      pessoa.bloqueado !== 1 &&
-      visitas.some((v) => {
-        if (v.bloqueado === 1 || v.liberado !== 1) return false;
-        const inicioMs = v.data_hora_inicio ? new Date(v.data_hora_inicio).getTime() : null;
-        const terminoMs = v.data_hora_termino ? new Date(v.data_hora_termino).getTime() : null;
-        const dentroJanela =
-          (inicioMs === null || agora >= inicioMs - GRACE) &&
-          (terminoMs === null || agora <= terminoMs + GRACE);
-        const dentroDoCondominio =
-          !!v.data_entrada &&
-          !v.data_saida &&
-          agora - new Date(v.data_entrada).getTime() < VINTE_QUATRO_HORAS_MS;
-        const diasPermitidos: string[] = v.dias_semana
-          ? v.dias_semana.split(',').map((d) => d.trim().toLowerCase()).filter(Boolean)
-          : [];
-        const diaAutorizado = diasPermitidos.length === 0 || diasPermitidos.includes(diaSemanaAtual);
-        return (dentroJanela && diaAutorizado) || dentroDoCondominio;
-      });
+    const ctx = contextoVisita(Date.now(), await this.vagasVigentesComPrazoRemoto(visitas));
+    const autorizado = pessoa.bloqueado !== 1 && visitas.some((v) => visitaAtivaNoTerminal(v, ctx));
 
     if (!autorizado) {
       if (pessoa.face_id && pessoa.id_condominio) {
@@ -3262,36 +3246,32 @@ export class FacialService {
    * APARELHO é derivada; sem uma visita ativa a pessoa fica sem janela
    * nenhuma (permanente), que é o ponto do Finding 4.
    */
-  private resolverVisitaAtivaPessoa(pessoa: any): any | null {
-    const agora = Date.now();
-    const GRACE = 15 * 60 * 1000;
-    const VINTE_QUATRO_HORAS_MS = 24 * 60 * 60 * 1000;
-    const mapDiasSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
-    const agoraBRT = new Date(
-      new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }),
-    );
-    const diaSemanaAtual = mapDiasSemana[agoraBRT.getDay()];
+  private resolverVisitaAtivaPessoa(pessoa: any, ctx: ContextoVisita = contextoVisita()): any | null {
     const visitas: any[] = pessoa.visitas ?? [];
+    return visitas.find((v) => visitaAtivaNoTerminal(v, ctx)) ?? null;
+  }
 
-    return (
-      visitas.find((v) => {
-        if (v.bloqueado === 1 || v.liberado !== 1) return false;
-        const inicioMs = v.data_hora_inicio ? new Date(v.data_hora_inicio).getTime() : null;
-        const terminoMs = v.data_hora_termino ? new Date(v.data_hora_termino).getTime() : null;
-        const dentroJanela =
-          (inicioMs === null || agora >= inicioMs - GRACE) &&
-          (terminoMs === null || agora <= terminoMs + GRACE);
-        const dentroDoCondominio =
-          !!v.data_entrada &&
-          !v.data_saida &&
-          agora - new Date(v.data_entrada).getTime() < VINTE_QUATRO_HORAS_MS;
-        const diasPermitidos: string[] = v.dias_semana
-          ? v.dias_semana.split(',').map((d: string) => d.trim().toLowerCase()).filter(Boolean)
-          : [];
-        const diaAutorizado = diasPermitidos.length === 0 || diasPermitidos.includes(diaSemanaAtual);
-        return (dentroJanela && diaAutorizado) || dentroDoCondominio;
-      }) ?? null
-    );
+  /**
+   * Visitas com autorização remota ainda não usada que têm vaga vigente: a
+   * vaga é janela própria que o morador deu e não cai nos 10 min. Só consulta
+   * quando há autorização remota; falha na consulta = sem vaga (vale o prazo
+   * curto — erra para o lado de fechar).
+   */
+  private async vagasVigentesComPrazoRemoto(visitas: any[]): Promise<Set<number>> {
+    const ids = (visitas ?? [])
+      .filter((v) => prazoAutorizacaoRemotaMs(v) != null)
+      .map((v) => Number(v.id));
+    if (ids.length === 0) return new Set();
+    try {
+      const vagas = await this.prisma.vagas.findMany({
+        where: { id_visita: { in: ids }, ativo: 1, ...whereVagaVigente() },
+        select: { id_visita: true },
+      });
+      return new Set(vagas.map((x: any) => Number(x.id_visita)));
+    } catch (err: any) {
+      this.logger.warn(`Vagas das visitas ${ids.join(',')} não consultadas: ${err?.message ?? err}`);
+      return new Set();
+    }
   }
 
   /**
@@ -3334,8 +3314,9 @@ export class FacialService {
     // Janela de validade e limite de usos NO APARELHO — mesmo princípio do
     // syncVisitante (ver linhas ~1845-1923): sem isso a pessoa fica enrolada
     // permanentemente, sem expiração nenhuma no terminal.
-    const visitaAtiva = this.resolverVisitaAtivaPessoa(pessoa);
     const agora = Date.now();
+    const ctx = contextoVisita(agora, await this.vagasVigentesComPrazoRemoto(pessoa.visitas ?? []));
+    const visitaAtiva = this.resolverVisitaAtivaPessoa(pessoa, ctx);
     const VINTE_QUATRO_HORAS_MS = 24 * 60 * 60 * 1000;
     const dentroDoCondominio = !!(
       visitaAtiva?.data_entrada &&
@@ -3348,10 +3329,16 @@ export class FacialService {
     const terminoMs = visitaAtiva?.data_hora_termino
       ? new Date(visitaAtiva.data_hora_termino).getTime()
       : null;
+    // Autorização remota não usada: o aparelho recebe o prazo de 10 min, não
+    // o fim da janela de 4 h que o pedido abriu.
+    const prazoRemotoMs = visitaAtiva ? prazoRemotoEfetivoMs(visitaAtiva, ctx) : null;
+    const fimNoAparelhoMs =
+      prazoRemotoMs === null ? terminoMs : terminoMs === null ? prazoRemotoMs : Math.min(terminoMs, prazoRemotoMs);
     const GRACE = 15 * 60 * 1000;
     const dentroJanela =
       (inicioMs === null || agora >= inicioMs - GRACE) &&
-      (terminoMs === null || agora <= terminoMs + GRACE);
+      (terminoMs === null || agora <= terminoMs + GRACE) &&
+      (prazoRemotoMs === null || agora <= prazoRemotoMs);
 
     const mapDiasSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
     const agoraBRT = new Date(
@@ -3369,8 +3356,8 @@ export class FacialService {
     let validTo =
       dentroDoCondominio && !dentroJanela
         ? undefined
-        : visitaAtiva?.data_hora_termino
-          ? this.formatDahuaTime(new Date(visitaAtiva.data_hora_termino))
+        : fimNoAparelhoMs !== null
+          ? this.formatDahuaTime(new Date(fimNoAparelhoMs))
           : undefined;
     if (!dentroDoCondominio && diasPermitidos.length > 0) {
       const fimHoje = this.fimDoDiaBRT();
@@ -4417,14 +4404,34 @@ export class FacialService {
               { face_id: { not: null } },
               { OR: [{ face_sync_status: null }, { face_sync_status: { not: 'revoked' } }] },
               {
-                visitas: {
-                  some: {
-                    data_hora_termino: {
-                      gte: new Date(agora.getTime() - JANELA_EXPIRACAO_PESSOAS_MS),
-                      lt: agora,
+                OR: [
+                  {
+                    visitas: {
+                      some: {
+                        data_hora_termino: {
+                          gte: new Date(agora.getTime() - JANELA_EXPIRACAO_PESSOAS_MS),
+                          lt: agora,
+                        },
+                      },
                     },
                   },
-                },
+                  // Autorização remota não usada cujo prazo de 10 min venceu:
+                  // a janela de 4 h do pedido ainda não terminou, mas o rosto
+                  // sai (mesmo critério de prazoAutorizacaoRemotaMs).
+                  {
+                    visitas: {
+                      some: {
+                        auth_status: 'autorizado',
+                        auth_respondido_por: { not: null },
+                        data_entrada: null,
+                        auth_respondido_em: {
+                          gte: new Date(agora.getTime() - AUTORIZACAO_EXPIRACAO_MS - JANELA_EXPIRACAO_PESSOAS_MS),
+                          lt: new Date(agora.getTime() - AUTORIZACAO_EXPIRACAO_MS),
+                        },
+                      },
+                    },
+                  },
+                ],
               },
             ],
           },
@@ -5854,7 +5861,14 @@ export class FacialService {
             include: { visitas: true },
           });
           if (pessoaComVisitas) {
-            visitaAtivaMigrada = this.resolverVisitaAtivaPessoa(pessoaComVisitas);
+            // Evento do backlog é julgado na hora em que aconteceu: o rosto
+            // passou aos 9 min de uma autorização remota (o aparelho tinha o
+            // prazo) e o evento só chegou depois dos 10.
+            const ctxVisita = contextoVisita(
+              isBacklog ? timestamp.getTime() : Date.now(),
+              await this.vagasVigentesComPrazoRemoto(pessoaComVisitas.visitas ?? []),
+            );
+            visitaAtivaMigrada = this.resolverVisitaAtivaPessoa(pessoaComVisitas, ctxVisita);
             if (visitaAtivaMigrada) {
               v = {
                 id: visitaAtivaMigrada.id,
@@ -5872,6 +5886,10 @@ export class FacialService {
                 data_entrada: visitaAtivaMigrada.data_entrada,
                 data_saida: visitaAtivaMigrada.data_saida,
                 codigo_acesso: visitaAtivaMigrada.codigo_acesso,
+                // Prazo da autorização remota (ver prazoAutorizacaoRemotaMs).
+                auth_status: visitaAtivaMigrada.auth_status,
+                auth_respondido_em: visitaAtivaMigrada.auth_respondido_em,
+                auth_respondido_por: visitaAtivaMigrada.auth_respondido_por,
                 id_pessoa: pessoaComVisitas.id,
               };
             }
@@ -5995,6 +6013,42 @@ export class FacialService {
             });
             throw new BadRequestException(
               'Acesso negado: O período de validade desta autorização já expirou.',
+            );
+          }
+        }
+
+        // Autorização remota (o morador respondeu ao pedido da portaria): abre
+        // até 10 min depois da resposta, como o console. Vaga vigente cedida
+        // pelo morador tem janela própria. `liberado` não é mexido: a portaria
+        // vê "Autorização expirada" e pede de novo ou libera.
+        if (visitaAtivaMigrada) {
+          const prazoRemoto = prazoAutorizacaoRemotaMs(v);
+          if (
+            prazoRemoto !== null &&
+            now.getTime() > prazoRemoto &&
+            (await this.vagasVigentesComPrazoRemoto([v])).size === 0
+          ) {
+            void this.syncPessoa(idPessoa).catch((err) =>
+              this.logger.warn(
+                `Re-sync pós-expiração da pessoa ${idPessoa} falhou: ${err?.message ?? err}`,
+              ),
+            );
+            await this.registrarEvento(device, {
+              face_id:
+                faceIdSalvo ||
+                qrCodeLido ||
+                tagRfidLida ||
+                externalId ||
+                'desconhecido',
+              tipo_pessoa: tipoPessoa,
+              id_pessoa: idPessoa,
+              nome_pessoa: `${nomePessoa} (Bloqueado: autorização do morador expirada)`,
+              evento: 'negado',
+              confianca,
+              timestamp,
+            });
+            throw new BadRequestException(
+              `Acesso negado: a autorização do morador expirou (vale ${AUTORIZACAO_EXPIRACAO_MS / 60000} minutos depois da resposta). Peça de novo na portaria.`,
             );
           }
         }
