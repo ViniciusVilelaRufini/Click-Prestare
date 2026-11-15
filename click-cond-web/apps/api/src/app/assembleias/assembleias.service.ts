@@ -122,6 +122,53 @@ function rotuloDaUnidade(
 const MSG_ASSEMBLEIA_FINALIZADA_VOTO = 'Esta assembleia já foi finalizada; a votação está encerrada.';
 const MSG_JA_FINALIZADA = 'Assembleia já finalizada.';
 
+/**
+ * Prazos das transações (Prisma 6: padrão timeout 5 s / maxWait 2 s). O finish
+ * segura a trava X da assembleia por no máximo TIMEOUT_FINISH_MS (o upload do
+ * .txt dentro dele tem teto TETO_UPLOAD_APURACAO_MS); quem espera essa trava
+ * (voto, encerrar, nova pauta, editar, excluir) tem prazo MAIOR, para receber a
+ * resposta certa (400 "finalizada" ou o voto aceito) depois que o finish solta.
+ * Se ainda assim estourar, vira 409 com texto pronto (ver emTransacao).
+ */
+const TETO_UPLOAD_APURACAO_MS = 10_000;
+const TIMEOUT_FINISH_MS = 15_000;
+const TIMEOUT_ESPERA_MS = 20_000;
+const MAX_WAIT_CONEXAO_MS = 5_000;
+
+const MSG_ASSEMBLEIA_OCUPADA = 'A assembleia está sendo finalizada agora. Tente de novo em instantes.';
+const MSG_VOTACAO_OCUPADA = 'A votação está sendo encerrada agora. Tente de novo em instantes.';
+const MSG_FINISH_DEMOROU = 'A finalização demorou demais e foi desfeita. Tente de novo em instantes.';
+
+/**
+ * A transação desistiu de esperar: expirou no Prisma (P2028), o MySQL desistiu
+ * da trava (1205, "Lock wait timeout exceeded") ou não houve conexão livre no
+ * pool (P2024). Nada foi gravado: vira 409 "tente de novo" em vez de 500.
+ */
+function esperaEsgotada(e: unknown): boolean {
+  const erro = e as { code?: string; meta?: { code?: string | number }; message?: string };
+  if (erro?.code === 'P2028' || erro?.code === 'P2024') return true;
+  if (String(erro?.meta?.code ?? '') === '1205') return true;
+  return /Lock wait timeout exceeded/i.test(String(erro?.message ?? ''));
+}
+
+/** `p` com teto: `{ ok: false }` se não resolver em `ms` (o resultado atrasado é de quem chamou). */
+function comTeto<T>(p: Promise<T>, ms: number): Promise<{ ok: true; valor: T } | { ok: false }> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => resolve({ ok: false }), ms);
+    timer.unref?.();
+    p.then(
+      (valor) => {
+        clearTimeout(timer);
+        resolve({ ok: true, valor });
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
 const NOME_DO_VINCULO: Record<TipoVinculo, string> = {
   proprietario: 'proprietário',
   inquilino: 'inquilino',
@@ -712,7 +759,7 @@ export class AssembleiasService {
               data: { encerrada_em: agora },
             });
           }
-          await this.congelarVotosAntigos(tx, antes, agora);
+          await this.congelarVotosAntigos(tx, antes);
           const pautas =
             abertas.length > 0 || antes.some((p) => p.antigos.length > 0) ? await this.mapasDasVotacoes(doBanco, tx) : antes;
           const hash = pautas.length > 0 ? hashMapas(pautas.map((p) => p.mapa)) : null;
@@ -735,7 +782,16 @@ export class AssembleiasService {
             );
             // BOM: o navegador abre o .txt como UTF-8 (acentos).
             const dataUrl = `data:text/plain;base64,${Buffer.from(`\uFEFF${texto}`, 'utf8').toString('base64')}`;
-            linkApuracao = (await this.storage.uploadDataUrl(dataUrl, 'atas')) ?? '';
+            // Teto curto: a trava X da assembleia está presa enquanto sobe.
+            // Estourou: desiste (rollback) e o arquivo que chegar depois sai do bucket.
+            const subida = this.storage.uploadDataUrl(dataUrl, 'atas');
+            const resultado = await comTeto(subida, TETO_UPLOAD_APURACAO_MS);
+            if (!resultado.ok) {
+              void subida
+                .then((atrasado) => (atrasado && /^https?:\/\//i.test(atrasado) ? this.storage.deleteUrl(atrasado, ['atas/']) : false))
+                .catch(() => undefined);
+            }
+            linkApuracao = (resultado.ok ? resultado.valor : null) ?? '';
             if (!/^https?:\/\//i.test(linkApuracao)) {
               throw new BadRequestException(
                 'Não foi possível guardar a apuração das pautas. A assembleia não foi finalizada; tente de novo.',
@@ -775,7 +831,7 @@ export class AssembleiasService {
           });
           if (marcada.count === 0) throw new BadRequestException(MSG_JA_FINALIZADA);
         },
-        { refazer: false, timeout: 30_000 },
+        { refazer: false, timeout: TIMEOUT_FINISH_MS, ocupada: MSG_FINISH_DEMOROU },
       );
       // Um aviso pela ATA (a apuração vai junto, sem push próprio).
       this.avisarMoradores(idCond, 'ATA publicada', nomeAta, { type: 'ata', id: String(idAta ?? '') });
@@ -923,7 +979,7 @@ export class AssembleiasService {
         }
       }
       await tx.votacoes.delete({ where: { id: Number(id) } });
-    });
+    }, { ocupada: atual.id_assembleia != null ? MSG_ASSEMBLEIA_OCUPADA : MSG_VOTACAO_OCUPADA });
     return { success: true };
   }
 
@@ -957,7 +1013,7 @@ export class AssembleiasService {
       if (linha.encerrada_em) return; // encerrar de novo: sucesso sem regravar
 
       const agora = new Date();
-      await this.congelarVotosAntigos(tx, await this.mapasDasVotacoes({ id: Number(id) }, tx), agora);
+      await this.congelarVotosAntigos(tx, await this.mapasDasVotacoes({ id: Number(id) }, tx));
       const hoje = hojeBrasilia();
       await tx.votacoes.update({
         where: { id: Number(id) },
@@ -966,7 +1022,7 @@ export class AssembleiasService {
           ...(linha.data_termino && diaUtc(linha.data_termino) > hoje ? { data_termino: hoje } : {}),
         },
       });
-    });
+    }, { ocupada: atual.id_assembleia != null ? MSG_ASSEMBLEIA_OCUPADA : MSG_VOTACAO_OCUPADA });
 
     return { success: true };
   }
@@ -1076,15 +1132,17 @@ export class AssembleiasService {
       // Serializa os votos da unidade: o segundo espera o primeiro confirmar e
       // então vê o voto que ele gravou como vigente.
       await tx.$queryRaw`SELECT id FROM Apartamentos WHERE id = ${unidade} FOR UPDATE`;
-      const vigentes = await tx.votacoes_Usuarios.findMany({
+      const lidos = await tx.votacoes_Usuarios.findMany({
         where: {
           id_opcao: { in: idsOpcoes },
           substituido_em: null,
           OR: [{ id_apto: unidade }, { id_apto: null, tipo_vinculo: null, id_user: { in: antigosDe } }],
         },
-        select: { id: true, id_opcao: true, id_user: true, tipo_vinculo: true, created_at: true },
+        select: { id: true, id_opcao: true, id_user: true, tipo_vinculo: true, rotulo_unidade: true, created_at: true },
         orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       });
+      // Voto antigo congelado sem direito (rótulo sem tipo) não é vigente da unidade.
+      const vigentes = lidos.filter((v) => v.tipo_vinculo || !v.rotulo_unidade);
       const atual = vigentes[0];
       if (atual) {
         const nivelAtual = atual.tipo_vinculo
@@ -1109,7 +1167,7 @@ export class AssembleiasService {
           rotulo_unidade: minha.rotulo.slice(0, 120),
         },
       });
-    });
+    }, { ocupada: votacao.id_assembleia != null ? MSG_ASSEMBLEIA_OCUPADA : MSG_VOTACAO_OCUPADA });
 
     return { success: true };
   }
@@ -1152,15 +1210,19 @@ export class AssembleiasService {
    */
   private async emTransacao<T>(
     fn: (tx: Prisma.TransactionClient) => Promise<T>,
-    opcoes: { refazer?: boolean; timeout?: number } = {},
+    opcoes: { refazer?: boolean; timeout?: number; ocupada?: string } = {},
   ): Promise<T> {
     for (let tentativa = 0; ; tentativa++) {
       try {
         return await this.prisma.$transaction(fn, {
           isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
-          ...(opcoes.timeout ? { timeout: opcoes.timeout } : {}),
+          timeout: opcoes.timeout ?? TIMEOUT_ESPERA_MS,
+          maxWait: MAX_WAIT_CONEXAO_MS,
         });
       } catch (e) {
+        // Espera esgotada (finish segurando a trava, MySQL desistiu, pool
+        // cheio): 409 com texto pronto, sem refazer.
+        if (esperaEsgotada(e)) throw new ConflictException(opcoes.ocupada ?? MSG_ASSEMBLEIA_OCUPADA);
         const deadlock = (e as { code?: string })?.code === 'P2034';
         if (!deadlock || opcoes.refazer === false || tentativa >= AssembleiasService.NOVAS_TENTATIVAS_VOTO) throw e;
       }
@@ -1195,23 +1257,28 @@ export class AssembleiasService {
 
   /**
    * Congela os votos ANTIGOS (sem retrato) das votações ao encerrar/finalizar
-   * (revisão I-3): o retrato passa a ser o que o mapa mostra hoje (unidade,
-   * votante, tipo, id_apto), e o voto antigo que não conta recebe
-   * `substituido_em`. Depois disso a apuração e o hash dependem só dos dados
-   * do próprio voto — sair da unidade, excluir ou renomear a conta não muda
-   * mais o resultado. Os substituídos também recebem o retrato (o mapa os
-   * mostra). Rode sob a trava da votação, com `calcs` lido na transação.
+   * (revisão I-3), gravando o que o mapa mostra hoje:
+   *  - o que CONTA: nome, rótulo, `id_apto` (unidade da apuração) e
+   *    `tipo_vinculo` — passa a valer como voto novo;
+   *  - o já substituído: o mesmo retrato (continua fora, por `substituido_em`);
+   *  - o que NÃO conta (sem vínculo): só nome e rótulo, SEM `tipo_vinculo` e SEM
+   *    `substituido_em` (ninguém o substituiu). Critério explícito e estável:
+   *    voto com `rotulo_unidade` e sem `tipo_vinculo` é "voto antigo congelado
+   *    sem direito" e fica fora da apuração para sempre (ver apurar) — voto novo
+   *    sempre grava os dois, e voto antigo não congelado não tem rótulo.
+   * Depois disso a apuração e o hash dependem só dos dados do próprio voto —
+   * sair da unidade, ganhar vínculo, excluir ou renomear a conta não muda mais
+   * o resultado. Rode sob a trava da votação, com `calcs` lido na transação.
    */
-  private async congelarVotosAntigos(tx: Prisma.TransactionClient, calcs: MapaCalculado[], agora: Date): Promise<void> {
+  private async congelarVotosAntigos(tx: Prisma.TransactionClient, calcs: MapaCalculado[]): Promise<void> {
     for (const a of calcs.flatMap((c) => c.antigos)) {
       await tx.votacoes_Usuarios.updateMany({
         where: { id: a.id, tipo_vinculo: null, rotulo_unidade: null },
         data: {
           nome_votante: a.votante.slice(0, 255),
           rotulo_unidade: a.unidade.slice(0, 120),
-          ...(a.idUnidade != null ? { id_apto: a.idUnidade } : {}),
+          ...((a.conta || a.substituido) && a.idUnidade != null ? { id_apto: a.idUnidade } : {}),
           ...(a.tipo && (a.conta || a.substituido) ? { tipo_vinculo: a.tipo } : {}),
-          ...(!a.conta && !a.substituido ? { substituido_em: agora } : {}),
         },
       });
     }
@@ -1268,6 +1335,8 @@ export class AssembleiasService {
    */
   private async mapasDasVotacoes(
     where: Prisma.VotacoesWhereInput,
+    // Dentro da transação do finish/encerrar, TODAS as leituras usam `db`: com
+    // a trava presa, nenhuma consulta vai buscar outra conexão do pool.
     db: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<MapaCalculado[]> {
     const votacoesDb = await db.votacoes.findMany({
@@ -1302,7 +1371,7 @@ export class AssembleiasService {
           .filter((x) => x.id_condominio === v.id_condominio)
           .flatMap((x) => x.opcoes.flatMap((op) => op.votos.filter((voto) => !voto.tipo_vinculo).map((voto) => voto.id_user)))
           .filter((id): id is number => id != null);
-        vinculosDe = await this.vinculosNoCondominio(v.id_condominio, [...new Set(autores)]);
+        vinculosDe = await this.vinculosNoCondominio(v.id_condominio, [...new Set(autores)], db);
         vinculosPorCond.set(v.id_condominio, vinculosDe);
       }
 
@@ -1321,16 +1390,16 @@ export class AssembleiasService {
         ),
       ];
       const aptos = idsAptos.length
-        ? await this.prisma.apartamentos.findMany({ where: { id: { in: idsAptos } }, select: { id: true, bloco: true, apto: true } })
+        ? await db.apartamentos.findMany({ where: { id: { in: idsAptos } }, select: { id: true, bloco: true, apto: true } })
         : [];
       const aptoPorId = new Map(aptos.map((a) => [a.id, a]));
 
       const semNome = [...new Set(todos.filter((x) => !x.nome_votante && x.id_user != null).map((x) => x.id_user as number))];
       const nomes = new Map<number, string>();
       if (semNome.length) {
-        const usuarios = await this.prisma.users.findMany({ where: { id: { in: semNome } }, select: { id: true, name: true } });
+        const usuarios = await db.users.findMany({ where: { id: { in: semNome } }, select: { id: true, name: true } });
         for (const u of usuarios) if ((u.name ?? '').trim()) nomes.set(u.id, (u.name ?? '').trim());
-        const moradores = await this.prisma.moradores.findMany({
+        const moradores = await db.moradores.findMany({
           where: { id_user: { in: semNome }, id_condominio: v.id_condominio },
           select: { id_user: true, nome: true },
           orderBy: { id: 'desc' },
@@ -1621,6 +1690,8 @@ export class AssembleiasService {
     for (const op of opcoes) {
       for (const voto of op.votos) {
         if (voto.substituido_em) continue;
+        // Voto antigo congelado sem direito (rótulo sem tipo): fora para sempre.
+        if (!voto.tipo_vinculo && voto.rotulo_unidade) continue;
         let chave: ChaveUnidade;
         let tipo: TipoVinculo;
         if (voto.tipo_vinculo) {
@@ -1729,10 +1800,11 @@ export class AssembleiasService {
   private async vinculosNoCondominio(
     idCondominio: number,
     idsUsuarios: number[],
+    db: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<Map<number, Map<number, TipoVinculo>>> {
     const porUsuario = new Map<number, Map<number, TipoVinculo>>();
     if (idsUsuarios.length === 0) return porUsuario;
-    const vinculos = await this.prisma.apartamentos_Users.findMany({
+    const vinculos = await db.apartamentos_Users.findMany({
       where: { id_user: { in: idsUsuarios }, apartamento: { id_condominio: Number(idCondominio) } },
       select: { id_user: true, id_apto: true, tipo: true },
     });

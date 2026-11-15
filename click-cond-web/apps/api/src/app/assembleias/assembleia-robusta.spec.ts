@@ -493,7 +493,7 @@ describe('2.1 — quem vota e quem pode trocar o voto', () => {
       await votar(svc, 10, 5, 51);
       expect(ordem).toEqual(['lock', 'lock', 'lock', 'create', 'lock', 'lock', 'lock', 'updateMany', 'create']);
       expect(prisma.votacoes_Usuarios.deleteMany).not.toHaveBeenCalled();
-      expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'ReadCommitted' });
+      expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), expect.objectContaining({ isolationLevel: 'ReadCommitted' }));
     });
   });
 
@@ -1180,7 +1180,7 @@ describe('I-3 — o resultado e o hash não mudam depois de finalizar/encerrar',
     { id: 2, id_opcao: 52, id_user: 99, id_apto: 300, created_at: t('09:10') },
   ];
 
-  it('finish congela os votos antigos: o que conta ganha o retrato; o que não conta fica como substituído', async () => {
+  it('finish congela os votos antigos: o que conta ganha o retrato; o que não conta ganha só nome e rótulo (não vira substituído)', async () => {
     jest.useFakeTimers({ now: new Date('2026-11-15T13:00:00Z'), doNotFake: ['nextTick', 'setImmediate'] });
     try {
       const { svc, votos } = build({ votos: ANTIGOS() });
@@ -1188,7 +1188,10 @@ describe('I-3 — o resultado e o hash não mudam depois de finalizar/encerrar',
       expect(votos.find((v) => v.id === 1)).toMatchObject({
         id_apto: 100, tipo_vinculo: 'proprietario', nome_votante: 'Paula Proprietária', rotulo_unidade: 'Apto 11 Bloco A', substituido_em: null,
       });
-      expect(votos.find((v) => v.id === 2)).toMatchObject({ tipo_vinculo: null, substituido_em: new Date('2026-11-15T13:00:00Z') });
+      // Ninguém o substituiu: sem substituido_em e sem tipo; o rótulo gravado o marca como "fora da apuração".
+      expect(votos.find((v) => v.id === 2)).toMatchObject({
+        tipo_vinculo: null, substituido_em: null, nome_votante: 'Conta 99', rotulo_unidade: 'Apto 31', id_apto: 300,
+      });
     } finally {
       jest.useRealTimers();
     }
@@ -1212,7 +1215,7 @@ describe('I-3 — o resultado e o hash não mudam depois de finalizar/encerrar',
     const { svc, votos } = build({ votos: ANTIGOS(), vinculos });
     await svc.finishVotacao(5, sindico);
     expect(votos.find((v) => v.id === 1)).toMatchObject({ id_apto: 100, tipo_vinculo: 'proprietario' });
-    expect(votos.find((v) => v.id === 2)?.substituido_em).toBeInstanceOf(Date);
+    expect(votos.find((v) => v.id === 2)).toMatchObject({ substituido_em: null, tipo_vinculo: null, rotulo_unidade: 'Apto 31' });
     const antes = await svc.mapaVotacao(5, sindico);
     vinculos.splice(0, vinculos.length);
     expect(await svc.mapaVotacao(5, sindico)).toEqual(antes);
@@ -1245,5 +1248,179 @@ describe('I-3 — o resultado e o hash não mudam depois de finalizar/encerrar',
     ]);
     expect(texto.split('\n').filter((l) => l.startsWith('opcao ')).map((l) => JSON.parse(l.slice(6))[0])).toEqual([1, 2]);
     expect(textoCanonicoMapa({ ...mapa, votos: [...mapa.votos].reverse(), opcoes: [...mapa.opcoes].reverse() })).toBe(texto);
+  });
+});
+
+describe('N-2 — dentro da transação, só o cliente da transação', () => {
+  const PDF = 'data:application/pdf;base64,JVBERi0xLjQK';
+  const t = (hhmm: string) => new Date(`2026-11-14T${hhmm}:00Z`);
+  // Um voto antigo (exige vínculos, nomes e rótulo de apartamento) e um novo sem nome.
+  const VOTOS = () => [
+    { id: 1, id_opcao: 51, id_user: 10, id_apto: null, created_at: t('09:00') },
+    { id: 2, id_opcao: 52, id_user: 20, id_apto: 200, created_at: t('09:10') },
+  ];
+  /** Cliente "global" que falha em qualquer uso. */
+  const proibido = new Proxy({}, {
+    get: (_t, k) => {
+      if (k === 'then') return undefined;
+      throw new Error(`cliente global usado dentro da transação: ${String(k)}`);
+    },
+  });
+  /** Troca o cliente global do serviço pelo proibido enquanto a transação roda. */
+  function vigiarTransacao(svc: any, prisma: any) {
+    const real = prisma.$transaction;
+    prisma.$transaction = jest.fn(async (fn: any, o: any) => {
+      const global = svc.prisma;
+      svc.prisma = proibido;
+      try {
+        return await real(fn, o);
+      } finally {
+        svc.prisma = global;
+      }
+    });
+  }
+
+  it('mapasDasVotacoes(where, tx) não toca o cliente global', async () => {
+    const { svc, prisma } = build({ votos: VOTOS() });
+    (svc as any).prisma = proibido;
+    const [calc] = await (svc as any).mapasDasVotacoes({ id: 5 }, prisma);
+    expect(calc.mapa.votos.map((v: any) => v.votante)).toEqual(['Paula Proprietária', 'Vinte']);
+  });
+
+  it('finish e encerrar rodam a transação inteira sem o cliente global', async () => {
+    const a = build({ votos: VOTOS() });
+    vigiarTransacao(a.svc, a.prisma);
+    await expect(a.svc.finish(COND, { id: 3, doc: PDF }, sindico)).resolves.toEqual(expect.objectContaining({ message: expect.any(String) }));
+    const b = build({ votos: VOTOS() });
+    vigiarTransacao(b.svc, b.prisma);
+    await expect(b.svc.finishVotacao(5, sindico)).resolves.toEqual({ success: true });
+  });
+});
+
+describe('N-3 — voto antigo congelado que não contava', () => {
+  const PDF = 'data:application/pdf;base64,JVBERi0xLjQK';
+  const t = (hhmm: string) => new Date(`2026-11-14T${hhmm}:00Z`);
+  const ANTIGOS = () => [
+    { id: 1, id_opcao: 51, id_user: 10, id_apto: null, created_at: t('09:00') },
+    { id: 2, id_opcao: 52, id_user: 99, id_apto: 300, created_at: t('09:10') },
+  ];
+
+  it('no mapa: nao_conta, vigente false, substituido_em null — antes e depois de finalizar', async () => {
+    const { svc, votacoes } = build({ votos: ANTIGOS() });
+    votacoes[0].encerrada_em = new Date('2026-11-14T20:00:00Z');
+    const linhaDo99 = (m: any) => m.votos.find((v: any) => v.votante === 'Conta 99');
+    expect(linhaDo99(await svc.mapaVotacao(5, sindico))).toMatchObject({ situacao: 'nao_conta', vigente: false, substituido_em: null });
+    const b = build({ votos: ANTIGOS() });
+    await b.svc.finish(COND, { id: 3, doc: PDF }, sindico);
+    expect(linhaDo99(await b.svc.mapaVotacao(5, sindico))).toEqual({
+      unidade: 'Apto 31', votante: 'Conta 99', tipo_vinculo: null, opcao: 'Rejeitar',
+      registrado_em: '14/11/2026 06:10:00', vigente: false, substituido_em: null, situacao: 'nao_conta',
+    });
+  });
+
+  it('fica fora da apuração para sempre: ganhar vínculo depois não o faz contar, e o hash não muda', async () => {
+    const vinculos = VINCULOS_PADRAO.map((v) => ({ ...v }));
+    const { svc, assembleias } = build({ votos: ANTIGOS(), vinculos });
+    await svc.finish(COND, { id: 3, doc: PDF }, sindico);
+    const antes = await svc.mapaVotacao(5, sindico);
+    expect(antes.opcoes.map((o) => o.votos)).toEqual([1, 0]);
+    vinculos.push({ id_user: 99, id_apto: 300, tipo: 'proprietario' }); // a conta 99 passa a ter a unidade
+    const depois = await svc.mapaVotacao(5, sindico);
+    expect(depois).toEqual(antes);
+    expect(hashMapas([depois])).toBe(assembleias[0].apuracao_hash);
+  });
+});
+
+describe('N-1 — quem espera a trava do finish recebe 409, não 500', () => {
+  const PDF = 'data:application/pdf;base64,JVBERi0xLjQK';
+  const OCUPADA = 'A assembleia está sendo finalizada agora. Tente de novo em instantes.';
+  const expirou = () => Object.assign(new Error('Transaction already closed: the timeout for this transaction was 20000 ms'), { code: 'P2028' });
+  const lockWait = () =>
+    Object.assign(new Error('Raw query failed. Code: `1205`. Message: `Lock wait timeout exceeded; try restarting transaction`'), {
+      code: 'P2010', meta: { code: '1205' },
+    });
+  const falhaNaTransacao = (prisma: any, erro: () => Error) => {
+    prisma.$transaction = jest.fn(async () => {
+      throw erro();
+    });
+  };
+
+  it('prazos coerentes: quem espera tem timeout maior que o do finish; o finish é o mais curto', async () => {
+    const { svc, prisma } = build();
+    await votar(svc, 10, 5, 51);
+    const opcoesDoVoto = prisma.$transaction.mock.calls[0][1];
+    await svc.finish(COND, { id: 3, doc: PDF }, sindico);
+    const opcoesDoFinish = prisma.$transaction.mock.calls[1][1];
+    expect(opcoesDoVoto).toEqual({ isolationLevel: 'ReadCommitted', timeout: 20_000, maxWait: 5_000 });
+    expect(opcoesDoFinish).toEqual({ isolationLevel: 'ReadCommitted', timeout: 15_000, maxWait: 5_000 });
+    expect(opcoesDoVoto.timeout).toBeGreaterThan(opcoesDoFinish.timeout);
+  });
+
+  it.each([
+    ['expirou a transação (P2028)', expirou],
+    ['lock wait timeout do MySQL (1205)', lockWait],
+  ])('%s → 409 com texto pronto, sem refazer, em voto, encerrar, nova pauta, editar e excluir', async (_n, erro) => {
+    const casos: Array<[string, (b: ReturnType<typeof build>) => Promise<unknown>, string]> = [
+      ['voto em pauta', (b) => votar(b.svc, 10, 5, 51), OCUPADA],
+      ['voto em enquete', (b) => votar(b.svc, 10, 6, 61), 'A votação está sendo encerrada agora. Tente de novo em instantes.'],
+      ['encerrar pauta', (b) => b.svc.finishVotacao(5, sindico), OCUPADA],
+      ['nova pauta', (b) => b.svc.insertVotacao({ titulo: 'N', data_inicio: '01/12/2026', data_termino: '10/12/2026', opcoes: ['Sim', 'Não'], id_assembleia: 3 }, COND, sindico), OCUPADA],
+      ['editar', (b) => b.svc.update(COND, { id: 3, titulo: 'Outro' }, 7, sindico), OCUPADA],
+      ['excluir assembleia', (b) => b.svc.remove(3, sindico), OCUPADA],
+      ['excluir pauta', (b) => b.svc.removeVotacao(5, sindico), OCUPADA],
+    ];
+    for (const [nome, chamar, msg] of casos) {
+      const b = build();
+      falhaNaTransacao(b.prisma, erro);
+      await expect(chamar(b)).rejects.toThrow(new ConflictException(msg));
+      expect([nome, b.prisma.$transaction.mock.calls.length]).toEqual([nome, 1]);
+    }
+  });
+
+  it('o próprio finish que estoura o prazo: 409 e o PDF enviado sai do bucket', async () => {
+    const { svc, prisma, storage } = build();
+    falhaNaTransacao(prisma, expirou);
+    await expect(svc.finish(COND, { id: 3, doc: PDF }, sindico)).rejects.toThrow(
+      new ConflictException('A finalização demorou demais e foi desfeita. Tente de novo em instantes.'),
+    );
+    expect(storage.deleteUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it('outros erros não são traduzidos', async () => {
+    const { svc, prisma } = build();
+    falhaNaTransacao(prisma, () => Object.assign(new Error('falha'), { code: 'P2002' }));
+    await expect(votar(svc, 10, 5, 51)).rejects.toMatchObject({ code: 'P2002' });
+  });
+
+  it('upload do .txt dentro do finish tem teto de 10 s: estourou → 400, nada finalizado, e o arquivo que chegar atrasado sai do bucket', async () => {
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+    try {
+      const { svc, storage, assembleias, documentos } = build();
+      let entregar: (url: string) => void = () => undefined;
+      storage.uploadDataUrl.mockImplementation(async (_d: string, pasta: string) =>
+        storage.uploadDataUrl.mock.calls.length === 1
+          ? `https://bucket.s3.amazonaws.com/${pasta}/ata.pdf`
+          : new Promise<string>((r) => (entregar = r)),
+      );
+      const resultado = svc.finish(COND, { id: 3, doc: PDF }, sindico).then(
+        () => 'ok',
+        (e) => e,
+      );
+      await jest.advanceTimersByTimeAsync(9_999);
+      expect(storage.uploadDataUrl).toHaveBeenCalledTimes(2);
+      await jest.advanceTimersByTimeAsync(2);
+      const erro = await resultado;
+      expect(erro).toEqual(
+        new BadRequestException('Não foi possível guardar a apuração das pautas. A assembleia não foi finalizada; tente de novo.'),
+      );
+      expect(assembleias[0].finalizada_em).toBeNull();
+      expect(documentos).toEqual([]);
+      expect(storage.deleteUrl).toHaveBeenCalledWith('https://bucket.s3.amazonaws.com/atas/ata.pdf', ['atas/']);
+      entregar('https://bucket.s3.amazonaws.com/atas/atrasado.txt');
+      await jest.advanceTimersByTimeAsync(0);
+      expect(storage.deleteUrl).toHaveBeenCalledWith('https://bucket.s3.amazonaws.com/atas/atrasado.txt', ['atas/']);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
