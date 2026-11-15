@@ -193,31 +193,112 @@ describe('FacialService — várias visitas vivas: desempate determinístico', (
     }
   });
 
-  it('janela enviada ao aparelho cobre a união das visitas vigentes (vai até o fim da do 202)', async () => {
-    const a202 = visita202();
-    const b101 = visita101();
-    const { svc, client } = montar([b101, a202]);
-    await svc.syncPessoa(ID_PESSOA);
-    const fmt = (d: Date) => (svc as any).formatDahuaTime(d);
-    expect(client.updatePerson).toHaveBeenCalledWith(
-      expect.anything(), 'face_joao',
-      expect.objectContaining({ validFrom: fmt(a202.data_hora_inicio), validTo: fmt(a202.data_hora_termino) }),
-    );
+  // ------------------------------------------------------------------ Rodada 1
+  // I-1: nada de união — janela, usos, categoria e teto do dia vêm INTEIROS de
+  // UMA visita (a escolhida). Somar direitos alargava o acesso offline.
+  describe('o aparelho recebe UMA visita, inteira', () => {
+    const DIA = '2026-11-16'; // segunda-feira
+    const z = (hhmm: string) => new Date(`${DIA}T${hhmm}:00Z`); // BRT = Z - 3h
+
+    function cenarioPrestadorEAvulsa() {
+      // Prestador 08–10h BRT, liberado por último (a escolhida); avulsa de 1 uso 08–20h BRT.
+      const prestador = visita101({
+        id: 1000601, id_apartamento: 101, is_prestador: 1, is_visitante: 0,
+        data_hora_inicio: z('11:00'), data_hora_termino: z('13:00'),
+        created_at: z('11:00'), updated_at: z('11:30'),
+      });
+      const avulsa = visita202({
+        id: 1000600, id_apartamento: 202, is_prestador: 0,
+        data_hora_inicio: z('11:00'), data_hora_termino: z('23:00'),
+        created_at: z('11:05'), updated_at: z('11:05'),
+      });
+      return { prestador, avulsa };
+    }
+
+    it('prestador 08–10 + avulsa 08–20: ValidTo 10h, usos ilimitados e categoria do prestador', async () => {
+      jest.setSystemTime(z('12:00')); // 09:00 BRT
+      const { prestador, avulsa } = cenarioPrestadorEAvulsa();
+      const { svc, client } = montar([avulsa, prestador]);
+      const categoria = jest.spyOn(svc as any, 'categoriaAutorizada');
+      await svc.syncPessoa(ID_PESSOA);
+      const fmt = (d: Date) => (svc as any).formatDahuaTime(d);
+      expect(client.updatePerson).toHaveBeenCalledWith(
+        expect.anything(), 'face_joao',
+        expect.objectContaining({ validFrom: fmt(prestador.data_hora_inicio), validTo: fmt(prestador.data_hora_termino), userTimes: -1 }),
+      );
+      expect(categoria.mock.calls[0][1]).toBe('prestador');
+    });
+
+    it('depois das 10h15 o tick pega a pessoa e reenvia a avulsa: 1 uso, categoria visitante, ValidTo 20h', async () => {
+      jest.setSystemTime(z('13:16')); // 10:16 BRT
+      const { prestador, avulsa } = cenarioPrestadorEAvulsa();
+      const { svc, client, prisma } = montar([avulsa, prestador]);
+      // O tick seleciona a pessoa pela visita que venceu nas últimas 2 h.
+      prisma.visitantes.findMany = jest.fn(async () => []);
+      prisma.pessoas.findMany = jest.fn(async () => [{ id: ID_PESSOA }]);
+      const sincronizar = jest.spyOn(svc as any, 'sincronizarPessoasDoTick').mockImplementation(() => undefined);
+      await (svc as any).tickExpiracaoAutomatica();
+      const where = prisma.pessoas.findMany.mock.calls[0][0].where;
+      const termino = where.AND[2].OR[0].visitas.some.data_hora_termino;
+      expect(prestador.data_hora_termino.getTime()).toBeGreaterThanOrEqual(termino.gte.getTime());
+      expect(prestador.data_hora_termino.getTime()).toBeLessThan(termino.lt.getTime());
+      expect(sincronizar).toHaveBeenCalledWith('tickExpiracaoAutomatica', [ID_PESSOA], expect.any(String));
+
+      const categoria = jest.spyOn(svc as any, 'categoriaAutorizada');
+      await svc.syncPessoa(ID_PESSOA);
+      const fmt = (d: Date) => (svc as any).formatDahuaTime(d);
+      expect(client.updatePerson).toHaveBeenCalledWith(
+        expect.anything(), 'face_joao',
+        expect.objectContaining({ validTo: fmt(avulsa.data_hora_termino), userTimes: 1 }),
+      );
+      expect(categoria.mock.calls[0][1]).toBe('visitante');
+    });
+
+    it('recorrente + pessoa dentro por outra visita: vai a janela de quem está dentro, não a do recorrente', async () => {
+      jest.setSystemTime(z('15:00'));
+      const agora = Date.now();
+      const dentro = visita202({
+        id: 1000700, data_entrada: new Date(agora - HORA),
+        data_hora_inicio: new Date(agora - 2 * HORA), data_hora_termino: new Date(agora + HORA),
+        created_at: new Date(agora - 2 * HORA), updated_at: new Date(agora - HORA),
+      });
+      const recorrente = visita101({
+        id: 1000701, dias_semana: 'dom,seg,ter,qua,qui,sex,sab',
+        data_hora_inicio: new Date(agora - HORA), data_hora_termino: new Date(agora + 5 * 24 * HORA),
+        created_at: new Date(agora - 10 * MIN), updated_at: new Date(agora - 10 * MIN),
+      });
+      const { svc, client } = montar([recorrente, dentro]);
+      await svc.syncPessoa(ID_PESSOA);
+      const fmt = (d: Date) => (svc as any).formatDahuaTime(d);
+      expect(client.updatePerson).toHaveBeenCalledWith(
+        expect.anything(), 'face_joao',
+        expect.objectContaining({ validFrom: fmt(dentro.data_hora_inicio), validTo: fmt(dentro.data_hora_termino), userTimes: 1 }),
+      );
+    });
   });
 
-  it('a união não inclui visita que não vale: autorização remota vencida do 202 não estende a janela', async () => {
+  // I-3: a tolerância de 15 min só vale DEPOIS do término. Antes do início
+  // exato a visita não é elegível para a entrada enquanto houver outra vigente.
+  it('13h50: o 202 agendou para 14h (mais recente) e o 101 está liberado até 18h — a entrada cai no 101', async () => {
+    jest.setSystemTime(new Date('2026-11-16T16:50:00Z')); // 13:50 BRT
     const agora = Date.now();
     const a202 = visita202({
-      auth_status: 'autorizado', auth_respondido_por: 2020,
-      auth_solicitado_em: new Date(agora - 31 * MIN), auth_respondido_em: new Date(agora - 30 * MIN),
+      data_hora_inicio: new Date(agora + 10 * MIN), data_hora_termino: new Date(agora + 4 * HORA),
+      created_at: new Date(agora - MIN), updated_at: new Date(agora - MIN),
     });
-    const b101 = visita101();
-    const { svc, client } = montar([a202, b101]);
-    await svc.syncPessoa(ID_PESSOA);
-    const fmt = (d: Date) => (svc as any).formatDahuaTime(d);
-    expect(client.updatePerson).toHaveBeenCalledWith(
-      expect.anything(), 'face_joao',
-      expect.objectContaining({ validFrom: fmt(b101.data_hora_inicio), validTo: fmt(b101.data_hora_termino) }),
+    const b101 = visita101({
+      data_hora_inicio: new Date(agora - HORA), data_hora_termino: new Date(agora + 4 * HORA + 10 * MIN),
+      created_at: new Date(agora - 2 * HORA), updated_at: new Date(agora - HORA),
+    });
+    const { svc, prisma } = montar([a202, b101]);
+    await svc.processWebhook('tok-entrada', {
+      event: 'entrada', direction: 'in', external_id: `pessoa_${ID_PESSOA}`, timestamp: new Date().toISOString(),
+    });
+    expect(prisma.visitas.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: b101.id }), data: expect.objectContaining({ data_entrada: expect.any(Date) }) }),
     );
+    const negados = prisma.acessos_Facial.create.mock.calls.filter((c: any[]) => c[0]?.data?.evento === 'negado');
+    expect(negados).toHaveLength(0);
+    expect(prisma.users.findMany.mock.calls[0][0].where.apartamentosUsers.some.id_apto).toBe(101);
   });
 });

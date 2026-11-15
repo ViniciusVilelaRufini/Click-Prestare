@@ -235,4 +235,86 @@ describe('FacialService — autorização remota vale 10 min no portão', () => 
     expect(where).toContain('auth_respondido_por');
     expect(where).toContain('"auth_status":"autorizado"');
   });
+
+  // Rodada 1, I-2: a autorização remota vale para UMA entrada. Usada, serve só
+  // para sair; nova entrada é novo pedido ou a portaria liberar.
+  describe('uma entrada só', () => {
+    it('avulso entrou aos 5 min, saiu sem leitor; às 2 h tenta entrar de novo pelo QR: negado', async () => {
+      const visita = visitaRemota(120, { data_entrada: new Date(Date.now() - 115 * MIN) });
+      const { svc, prisma } = montar(visita);
+      await expect(lerQr(svc)).rejects.toThrow(/já foi usada/);
+      expect(prisma.visitas.updateMany).not.toHaveBeenCalled();
+      expect(negados(prisma)).toHaveLength(1);
+    });
+
+    it('… e o rosto não volta ao terminal de entrada (só o de saída o mantém)', async () => {
+      const visita = visitaRemota(120, { data_entrada: new Date(Date.now() - 115 * MIN) });
+      const { svc, prisma, client } = montar(visita);
+      prisma.facial_Devices.findMany.mockResolvedValue([
+        DEVICE_FACIAL,
+        { ...DEVICE_FACIAL, id: 901, sentido: 'saida' },
+      ]);
+      await svc.syncPessoa(visita.id_pessoa);
+      expect(client.removePerson).toHaveBeenCalledWith(expect.objectContaining({}), 'face_remota');
+      expect(client.removePerson).toHaveBeenCalledTimes(1); // o de entrada
+      expect(client.updatePerson).toHaveBeenCalledTimes(1); // o de saída
+      expect(client.updatePerson.mock.calls[0][2]).toEqual(expect.objectContaining({ validTo: undefined, userTimes: 1 }));
+    });
+
+    it('prestador vindo de pedido: entrou e saiu, às 2 h o QR nega mesmo com a janela de 4 h valendo', async () => {
+      const visita = visitaRemota(120, {
+        is_prestador: 1, is_visitante: 0,
+        data_entrada: new Date(Date.now() - 115 * MIN), data_saida: new Date(Date.now() - 60 * MIN),
+      });
+      const { svc } = montar(visita);
+      await expect(lerQr(svc)).rejects.toThrow(/já foi usada/);
+    });
+
+    it('prestador vindo de pedido: a saída pelo terminal não mantém a liberação', async () => {
+      const visita = visitaRemota(30, {
+        is_prestador: 1, is_visitante: 0, data_entrada: new Date(Date.now() - 25 * MIN),
+      });
+      const { svc, prisma } = montar(visita, { device: DEVICE_SAIDA });
+      await svc.processWebhook('tok-saida', {
+        event: 'saida', direction: 'out', external_id: 'pessoa_2000100', timestamp: new Date().toISOString(),
+      });
+      expect(prisma.visitas.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ data_saida: expect.any(Date), liberado: 0 }) }),
+      );
+    });
+
+    it('com vaga vigente cedida pelo morador a saída mantém a liberação e a reentrada abre', async () => {
+      const visita = visitaRemota(120, {
+        data_entrada: new Date(Date.now() - 115 * MIN), data_saida: new Date(Date.now() - 60 * MIN),
+      });
+      const { svc, prisma } = montar(visita, { vagaVigente: true });
+      await lerQr(svc);
+      expect(prisma.visitas.updateMany).toHaveBeenCalled();
+    });
+  });
+
+  // Rodada 1, M-5: evento ao vivo é julgado pela hora do SERVIDOR; só o
+  // backlog marcado como tal usa a hora do aparelho.
+  describe('hora da decisão', () => {
+    it('ao vivo com o relógio do aparelho atrasado (diz 9 min, servidor 12 min): negado', async () => {
+      const visita = visitaRemota(12);
+      const { svc } = montar(visita);
+      const relogioAtrasado = new Date(visita.auth_respondido_em.getTime() + 9 * MIN).toISOString();
+      await expect(
+        svc.processWebhook('tok-qr', { event: 'entrada', external_id: '654321', timestamp: relogioAtrasado }),
+      ).rejects.toThrow(/autorização do morador expirou/);
+    });
+
+    it('backlog do rosto que passou aos 9 min e chegou aos 12: aceito (o aparelho tinha o prazo)', async () => {
+      const visita = visitaRemota(12);
+      const { svc, prisma } = montar(visita, { device: { ...DEVICE_SAIDA, id: 6, sentido: 'entrada', webhook_token: 'tok-ent' } });
+      const aos9 = new Date(visita.auth_respondido_em.getTime() + 9 * MIN).toISOString();
+      await svc.processWebhook('tok-ent', {
+        event: 'entrada', direction: 'in', external_id: 'pessoa_2000100', timestamp: aos9, backlog: true,
+      });
+      expect(prisma.visitas.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ id: visita.id }) }),
+      );
+    });
+  });
 });
