@@ -28,12 +28,17 @@ class OpcaoResultadoBar extends StatelessWidget {
   /// Se esta é a opção em que o usuário votou.
   final bool meuVoto;
 
+  /// Resultado parcial oculto pela API (`resultado_oculto`): só o rótulo e o
+  /// selo "Seu voto" — sem percentual, barra nem contagem.
+  final bool ocultarResultado;
+
   const OpcaoResultadoBar({
     super.key,
     required this.rotulo,
     required this.votos,
     required this.percentual,
     this.meuVoto = false,
+    this.ocultarResultado = false,
   });
 
   @override
@@ -50,7 +55,9 @@ class OpcaoResultadoBar extends StatelessWidget {
 
     return Semantics(
       container: true,
-      label: '$rotulo: $pct%, $votosTxt${meuVoto ? ', seu voto' : ''}',
+      label: ocultarResultado
+          ? '$rotulo${meuVoto ? ', seu voto' : ''}'
+          : '$rotulo: $pct%, $votosTxt${meuVoto ? ', seu voto' : ''}',
       excludeSemantics: true,
       child: AnimatedContainer(
         duration: reduzir ? Duration.zero : const Duration(milliseconds: 180),
@@ -83,17 +90,20 @@ class OpcaoResultadoBar extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: AppSpacing.md),
-                Text(
-                  '$pct%',
-                  style: AppTypography.bodyMedium(context).copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: meuVoto ? destaque : AppColors.textPrimary(context),
-                    height: 1.35,
+                if (!ocultarResultado) ...[
+                  const SizedBox(width: AppSpacing.md),
+                  Text(
+                    '$pct%',
+                    style: AppTypography.bodyMedium(context).copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: meuVoto ? destaque : AppColors.textPrimary(context),
+                      height: 1.35,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
+            if (!ocultarResultado) ...[
             const SizedBox(height: AppSpacing.sm),
             ClipRRect(
               borderRadius: BorderRadius.circular(AppRadius.tag),
@@ -119,13 +129,15 @@ class OpcaoResultadoBar extends StatelessWidget {
                 ),
               ),
             ),
+            ],
+            if (!ocultarResultado || meuVoto) ...[
             const SizedBox(height: AppSpacing.sm),
             Wrap(
               spacing: AppSpacing.sm,
               runSpacing: AppSpacing.xs,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Text(votosTxt, style: AppTypography.caption(context).copyWith(fontSize: 13)),
+                if (!ocultarResultado) Text(votosTxt, style: AppTypography.caption(context).copyWith(fontSize: 13)),
                 if (meuVoto)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
@@ -147,6 +159,7 @@ class OpcaoResultadoBar extends StatelessWidget {
                   ),
               ],
             ),
+            ],
           ],
         ),
       ),

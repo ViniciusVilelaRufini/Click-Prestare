@@ -252,7 +252,7 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
         : termino.isNotEmpty
             ? 'Até $termino'
             : inicio;
-    final total = totalVotos(votacao['opcoes']);
+    final resumo = resumoVotosLabel(votacao);
     final urgente = prazoUrgente(termino, votacao['status']);
 
     return Container(
@@ -316,7 +316,7 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
             runSpacing: AppSpacing.sm,
             children: [
               if (periodo.isNotEmpty) _meta(PhosphorIcons.calendarBlank, periodo),
-              _meta(PhosphorIcons.users, votosLabel(total)),
+              if (resumo != null) _meta(PhosphorIcons.users, resumo),
             ],
           ),
         ],
@@ -437,18 +437,29 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
     final opcoes = parseOpcoes(_votacao['opcoes']);
     final escolhendo = _escolhendo;
     final pcts = percentuais([for (final o in opcoes) o.votos]);
+    final oculto = resultadoOculto(_votacao);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          (escolhendo ? getText('escolha_opcao_desejada') : 'Resultado').toUpperCase(),
+          (escolhendo
+                  ? getText('escolha_opcao_desejada')
+                  : oculto
+                      ? 'Opções'
+                      : 'Resultado')
+              .toUpperCase(),
           style: AppTypography.title(context).copyWith(
             fontWeight: FontWeight.w700,
             color: AppColors.textPrimary(context),
           ),
         ),
         const SizedBox(height: AppSpacing.md),
+        if (oculto && !escolhendo && opcoes.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: _meta(PhosphorIcons.eyeSlash, textoResultadoOculto),
+          ),
         if (opcoes.isEmpty)
           Text(
             getText('alert_list_empty_generic'),
@@ -470,6 +481,7 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
                       votos: opcoes[i].votos,
                       percentual: pcts[i],
                       meuVoto: votouNaOpcao(opcoes[i].id, _meuVoto),
+                      ocultarResultado: oculto,
                     ),
             ),
       ],

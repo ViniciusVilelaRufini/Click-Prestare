@@ -76,6 +76,57 @@ List<OpcaoVotacao> parseOpcoes(dynamic opcoes) {
 /// Total de votos das [opcoes] (texto cru da API ou [OpcaoVotacao]).
 int totalVotos(dynamic opcoes) => parseOpcoes(opcoes).fold(0, (s, o) => s + o.votos);
 
+bool _verdadeiro(dynamic v) {
+  if (v is bool) return v;
+  if (v is num) return v != 0;
+  final s = (v ?? '').toString().trim().toLowerCase();
+  return s == 'true' || s == '1';
+}
+
+/// Se a API escondeu o resultado parcial (`votacao['resultado_oculto']`):
+/// votação aberta ou agendada, com os votos zerados em `opcoes`. Campo
+/// ausente (API antiga) → falso, e a tela mostra as barras como antes.
+bool resultadoOculto(dynamic votacao) => votacao is Map && _verdadeiro(votacao['resultado_oculto']);
+
+/// Se só proprietários votam (`votacao['somente_proprietarios']`, 0|1).
+/// Ausente → falso.
+bool somenteProprietarios(dynamic votacao) => votacao is Map && _verdadeiro(votacao['somente_proprietarios']);
+
+/// Texto no lugar das barras enquanto o resultado está oculto.
+const textoResultadoOculto = 'Resultado disponível ao encerrar';
+
+/// Quórum da votação: unidades que votaram de quantas existem no condomínio.
+class Participacao {
+  final int votaram;
+  final int total;
+  const Participacao({required this.votaram, required this.total});
+}
+
+/// `votacao['participacao'] = { unidades_votaram, unidades_total }`. Ausente,
+/// estranho ou sem total (> 0) → nulo (a tela não mostra o quórum).
+Participacao? participacaoDaVotacao(dynamic votacao) {
+  if (votacao is! Map) return null;
+  final p = votacao['participacao'];
+  if (p is! Map) return null;
+  final total = _int(p['unidades_total']);
+  if (total <= 0) return null;
+  return Participacao(votaram: _int(p['unidades_votaram']).clamp(0, total), total: total);
+}
+
+/// `'1 de 40 unidades votou'`, `'12 de 40 unidades votaram'`.
+String participacaoLabel(Participacao p) =>
+    '${p.votaram} de ${p.total} unidades ${p.votaram == 1 ? 'votou' : 'votaram'}';
+
+/// Linha de contagem do card/cabeçalho: a participação quando a API manda;
+/// sem ela, o total de votos — exceto com o resultado oculto (os votos vêm
+/// zerados), aí nulo e a tela esconde a linha.
+String? resumoVotosLabel(dynamic votacao) {
+  final p = participacaoDaVotacao(votacao);
+  if (p != null) return participacaoLabel(p);
+  if (resultadoOculto(votacao)) return null;
+  return votosLabel(totalVotos(votacao is Map ? votacao['opcoes'] : null));
+}
+
 /// Percentual inteiro (0–100, arredondado) de [votos] em [total]; 0 quando
 /// [total] é 0. Para várias opções que precisam somar 100, use [percentuais].
 int percentual(int votos, int total) {

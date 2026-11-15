@@ -29,6 +29,10 @@ class VotacaoCard extends StatelessWidget {
   /// Total de votos; nulo esconde a contagem.
   final int? totalVotos;
 
+  /// Texto pronto da contagem (ex.: participação "3 de 40 unidades
+  /// votaram"); quando vem, substitui [totalVotos].
+  final String? resumoVotos;
+
   /// Linha extra sob o título (ex.: descrição ou nome da assembleia).
   final String? subtitulo;
 
@@ -45,13 +49,16 @@ class VotacaoCard extends StatelessWidget {
     this.dataInicio,
     this.dataTermino,
     this.totalVotos,
+    this.resumoVotos,
     this.subtitulo,
     this.onTap,
     this.agora,
   });
 
   /// Monta a partir do item da API (`titulo` ou `pergunta`, `status`,
-  /// `data_inicio`, `data_termino`, `opcoes` → total de votos). [subtitulo]
+  /// `data_inicio`, `data_termino`, `opcoes` → total de votos; com
+  /// `participacao`, o quórum; com `resultado_oculto`, nunca os votos zerados
+  /// — ver `resumoVotosLabel`). [subtitulo]
   /// não é lido do item: passe `item['descricao']` se quiser mostrá-la.
   factory VotacaoCard.fromItem(
     dynamic item, {
@@ -70,7 +77,8 @@ class VotacaoCard extends StatelessWidget {
       status: m['status'],
       dataInicio: txt('data_inicio'),
       dataTermino: txt('data_termino'),
-      totalVotos: m['opcoes'] is List ? h.totalVotos(m['opcoes']) : null,
+      totalVotos: m['opcoes'] is List && !h.resultadoOculto(m) ? h.totalVotos(m['opcoes']) : null,
+      resumoVotos: m['opcoes'] is List || h.participacaoDaVotacao(m) != null ? h.resumoVotosLabel(m) : null,
       subtitulo: subtitulo,
       onTap: onTap,
       agora: agora,
@@ -82,7 +90,7 @@ class VotacaoCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final info = h.statusVotacaoInfo(status);
     final prazo = h.prazoLabel(dataTermino, status, dataInicio: dataInicio, agora: agora);
-    final votos = totalVotos == null ? null : h.votosLabel(totalVotos!);
+    final votos = resumoVotos ?? (totalVotos == null ? null : h.votosLabel(totalVotos!));
     final sub = (subtitulo ?? '').trim();
 
     final semantica = [

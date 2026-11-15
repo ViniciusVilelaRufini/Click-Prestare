@@ -158,6 +158,7 @@ class _CellVotacaoState extends State<CellVotacao> {
     final prazo = prazoLabel(termino, status, dataInicio: inicio);
     final urgente = prazoUrgente(termino, status);
     final opcoes = _opcoes;
+    final resumo = resumoVotosLabel(_item);
 
     return Container(
       width: double.infinity,
@@ -208,7 +209,7 @@ class _CellVotacaoState extends State<CellVotacao> {
             runSpacing: AppSpacing.xs,
             children: [
               if (periodo.isNotEmpty) _meta(PhosphorIcons.calendarBlank, periodo),
-              if (!widget.isRegister) _meta(PhosphorIcons.users, votosLabel(totalVotos(opcoes))),
+              if (!widget.isRegister && resumo != null) _meta(PhosphorIcons.users, resumo),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
@@ -304,7 +305,13 @@ class _CellVotacaoState extends State<CellVotacao> {
       ];
     }
     final pcts = percentuais([for (final o in opcoes) o.votos]);
+    final oculto = resultadoOculto(_item);
     return [
+      if (oculto)
+        Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          child: _meta(PhosphorIcons.eyeSlash, textoResultadoOculto),
+        ),
       for (var i = 0; i < opcoes.length; i++)
         Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -313,6 +320,7 @@ class _CellVotacaoState extends State<CellVotacao> {
             votos: opcoes[i].votos,
             percentual: pcts[i],
             meuVoto: votouNaOpcao(opcoes[i].id, _meusVotos),
+            ocultarResultado: oculto,
           ),
         ),
     ];
