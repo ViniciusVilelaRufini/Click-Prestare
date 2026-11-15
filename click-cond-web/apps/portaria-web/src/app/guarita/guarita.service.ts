@@ -168,14 +168,14 @@ export interface GuaritaCapturado {
 export function rotuloEstadoGuarita(
   estado: string | null | undefined,
   erro?: string | null,
-): { texto: string; dot: string } | null {
+): { texto: string; dot: string; dica?: string } | null {
   switch (estado) {
     case 'aguardando_aprovacao':
       return { texto: 'Aguardando aprovação', dot: 'ps-dot-warn' };
     case 'pendente':
       return { texto: 'Pendente', dot: 'ps-dot-warn' };
     case 'gravado':
-      return { texto: 'Gravado no Guarita', dot: 'ps-dot-ink' };
+      return { texto: 'Gravado no Guarita', dot: 'ps-dot-ink', dica: 'Ainda não vale nos portões' };
     case 'ativo':
       return { texto: 'Ativo nos portões', dot: 'ps-dot-ok' };
     case 'falhou': {
@@ -277,7 +277,12 @@ export class GuaritaService {
     return this.http.post<GuaritaOperacao>(`${this.dev(deviceId)}/conferir`, {});
   }
 
-  /** Andamento de uma operação (rota assumida pelo console). */
+  /** Pede de novo o "atualizar receptores" (comando 29) depois de uma falha. API nova; 404 = sem a rota. */
+  atualizarReceptores(deviceId: number): Observable<unknown> {
+    return this.http.post(`${this.dev(deviceId)}/atualizar-receptores`, {});
+  }
+
+  /** Andamento de uma operação. */
   operacao(deviceId: number, idOperacao: number): Observable<GuaritaOperacao> {
     return this.http.get<GuaritaOperacao>(`${this.dev(deviceId)}/operacoes/${idOperacao}`);
   }

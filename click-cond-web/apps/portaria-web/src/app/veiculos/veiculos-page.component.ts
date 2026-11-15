@@ -400,7 +400,7 @@ export class VeiculosPageComponent implements OnInit {
     return { estado, erro: d?.guarita_erro ?? t?.guarita_erro ?? null };
   }
 
-  seloGuarita(v: VeiculoComMorador): { texto: string; dot: string } | null {
+  seloGuarita(v: VeiculoComMorador): { texto: string; dot: string; dica?: string } | null {
     const e = this.estadoGuaritaDoVeiculo(v);
     return e ? rotuloEstadoGuarita(e.estado, e.erro) : null;
   }

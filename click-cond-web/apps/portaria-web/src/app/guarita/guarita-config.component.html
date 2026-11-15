@@ -58,8 +58,22 @@
       <p data-guarita-negado role="alert" class="text-xs text-rose-600 dark:text-rose-400">
         {{ e.erro || 'O Guarita recusou a palavra de autorização.' }} Corrija a palavra em "Editar".
       </p>
-    } @else if (conexao() === 'sem_resposta' && e.erro) {
-      <p class="text-xs text-amber-700 dark:text-amber-400">{{ e.erro }}</p>
+    } @else if (e.erro) {
+      <!-- O erro aparece sempre que vier, também com o Guarita conectado (ex.: receptores não atualizados). -->
+      <div data-guarita-erro role="alert" class="flex items-start justify-between gap-3 flex-wrap">
+        <p class="text-xs text-rose-600 dark:text-rose-400">{{ e.erro }}</p>
+        @if (podeRetentarReceptores()) {
+          <button
+            type="button"
+            (click)="tentarReceptoresDeNovo()"
+            [disabled]="retentandoReceptores()"
+            class="px-3 py-1.5 rounded-lg text-[11px] font-bold text-accent bg-accent/10 hover:bg-accent/15 border border-accent/20 transition disabled:opacity-50 shrink-0"
+          >{{ retentandoReceptores() ? 'Enviando…' : 'Tentar de novo' }}</button>
+        }
+      </div>
+    }
+    @if (msgReceptores(); as m) {
+      <p data-guarita-msg-receptores [attr.role]="m.erro ? 'alert' : 'status'" class="text-xs" [ngClass]="m.erro ? 'text-rose-600 dark:text-rose-400' : 'text-slate-600 dark:text-slate-300'">{{ m.texto }}</p>
     }
     @if (avisoRelogio(); as aviso) {
       <p data-guarita-relogio role="status" class="text-xs text-amber-700 dark:text-amber-400">{{ aviso }}</p>

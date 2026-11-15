@@ -137,6 +137,12 @@ export class GuaritaConfigComponent implements OnInit, OnDestroy {
   });
   readonly avisoRelogio = computed(() => avisoRelogioGuarita(this.estado()?.relogio_delta_s));
 
+  // ---- Atualizar receptores (comando 29) de novo ----
+  /** Some depois de um 404 (API sem a rota). */
+  readonly podeRetentarReceptores = signal(true);
+  readonly retentandoReceptores = signal(false);
+  readonly msgReceptores = signal<{ texto: string; erro: boolean } | null>(null);
+
   // ---- Importar / conferir ----
   readonly andamento = signal<AndamentoOperacao | null>(null);
   readonly ocupado = computed(() => this.andamento()?.emAndamento === true);
@@ -213,6 +219,32 @@ export class GuaritaConfigComponent implements OnInit, OnDestroy {
         if (this.destruido) return;
         this.portoes.set([]);
         this.erroPortoes.set(err?.status === 404 ? null : mensagemDaApiGuarita(err, 'Não foi possível carregar os portões.'));
+      },
+    });
+  }
+
+  // ===================== Receptores =====================
+
+  /** Pede ao agente o comando 29 de novo (receptores não atualizados). Um clique = uma chamada. */
+  tentarReceptoresDeNovo() {
+    if (this.retentandoReceptores() || !this.podeRetentarReceptores()) return;
+    this.retentandoReceptores.set(true);
+    this.msgReceptores.set(null);
+    this.api.atualizarReceptores(this.device.id).subscribe({
+      next: () => {
+        if (this.destruido) return;
+        this.retentandoReceptores.set(false);
+        this.msgReceptores.set({ texto: 'Pedido enviado ao agente. O estado se atualiza quando o Guarita responder.', erro: false });
+        this.carregarEstado();
+      },
+      error: (err) => {
+        if (this.destruido) return;
+        this.retentandoReceptores.set(false);
+        if (err?.status === 404) {
+          this.podeRetentarReceptores.set(false);
+          return;
+        }
+        this.msgReceptores.set({ texto: mensagemDaApiGuarita(err, 'Não foi possível pedir a atualização dos receptores.'), erro: true });
       },
     });
   }

@@ -54,6 +54,7 @@ describe('GuaritaService — rotas do console', () => {
     ['estado', () => api.estado(7), 'GET', `${base}/7/estado`],
     ['importar', () => api.importar(7), 'POST', `${base}/7/importar`],
     ['conferir', () => api.conferir(7), 'POST', `${base}/7/conferir`],
+    ['atualizarReceptores', () => api.atualizarReceptores(7), 'POST', `${base}/7/atualizar-receptores`],
     ['operacao', () => api.operacao(7, 55), 'GET', `${base}/7/operacoes/55`],
     ['backups', () => api.backups(7), 'GET', `${base}/7/backups`],
     ['portoes', () => api.portoes(7), 'GET', `${base}/7/portoes`],

@@ -113,6 +113,42 @@ describe('GuaritaConfigComponent — aviso e estado', () => {
     tela.ngOnDestroy();
   });
 
+  it('erro com o Guarita conectado (receptores não atualizados) aparece, com "Tentar de novo"', () => {
+    const { f, el, tela, api } = build({
+      estado: jest.fn(() => of({ ...estadoOk, erro: 'Receptores não atualizados: o Guarita não respondeu.' })),
+      atualizarReceptores: jest.fn(() => of({ ok: true })),
+    });
+    expect(el.querySelector('[data-guarita-conexao]')?.textContent?.trim()).toBe('Conectado');
+    const erro = el.querySelector('[data-guarita-erro]') as HTMLElement;
+    expect(erro.textContent).toContain('Receptores não atualizados: o Guarita não respondeu.');
+    botao(erro, 'Tentar de novo')!.click();
+    f.detectChanges();
+    expect(api.atualizarReceptores).toHaveBeenCalledWith(7);
+    expect(el.querySelector('[data-guarita-msg-receptores]')?.textContent).toContain('Pedido enviado ao agente');
+    tela.ngOnDestroy();
+  });
+
+  it('"Tentar de novo": rota ausente (404) esconde o botão, sem erro; outro erro aparece como veio', () => {
+    const { f, el, tela } = build({
+      estado: jest.fn(() => of({ ...estadoOk, erro: 'Receptores não atualizados: falha.' })),
+      atualizarReceptores: jest.fn(() => throwError(() => ({ status: 404 }))),
+    });
+    tela.tentarReceptoresDeNovo();
+    f.detectChanges();
+    expect(botao(el.querySelector('[data-guarita-erro]')!, 'Tentar de novo')).toBeUndefined();
+    expect(el.querySelector('[data-guarita-msg-receptores]')).toBeNull();
+    tela.ngOnDestroy();
+    TestBed.resetTestingModule();
+    const b = build({
+      estado: jest.fn(() => of({ ...estadoOk, erro: 'Receptores não atualizados: falha.' })),
+      atualizarReceptores: jest.fn(() => throwError(() => ({ status: 503, error: { message: 'O agente está desconectado.' } }))),
+    });
+    b.tela.tentarReceptoresDeNovo();
+    b.f.detectChanges();
+    expect(b.el.querySelector('[data-guarita-msg-receptores]')?.textContent?.trim()).toBe('O agente está desconectado.');
+    b.tela.ngOnDestroy();
+  });
+
   it('sem resposta: selo neutro', () => {
     const { el, tela } = build({ estado: jest.fn(() => of({ conectado: false, ultima_comunicacao: '2026-11-15T11:00:00Z' })) });
     expect(el.querySelector('[data-guarita-conexao]')?.textContent?.trim()).toBe('Sem resposta');

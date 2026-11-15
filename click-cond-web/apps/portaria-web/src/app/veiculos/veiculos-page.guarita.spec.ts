@@ -124,6 +124,9 @@ describe('VeiculosPageComponent — selo do estado no Guarita', () => {
     });
     const selos = Array.from(el.querySelectorAll('[data-guarita-estado]')).map((s) => s.textContent?.trim());
     expect(selos).toEqual(['Gravado no Guarita', 'Ativo nos portões']);
+    // Só o gravado avisa que ainda não abre o portão.
+    const dicas = Array.from(el.querySelectorAll('[data-guarita-dica]')).map((s) => s.textContent?.trim());
+    expect(dicas).toEqual(['Ainda não vale nos portões']);
   });
 
   it('sem a lista do Guarita (rota 404), usa o estado da própria tag; sem estado, sem selo e sem erro', () => {
