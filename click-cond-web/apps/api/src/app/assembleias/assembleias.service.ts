@@ -47,6 +47,12 @@ function dataDaAssembleia(valor: unknown): Date | undefined {
   return br ? new Date(ano, mes - 1, dia) : ref;
 }
 
+/** Coluna @db.Date como a meia-noite UTC do mesmo dia (para comparar com hojeBrasilia). */
+function diaUtc(d: Date): Date {
+  const x = new Date(d);
+  return new Date(Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate()));
+}
+
 /** Bandeira do corpo (true/1/'1'/'true') em 0/1 para coluna TINYINT. */
 function simNao(valor: unknown): 0 | 1 {
   return valor === true || valor === 1 || valor === '1' || String(valor).toLowerCase() === 'true' ? 1 : 0;
@@ -584,21 +590,31 @@ export class AssembleiasService {
     return { success: true };
   }
 
+  /**
+   * Encerra a votação agora: grava `encerrada_em` (é o que a fecha). O término
+   * gravado só é puxado para hoje (Brasília) quando estava no futuro, para o
+   * período exibido não mentir — antes o encerramento era "término = ontem",
+   * que calcStatusInt continua tratando nas linhas antigas. Encerrar de novo:
+   * sucesso sem regravar. Não existe reabrir.
+   */
   async finishVotacao(id: number, requester?: JwtPayload) {
     assertStaff(requester, 'encerrar votação/enquete');
     if (!this.prisma.isConnected) return { success: true };
-    const atual = await this.prisma.votacoes.findUnique({ where: { id: Number(id) }, select: { id_condominio: true } });
+    const atual = await this.prisma.votacoes.findUnique({
+      where: { id: Number(id) },
+      select: { id_condominio: true, encerrada_em: true, data_termino: true },
+    });
     if (!atual) throw new NotFoundException('Votação não encontrada');
     await this.tenant.assertEntidade(atual.id_condominio, requester, `votação #${id}`);
+    if (atual.encerrada_em) return { success: true };
 
-    // Ontem no calendário de Brasília, em meia-noite UTC (@db.Date): com o
-    // relógio UTC do servidor, depois das 21h "ontem" já era hoje em Brasília
-    // e calcStatusInt mantinha a enquete aberta até a meia-noite.
-    const ontem = new Date(hojeBrasilia().getTime() - 86_400_000);
-
+    const hoje = hojeBrasilia();
     await this.prisma.votacoes.update({
       where: { id: Number(id) },
-      data: { data_termino: ontem },
+      data: {
+        encerrada_em: new Date(),
+        ...(atual.data_termino && diaUtc(atual.data_termino) > hoje ? { data_termino: hoje } : {}),
+      },
     });
 
     return { success: true };
@@ -634,7 +650,7 @@ export class AssembleiasService {
     if (!votacao) throw new NotFoundException('Votação não encontrada');
     await this.tenant.assertEntidade(votacao.id_condominio, requester, `votação #${votacaoId}`);
 
-    const status = this.calcStatusInt(votacao.data_inicio, votacao.data_termino);
+    const status = this.calcStatusInt(votacao.data_inicio, votacao.data_termino, votacao.encerrada_em);
     if (status === 0) throw new BadRequestException('Votação ainda não foi iniciada');
     if (status === 2) throw new BadRequestException('Votação já foi finalizada');
 
@@ -849,10 +865,9 @@ export class AssembleiasService {
       }
 
       const dIniStr = v.data_inicio ? v.data_inicio.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
-      // Encerrar no mesmo dia em que começou grava término = ontem (é o que
-      // fecha a votação; as colunas são só data). Na exibição o término nunca
-      // fica antes do início: "13/11 a 13/11", não "13/11 a 12/11". O status
-      // continua saindo das datas gravadas.
+      // Linhas antigas encerradas no dia em que começaram têm término = ontem;
+      // agendada encerrada antes de abrir tem término = hoje < início. Na
+      // exibição o término nunca fica antes do início: "13/11 a 13/11".
       const fimExibido =
         v.data_termino && v.data_inicio && v.data_termino.getTime() < v.data_inicio.getTime()
           ? v.data_inicio
@@ -860,7 +875,7 @@ export class AssembleiasService {
       const dFimStr = fimExibido ? fimExibido.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
 
       // Computar o status como inteiro (0 = agendado, 1 = em andamento, 2 = finalizado)
-      const statusInt = this.calcStatusInt(v.data_inicio, v.data_termino);
+      const statusInt = this.calcStatusInt(v.data_inicio, v.data_termino, v.encerrada_em);
 
       // Mapear opções para o formato de string do group_concat: "id;nome;votos"
       const opcoesStrArray = v.opcoes.map(op => `${op.id};${op.nome};${votosPorOpcao.get(op.id) ?? 0}`);
@@ -873,6 +888,7 @@ export class AssembleiasService {
         data_termino: dFimStr,
         status: statusInt,
         opcoes: opcoesStrArray,
+        encerrada_em: v.encerrada_em ? new Date(v.encerrada_em).toISOString() : null,
       };
     });
     return { formatadas, apuracao };
@@ -971,17 +987,19 @@ export class AssembleiasService {
     return votosDb.map(v => String(v.id_opcao));
   }
 
-  private calcStatusInt(dIni?: Date | null, dFim?: Date | null): number {
+  /**
+   * 0 = agendada, 1 = em andamento, 2 = encerrada. `encerrada_em` preenchido
+   * (Encerrar, ou a assembleia finalizada) fecha na hora; sem ele, valem as
+   * datas — inclusive as linhas antigas encerradas com término = ontem.
+   */
+  private calcStatusInt(dIni?: Date | null, dFim?: Date | null, encerradaEm?: Date | null): number {
+    if (encerradaEm) return 2;
     if (!dIni || !dFim) return 1;
 
     // As datas são @db.Date (meia-noite UTC). "Hoje" precisa ser o dia de
     // Brasília no mesmo formato: com a data UTC do servidor, a votação fechava
     // às 21h do último dia e abria às 21h da véspera.
     const hoje = hojeBrasilia();
-    const diaUtc = (d: Date) => {
-      const x = new Date(d);
-      return new Date(Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate()));
-    };
     const inicio = diaUtc(dIni);
     const fim = diaUtc(dFim);
 
