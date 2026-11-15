@@ -13,6 +13,11 @@ export interface Assembleia {
   local?: string;
   link?: string;
   anexos?: string;
+  /** Finalizada com a ATA (fica no histórico, somente leitura). Ausente (API antiga) = falso. */
+  finalizada?: boolean;
+  finalizada_em?: string | null;
+  /** Só no `get` de uma finalizada: link do PDF da ATA. */
+  link_ata?: string | null;
 }
 
 export interface Votacao {
@@ -45,7 +50,8 @@ export class AssembleiasApi {
   // ASSEMBLEIAS
   // ==========================================
   listAssembleias(): Observable<Assembleia[]> {
-    const url = `${API_BASE}/assembleias/get-all?id_condominio=${this.cid}`;
+    // Finalizadas vêm junto (seção "Finalizadas"); a API antiga ignora o parâmetro.
+    const url = `${API_BASE}/assembleias/get-all?id_condominio=${this.cid}&incluir_finalizadas=1`;
     return this.http.get<Assembleia[]>(url);
   }
 

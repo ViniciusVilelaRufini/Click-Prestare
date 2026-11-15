@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { AssembleiasPageComponent } from './assembleias-page.component';
 import { AssembleiasApi } from './assembleias.service';
 import { AuthService } from '../auth/auth.service';
@@ -119,6 +119,84 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
     const c = cartao(el, 'Pet');
     expect(c.textContent).toContain('Total apurado: 2');
     expect(c.querySelector('.bg-accent')).toBeTruthy();
+  });
+
+  describe('Finalizadas (histórico somente leitura)', () => {
+    const FINALIZADA = {
+      id: 8, titulo: 'AGO de março', data: '10/03/2026', hora: '19:30',
+      finalizada: true, finalizada_em: '2026-03-10T23:40:00.000Z',
+    };
+    const DETALHE_FINALIZADA = {
+      assembleia: { ...FINALIZADA, link_ata: 'https://arquivos.exemplo/ata-8.pdf?assinatura=x' },
+      votacoes: [PAUTA_ENCERRADA],
+      meusVotos: [],
+    };
+    const PASSADA = { id: 4, titulo: 'AGE de junho', data: '15/06/2026', hora: '19:30', finalizada: false };
+
+    it('lista: finalizada sai de Próximas/Já realizadas e vai para "Finalizadas", sem excluir', () => {
+      const { el, comp } = render({ listAssembleias: jest.fn(() => of([FINALIZADA, PASSADA, ASSEMBLEIA])) });
+      expect(comp.assembleiasProximas().map((a) => a.id)).toEqual([2]);
+      expect(comp.assembleiasRealizadas().map((a) => a.id)).toEqual([4]);
+      expect(comp.assembleiasFinalizadas().map((a) => a.id)).toEqual([8]);
+      const texto = el.textContent ?? '';
+      expect(texto).toContain('Finalizadas');
+      expect(texto.indexOf('Já realizadas')).toBeLessThan(texto.indexOf('AGO de março'));
+      const card = el.querySelector('[data-assembleia="8"]') as HTMLElement;
+      expect(card.textContent).toContain('Finalizada');
+      expect(card.textContent).toContain('10/03/2026 20:40');
+      expect(card.querySelector('button[title="Excluir"]')).toBeNull();
+      // As outras continuam com Excluir para o síndico.
+      expect(el.querySelector('[data-assembleia="4"] button[title="Excluir"]')).toBeTruthy();
+      // A contagem da aba é das que estão em andamento.
+      expect(comp.assembleiasAtivas()).toHaveLength(2);
+    });
+
+    it('só finalizadas: não mostra "Nenhuma assembleia agendada" como lista vazia', () => {
+      const { el } = render({ listAssembleias: jest.fn(() => of([FINALIZADA])) });
+      expect(el.textContent).toContain('AGO de março');
+      expect(el.textContent).toContain('Finalizadas');
+    });
+
+    it('detalhe da finalizada: sem pauta nova, sem finalizar, sem excluir, sem encerrar; com link da ATA', () => {
+      const { fixture, el, comp } = render({
+        listAssembleias: jest.fn(() => of([FINALIZADA])),
+        getAssembleia: jest.fn(() => of({ ...DETALHE_FINALIZADA, votacoes: [PAUTA_ENCERRADA, PAUTA_OCULTA] })),
+      });
+      comp.verAssembleia(8);
+      fixture.detectChanges();
+      const texto = el.textContent ?? '';
+      expect(texto).toContain('Finalizada em 10/03/2026 20:40');
+      const rotulos = Array.from(el.querySelectorAll('button')).map((b) => b.textContent?.trim() ?? '');
+      expect(rotulos.some((t) => t.includes('Adicionar Pauta'))).toBe(false);
+      expect(rotulos.some((t) => t.includes('Finalizar e Gerar ATA'))).toBe(false);
+      expect(rotulos.some((t) => t === 'Excluir')).toBe(false);
+      expect(rotulos.some((t) => t.includes('Encerrar votação'))).toBe(false);
+      const ata = Array.from(el.querySelectorAll('a')).find((a) => a.textContent?.includes('Abrir ATA')) as HTMLAnchorElement;
+      expect(ata.getAttribute('href')).toBe('https://arquivos.exemplo/ata-8.pdf?assinatura=x');
+      expect(ata.getAttribute('target')).toBe('_blank');
+    });
+
+    it('excluir pauta com voto: a recusa da API aparece como veio', async () => {
+      const msg = 'Esta pauta já tem votos e não pode ser excluída. Encerre a votação.';
+      const { fixture, el, comp } = render({
+        removeVotacao: jest.fn(() => throwError(() => ({ status: 400, error: { message: msg } }))),
+      });
+      comp.verAssembleia(2);
+      await comp.removerVotacao(10, 2);
+      fixture.detectChanges();
+      expect(el.textContent).toContain(msg);
+    });
+
+    it('drawer de finalizar: diz que nada é apagado', () => {
+      const { fixture, el, comp } = render();
+      comp.verAssembleia(2);
+      comp.abrirFinalizar(ASSEMBLEIA as any);
+      fixture.detectChanges();
+      expect(el.querySelector('.ps-drawer')?.textContent).toContain(
+        'A assembleia fica guardada no histórico com as votações; nada é apagado.',
+      );
+      expect(el.querySelector('.ps-drawer')?.textContent).not.toContain('sai da lista');
+    });
   });
 
   describe('Somente proprietários', () => {

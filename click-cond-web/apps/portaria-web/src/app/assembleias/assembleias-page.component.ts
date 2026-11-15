@@ -73,12 +73,20 @@ export class AssembleiasPageComponent implements OnInit {
 
   readonly assembleias = signal<Assembleia[]>([]);
 
+  /** Ainda não finalizadas (a lista vem com as finalizadas: `incluir_finalizadas=1`). */
+  readonly assembleiasAtivas = computed(() => this.assembleias().filter((a) => !this.ehFinalizada(a)));
   /** Data de hoje ou futura (ou sem data), na ordem da API (data crescente). */
-  readonly assembleiasProximas = computed(() => this.assembleias().filter((a) => !this.ehPassada(a)));
+  readonly assembleiasProximas = computed(() => this.assembleiasAtivas().filter((a) => !this.ehPassada(a)));
   /** Data já passou (e ninguém finalizou): da mais recente para a mais antiga. */
   readonly assembleiasRealizadas = computed(() =>
-    this.assembleias()
+    this.assembleiasAtivas()
       .filter((a) => this.ehPassada(a))
+      .sort((x, y) => diaDe(y.data) - diaDe(x.data)),
+  );
+  /** Histórico: finalizadas com a ATA, da mais recente para a mais antiga. */
+  readonly assembleiasFinalizadas = computed(() =>
+    this.assembleias()
+      .filter((a) => this.ehFinalizada(a))
       .sort((x, y) => diaDe(y.data) - diaDe(x.data)),
   );
   readonly enquetes = signal<Votacao[]>([]);
@@ -201,7 +209,7 @@ export class AssembleiasPageComponent implements OnInit {
   async excluirAssembleia(id: number) {
     const ok = await this.confirm.ask({
       title: 'Cancelar assembleia',
-      message: 'Esta assembleia será removida permanentemente.',
+      message: 'Esta assembleia será removida. Se alguma pauta já tiver votos, a exclusão é recusada: finalize-a com a ATA.',
       confirmLabel: 'Cancelar assembleia',
       variant: 'danger',
     });
@@ -211,6 +219,26 @@ export class AssembleiasPageComponent implements OnInit {
       next: () => this.assembleias.update(l => l.filter(a => a.id !== id)),
       error: (e) => this.erro.set(msgErro(e, 'Não foi possível excluir a assembleia.')),
     });
+  }
+
+  /** Finalizada com a ATA: somente leitura. Campo ausente (API antiga) = não. */
+  ehFinalizada(a: Assembleia | null | undefined): boolean {
+    return a?.finalizada === true;
+  }
+
+  /** Data/hora para a tela. ISO → "DD/MM/AAAA HH:mm" no horário de Brasília; outro texto segue como veio. */
+  dataHora(v: string | null | undefined): string {
+    const s = String(v ?? '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}T/.test(s)) return s;
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return s;
+    const p = Object.fromEntries(
+      new Intl.DateTimeFormat('pt-BR', {
+        timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+      }).formatToParts(d).map((x) => [x.type, x.value]),
+    );
+    return `${p['day']}/${p['month']}/${p['year']} ${p['hour']}:${p['minute']}`;
   }
 
   // Ações de Votação/Enquete
@@ -301,8 +329,11 @@ export class AssembleiasPageComponent implements OnInit {
 
   async removerVotacao(id: number, idAssembleiaRefresh?: number) {
     const ok = await this.confirm.ask({
-      title: 'Excluir apuração',
-      message: 'A votação e seus votos serão removidos.',
+      title: idAssembleiaRefresh ? 'Excluir pauta' : 'Excluir enquete',
+      // Pauta de assembleia com voto não se apaga mais (a API recusa); enquete avulsa sim.
+      message: idAssembleiaRefresh
+        ? 'A pauta será removida. Se já tiver votos, a exclusão é recusada: encerre a votação.'
+        : 'A enquete e seus votos serão removidos.',
       confirmLabel: 'Excluir',
       variant: 'danger',
     });

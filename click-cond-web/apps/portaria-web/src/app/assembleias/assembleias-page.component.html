@@ -32,7 +32,7 @@
       class="flex items-center gap-2"
     >
       Assembleias Oficiais
-      <span class="text-xs">{{ assembleias().length }}</span>
+      <span class="text-xs">{{ assembleiasAtivas().length }}</span>
     </button>
 
     <button
@@ -69,9 +69,22 @@
               Data: <span class="text-slate-200 font-medium">{{ sel.assembleia.data }} às {{ sel.assembleia.hora }}</span> ·
               Local: <span class="text-slate-200 font-medium">{{ sel.assembleia.local || 'Não definido' }}</span>
             </p>
+            @if (ehFinalizada(sel.assembleia)) {
+              <div class="flex items-center gap-2 flex-wrap mt-2">
+                <span class="ps-tag">
+                  <span class="ps-dot"></span>
+                  Finalizada{{ sel.assembleia.finalizada_em ? ' em ' + dataHora(sel.assembleia.finalizada_em) : '' }}
+                </span>
+                <span class="text-xs text-slate-500">Somente leitura: guardada no histórico com as votações.</span>
+              </div>
+            }
           </div>
 
-          @if (podeGerir()) {
+          @if (ehFinalizada(sel.assembleia)) {
+            @if (sel.assembleia.link_ata) {
+              <a [href]="sel.assembleia.link_ata" target="_blank" rel="noopener" class="ps-btn ps-btn-sec ps-btn-sm">Abrir ATA</a>
+            }
+          } @else if (podeGerir()) {
             <div class="flex items-center gap-2">
               <button
                 (click)="abrirModalPauta(sel.assembleia.id)"
@@ -117,7 +130,7 @@
                   <div>
                     <div class="flex items-center justify-between gap-2 mb-1.5">
                       <h4 class="text-sm font-bold text-slate-200">{{ v.titulo }}</h4>
-                      @if (podeGerir()) {
+                      @if (podeGerir() && !ehFinalizada(sel.assembleia)) {
                         <button (click)="removerVotacao(v.id, sel.assembleia.id)" class="ps-btn ps-btn-ghost ps-btn-sm hover:!text-red-400">Excluir</button>
                       }
                     </div>
@@ -181,7 +194,7 @@
                     } @else {
                       <span>Total apurado: {{ getTotalVotos(v.opcoes) }} voto(s)</span>
                     }
-                    @if (v.status === 1 && podeGerir()) {
+                    @if (v.status === 1 && podeGerir() && !ehFinalizada(sel.assembleia)) {
                       <button (click)="encerrarVotacao(v.id, sel.assembleia.id)" class="ps-btn ps-btn-sec ps-btn-sm">Encerrar votação</button>
                     }
                   </div>
@@ -219,12 +232,21 @@
           </div>
         }
 
+        @if (assembleiasFinalizadas().length > 0) {
+          <h3 class="ps-label pt-2">Finalizadas</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            @for (a of assembleiasFinalizadas(); track a.id) {
+              <ng-container *ngTemplateOutlet="cartaoAssembleia; context: { $implicit: a, passada: true }"></ng-container>
+            }
+          </div>
+        }
+
         <ng-template #cartaoAssembleia let-a let-passada="passada">
-            <div class="ps-panel p-5 flex flex-col justify-between gap-4" [class.opacity-70]="passada">
+            <div class="ps-panel p-5 flex flex-col justify-between gap-4" [class.opacity-70]="passada" [attr.data-assembleia]="a.id">
               <div class="space-y-2">
                 <div class="flex items-start justify-between gap-2">
                   <span class="ps-tag">
-                    {{ passada ? 'Realizada' : 'Assembleia' }}
+                    {{ ehFinalizada(a) ? 'Finalizada' : passada ? 'Realizada' : 'Assembleia' }}
                   </span>
                   <span class="text-xs text-slate-400 font-mono">{{ a.data }}</span>
                 </div>
@@ -235,6 +257,9 @@
 
                 @if (a.descricao) {
                   <p class="text-xs text-slate-400 line-clamp-3 leading-relaxed">{{ a.descricao }}</p>
+                }
+                @if (ehFinalizada(a) && a.finalizada_em) {
+                  <p class="text-[11px] text-slate-500">Finalizada em {{ dataHora(a.finalizada_em) }}</p>
                 }
               </div>
 
@@ -247,7 +272,7 @@
                 </span>
 
                 <div class="flex items-center gap-1.5">
-                  @if (podeGerir()) {
+                  @if (podeGerir() && !ehFinalizada(a)) {
                     <button
                       (click)="excluirAssembleia(a.id)"
                       class="ps-ibtn hover:!text-red-400"
@@ -455,8 +480,9 @@
 
         <div class="ps-drawer-body">
           <p class="text-sm text-slate-300">
-            Anexe o PDF da ATA. A assembleia sai da lista; a ATA e a apuração das pautas ficam em
-            Documentos, na aba Atas de Assembleia.
+            Anexe o PDF da ATA. A assembleia fica guardada no histórico com as votações; nada é apagado.
+            As pautas ainda abertas são encerradas, e a ATA e a apuração ficam em Documentos, na aba
+            Atas de Assembleia.
           </p>
 
           <div>
