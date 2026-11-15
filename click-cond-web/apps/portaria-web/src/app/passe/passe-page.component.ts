@@ -32,6 +32,8 @@ const CHAVE_ABA = 'prestare_passe_token';
 const MARGEM_MODULOS = 4;
 /** O QR aparece a partir de 15 min antes do início da visita (chegar cedo é comum). */
 const ANTECEDENCIA_MS = 15 * 60_000;
+/** A API troca o código a cada 30 s (`troca_em_s` vai de 30 a 1). */
+const CICLO_CODIGO_S = 30;
 /** Teto do setTimeout no navegador (~24,8 dias). */
 const MAX_TIMEOUT_MS = 2_147_483_647;
 
@@ -87,7 +89,7 @@ export function foraDaJanela(d: Pick<PassePublico, 'valido_de' | 'valido_ate'>, 
         <div class="ps-brand justify-center">
           <img [src]="isLight() ? '/prestare-marca-preta.svg' : '/prestare-marca-branca.svg'" alt="Prestare Gestão" />
           <div>
-            <div class="ps-brand-wm">PRESTARE <span>GESTÃO</span></div>
+            <div class="ps-brand-wm">PRESTARE <span class="passe-marca">GESTÃO</span></div>
             <div class="ps-label mt-1" style="font-size: 9px; line-height: 10px;">Passe de acesso</div>
           </div>
         </div>
@@ -128,33 +130,43 @@ export function foraDaJanela(d: Pick<PassePublico, 'valido_de' | 'valido_ate'>, 
         } @else if (dados(); as d) {
 
           <div class="text-center space-y-1.5">
-            <span class="ps-tag">Passe de visitante</span>
+            <span class="ps-tag passe-tag">Passe de visitante</span>
             <h1 class="ps-h1 pt-2">{{ d.condominio }}</h1>
             <p class="text-sm text-slate-400">{{ d.unidade }}</p>
           </div>
 
-          <div class="ps-panel p-5 sm:p-6 space-y-5 text-center">
+          <div class="ps-panel passe-painel p-5 sm:p-6 space-y-5 text-center">
             <p class="text-sm text-slate-300">
-              Olá, <strong class="text-white font-semibold">{{ d.nome }}</strong>. Mostre este QR no leitor da portaria.
+              Olá, <strong class="passe-nome font-semibold">{{ d.nome }}</strong>. Mostre este QR no leitor da portaria.
             </p>
 
-            <div
-              data-qr-moldura
-              class="mx-auto flex items-center justify-center"
-              style="background: #fff; width: 280px; max-width: 100%; min-width: 240px; aspect-ratio: 1 / 1;">
-              @if (qr(); as q) {
-                <svg
-                  data-qr-passe
-                  [attr.viewBox]="'0 0 ' + q.lado + ' ' + q.lado"
-                  class="block w-full h-full"
-                  shape-rendering="crispEdges"
-                  role="img"
-                  aria-label="QR do passe de acesso">
-                  <rect width="100%" height="100%" fill="#fff" />
-                  <path [attr.d]="q.d" fill="#000" />
-                </svg>
-              } @else {
-                <div class="inline-block w-7 h-7 border-2 rounded-full animate-spin" style="border-color: #d4d4d4; border-top-color: #111"></div>
+            <!-- QR e a barra da contagem logo abaixo, na mesma largura -->
+            <div>
+              <div
+                data-qr-moldura
+                class="passe-qr mx-auto flex items-center justify-center"
+                style="background: #fff; width: 280px; max-width: 100%; min-width: 240px; aspect-ratio: 1 / 1;">
+                @if (qr(); as q) {
+                  <svg
+                    data-qr-passe
+                    [attr.viewBox]="'0 0 ' + q.lado + ' ' + q.lado"
+                    class="block w-full h-full"
+                    shape-rendering="crispEdges"
+                    role="img"
+                    aria-label="QR do passe de acesso">
+                    <rect width="100%" height="100%" fill="#fff" />
+                    <path [attr.d]="q.d" fill="#000" />
+                  </svg>
+                } @else {
+                  <div class="inline-block w-7 h-7 border-2 rounded-full animate-spin" style="border-color: #d4d4d4; border-top-color: #111"></div>
+                }
+              </div>
+
+              @if (qr()) {
+                <!-- Segundos até o próximo código; o texto abaixo já diz o mesmo. -->
+                <div data-qr-contagem class="passe-contagem mx-auto" aria-hidden="true">
+                  <div [style.width.%]="fracaoRestante()"></div>
+                </div>
               }
             </div>
 
@@ -165,7 +177,7 @@ export function foraDaJanela(d: Pick<PassePublico, 'valido_de' | 'valido_ate'>, 
             } @else if (qr()) {
               <p class="text-xs text-slate-400" aria-live="polite">
                 @if (restante() > 0) {
-                  Novo código em {{ restante() }} s
+                  Novo código em <strong class="passe-segundos">{{ restante() }}</strong> s
                 } @else {
                   Atualizando o código…
                 }
@@ -179,13 +191,13 @@ export function foraDaJanela(d: Pick<PassePublico, 'valido_de' | 'valido_ate'>, 
                 @if (d.valido_de) {
                   <div class="flex items-center justify-between gap-3">
                     <dt class="text-slate-400">Válido a partir de</dt>
-                    <dd class="font-medium text-slate-200">{{ d.valido_de | date: "dd/MM 'às' HH:mm" }}</dd>
+                    <dd class="passe-valor">{{ d.valido_de | date: "dd/MM 'às' HH:mm" }}</dd>
                   </div>
                 }
                 @if (d.valido_ate) {
                   <div class="flex items-center justify-between gap-3">
                     <dt class="text-slate-400">Válido até</dt>
-                    <dd class="font-medium text-slate-200">{{ d.valido_ate | date: "dd/MM 'às' HH:mm" }}</dd>
+                    <dd class="passe-valor">{{ d.valido_ate | date: "dd/MM 'às' HH:mm" }}</dd>
                   </div>
                 }
               </dl>
@@ -208,6 +220,71 @@ export function foraDaJanela(d: Pick<PassePublico, 'valido_de' | 'valido_ate'>, 
       </div>
     </div>
   `,
+  // Amarelo da marca (--brand / --brand-ink do Prestare Dark) só nesta página:
+  // as classes globais ps-* ficam como estão.
+  styles: [
+    `
+      .passe-marca {
+        color: var(--brand-ink);
+      }
+      .passe-tag {
+        color: var(--brand-ink);
+        border-color: var(--brand);
+        background: color-mix(in srgb, var(--brand) 8%, transparent);
+      }
+      .passe-painel {
+        border-top: 2px solid var(--brand);
+      }
+      .passe-nome {
+        color: var(--brand-ink);
+      }
+      /* Contorno fora da moldura branca: a zona de silêncio do QR fica intacta. */
+      .passe-qr {
+        outline: 3px solid var(--brand);
+        outline-offset: 4px;
+      }
+      .passe-contagem {
+        width: 280px;
+        max-width: 100%;
+        min-width: 240px;
+        height: 4px;
+        margin-top: 14px;
+        background: #2a2a2a;
+        overflow: hidden;
+      }
+      :host-context(html.light) .passe-contagem {
+        background: var(--bg-300);
+      }
+      .passe-contagem > div {
+        height: 100%;
+        background: var(--brand);
+        transition: width 1s linear;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .passe-contagem > div {
+          transition: none;
+        }
+      }
+      .passe-segundos {
+        color: var(--brand-ink);
+        font-weight: 700;
+      }
+      .passe-valor {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .passe-valor::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        flex: none;
+        background: var(--brand);
+      }
+    `,
+  ],
 })
 export class PassePageComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
@@ -250,6 +327,9 @@ export class PassePageComponent implements OnInit, OnDestroy {
     if (!d || em == null) return 0;
     return Math.max(0, d.troca_em_s - Math.floor((this.agora() - em) / 1000));
   });
+
+  /** Largura da barra abaixo do QR (0–100): `restante` sobre o ciclo de 30 s do código. */
+  readonly fracaoRestante = computed(() => Math.min(100, (this.restante() / CICLO_CODIGO_S) * 100));
 
   private token = '';
   private parado = false;

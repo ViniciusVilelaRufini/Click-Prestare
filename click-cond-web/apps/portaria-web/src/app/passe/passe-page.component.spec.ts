@@ -195,6 +195,30 @@ describe('PassePageComponent — passe público do visitante', () => {
     expect(svg.getAttribute('viewBox')).toBe(`0 0 ${lado} ${lado}`);
   });
 
+  it('a barra abaixo do QR encolhe na proporção dos segundos até o próximo código (de 30 s)', () => {
+    const el = montar();
+    responder(resposta(CODIGO_1, 30));
+    const barra = () => el.querySelector('[data-qr-contagem] > div') as HTMLElement;
+
+    expect(el.querySelector('[data-qr-contagem]')?.getAttribute('aria-hidden')).toBe('true');
+    expect(barra().style.width).toBe('100%');
+    avancar(15_000);
+    expect(el.textContent).toContain('Novo código em 15 s');
+    expect(barra().style.width).toBe('50%');
+    avancar(6_000);
+    expect(barra().style.width).toBe('30%');
+  });
+
+  it('a barra parte da fração que falta quando o código chega no meio do ciclo', () => {
+    const el = montar();
+    responder(resposta(CODIGO_1, 6));
+    const barra = el.querySelector('[data-qr-contagem] > div') as HTMLElement;
+    expect(barra.style.width).toBe('20%');
+    avancar(6_000);
+    expect((el.querySelector('[data-qr-contagem] > div') as HTMLElement).style.width).toBe('0%');
+    http.expectOne(URL_PASSE).flush(resposta(CODIGO_2, 30));
+  });
+
   it('busca de novo quando a contagem chega a zero', () => {
     const el = montar();
     responder(resposta(CODIGO_1, 7));
