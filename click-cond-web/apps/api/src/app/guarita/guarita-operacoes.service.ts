@@ -428,6 +428,16 @@ export class GuaritaOperacoesService {
     // Em conflito quando o morador sai: não apaga (o dispositivo lá é de
     // outra unidade), mas a intenção de remover não some — alerta e texto na tag.
     if (estado === ESTADO_TAG.conflito) {
+      // R6: conflito de CADASTRO (o serial é de outra unidade e o Prestare
+      // nunca gravou este dispositivo): sai só do Prestare, sem alerta. O
+      // alerta é para o dispositivo que o Prestare tinha gravado/confirmado.
+      const confirmou = await this.prisma.guarita_Operacoes.count({
+        where: { id_tag: tag.id, tipo: { in: ['cadastrar', 'editar'] }, estado: ESTADO_OP.ok },
+      });
+      if (confirmou === 0 && !tag.guarita_frame) {
+        await this.desfazerNoPrestare(tag);
+        return false;
+      }
       await this.alertarRemocaoNaoConfirmada(tag);
       return false;
     }

@@ -216,6 +216,21 @@ describe('remoção que esgota as tentativas', () => {
   });
 });
 
+describe('R6 — conflito de cadastro quando o morador sai', () => {
+  it('o Prestare nunca gravou este dispositivo: desfaz só no Prestare, sem alerta', async () => {
+    const m = montar();
+    Object.assign(tag(m.db), { guarita_estado: 'a_vincular', guarita_frame: null });
+    const { id_operacao } = await m.ops.enfileirarCadastro(1, 'x');
+    await m.agente.buscarOperacoes(DEV);
+    await m.agente.registrarResultado(DEV, id_operacao, { ok: false, codigo: 2, erro: 'outra unidade' });
+    expect(tag(m.db).guarita_estado).toBe('conflito');
+    expect(await m.ops.enfileirarRemocao(1, 'x')).toBe(false);
+    expect(m.db.linhas('guarita_Alertas')).toHaveLength(0);
+    expect(tag(m.db)).toBeUndefined();
+    expect(ops(m.db, 'apagar')).toHaveLength(0);
+  });
+});
+
 describe('R3 — editar que valeu, mesmo voltando incerto/conflito', () => {
   it.each([['incerto'], ['conflito']])('%s com lido.frame_hex = o enviado (fora o byte 30) → ok, frame guardado', async (como) => {
     const m = montar();
