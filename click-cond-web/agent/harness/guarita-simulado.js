@@ -85,6 +85,8 @@ function criarGuaritaSimulado(opcoes = {}) {
   const modoEvento = opcoes.modoEvento === 40 ? 40 : 4;
   const horaDoGuarita = typeof opcoes.horaDoGuarita === 'function' ? opcoes.horaDoGuarita : () => new Date();
   const gerarEventosDeGravacao = opcoes.gerarEventosDeGravacao === true;
+  // Gancho de teste: chamado com cada frame recebido, antes de tratá-lo.
+  const aoReceber = typeof opcoes.aoReceber === 'function' ? opcoes.aoReceber : () => {};
 
   const memoria = {
     dispositivos: (opcoes.dispositivos || []).map(paraBuf),
@@ -96,7 +98,7 @@ function criarGuaritaSimulado(opcoes = {}) {
   const palavrasRecebidas = [];
   const continuacoes = [];
   const continuacoesForaDeDialogo = [];
-  const falhasPendentes = { silencio: 0, checksumErrado: 0, cairNoMeio: null, respostaDo67: [], respostaDo29: [] };
+  const falhasPendentes = { ignorarContinuacao: 0, silencio: 0, checksumErrado: 0, cairNoMeio: null, respostaDo67: [], respostaDo29: [] };
   let contAt = 0x01;
   const clientes = new Set();
   let servidor = null;
@@ -346,6 +348,10 @@ function criarGuaritaSimulado(opcoes = {}) {
           if (b0 === 0x00 && buf.length === 1 && restam === 0) return; // pode ser o começo do 43
           cli.buf = buf.subarray(1);
           continuacoes.push(b0);
+          if (falhasPendentes.ignorarContinuacao > 0) {
+            falhasPendentes.ignorarContinuacao--;
+            continue;
+          }
           if (b0 === 0xff) {
             enviarItemDoDialogo(cli);
           } else if (restam > 0) {
@@ -392,6 +398,7 @@ function criarGuaritaSimulado(opcoes = {}) {
       }
       // Um frame novo encerra qualquer diálogo que estivesse aberto.
       if (cli.dialogo && frame[1] !== 43) encerrarDialogo(cli);
+      aoReceber(frame, memoria);
       tratarFrame(cli, frame);
     }
   }
@@ -480,6 +487,10 @@ function criarGuaritaSimulado(opcoes = {}) {
       /** As próximas `n` perguntas não têm resposta nem efeito. */
       silencio: (n = 1) => {
         falhasPendentes.silencio += n;
+      },
+      /** Os próximos `n` bytes de continuação (0x00/0xFF) de um diálogo ficam sem resposta. */
+      ignorarContinuacao: (n = 1) => {
+        falhasPendentes.ignorarContinuacao += n;
       },
       /** Os próximos `n` frames enviados saem com checksum errado. */
       checksumErrado: (n = 1) => {
