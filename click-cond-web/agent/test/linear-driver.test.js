@@ -644,3 +644,30 @@ test('testar durante a conexão espera o desfecho (o 1º ping não dá "offline"
     assert.equal(c.sim.conexoesAceitas, 1);
   });
 });
+
+test('C1 (driver): A calado → falhou e a sessão cai; B só roda numa sessão NOVA e recebe a resposta dele (memória cheia)', async () => {
+  await cenario({ sim: { capacidade: 1 } }, async (c) => {
+    c.nuvem.reentregar = true;
+    c.escutar();
+    await c.pronto();
+    c.sim.falhas.atrasarResposta(200); // A é gravado, mas a resposta demora
+    c.nuvem.ops.push({ id: 1, tipo: 'cadastrar', frame_hex: hex(dispositivo(1)) });
+    c.nuvem.ops.push({ id: 2, tipo: 'cadastrar', frame_hex: hex(dispositivo(2)) });
+    await c.relogio.avancar(0);
+    await esperarAte(() => c.sim.comandosRecebidos(67).length === 1, { rotulo: 'o 67 de A' });
+    await c.relogio.avancar(5000);
+    await esperarAte(() => c.nuvem.resultados.length === 1, { rotulo: 'resultado de A' });
+    assert.deepEqual(c.nuvem.resultados[0], { id: 1, ok: false, erro: 'O Guarita não respondeu.' });
+    await new Promise((r) => setTimeout(r, 300)); // a resposta atrasada de A não acha ninguém
+    assert.equal(c.sim.comandosRecebidos(67).length, 1, 'B não saiu na sessão suspeita');
+    await c.relogio.avancar(1000); // reconexão
+    await c.pronto();
+    assert.equal(c.sim.conexoesAceitas, 2);
+    await c.relogio.avancar(0);
+    await esperarAte(() => c.nuvem.resultados.some((r) => r.id === 2), { rotulo: 'resultado de B' });
+    const rB = c.nuvem.resultados.filter((r) => r.id === 2);
+    assert.ok(rB.every((r) => r.ok === false), JSON.stringify(rB));
+    assert.equal(rB[0].codigo, 1);
+    assert.equal(rB[0].erro, 'Memória do Guarita cheia.');
+  });
+});

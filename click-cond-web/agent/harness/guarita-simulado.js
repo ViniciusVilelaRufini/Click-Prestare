@@ -98,7 +98,7 @@ function criarGuaritaSimulado(opcoes = {}) {
   const palavrasRecebidas = [];
   const continuacoes = [];
   const continuacoesForaDeDialogo = [];
-  const falhasPendentes = { ignorarContinuacao: 0, silencio: 0, checksumErrado: 0, cairNoMeio: null, respostaDo67: [], respostaDo29: [] };
+  const falhasPendentes = { atrasoMs: 0, ignorarContinuacao: 0, silencio: 0, checksumErrado: 0, cairNoMeio: null, respostaDo67: [], respostaDo29: [] };
   let contAt = 0x01;
   const clientes = new Set();
   let servidor = null;
@@ -113,7 +113,19 @@ function criarGuaritaSimulado(opcoes = {}) {
       falhasPendentes.checksumErrado--;
       cs = (cs + 1) % 256;
     }
-    cli.sock.write(Buffer.concat([corpo, Buffer.from([cs])]));
+    const frame = Buffer.concat([corpo, Buffer.from([cs])]);
+    if (falhasPendentes.atrasoMs > 0) {
+      // Resposta atrasada: sai depois, na mesma conexão (se ela ainda existir).
+      const ms = falhasPendentes.atrasoMs;
+      falhasPendentes.atrasoMs = 0;
+      const t = setTimeout(() => {
+        cli.timers.delete(t);
+        if (!cli.sock.destroyed) cli.sock.write(frame);
+      }, ms);
+      cli.timers.add(t);
+      return;
+    }
+    cli.sock.write(frame);
     if (falhasPendentes.cairNoMeio !== null) {
       falhasPendentes.cairNoMeio--;
       if (falhasPendentes.cairNoMeio <= 0) {
@@ -487,6 +499,10 @@ function criarGuaritaSimulado(opcoes = {}) {
       /** As próximas `n` perguntas não têm resposta nem efeito. */
       silencio: (n = 1) => {
         falhasPendentes.silencio += n;
+      },
+      /** O próximo frame que o Guarita mandar sai `ms` depois (tempo real), na mesma conexão. */
+      atrasarResposta: (ms) => {
+        falhasPendentes.atrasoMs = ms;
       },
       /** Os próximos `n` bytes de continuação (0x00/0xFF) de um diálogo ficam sem resposta. */
       ignorarContinuacao: (n = 1) => {

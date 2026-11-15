@@ -16,6 +16,13 @@
  *     resposta que estava sendo esperada.
  *   - Toda escrita passa pela lista branca do codec (`ehFramePermitido`):
  *     além de `montar`, é a segunda trava contra mandar comando proibido.
+ *   - O protocolo não tem identificador de transação: uma resposta só é
+ *     aceita se chegou DEPOIS da escrita da pergunta dela (um "crédito" por
+ *     pergunta / byte de continuação escrito). Qualquer anomalia — pergunta
+ *     sem resposta no prazo, resposta que ninguém pediu, frame a mais numa
+ *     leitura progressiva, leitura progressiva que termina antes da hora —
+ *     DERRUBA a sessão ('queda'): só uma conexão nova garante que nenhuma
+ *     resposta velha vai confirmar a pergunta seguinte.
  *
  * Eventos: 'conectado', 'queda' (Error), 'espontaneo' ({comando, dados,
  * bruto}), 'lixo' (Buffer), 'descartado' (frame que ninguém esperava).
@@ -79,6 +86,7 @@ class SessaoGuarita extends EventEmitter {
     this._aoConectarSocket = null;
     this._ultimoErroSocket = null;
     this._indicioAutorizacao = null;
+    this._descartada = false;
     this._leitor = new LeitorDeFluxo({
       aoFrame: (f) => this._aoFrame(f),
       aoLixo: (l) => this._aoLixo(l),
@@ -226,6 +234,24 @@ class SessaoGuarita extends EventEmitter {
     }
   }
 
+  /**
+   * Anomalia: derruba a sessão e emite 'queda' na hora (antes de qualquer
+   * outro comando sair), para quem usa reconectar numa sessão limpa.
+   */
+  _derrubar(motivo) {
+    if (this._descartada || this._fechadoPorNos) return;
+    this._descartada = true;
+    const estavaAberta = this._fase === 'frames';
+    this.conectado = false;
+    this._fechadoPorNos = true; // o 'close' do socket não emite outra queda
+    const e = erro(`Sessão com o Guarita descartada (${motivo}); reconectando.`, 'queda', { descartada: true });
+    this._falharEspera(e);
+    this._destruir();
+    this._socket = null;
+    this._fase = 'fechada';
+    if (estavaAberta) this._emitirSeguro('queda', e);
+  }
+
   /** Fecha a conexão de propósito (não emite 'queda'). */
   fechar() {
     this._fechadoPorNos = true;
@@ -241,6 +267,13 @@ class SessaoGuarita extends EventEmitter {
   _aoFrame(frame) {
     const espera = this._espera;
     if (espera && !espera.fechada && espera.aceita(frame)) {
+      if (espera.creditos <= 0) {
+        // Chegou antes de a pergunta (ou o 0x00) correspondente ter sido escrita.
+        this._emitirSeguro('descartado', frame);
+        this._derrubar(`frame do comando ${frame.comando} chegou sem pergunta`);
+        return;
+      }
+      espera.creditos--;
       espera.fila.push(frame);
       espera.acordar();
       return;
@@ -249,7 +282,10 @@ class SessaoGuarita extends EventEmitter {
       this._emitirSeguro('espontaneo', { comando: frame.comando, dados: frame.dados, bruto: frame.bruto });
       return;
     }
+    // Resposta que ninguém está esperando (atrasada, duplicada, de diálogo que
+    // já fechou): não dá para saber a que pergunta pertence.
     this._emitirSeguro('descartado', frame);
+    this._derrubar(`resposta inesperada do comando ${frame.comando}`);
   }
 
   _aoLixo(lixo) {
@@ -270,9 +306,11 @@ class SessaoGuarita extends EventEmitter {
     }
   }
 
-  _abrirEspera(aceita) {
+  _abrirEspera(aceita, comando) {
     const espera = {
       aceita,
+      comando,
+      creditos: 0,
       fila: [],
       fechada: false,
       erro: null,
@@ -309,6 +347,8 @@ class SessaoGuarita extends EventEmitter {
           return;
         }
         espera.acordar = () => {};
+        // Pode haver resposta órfã a caminho: esta sessão não serve mais.
+        this._derrubar(`sem resposta do comando ${espera.comando} em ${timeoutMs} ms`);
         reject(erro(MSG_SEM_RESPOSTA, 'sem_resposta', { code: 'ETIMEDOUT' }));
       }, timeoutMs);
       espera.acordar = () => {
@@ -343,6 +383,13 @@ class SessaoGuarita extends EventEmitter {
     }
     if (!this.conectado) return Promise.reject(erro('Guarita não conectado.', 'desconectado'));
     return this._escreverBruto(buf);
+  }
+
+  /** Escreve e, logo depois da chamada ao socket, libera UMA resposta para a espera. */
+  _escreverComCredito(buf, espera) {
+    const escrita = this._escrever(buf);
+    espera.creditos++;
+    return escrita;
   }
 
   // ---------- fila serial ----------
@@ -393,14 +440,14 @@ class SessaoGuarita extends EventEmitter {
     this._ocupadaPor++;
     let espera = null;
     try {
-      if (!this.conectado) throw erro('Guarita não conectado.', 'desconectado');
+      if (!this.conectado || this._descartada) throw erro('Guarita não conectado.', 'desconectado');
       if (semResposta) {
         await this._escrever(frame);
         return Buffer.alloc(0);
       }
       const opcao = numero === 67 ? frame[2] : undefined;
-      espera = this._abrirEspera((f) => f.comando === numero && (opcao === undefined || f.dados[0] === opcao));
-      await this._escrever(frame);
+      espera = this._abrirEspera((f) => f.comando === numero && (opcao === undefined || f.dados[0] === opcao), numero);
+      await this._escreverComCredito(frame, espera);
       const resposta = await this._proximoFrame(espera, timeoutMs);
       return resposta.dados;
     } finally {
@@ -425,25 +472,35 @@ class SessaoGuarita extends EventEmitter {
     this._ocupadaPor++;
     let espera = null;
     let perguntou = false;
+    let completo = false;
     try {
-      if (!this.conectado) throw erro('Guarita não conectado.', 'desconectado');
-      espera = this._abrirEspera((f) => f.comando === numero);
+      if (!this.conectado || this._descartada) throw erro('Guarita não conectado.', 'desconectado');
+      espera = this._abrirEspera((f) => f.comando === numero, numero);
       this._emProgressivo = true;
-      await this._escrever(frame);
+      await this._escreverComCredito(frame, espera);
       perguntou = true;
       for (let i = 0; i < quantidade; i++) {
         const f = await this._proximoFrame(espera, timeoutPorFrameMs);
-        if (i < quantidade - 1) await this._escrever(CONTINUAR);
+        if (i < quantidade - 1) await this._escreverComCredito(CONTINUAR, espera);
+        else completo = true;
         yield f.dados;
       }
     } finally {
       this._emProgressivo = false;
       if (espera) this._fecharEspera(espera);
       if (perguntou && this.conectado) {
-        try {
-          await this._escrever(montar(43));
-        } catch {
-          /* conexão caiu: o Guarita abandona o diálogo sozinho */
+        if (completo) {
+          // Fim normal (como o demo do fabricante): 43 depois do ÚLTIMO frame.
+          try {
+            await this._escrever(montar(43));
+          } catch {
+            /* conexão caiu: o Guarita abandona o diálogo sozinho */
+          }
+        } else {
+          // Terminou antes da hora (erro, marcador FF, quem consome parou):
+          // não manda 43 no meio do diálogo — o 0x00 dele seria lido como
+          // continuação. Derruba a sessão.
+          this._derrubar('leitura progressiva terminou antes do fim');
         }
       }
       this._ocupadaPor--;

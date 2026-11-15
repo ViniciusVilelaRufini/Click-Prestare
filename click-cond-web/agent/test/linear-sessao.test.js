@@ -121,10 +121,12 @@ test('comando: devolve os dados da resposta; espontâneo no meio é entregue à 
   assert.equal(espontaneos.length, 1);
 });
 
-test('comando: checksum errado na resposta → descartado e o comando dá timeout de 5 s', async () => {
+test('comando: checksum errado na resposta → descartado, timeout de 5 s e a sessão é derrubada', async () => {
   const { sock, sessao, relogio } = await conectada();
   const lixos = [];
+  const quedas = [];
   sessao.on('lixo', (l) => lixos.push(l));
+  sessao.on('queda', (e) => quedas.push(e));
   const p = sessao.comando(7);
   await girar();
   sock.receber(h('00 07 00 02 0A'));
@@ -133,6 +135,8 @@ test('comando: checksum errado na resposta → descartado e o comando dá timeou
   assert.equal(lixos.length, 1);
   await relogio.avancar(1);
   await erro;
+  assert.equal(quedas.length, 1);
+  assert.equal(sock.destroyed, true);
 });
 
 test('dois comando() simultâneos saem em ordem, um só depois da resposta do outro', async () => {
@@ -179,7 +183,7 @@ test('lerProgressivo: manda exatamente N-1 bytes 00 e depois 00 2B 2B; evento no
   assert.deepEqual(sock.escritosHex(), ['004646', '00', '00', '002B2B']);
 });
 
-test('lerProgressivo: frame que não chega em 5 s → erro e envia o 43', async () => {
+test('lerProgressivo: frame que não chega em 5 s → erro e a sessão é derrubada (sem 43 no meio do diálogo)', async () => {
   const { sock, sessao, relogio } = await conectada();
   const lidos = [];
   const leitura = (async () => {
@@ -192,11 +196,15 @@ test('lerProgressivo: frame que não chega em 5 s → erro e envia o 43', async 
   await erro;
   await girar();
   assert.equal(lidos.length, 1);
-  assert.deepEqual(sock.escritosHex(), ['00110213', '00', '002B2B']);
+  assert.deepEqual(sock.escritosHex(), ['00110213', '00']);
+  assert.equal(sock.destroyed, true);
+  assert.equal(sessao.conectado, false);
 });
 
-test('lerProgressivo: quem consome para antes → 43 é enviado e a sessão fica livre', async () => {
+test('lerProgressivo: quem consome para antes → sessão derrubada, sem 43 no meio do diálogo (Menor 1)', async () => {
   const { sock, sessao } = await conectada();
+  const quedas = [];
+  sessao.on('queda', (e) => quedas.push(e));
   const leitura = (async () => {
     for await (const dados of sessao.lerProgressivo(70, [], 5)) {
       void dados;
@@ -207,11 +215,56 @@ test('lerProgressivo: quem consome para antes → 43 é enviado e a sessão fica
   sock.receber(F70);
   await leitura;
   await girar();
-  assert.deepEqual(sock.escritosHex(), ['004646', '00', '002B2B']);
-  const p = sessao.comando(7);
+  assert.deepEqual(sock.escritosHex(), ['004646', '00']);
+  assert.equal(quedas.length, 1);
+  await assert.rejects(sessao.comando(7), /não conectado|descartada/);
+  assert.deepEqual(sock.escritosHex(), ['004646', '00'], 'nada mais é escrito nessa sessão');
+});
+
+test('C1: resposta atrasada depois do timeout não confirma ninguém — a sessão cai no timeout e o próximo comando nem é escrito', async () => {
+  const { sock, sessao, relogio } = await conectada();
+  const quedas = [];
+  sessao.on('queda', (e) => quedas.push(e));
+  const disp = Buffer.alloc(39, 0x20);
+  disp[0] = 0x20; disp[3] = 0x01; disp.fill(0, 4, 11); disp[29] = 0; disp[30] = 0x16; disp[31] = 0;
+  const pA = sessao.comando(67, Buffer.concat([Buffer.from([0]), disp]));
+  const erroA = assert.rejects(pA, /O Guarita não respondeu./);
+  await relogio.avancar(5000);
+  await erroA;
+  assert.equal(quedas.length, 1, 'a sessão foi derrubada no timeout');
+  assert.equal(sessao.conectado, false);
+  // B na mesma sessão: recusado sem escrever nada.
+  disp[3] = 0x02;
+  await assert.rejects(sessao.comando(67, Buffer.concat([Buffer.from([0]), disp])), /não conectado|descartada/);
+  sock.receber(h('00 43 00 00 43')); // a resposta atrasada de A
   await girar();
+  assert.equal(sock.escritos.length, 1, 'só o 67 de A foi escrito');
+});
+
+test('C1: resposta que chega sem pergunta pendente derruba a sessão', async () => {
+  const { sock, sessao } = await conectada();
+  const quedas = [];
+  sessao.on('queda', (e) => quedas.push(e));
   sock.receber(h('00 07 00 02 09'));
-  await p;
+  await girar();
+  assert.equal(quedas.length, 1);
+  assert.equal(sessao.conectado, false);
+  assert.equal(sock.destroyed, true);
+});
+
+test('C1: frame a mais numa leitura progressiva (antes de pedir com 0x00) derruba a sessão', async () => {
+  const { sock, sessao } = await conectada();
+  const quedas = [];
+  sessao.on('queda', (e) => quedas.push(e));
+  const leitura = (async () => {
+    for await (const dados of sessao.lerProgressivo(70, [], 3)) void dados;
+  })();
+  const erro = assert.rejects(leitura);
+  await girar();
+  sock.receber(Buffer.concat([F70, F70])); // o 2º chegou sem o 0x00 ter sido mandado
+  await erro;
+  assert.equal(quedas.length, 1);
+  assert.equal(sessao.conectado, false);
 });
 
 test('queda no meio do comando: rejeita e emite "queda"', async () => {

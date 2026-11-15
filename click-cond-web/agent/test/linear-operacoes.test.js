@@ -111,7 +111,7 @@ test('queda do Guarita no meio da importação → lança e NÃO devolve lista p
   });
 });
 
-test('importação: frame que não chega em 5 s → falha (relógio falso), manda o 43 e não devolve parcial', async () => {
+test('importação: frame que não chega em 5 s → falha (relógio falso), derruba a sessão (sem 43 no meio) e não devolve parcial', async () => {
   const relogio = criarRelogioFalso();
   const lista = Array.from({ length: 4 }, (_, i) => dispositivo(i + 1));
   await cenario(
@@ -126,7 +126,9 @@ test('importação: frame que não chega em 5 s → falha (relógio falso), mand
       await p;
       assert.match(erro && erro.message, /não respondeu/);
       assert.equal(resultado, null);
-      await esperarAte(() => sim.comandosRecebidos(43).length === 1, { rotulo: 'o 43' });
+      assert.equal(sessao.conectado, false, 'sessão derrubada');
+      await esperarAte(() => sim.clientesConectados() === 0, { rotulo: 'conexão fechada' });
+      assert.equal(sim.comandosRecebidos(43).length, 0, 'nenhum 43 no meio do diálogo');
     },
     { relogio },
   );
@@ -288,4 +290,27 @@ test('importação: cadastro que muda durante a leitura (teclado do Guarita) →
   await cenario({ dispositivos: lista, aoReceber }, async ({ sessao }) => {
     await assert.rejects(ops.lerTodosDispositivos(sessao), /mudou durante a leitura .3 → 4./);
   });
+});
+
+test('C1 (cenário da revisão): cadastrar A calado → falhou; B nunca sai ok com a resposta atrasada de A', async () => {
+  const relogio = criarRelogioFalso();
+  await cenario(
+    { capacidade: 1 },
+    async ({ sim, sessao }) => {
+      const quedas = [];
+      sessao.on('queda', (e) => quedas.push(e));
+      sim.falhas.atrasarResposta(150); // o Guarita grava A mas a resposta demora
+      const pA = ops.gravar(sessao, { tipo: 'cadastrar', frameHex: hex(dispositivo(1)) });
+      await esperarAte(() => sim.comandosRecebidos(67).length === 1, { rotulo: 'o 67 de A' });
+      await relogio.avancar(5000);
+      assert.deepEqual(await pA, { ok: false, codigo: null, mensagem: 'O Guarita não respondeu.' });
+      assert.equal(quedas.length, 1, 'sessão derrubada no timeout');
+      const rB = await ops.gravar(sessao, { tipo: 'cadastrar', frameHex: hex(dispositivo(2)) });
+      assert.equal(rB.ok, false);
+      await new Promise((r) => setTimeout(r, 250)); // passa a hora da resposta atrasada de A
+      assert.equal(sim.comandosRecebidos(67).length, 1, 'B não foi escrito na sessão suspeita');
+      assert.equal(sim.memoria.dispositivos.length, 1, 'A foi gravado de fato');
+    },
+    { relogio },
+  );
 });
