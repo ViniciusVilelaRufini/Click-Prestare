@@ -80,27 +80,38 @@ describe('WalletService.tickDiario', () => {
       { registrar: jest.fn() } as any,
       push,
     );
+    // A troca roda na virada: é a hora que ela grava.
+    svc.relogio = () => VIRADA;
     return { svc, prisma, estado, push, chaves };
   }
 
   it('avisa só as credenciais de carteira ativas de condomínios com as duas opções ligadas', async () => {
     const { svc, push } = build();
-    expect(await svc.tickDiario(VIRADA)).toEqual({ apple: 2, google: 0 });
+    expect(await svc.tickDiario()).toEqual({ apple: 2, google: 0 });
     expect(push.avisar.mock.calls.map((c) => c[0]).sort()).toEqual(['a1'.repeat(32), 'a2'.repeat(32), 'a6'.repeat(32)]);
   });
 
   it('grava wallet_atualizado_em nas credenciais avisadas, e só nelas', async () => {
     const { svc, estado } = build();
-    await svc.tickDiario(VIRADA);
+    await svc.tickDiario();
     const em = (id: number) => estado.creds.find((c) => c.id === id).wallet_atualizado_em;
     expect(em(1)).toEqual(VIRADA);
     expect(em(6)).toEqual(VIRADA);
     for (const id of [2, 3, 4, 5]) expect(em(id)).toEqual(ONTEM);
   });
 
+  it('a troca diária não faz wallet_atualizado_em andar para trás', async () => {
+    const { svc, estado } = build();
+    const futuro = new Date(VIRADA.getTime() + 60_000);
+    estado.creds.find((c) => c.id === 1).wallet_atualizado_em = futuro;
+    await svc.tickDiario();
+    expect(estado.creds.find((c) => c.id === 1).wallet_atualizado_em).toEqual(futuro);
+    expect(estado.creds.find((c) => c.id === 6).wallet_atualizado_em).toEqual(VIRADA);
+  });
+
   it('sem chaves da Apple no S3: não lança, marca e devolve apple 0 sem tentar avisar (Review Focus 4)', async () => {
     const { svc, push, estado } = build({ semChaves: true });
-    await expect(svc.tickDiario(VIRADA)).resolves.toEqual({ apple: 0, google: 0 });
+    await expect(svc.tickDiario()).resolves.toEqual({ apple: 0, google: 0 });
     expect(push.avisar).not.toHaveBeenCalled();
     expect(estado.creds.find((c) => c.id === 1).wallet_atualizado_em).toEqual(VIRADA);
   });
@@ -109,7 +120,7 @@ describe('WalletService.tickDiario', () => {
     const { svc, push, estado } = build({
       respostas: { ['a1'.repeat(32)]: new Error('quebrou'), ['a2'.repeat(32)]: { status: 410, motivo: 'Unregistered' } },
     });
-    await expect(svc.tickDiario(VIRADA)).resolves.toEqual({ apple: 2, google: 0 });
+    await expect(svc.tickDiario()).resolves.toEqual({ apple: 2, google: 0 });
     expect(push.avisar).toHaveBeenCalledWith('a6'.repeat(32));
     expect(estado.registros.map((r) => r.id).sort()).toEqual([1, 3, 4, 5, 6]);
   });
@@ -117,7 +128,7 @@ describe('WalletService.tickDiario', () => {
   it('falha na consulta inicial faz tickDiario lançar (o ciclo não é marcado e repete)', async () => {
     const { svc, prisma } = build();
     prisma.credenciais_Acesso.findMany.mockRejectedValueOnce(new Error('banco fora'));
-    await expect(svc.tickDiario(VIRADA)).rejects.toThrow('banco fora');
+    await expect(svc.tickDiario()).rejects.toThrow('banco fora');
   });
 
   it('cicloDeNegocio devolve null fora da hora 0 de Brasília e a data dentro dela', () => {
@@ -133,7 +144,7 @@ describe('WalletService.tickDiario', () => {
     estado.creds = [];
     await svc.emitirApple(MORADOR, { id_condominio: 1 }, ONTEM);
     const id = estado.creds[0].id;
-    await svc.tickDiario(VIRADA);
+    await svc.tickDiario();
     const passe = await svc.passeAppleDaCredencial(id, VIRADA);
     const pass = JSON.parse(new AdmZip(passe!.pkpass).getEntry('pass.json').getData().toString('utf8'));
     expect(decodificarCodigo(pass.barcodes[0].message)!.contador).toBe(diaBrasiliaDe(VIRADA));

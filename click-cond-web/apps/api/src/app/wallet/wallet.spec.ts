@@ -214,6 +214,7 @@ describe('WalletService', () => {
         { id: 62, id_condominio: 1, tipo_pessoa: 'morador', id_pessoa: 13, origem: 'wallet_apple', segredo: 'x', revogada_em: null },
       );
       const depois = new Date(AGORA.getTime() + 5000);
+      svc.relogio = () => depois;
       expect(await svc.cancelarDoUsuario(MORADOR, { id_condominio: 1 }, depois)).toEqual({ ok: true });
 
       const porId = (id: number) => estado.creds.find((c) => c.id === id);
@@ -400,6 +401,39 @@ describe('WalletService', () => {
       const antes = estado.creds[0].wallet_atualizado_em;
       await credenciais.definirOpcao(1, { wallet_habilitado: true }, SINDICO);
       expect(estado.creds[0].wallet_atualizado_em).toEqual(antes);
+    });
+  });
+
+  describe('wallet_atualizado_em', () => {
+    // Bem à frente do relógio real: o que for gravado com a hora atual é menor.
+    const FUTURO = new Date('2030-01-01T00:00:00.000Z');
+    const ativa = (extra: any = {}) => ({
+      id: 95, id_condominio: 1, tipo_pessoa: 'morador', id_pessoa: 11, origem: 'wallet_apple', segredo: 'x',
+      revogada_em: null, wallet_atualizado_em: FUTURO, ...extra,
+    });
+
+    it('marcarAtualizado grava a hora do momento da escrita e nunca menor que a atual', async () => {
+      const { svc, estado } = build();
+      estado.creds.push(ativa());
+      await svc.marcarAtualizado([95]);
+      expect(estado.creds[0].wallet_atualizado_em).toEqual(FUTURO);
+
+      const depois = new Date(FUTURO.getTime() + 1000);
+      svc.relogio = () => depois;
+      await svc.marcarAtualizado([95]);
+      expect(estado.creds[0].wallet_atualizado_em).toEqual(depois);
+
+      estado.creds.push(ativa({ id: 96, wallet_atualizado_em: null }));
+      await svc.marcarAtualizado([96]);
+      expect(estado.creds[1].wallet_atualizado_em).toEqual(depois);
+    });
+
+    it('cancelar com o instante do início do pedido não faz a coluna andar para trás', async () => {
+      const { svc, estado } = build();
+      estado.creds.push(ativa());
+      await svc.cancelarDoUsuario(MORADOR, { id_condominio: 1 }, AGORA);
+      expect(estado.creds[0].revogada_em).toEqual(AGORA);
+      expect(estado.creds[0].wallet_atualizado_em).toEqual(FUTURO);
     });
   });
 

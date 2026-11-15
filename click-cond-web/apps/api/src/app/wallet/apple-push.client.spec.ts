@@ -282,7 +282,8 @@ describe('WalletService.avisarApple', () => {
 
   it('marcarAtualizado grava e avisa; cancelar avisa os aparelhos do passe', async () => {
     const { svc, estado, push } = build({});
-    await svc.marcarAtualizado([5], new Date('2026-11-14T12:00:00Z'));
+    svc.relogio = () => new Date('2026-11-14T12:00:00Z');
+    await svc.marcarAtualizado([5]);
     await svc.aguardarAvisos();
     expect(estado.creds.find((c) => c.id === 5).wallet_atualizado_em).toEqual(new Date('2026-11-14T12:00:00Z'));
     expect(push.avisar).toHaveBeenCalledTimes(3);

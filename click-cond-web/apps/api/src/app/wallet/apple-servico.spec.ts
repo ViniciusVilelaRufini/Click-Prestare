@@ -205,7 +205,8 @@ describe('AppleServicoController', () => {
     expect(res.codigo).toBe(204);
     expect(res.corpo).toBeUndefined();
 
-    await ctx.svc.marcarAtualizado([ctx.id], new Date(agora.getTime() + 1));
+    ctx.svc.relogio = () => new Date(agora.getTime() + 1);
+    await ctx.svc.marcarAtualizado([ctx.id]);
     expect((await listar(ctx, tag)).corpo).toEqual({ serialNumbers: [ctx.serial], lastUpdated: String(agora.getTime() + 1) });
   });
 

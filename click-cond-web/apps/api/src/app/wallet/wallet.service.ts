@@ -334,17 +334,17 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
 
   // ===================== Atualização dos passes =====================
 
+  /** Hora gravada em `wallet_atualizado_em`, lida no momento da escrita (os testes trocam). */
+  relogio: () => Date = () => new Date();
+
   /**
-   * Grava `wallet_atualizado_em = agora` nas credenciais dadas: o serviço da
-   * Apple passa a listá-las como alteradas e entrega o passe novo.
+   * Grava `wallet_atualizado_em` nas credenciais dadas: o serviço da Apple
+   * passa a listá-las como alteradas e entrega o passe novo.
    */
-  async marcarAtualizado(idsCredencial: number[], agora: Date = new Date()): Promise<void> {
+  async marcarAtualizado(idsCredencial: number[]): Promise<void> {
     const ids = [...new Set(idsCredencial)].filter((id) => Number.isInteger(id) && id > 0);
     if (!ids.length) return;
-    await (this.prisma as any).credenciais_Acesso.updateMany({
-      where: { id: { in: ids } },
-      data: { wallet_atualizado_em: agora },
-    });
+    await this.gravarAtualizado(ids);
     // Avisa em segundo plano: o pedido de quem cancelou não espera o APNs
     // (até 8 s por aparelho). avisarApple nunca rejeita.
     const aviso = this.avisarApple(ids);
@@ -359,7 +359,7 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
    * Lança só se o banco falhar ao ler ou marcar (o ciclo não é dado como
    * feito e a hora seguinte tenta de novo); falha de aparelho não interrompe.
    */
-  async tickDiario(agora: Date = new Date()): Promise<{ apple: number; google: number }> {
+  async tickDiario(): Promise<{ apple: number; google: number }> {
     const p = this.prisma as any;
     const creds: Array<{ id: number; origem: string }> = await p.credenciais_Acesso.findMany({
       where: {
@@ -369,13 +369,7 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
       },
       select: { id: true, origem: true },
     });
-    const ids = creds.map((c) => c.id);
-    for (let i = 0; i < ids.length; i += LOTE_MARCAR) {
-      await p.credenciais_Acesso.updateMany({
-        where: { id: { in: ids.slice(i, i + LOTE_MARCAR) } },
-        data: { wallet_atualizado_em: agora },
-      });
-    }
+    await this.gravarAtualizado(creds.map((c) => c.id));
 
     const apple = creds.filter((c) => c.origem === 'wallet_apple').map((c) => c.id);
     let avisadas = 0;
@@ -454,16 +448,13 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
    * A opção do condomínio mudou de efeito: os passes ativos passam a ser
    * entregues inválidos (ou válidos de novo). Não revoga. Nunca lança.
    */
-  async marcarCondominio(idCondominio: number, agora: Date = new Date()): Promise<void> {
+  async marcarCondominio(idCondominio: number): Promise<void> {
     try {
       const creds = await (this.prisma as any).credenciais_Acesso.findMany({
         where: { id_condominio: idCondominio, origem: { in: [...ORIGENS_WALLET] }, revogada_em: null },
         select: { id: true },
       });
-      await this.marcarAtualizado(
-        creds.map((c: { id: number }) => c.id),
-        agora,
-      );
+      await this.marcarAtualizado(creds.map((c: { id: number }) => c.id));
     } catch (e: any) {
       this.logger.warn(`Passes de carteira do condomínio ${idCondominio} não foram marcados: ${e?.message ?? e}`);
     }
@@ -511,8 +502,29 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
       { esperaSegundos: ESPERA_LOCK_S, duracaoMaximaMs: 30_000 },
     );
     if (!r.obtido) throw new ServiceUnavailableException('Passe em emissão. Tente de novo.');
-    await this.marcarAtualizado(r.valor, agora);
+    await this.marcarAtualizado(r.valor);
     return r.valor.length;
+  }
+
+  /**
+   * `wallet_atualizado_em` = hora do momento da escrita, nunca menor que a
+   * gravada: o serviço da Apple compara com o `passesUpdatedSince` do
+   * aparelho, e um valor que andasse para trás (instante lido no começo de um
+   * pedido lento, relógio de outra instância) sumiria da lista de alterados.
+   * A condição fica no WHERE do próprio UPDATE: atômica por linha.
+   */
+  private async gravarAtualizado(ids: number[]): Promise<void> {
+    const p = this.prisma as any;
+    for (let i = 0; i < ids.length; i += LOTE_MARCAR) {
+      const momento = this.relogio();
+      await p.credenciais_Acesso.updateMany({
+        where: {
+          id: { in: ids.slice(i, i + LOTE_MARCAR) },
+          OR: [{ wallet_atualizado_em: null }, { wallet_atualizado_em: { lt: momento } }],
+        },
+        data: { wallet_atualizado_em: momento },
+      });
+    }
   }
 
   private dadosDoPasse(
