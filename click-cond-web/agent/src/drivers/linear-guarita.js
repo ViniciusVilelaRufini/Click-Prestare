@@ -355,8 +355,14 @@ class ServicoGuarita {
       if (this.timers[k]) this.t.clearTimeout(this.timers[k]);
       this.timers[k] = null;
     }
-    const espera = this.backoffMs;
-    this.backoffMs = Math.min(this.backoffMs * 2, this.iv.backoffMaxMs);
+    let espera = this.backoffMs;
+    if (e.codigo === 'negado') {
+      // O Guarita pede palavra (o cadastro não tem, ou ela foi recusada).
+      this.autorizado = false;
+      espera = Math.max(this.iv.esperaNegadoMs, espera);
+    } else {
+      this.backoffMs = Math.min(this.backoffMs * 2, this.iv.backoffMaxMs);
+    }
     this.log.error(`${this.rotulo}: ${e.message} Nova tentativa em ${Math.round(espera / 1000)} s`);
     this._enviarEstado();
     this._agendarReconexao(espera);
@@ -668,6 +674,9 @@ class ServicoGuarita {
     if (persistir) this._persistirConcluidas();
     const ok = await this._enviarResultado(id, entrada);
     if (persistir && ok) this._persistirConcluidas();
+    // Importação/conferência entregue: não guarda os frames (até ~2 MB); se a
+    // nuvem reentregar, relê (é só leitura).
+    if (ok && !persistir && partes.length > 0 && Array.isArray(partes[0].frames_hex)) this.executadas.delete(id);
   }
 
   /** Manda as partes que faltam, em ordem. Para na primeira falha transitória. */
@@ -754,7 +763,11 @@ class ServicoGuarita {
     throw erro;
   }
 
-  async acionarRele(payload) {
+  async acionarRele(payload, restanteMs) {
+    // Só espera a vez pelo que sobra da validade do comando (despacho).
+    const prazoRele = Number.isFinite(restanteMs)
+      ? Math.max(0, Math.min(this.iv.prazoReleMs, restanteMs))
+      : this.iv.prazoReleMs;
     const sessao = this.sessao;
     if (!this.conectado || !sessao) return { ok: false, error: 'O Guarita está desconectado do agente.' };
     const p = payload && typeof payload === 'object' ? payload : {};
@@ -762,7 +775,7 @@ class ServicoGuarita {
       await operacoes.acionarRele(
         sessao,
         { tipoReceptor: p.tipo_receptor, numReceptor: p.num_receptor, rele: p.rele },
-        { prazoNaFilaMs: this.iv.prazoReleMs },
+        { prazoNaFilaMs: prazoRele },
       );
       return { ok: true };
     } catch (e) {
@@ -821,7 +834,7 @@ function criarDriverGuarita(opcoes = {}) {
     }
     const s = device ? servicos.get(device.id) : null;
     if (!s) return { ok: false, error: 'O Guarita está desconectado do agente.' };
-    return s.acionarRele(cmd.payload);
+    return s.acionarRele(cmd.payload, cmd._restanteMs);
   }
 
   return { id: ID, configurar, testar, executar, escutar, _servicos: servicos };

@@ -393,3 +393,21 @@ test('I2: leitura interrompida mais de 5 vezes falha com erro claro (nunca devol
   await assert.rejects(ops.lerTodosEventos(sessaoFalsa), /eventos do Guarita interrompida 6 vezes/);
   assert.equal(tentativas, 6);
 });
+
+test('Menor 6: apagar TA/TP zera o nibble baixo do byte 1 (um 6F… da nuvem ainda apaga o TAG); CT mantém o disp_dest', async () => {
+  const tp = dispositivo(5, 6);
+  const ct = dispositivo(6, 3);
+  await cenario({ dispositivos: [tp] }, async ({ sim, sessao }) => {
+    const sujo = Buffer.from(tp);
+    sujo[0] = 0x6f;
+    const r = await ops.gravar(sessao, { tipo: 'apagar', frameHex: hex(sujo) });
+    assert.equal(r.ok, true);
+    assert.equal(r.ja_estava, undefined, 'apagou de verdade');
+    assert.equal(sim.memoria.dispositivos.length, 0);
+    assert.equal(sim.comandosRecebidos(67).at(-1)[3], 0x60);
+    const ctDestino = Buffer.from(ct);
+    ctDestino[0] = 0x34; // CT para a Catraca 2010
+    await ops.gravar(sessao, { tipo: 'apagar', frameHex: hex(ctDestino) });
+    assert.equal(sim.comandosRecebidos(67).at(-1)[3], 0x34);
+  });
+});

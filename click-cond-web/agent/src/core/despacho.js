@@ -121,6 +121,9 @@ function criarDespachante({ executar, postarResultado, log = console, agora = ()
       await responder(item.device, cmd, { ok: false, error: ERRO_FORA_DA_LISTA });
       return;
     }
+    // Relé do Módulo Guarita: o driver só espera a vez na conexão pelo que
+    // ainda sobra da validade (não abre o portão depois do prazo).
+    if (cmd.type === 'guarita_rele') cmd._restanteMs = Math.max(0, prazo - (agora() - item.chegouEm));
     // Colapso: vários "abrir porta" seguidos na fila (cliques acumulados
     // enquanto o aparelho não respondia) viram UMA abertura física; os que
     // vinham logo atrás recebem o mesmo resultado.

@@ -326,3 +326,15 @@ test('decodificarEvento: data BCD inválida não lança (dataHora nula, chave ma
   assert.equal(codec.decodificarEvento(foraDaFaixa).dataHora, null);
   assert.throws(() => codec.decodificarEvento(Buffer.alloc(15)), /16 bytes/);
 });
+
+test('Menor 7: edição de CT Visitante (bytes 5-6 = "VI") com base39 preserva o contador; sem base, fora do RF vai 0', () => {
+  const base = codec.codificarDispositivo({ tipo: 3, serialHex: '0F086E', unidade: 1, bloco: 'A', rotulo: 'VISITANTE', marca: 0x16, cor: 0, placa: '' });
+  base[4] = 0x56;
+  base[5] = 0x49;
+  const editado = codec.codificarDispositivo({ tipo: 3, serialHex: '0F086E', unidade: 2, bloco: 'A', rotulo: 'VISITANTE 2', marca: 0x16, cor: 0, placa: '' }, base);
+  assert.equal(editado[4], 0x56);
+  assert.equal(editado[5], 0x49);
+  const novo = codec.codificarDispositivo({ tipo: 3, serialHex: '0F086E', contador: 0x5649, unidade: 2, bloco: 'A', rotulo: '', marca: 0x16, cor: 0, placa: '' });
+  assert.equal(novo[4], 0);
+  assert.equal(novo[5], 0);
+});

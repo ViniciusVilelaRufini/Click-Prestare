@@ -853,3 +853,65 @@ test('I2 (driver): recriar o ouvinte no mesmo processo não relê a memória (n�
     assert.equal(c.sim.comandosRecebidos(17).length, 1);
   });
 });
+
+test('Menor 2: Guarita pede palavra e o cadastro não tem nenhuma → autorizado:false e nova tentativa só em 60 s', async () => {
+  await cenario({ sim: { palavra: 'exigida', tempos: { autorizacaoMs: 30 } }, device: { api_password: null } }, async (c) => {
+    c.escutar();
+    await esperarAte(() => c.nuvem.estados.some((e) => e.conectado === false && e.autorizado === false), { rotulo: 'estado negado', limiteMs: 4000 });
+    assert.match(c.nuvem.estados.at(-1).erro, /pede palavra de autorização/);
+    const tentativas = c.sim.conexoesAceitas;
+    await c.relogio.avancar(59000);
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(c.sim.conexoesAceitas, tentativas, 'sem reconexão em laço rápido');
+  });
+});
+
+test('Menor 4: o relé só espera a vez pelo que sobra da validade do comando (_restanteMs do despacho)', async () => {
+  await cenario({}, async (c) => {
+    c.escutar();
+    await c.pronto();
+    c.sim.falhas.silencio(1);
+    c.nuvem.ops.push({ id: 41, tipo: 'atualizar_receptores' });
+    await c.relogio.avancar(0);
+    await esperarAte(() => c.servico().ops29.length === 1 || c.sim.comandosRecebidos(29).length === 1, { rotulo: 'op' });
+    await c.relogio.avancar(0);
+    await esperarAte(() => c.sim.comandosRecebidos(29).length === 1, { rotulo: 'o 29' });
+    let r = null;
+    const p = c.driver
+      .executar(c.dev, { type: 'guarita_rele', _restanteMs: 1500, payload: { tipo_receptor: 1, num_receptor: 1, rele: 1 } })
+      .then((x) => (r = x));
+    await c.relogio.avancar(1500);
+    await p;
+    assert.equal(r.ok, false);
+    assert.match(r.error, /atualizando os receptores/);
+  });
+});
+
+test('Menor 4 (despacho): o comando de relé chega ao driver com o que sobra da validade', async () => {
+  const { criarDespachante } = require('../src/core/despacho');
+  let agora = 0;
+  const vistos = [];
+  const d = criarDespachante({
+    executar: async (device, cmd) => {
+      vistos.push(cmd._restanteMs);
+      agora += 3000; // cada execução leva 3 s
+      return { ok: true };
+    },
+    postarResultado: async () => {},
+    log: { log() {}, error() {} },
+    agora: () => agora,
+  });
+  await d.despachar([{ device: { id: 1, nome: 'G' }, commands: [{ id: 'a', type: 'guarita_rele' }, { id: 'b', type: 'guarita_rele' }, { id: 'c', type: 'open_door' }] }]);
+  assert.deepEqual(vistos, [10000, 7000, undefined]);
+});
+
+test('Menor 5: depois de entregue, a importação não fica guardada em memória (reentrega relê, é só leitura)', async () => {
+  await cenario({ sim: { dispositivos: [dispositivo(1), dispositivo(2)] } }, async (c) => {
+    c.nuvem.ops.push({ id: 50, tipo: 'importar' });
+    c.escutar();
+    await c.pronto();
+    await c.relogio.avancar(0);
+    await esperarAte(() => c.nuvem.resultados.some((r) => r.id === 50 && r.fim), { rotulo: 'importação' });
+    await esperarAte(() => !c.servico().executadas.has(50), { rotulo: 'liberada' });
+  });
+});

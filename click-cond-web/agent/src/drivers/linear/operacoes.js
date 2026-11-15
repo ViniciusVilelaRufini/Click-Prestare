@@ -173,7 +173,11 @@ async function gravar(sessao, { tipo, frameHex } = {}) {
   if (!TIPOS_DISPOSITIVO.includes(frame[0] >> 4)) {
     return { ok: false, codigo: null, mensagem: 'Tipo de dispositivo não suportado (só RF, TA, CT e TP).' };
   }
-  if (tipo === 'apagar') frame.fill(0x00, 4);
+  if (tipo === 'apagar') {
+    frame.fill(0x00, 4);
+    // TA/TP: nibble baixo do byte 1 é sempre 0 (no CT é o disp_dest, mantido).
+    if ((frame[0] >> 4) === 2 || (frame[0] >> 4) === 6) frame[0] &= 0xf0;
+  }
   let dados;
   try {
     dados = await sessao.comando(67, Buffer.concat([Buffer.from([OPCAO_POR_TIPO[tipo]]), frame]), {

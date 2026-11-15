@@ -304,7 +304,9 @@ function codificarDispositivo(d, base39) {
   const tipo = d.tipo;
   if (!TIPOS_DISPOSITIVO.includes(tipo)) throw erroValor('tipo de dispositivo inválido (1 RF, 2 TA, 3 CT, 6 TP)');
   const serial = serialParaBytes(tipo, d.serialHex);
-  let contador = 0;
+  // Fora do RF o contador é 0, exceto na edição: o CT Visitante leva "VI"
+  // (0x56 0x49) nos bytes 5-6 e isso é preservado do frame lido.
+  let contador = base39 ? (base39[4] << 8) | base39[5] : 0;
   if (tipo === 1) {
     if (!Number.isInteger(d.contador) || d.contador < 0 || d.contador > 0xffff) {
       throw erroValor('controle remoto (RF) exige o contador capturado (0..65535)');

@@ -257,7 +257,10 @@ class SessaoGuarita extends EventEmitter {
       : this._ultimoErroSocket
         ? `${MSG_QUEDA} (${this._ultimoErroSocket.message})`
         : MSG_QUEDA;
-    const e = erro(motivo, 'queda', { code: this._ultimoErroSocket && this._ultimoErroSocket.code });
+    // Guarita pediu palavra e não mandamos (ou ele recusou): é autorização, não rede.
+    const e = this._indicioAutorizacao
+      ? erro(motivo, 'negado', { esperaMinimaMs: ESPERA_APOS_NEGADO_MS, statusCode: 401 })
+      : erro(motivo, 'queda', { code: this._ultimoErroSocket && this._ultimoErroSocket.code });
     this._falharEspera(e);
     if (eraFase === 'frames') this.emit('queda', e);
   }
