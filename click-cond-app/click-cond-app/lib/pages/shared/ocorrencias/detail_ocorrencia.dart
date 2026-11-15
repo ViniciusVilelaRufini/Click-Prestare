@@ -31,6 +31,8 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
   var _isSaving = false;
   final txtResposta = TextEditingController();
   dynamic obj;
+  /// Chat da ocorrência, carregado só para decidir o lápis do autor.
+  List<dynamic>? _mensagensChat;
   List<dynamic> list = [];
   var currentStatus = '';
 
@@ -51,6 +53,13 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
       setState(() => _isLoading = true);
       obj = await apiGetDetails("ocorrencias", widget.id);
       currentStatus = obj['status'];
+      // O lápis do autor some quando a equipe já escreveu no chat (a API
+      // recusa editar/excluir). Só busca quando o resto ainda permitiria.
+      _mensagensChat = null;
+      if (getUserType() == 'morador' && podeEditarOcorrencia(obj, getUserId())) {
+        final msgs = await apiGetOcorrenciaMessages(widget.id);
+        _mensagensChat = msgs is List ? msgs : null;
+      }
       list.clear();
       if (obj['anexos'] != null && obj['anexos'].toString().isNotEmpty) {
         for (var item in obj['anexos'].split(';')) {
@@ -465,7 +474,7 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                     ),
                   ),
                 ),
-      floatingActionButton: isMorador && podeEditarOcorrencia(obj, myId)
+      floatingActionButton: isMorador && podeEditarOcorrencia(obj, myId, mensagens: _mensagensChat)
           ? FloatingActionButton(
               backgroundColor: AppColors.brand,
               onPressed: () async {
