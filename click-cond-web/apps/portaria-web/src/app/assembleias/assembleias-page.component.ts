@@ -15,6 +15,8 @@ import {
   nomeArquivoMapa,
   nomeOpcaoDoVoto,
   rotuloVinculo,
+  situacaoDoVoto,
+  MOTIVO_NAO_CONTA,
 } from './mapa-votacao';
 
 /** Mensagem do servidor quando houver; senão a do cliente; senão a padrão. */
@@ -278,6 +280,10 @@ export class AssembleiasPageComponent implements OnInit {
   rotuloVinculo(t: string | null | undefined): string {
     return rotuloVinculo(t) || '—';
   }
+
+  /** Vigente / Substituído em … / Não conta (tabela do mapa). */
+  readonly situacaoDoVoto = situacaoDoVoto;
+  readonly motivoNaoConta = MOTIVO_NAO_CONTA;
 
   opcaoDoVoto(m: MapaVotacao, voto: VotoDoMapa): string {
     return nomeOpcaoDoVoto(m, voto);

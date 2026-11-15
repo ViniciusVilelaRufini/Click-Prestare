@@ -580,17 +580,24 @@
                   </thead>
                   <tbody>
                     @for (voto of m.votos; track $index) {
-                      <tr [class.opacity-60]="voto.vigente === false">
+                      @let sit = situacaoDoVoto(voto);
+                      <tr [class.opacity-60]="sit.tipo !== 'vigente'">
                         <td class="text-slate-200">{{ voto.unidade }}</td>
                         <td class="text-slate-200">{{ voto.votante || '—' }}</td>
                         <td class="text-slate-400">{{ rotuloVinculo(voto.tipo_vinculo) }}</td>
                         <td class="text-slate-200">{{ opcaoDoVoto(m, voto) }}</td>
                         <td class="text-slate-400 font-mono">{{ dataHora(voto.registrado_em) }}</td>
                         <td>
-                          @if (voto.vigente === false) {
-                            <span class="ps-tag text-amber-400">Substituído{{ voto.substituido_em ? ' em ' + dataHora(voto.substituido_em) : '' }}</span>
-                          } @else {
-                            <span class="ps-tag text-emerald-400">Vigente</span>
+                          @switch (sit.tipo) {
+                            @case ('vigente') {
+                              <span class="ps-tag text-emerald-400">{{ sit.texto }}</span>
+                            }
+                            @case ('substituido') {
+                              <span class="ps-tag text-amber-400">{{ sit.texto }}</span>
+                            }
+                            @default {
+                              <span class="ps-tag" [title]="motivoNaoConta">{{ sit.texto }}</span>
+                            }
                           }
                         </td>
                       </tr>
@@ -599,7 +606,8 @@
                 </table>
               </div>
               <p class="text-[11px] text-slate-500">
-                Voto substituído não conta na apuração; fica no mapa como trilha.
+                Só o voto vigente entra na apuração. O substituído e o que não conta (sem vínculo com a unidade
+                ou registro duplicado) ficam no mapa como trilha.
               </p>
             }
           }

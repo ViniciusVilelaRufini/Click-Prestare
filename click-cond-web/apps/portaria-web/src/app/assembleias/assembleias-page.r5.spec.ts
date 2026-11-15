@@ -202,16 +202,19 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
 
   describe('Mapa de votação', () => {
     const MAPA = {
-      votacao: { id: 11, titulo: 'Obra', somente_proprietarios: 1, encerrada_em: '2026-11-05T18:00:00.000Z' },
+      // Formato real da API (datas do mapa em texto de Brasília, com segundos).
+      votacao: { id: 11, titulo: 'Obra', somente_proprietarios: 1, encerrada_em: '05/11/2026 15:00:00' },
       participacao: { unidades_votaram: 2, unidades_total: 12 },
       opcoes: [{ id: 3, nome: 'Aprovar', votos: 1 }, { id: 4, nome: 'Rejeitar', votos: 1 }],
       votos: [
         { unidade: 'Bloco A - 101', votante: 'Ana Lima', tipo_vinculo: 'inquilino', opcao: 'Rejeitar',
-          registrado_em: '2026-11-02T13:00:00.000Z', vigente: false, substituido_em: '2026-11-03T14:30:00.000Z' },
+          registrado_em: '02/11/2026 10:00:00', vigente: false, substituido_em: '03/11/2026 11:30:00' },
         { unidade: 'Bloco A - 101', votante: 'Bruno Souza', tipo_vinculo: 'proprietario', opcao: 'Aprovar',
-          registrado_em: '2026-11-03T14:30:00.000Z', vigente: true, substituido_em: null },
-        { unidade: '102', votante: 'Carla', tipo_vinculo: 'inquilino', opcao: 4,
-          registrado_em: '2026-11-04T12:00:00.000Z', vigente: true, substituido_em: null },
+          registrado_em: '03/11/2026 11:30:00', vigente: true, substituido_em: null },
+        { unidade: '102', votante: 'Carla', tipo_vinculo: 'inquilino', opcao: 'Rejeitar',
+          registrado_em: '04/11/2026 09:00:00', vigente: true, substituido_em: null },
+        { unidade: '103', votante: 'Dora', tipo_vinculo: null, opcao: 'Aprovar',
+          registrado_em: '01/11/2026 08:00:00', vigente: false, substituido_em: null },
       ],
     };
     const DET = { assembleia: ASSEMBLEIA, votacoes: [PAUTA_OCULTA, PAUTA_ENCERRADA], meusVotos: [] };
@@ -249,7 +252,7 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
       expect(botoesMapa(cartao(el, 'Pet'))).toHaveLength(1);
     });
 
-    it('abre o drawer com a tabela nominal; voto não vigente aparece como substituído', () => {
+    it('abre o drawer com a tabela nominal: vigente, substituído (com data) e não conta', () => {
       const mapaVotacao = jest.fn(() => of(MAPA));
       const { fixture, el, comp } = render({ getAssembleia: jest.fn(() => of(DET)), mapaVotacao });
       comp.verAssembleia(2);
@@ -269,7 +272,12 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
         ['Bloco A - 101', 'Ana Lima', 'Inquilino', 'Rejeitar', '02/11/2026 10:00', 'Substituído em 03/11/2026 11:30'],
         ['Bloco A - 101', 'Bruno Souza', 'Proprietário', 'Aprovar', '03/11/2026 11:30', 'Vigente'],
         ['102', 'Carla', 'Inquilino', 'Rejeitar', '04/11/2026 09:00', 'Vigente'],
+        ['103', 'Dora', '—', 'Aprovar', '01/11/2026 08:00', 'Não conta'],
       ]);
+      expect(drawer.textContent).toContain('Encerrada em 05/11/2026 15:00');
+      expect(drawer.textContent).not.toContain(':00:00');
+      const naoConta = Array.from(drawer.querySelectorAll('tbody tr'))[3].querySelector('[title]') as HTMLElement;
+      expect(naoConta.getAttribute('title')).toBe('Sem vínculo com a unidade ou registro duplicado');
     });
 
     it('erro da API: aparece no drawer como veio', () => {
