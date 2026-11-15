@@ -6,6 +6,8 @@ const LIMITE_ATENCAO_MIN = 10;
 const LIMITE_AUTORIZADA_MIN = 15;
 /** Entrega deixada na portaria que ninguém buscou. */
 const LIMITE_NA_PORTARIA_MIN = 30;
+/** Atendimento em andamento parado há mais que isto: destaque na fila (ninguém encerra sozinho). */
+const LIMITE_PARADO_MIN = 24 * 60;
 const pad = (n: number) => String(n).padStart(2, '0');
 
 /** Quando a etapa atual começou: autorização, chegada à portaria (deixada lá) ou chegada do entregador. */
@@ -41,6 +43,16 @@ export function emAtencao(a: DeliveryAtendimento, agora: Date): boolean {
         ? LIMITE_NA_PORTARIA_MIN
         : null;
   return limite !== null && minutosDesde(inicioEspera(a), agora) > limite;
+}
+
+/**
+ * Em andamento e parado na etapa atual há mais de 24 h. Só destaque: concluir
+ * sozinho uma entrega que ninguém confirmou registraria algo falso. O aviso
+ * agendado sem chegada fica de fora porque a API o cancela ("Sem chegada").
+ */
+export function parado(a: DeliveryAtendimento, agora: Date): boolean {
+  return ['CHEGOU', 'AGUARDANDO_AUTORIZACAO', 'AUTORIZADA', 'RETIRADA_NA_PORTARIA'].includes(a.status) &&
+    minutosDesde(inicioEspera(a), agora) > LIMITE_PARADO_MIN;
 }
 
 export function textoDuracao(min: number | null): string {

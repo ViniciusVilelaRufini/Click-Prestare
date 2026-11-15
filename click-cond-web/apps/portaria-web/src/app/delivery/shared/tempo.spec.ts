@@ -1,4 +1,4 @@
-import { emAtencao, inicioEspera, intervaloPeriodo, minutosDesde, textoDuracao, textoEspera } from './tempo';
+import { emAtencao, inicioEspera, intervaloPeriodo, minutosDesde, parado, textoDuracao, textoEspera } from './tempo';
 import { DeliveryAtendimento } from '../delivery.model';
 
 const agora = new Date('2026-10-04T12:30:00');
@@ -61,5 +61,29 @@ describe('tempo', () => {
     expect(intervaloPeriodo('hoje', agora)).toEqual({ de: '2026-10-04', ate: '2026-10-04' });
     expect(intervaloPeriodo('7d', agora)).toEqual({ de: '2026-09-28', ate: '2026-10-04' });
     expect(intervaloPeriodo('30d', agora)).toEqual({ de: '2026-09-05', ate: '2026-10-04' });
+  });
+  describe('parado há mais de 24 h (rodada 4)', () => {
+    const horasAtras = (h: number) => new Date(agora.getTime() - h * 3_600_000).toISOString();
+    const com = (status: string, h: number, extra: object = {}) =>
+      ({ ...base, status, created_at: horasAtras(h + 1), chegou_em: horasAtras(h), ...extra }) as DeliveryAtendimento;
+
+    it('Chegou, Aguardando, Autorizada e Na portaria parados há mais de 24 h ganham destaque', () => {
+      expect(parado(com('CHEGOU', 25), agora)).toBe(true);
+      expect(parado(com('AGUARDANDO_AUTORIZACAO', 25), agora)).toBe(true);
+      expect(parado(com('AUTORIZADA', 30, { autorizado_em: horasAtras(25) }), agora)).toBe(true);
+      expect(parado(com('RETIRADA_NA_PORTARIA', 30, {
+        eventos: [{ id: 1, status_novo: 'RETIRADA_NA_PORTARIA', created_at: horasAtras(25) }],
+      }), agora)).toBe(true);
+    });
+
+    it('até 24 h, não', () => {
+      expect(parado(com('CHEGOU', 23), agora)).toBe(false);
+      expect(parado(com('AUTORIZADA', 30, { autorizado_em: horasAtras(2) }), agora)).toBe(false);
+    });
+
+    it('agendada (a rotina cancela) e encerrados não', () => {
+      expect(parado({ ...base, status: 'AGENDADA', created_at: horasAtras(30) } as DeliveryAtendimento, agora)).toBe(false);
+      for (const s of ['CONCLUIDA', 'CANCELADA', 'RECUSADA']) expect(parado(com(s, 30), agora)).toBe(false);
+    });
   });
 });

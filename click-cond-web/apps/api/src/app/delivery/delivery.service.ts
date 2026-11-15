@@ -70,6 +70,10 @@ const TRANSICOES_DO_SISTEMA: Partial<Record<DeliveryStatus, readonly DeliverySta
   CHEGOU: ['CANCELADA'],
   AGUARDANDO_AUTORIZACAO: ['CANCELADA'],
 };
+/** Aviso AGENDADA sem chegada é cancelado este tempo depois da previsão (ou da criação, sem previsão). */
+export const AVISO_SEM_CHEGADA_MS = 24 * 3_600_000;
+export const MOTIVO_SEM_CHEGADA = 'Sem chegada';
+const LOTE_SEM_CHEGADA = 200;
 const MSG_JA_TEM_PEDIDO = 'Este atendimento já tem um pedido de portão.';
 const MSG_ENTREGADOR_SAIU = 'O entregador não está mais no portão.';
 const AUTOR_AUTOATENDIMENTO = 'Autoatendimento';
@@ -666,10 +670,17 @@ export class DeliveryService {
    * (ou a transição não existe). O card acompanha; cancelamento pelo sistema
    * não manda a notificação comum ("cancelado pela portaria" seria falso).
    */
-  async transicionarPeloSistema(idAtendimento: number, statusNovo: DeliveryStatus, mensagem: string): Promise<boolean> {
+  async transicionarPeloSistema(
+    idAtendimento: number,
+    statusNovo: DeliveryStatus,
+    mensagem: string,
+    /** Só transiciona a partir deste status (o atendimento pode ter mudado depois da consulta da rotina). */
+    somenteDe?: DeliveryStatus,
+  ): Promise<boolean> {
     const atendimento = await (this.prisma as any).deliveryAtendimentos.findUnique({ where: { id: Number(idAtendimento) } });
     if (!atendimento) return false;
     const statusAtual = atendimento.status as DeliveryStatus;
+    if (somenteDe && statusAtual !== somenteDe) return false;
     const permitida =
       TRANSICOES[statusAtual]?.includes(statusNovo) || TRANSICOES_DO_SISTEMA[statusAtual]?.includes(statusNovo);
     if (!permitida) return false;
@@ -694,6 +705,36 @@ export class DeliveryService {
     }).catch((e: any) => this.logger.warn(`Aviso do delivery ${atualizado.id}: ${e?.message ?? e}`));
     await this.comTeto(Promise.all([gancho, aviso]));
     return true;
+  }
+
+  /**
+   * Aviso do morador (AGENDADA) cujo entregador não chegou: CANCELADA com
+   * motivo "Sem chegada" 24 h depois da previsão ou, sem previsão, da
+   * criação. Chamado pela rotina periódica do delivery (DeliveryPortaoService.tick).
+   * Pelo sistema: entra na linha do tempo e não manda a notificação comum de
+   * cancelamento. Os demais status não são encerrados aqui (a fila do console
+   * os destaca). Devolve quantos cancelou; um que falha não impede os outros.
+   */
+  async cancelarAvisosSemChegada(): Promise<number> {
+    const corte = new Date(this.agora() - AVISO_SEM_CHEGADA_MS);
+    const lista = (await (this.prisma as any).deliveryAtendimentos.findMany({
+      where: {
+        status: 'AGENDADA',
+        OR: [{ previsao_em: { lte: corte } }, { previsao_em: null, created_at: { lte: corte } }],
+      },
+      select: { id: true },
+      orderBy: { id: 'asc' },
+      take: LOTE_SEM_CHEGADA,
+    })) as { id: number }[];
+    let cancelados = 0;
+    for (const a of lista) {
+      try {
+        if (await this.transicionarPeloSistema(a.id, 'CANCELADA', MOTIVO_SEM_CHEGADA, 'AGENDADA')) cancelados++;
+      } catch (e: any) {
+        this.logger.warn(`Aviso de delivery ${a.id} sem chegada: ${e?.message ?? e}`);
+      }
+    }
+    return cancelados;
   }
 
   /**
