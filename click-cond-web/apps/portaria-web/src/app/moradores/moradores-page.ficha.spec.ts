@@ -108,6 +108,21 @@ describe('MoradoresPageComponent — formulário e detalhes pela ficha', () => {
     expect(toast.error).toHaveBeenCalledWith('Morador 5 não encontrado');
   });
 
+  it('ficha atrasada de outro morador não monta por cima do formulário aberto depois', () => {
+    const { Subject } = require('rxjs');
+    const lenta = new Subject();
+    const outro = { ...daLista, id: 6, nome: 'Caio' };
+    const get = jest.fn((id: number) => (id === 5 ? lenta : of({ ...outro, tag_rfid: 'T-CAIO', qrcode_acesso: null })));
+    const { tela } = build(get);
+    tela.abrirEditar(daLista);
+    tela.abrirEditar(outro);
+    lenta.next(ficha);
+    lenta.complete();
+    expect(tela.editingId).toBe(6);
+    expect(tela.novo.nome).toBe('Caio');
+    expect(tela.novo.tag_rfid).toBe('T-CAIO');
+  });
+
   it('o painel de detalhes lê tag e QR da ficha', () => {
     const { tela, api } = build(jest.fn(() => of(ficha)));
     tela.abrirDetalhes(daLista);

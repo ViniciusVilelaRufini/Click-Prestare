@@ -33,6 +33,8 @@ export interface Morador {
   tem_conta_app?: boolean;
   /** Tem foto do rosto, mas sem conta no app não há como aceitar a biometria: falta enviar o acesso. */
   biometria_sem_conta_app?: boolean;
+  /** "Enviar Acesso" manda o link para nova senha (já usou o app ou é de outro condomínio); falso: senha inicial. */
+  envio_acesso_por_link?: boolean;
 }
 
 export interface CreateMorador {

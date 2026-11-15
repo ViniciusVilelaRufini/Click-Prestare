@@ -50,17 +50,17 @@ export function ajusteMenorDeIdade(
 }
 
 /**
- * Confirmação do "Enviar Acesso". Para quem já usa o app, a API não troca a senha: manda o link do
- * "Esqueci a senha" para o e-mail de acesso da conta (a senha atual e as sessões continuam valendo).
- * Sem conta, segue a senha inicial.
+ * Confirmação do "Enviar Acesso". `envio_acesso_por_link` vem da lista, calculado pela mesma regra da API
+ * (modoEnvioAcesso): quem já usou o app ou é de outro condomínio recebe o link do "Esqueci a senha" (a senha
+ * atual e as sessões continuam valendo); os outros, a senha inicial.
  */
-export function confirmacaoEnviarAcesso(m: { email: string | null; tem_conta_app?: boolean }): {
+export function confirmacaoEnviarAcesso(m: { email: string | null; envio_acesso_por_link?: boolean }): {
   title: string;
   message: string;
   confirmLabel: string;
   variant: 'primary' | 'danger';
 } {
-  if (m.tem_conta_app) {
+  if (m.envio_acesso_por_link) {
     return {
       title: 'Enviar link para nova senha',
       message: 'Este morador já tem acesso ao app: enviaremos um link para o morador definir uma nova senha, no e-mail que ele usa para entrar. A senha atual continua valendo até ele trocar. O link vale por 30 minutos.',

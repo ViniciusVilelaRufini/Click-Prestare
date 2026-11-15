@@ -60,7 +60,7 @@ describe('MoradoresPageComponent — Enviar Acesso', () => {
     const send = jest.fn(() => of({ ok: true, modo: 'link', message: 'Enviamos para bia@x.com um link para o morador definir uma nova senha.' }));
     const { tela, toast } = build(send);
 
-    await tela.sendCredentials(morador({ tem_conta_app: true }));
+    await tela.sendCredentials(morador({ envio_acesso_por_link: true }));
 
     expect(toast.success).toHaveBeenCalledWith('Enviamos para bia@x.com um link para o morador definir uma nova senha.');
   });

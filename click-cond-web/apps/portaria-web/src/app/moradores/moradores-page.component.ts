@@ -349,6 +349,7 @@ export class MoradoresPageComponent implements OnInit {
     this.abaDetalhe.set('geral');
   }
   abrirNovo() {
+    this.abrindoEdicaoId = null;
     this.editingId = null;
     this.fotoPessoaBase64.set(null);
     this.fotoDocumentoBase64.set(null);
@@ -366,11 +367,24 @@ export class MoradoresPageComponent implements OnInit {
    * formulário não abre — montar com tag vazia faria parecer que o morador não tem credencial.
    */
   abrirEditar(m: Morador) {
+    this.abrindoEdicaoId = m.id;
     this.api.get(m.id).subscribe({
-      next: (ficha) => this.montarEdicao({ ...m, ...ficha }),
-      error: (e) => this.toast.error(e?.error?.message ?? e?.message ?? 'Não foi possível abrir o cadastro do morador.'),
+      next: (ficha) => {
+        // Resposta atrasada de outro morador não monta por cima do formulário aberto depois.
+        if (this.abrindoEdicaoId !== m.id) return;
+        this.abrindoEdicaoId = null;
+        this.montarEdicao({ ...m, ...ficha });
+      },
+      error: (e) => {
+        if (this.abrindoEdicaoId !== m.id) return;
+        this.abrindoEdicaoId = null;
+        this.toast.error(e?.error?.message ?? e?.message ?? 'Não foi possível abrir o cadastro do morador.');
+      },
     });
   }
+
+  /** Morador cuja ficha está sendo carregada para a edição (null: nenhum, ou o formulário foi fechado/trocado). */
+  private abrindoEdicaoId: number | null = null;
 
   private montarEdicao(m: Morador) {
     this.editingId = m.id;
@@ -519,6 +533,7 @@ export class MoradoresPageComponent implements OnInit {
     });
   }
   cancelarForm() {
+    this.abrindoEdicaoId = null;
     this.fecharCamera();
     this.fotoPessoaBase64.set(null);
     this.fotoDocumentoBase64.set(null);
