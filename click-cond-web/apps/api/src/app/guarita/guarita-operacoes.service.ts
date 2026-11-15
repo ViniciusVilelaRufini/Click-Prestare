@@ -676,16 +676,25 @@ export class GuaritaOperacoesService {
 
     if (op.tipo === 'atualizar_receptores') {
       if (!ok) return;
-      // O 29 sai depois da última gravação do lote (e a fila só entrega o lote
-      // seguinte depois deste resultado): tudo que está "gravado" agora passou por ele.
-      await this.prisma.tags.updateMany({
-        where: {
-          id_device: op.id_device,
-          guarita_estado: ESTADO_TAG.gravado,
-          guarita_em: { lte: agora },
-        },
-        data: { guarita_estado: ESTADO_TAG.ativo },
+      // Só vira "ativo" a tag cuja última gravação ok veio ANTES deste 29 na fila
+      // (id menor): um 29 atrasado não promove o que foi gravado depois dele.
+      const gravadas = await this.prisma.tags.findMany({
+        where: { id_device: op.id_device, guarita_estado: ESTADO_TAG.gravado },
+        select: { id: true },
       });
+      for (const t of gravadas) {
+        const ultima = await this.prisma.guarita_Operacoes.findFirst({
+          where: { id_tag: t.id, tipo: { in: ['cadastrar', 'editar'] }, estado: ESTADO_OP.ok },
+          orderBy: { id: 'desc' },
+          select: { id: true },
+        });
+        if (ultima && ultima.id < op.id) {
+          await this.prisma.tags.updateMany({
+            where: { id: t.id, guarita_estado: ESTADO_TAG.gravado },
+            data: { guarita_estado: ESTADO_TAG.ativo },
+          });
+        }
+      }
       return;
     }
     if (!TIPOS_GRAVACAO.includes(op.tipo) || op.id_tag == null) return;

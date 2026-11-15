@@ -3,7 +3,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
 import { SIGLA_TIPO } from './guarita.constantes';
 import { EventoGuarita, chaveDedupEvento, dataDoEvento, decodificarEvento } from './guarita-frame.util';
-import { dataOuNula } from './guarita-validacao.util';
 import type { GuaritaDoAgente } from './guarita-agente.service';
 
 /** Máximo de eventos por POST (o agente manda em lotes; o Guarita guarda 8.192). */
@@ -77,54 +76,80 @@ export class GuaritaEventosService {
     if (b.eventos.length > MAX_EVENTOS_POR_LOTE) throw new BadRequestException('Eventos demais num lote.');
     // 0 (ou ausente) = sem correção: o agente manda 0 quando não leu o relógio.
     const delta = typeof b.relogio_delta_s === 'number' && Number.isFinite(b.relogio_delta_s) ? Math.round(b.relogio_delta_s) : 0;
-    let aceitos = 0;
-    let novos = 0;
+    // 1. Frames válidos do lote, uma vez cada (a chave ignora o bit "lido").
+    const doLote = new Map<string, { frame: string; origem: string; evento: EventoGuarita }>();
     for (const item of b.eventos as unknown[]) {
       const ev = (item ?? {}) as Record<string, unknown>;
       const frame = typeof ev.frame_hex === 'string' ? ev.frame_hex.trim().toUpperCase() : '';
       if (!/^[0-9A-F]{32}$/.test(frame)) continue;
-      const origem = ev.origem === 'recuperacao' ? 'recuperacao' : 'ao_vivo';
+      const chave = chaveDedupEvento(device.id, frame);
+      if (doLote.has(chave)) continue;
+      doLote.set(chave, { frame, origem: ev.origem === 'recuperacao' ? 'recuperacao' : 'ao_vivo', evento: decodificarEvento(frame) });
+    }
+    const chaves = [...doLote.keys()];
+    if (!chaves.length) return { aceitos: 0, novos: 0 };
+
+    // 2. Uma leitura + um INSERT em lote (a recuperação relê até 8.192 eventos:
+    //    os já registrados nem viram INSERT). O índice único (id_device, chave)
+    //    continua sendo a defesa entre instâncias (skipDuplicates).
+    const existentes = await this.prisma.guarita_Eventos.findMany({
+      where: { id_device: device.id, chave: { in: chaves } },
+      select: { chave: true, id_acesso: true },
+    });
+    const jaProcessados = new Set(existentes.filter((x: any) => x.id_acesso != null).map((x: any) => x.chave));
+    const jaGravados = new Set(existentes.map((x: any) => x.chave));
+    const inserir = chaves.filter((c) => !jaGravados.has(c));
+    if (inserir.length) {
+      await this.prisma.guarita_Eventos.createMany({
+        data: inserir.map((chave) => {
+          const x = doLote.get(chave) as { frame: string; origem: string; evento: EventoGuarita };
+          return {
+            id_condominio: device.id_condominio,
+            id_device: device.id,
+            chave,
+            frame_hex: x.frame,
+            ocorrido_em: dataDoEvento(x.evento.dataHora, delta),
+            origem: x.origem,
+          };
+        }),
+        skipDuplicates: true,
+      });
+    }
+
+    // 3. Histórico e alertas: cada evento é REIVINDICADO (id_acesso nulo → 0)
+    //    por uma instância só. Falhou no meio: volta a nulo e o reenvio refaz
+    //    (antes, o P2002 do reenvio deixava o acesso fora do histórico).
+    let novos = 0;
+    for (const chave of chaves) {
+      if (jaProcessados.has(chave)) continue;
+      const x = doLote.get(chave) as { frame: string; origem: string; evento: EventoGuarita };
+      const r = await this.prisma.guarita_Eventos.updateMany({
+        where: { id_device: device.id, chave, id_acesso: null },
+        data: { id_acesso: 0 },
+      });
+      if (r.count !== 1) continue;
       try {
-        if (await this.registrarUm(device, frame, origem, delta, dataOuNula(ev.recebido_em))) novos++;
-        aceitos++;
+        await this.processar(device, chave, x.frame, x.evento, dataDoEvento(x.evento.dataHora, delta));
+        novos++;
       } catch (err: any) {
-        // Um evento ruim não derruba o lote (o agente reenviaria tudo de novo).
-        this.logger.warn(`Guarita ${device.id}: evento não registrado: ${err?.message ?? err}`);
+        await this.prisma.guarita_Eventos.updateMany({ where: { id_device: device.id, chave }, data: { id_acesso: null } }).catch(() => undefined);
+        this.logger.warn(`Guarita ${device.id}: evento não registrado no histórico: ${err?.message ?? err}`);
       }
     }
-    return { aceitos, novos };
+    return { aceitos: chaves.length, novos };
   }
 
-  /** true = evento novo; false = já registrado (ao vivo × recuperação, outra instância). */
-  private async registrarUm(
-    device: GuaritaDoAgente,
-    frame: string,
-    origem: string,
-    delta: number,
-    _recebidoEm: Date | null,
-  ): Promise<boolean> {
-    const e = decodificarEvento(frame);
-    const ocorrido = dataDoEvento(e.dataHora, delta);
-    let linha: any;
-    try {
-      linha = await this.prisma.guarita_Eventos.create({
-        data: {
-          id_condominio: device.id_condominio,
-          id_device: device.id,
-          chave: chaveDedupEvento(device.id, frame),
-          frame_hex: frame,
-          ocorrido_em: ocorrido,
-          origem,
-        },
-      });
-    } catch (err: any) {
-      if (err?.code === 'P2002') return false;
-      throw err;
-    }
-
+  /**
+   * Histórico e alertas de UM evento já reivindicado. `Guarita_Eventos.id_acesso`:
+   * nulo = ainda não processado; 0 = processado sem acesso no histórico; > 0 =
+   * o acesso em Acessos_Facial.
+   */
+  private async processar(device: GuaritaDoAgente, chave: string, frame: string, e: EventoGuarita, ocorrido: Date | null) {
     if ((e.tipo === 0 || e.tipo === 1) && ocorrido) {
       const acesso = await this.registrarAcesso(device, e, ocorrido);
-      if (acesso) await this.prisma.guarita_Eventos.update({ where: { id: linha.id }, data: { id_acesso: acesso } });
+      if (acesso) {
+        await this.prisma.guarita_Eventos.updateMany({ where: { id_device: device.id, chave }, data: { id_acesso: acesso } });
+      }
     }
     const alerta = alertaDoEvento(e);
     if (alerta) await this.criarAlerta(device, alerta.tipo, alerta.titulo, e, frame, ocorrido);
@@ -135,7 +160,6 @@ export class GuaritaEventosService {
         await this.criarAlerta(device, TIPOS_ALERTA.bateriaFraca, 'Bateria fraca', e, frame, ocorrido);
       }
     }
-    return true;
   }
 
   private async registrarAcesso(device: GuaritaDoAgente, e: EventoGuarita, ocorrido: Date): Promise<number | null> {

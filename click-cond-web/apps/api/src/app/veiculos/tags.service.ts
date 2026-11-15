@@ -38,6 +38,10 @@ export class TagsService {
         id_condominio: idCondominio,
         ...(incluirInativas ? {} : { ativo: 1 }),
         ...(livres ? { veiculos: { none: { ativo: 1 } } } : {}),
+        // Módulo Guarita: tag saindo do Guarita, em conflito ou ausente não é
+        // "livre" para outro veículo (a confirmação da remoção a desvincularia).
+        // (OR com nulo: tag comum tem guarita_estado NULL, e NOT IN com NULL a esconderia.)
+        ...(livres ? { OR: [{ guarita_estado: null }, { guarita_estado: { notIn: ['removendo', 'conflito', 'ausente'] } }] } : {}),
       },
       orderBy: { created_at: 'desc' },
     });

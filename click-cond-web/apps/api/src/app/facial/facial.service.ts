@@ -1390,7 +1390,7 @@ export class FacialService {
    * (pendente/enviada) ou tag saindo/entrando (`removendo`/`pendente`) — a
    * cascata levaria as remoções de ex-moradores. Fora disso, as tags dele
    * perdem os campos do Guarita (voltam a ser linha sem estado) antes do
-   * delete; as tags criadas pelo próprio Guarita (código G…) sem veículo saem.
+   * delete.
    */
   private async prepararExclusaoDoGuarita(idDevice: number) {
     const abertas = await this.prisma.guarita_Operacoes.count({
@@ -1677,6 +1677,17 @@ export class FacialService {
       ehGuarita && dto.api_password !== undefined && dto.api_password !== null && dto.api_password !== ''
         ? validarPalavraGuarita(dto.api_password)
         : undefined;
+    // Virando Guarita sem palavra nova: a senha herdada do aparelho antigo só
+    // serve se for uma palavra válida (1–15 caracteres 0x20–0x7D).
+    if (ehGuarita && antes.tipo !== TIPO_GUARITA && palavraGuarita === undefined && antes.api_password) {
+      try {
+        validarPalavraGuarita(antes.api_password);
+      } catch {
+        throw new BadRequestException(
+          'A senha deste aparelho não serve como palavra de autorização do Guarita. Informe a palavra (até 15 caracteres, sem acento) ou deixe em branco.',
+        );
+      }
+    }
     const trocaSenha = ehGuarita ? palavraGuarita !== undefined : dto.api_password !== undefined;
     const ip = dto.ip !== undefined ? validarIpDispositivo(dto.ip) : undefined;
     const porta = dto.porta !== undefined ? validarPortaDispositivo(dto.porta ?? 80) : undefined;

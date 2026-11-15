@@ -74,6 +74,15 @@ export class VeiculosService {
     if (!tag) throw new BadRequestException('Tag inválida para este condomínio.');
   }
 
+  /** Módulo Guarita: tag em remoção, em conflito ou fora do Guarita não ganha veículo NOVO. */
+  private async assertTagDoGuaritaVinculavel(idTag: number | null): Promise<void> {
+    if (idTag == null) return;
+    const tag = await this.prisma.tags.findFirst({ where: { id: Number(idTag) }, select: { guarita_estado: true } });
+    if (['removendo', 'conflito', 'ausente'].includes((tag as any)?.guarita_estado ?? '')) {
+      throw new BadRequestException('Esta tag do Guarita não pode ser vinculada agora (em remoção, em conflito ou fora do Guarita).');
+    }
+  }
+
   /**
    * Uma tag, um veículo ativo — mesma regra (e mensagem) do app do morador
    * (`vincularTagAoVeiculo`). Sem isto a portaria ligava a mesma tag a dois
@@ -106,6 +115,7 @@ export class VeiculosService {
     });
     if (!morador) throw new NotFoundException(`Morador ${idMorador} não encontrado`);
     await this.assertTagDoCondominio(idCondominio, data.id_tag);
+    await this.assertTagDoGuaritaVinculavel(data.id_tag);
     await this.assertTagLivre(data.id_tag, null);
     try {
       const criado = await this.prisma.veiculos.create({
@@ -138,6 +148,7 @@ export class VeiculosService {
     // veículos) não pode travar a edição dos outros campos.
     if (data.id_tag == null || Number(data.id_tag) !== existing.id_tag) {
       await this.assertTagLivre(data.id_tag, Number(id));
+      await this.assertTagDoGuaritaVinculavel(data.id_tag);
     }
     let atualizado: any;
     try {

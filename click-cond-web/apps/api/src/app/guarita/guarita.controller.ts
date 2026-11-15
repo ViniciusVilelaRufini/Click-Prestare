@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query } 
 import { GuaritaEventosService } from './guarita-eventos.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { assertOperador, assertTenantStrict } from '../auth/tenant.util';
+import { assertOperador, assertSindicoEstrito, assertTenantStrict } from '../auth/tenant.util';
 import { GuaritaPortoesService } from './guarita-portoes.service';
 import type { PortaoDto } from './guarita-portoes.service';
 import { GuaritaCapturaService } from './guarita-captura.service';
@@ -86,6 +86,7 @@ export class GuaritaController {
     @ReqUser() user: JwtPayload,
   ) {
     assertOperador(user, 'cadastrar portão do Guarita');
+    assertSindicoEstrito(user, 'cadastrar portão do Guarita');
     return this.portoes.criar(idCondominio, deviceId, body);
   }
 
@@ -98,6 +99,7 @@ export class GuaritaController {
     @ReqUser() user: JwtPayload,
   ) {
     assertOperador(user, 'editar portão do Guarita');
+    assertSindicoEstrito(user, 'editar portão do Guarita');
     return this.portoes.atualizar(idCondominio, deviceId, idPortao, body);
   }
 
@@ -109,6 +111,7 @@ export class GuaritaController {
     @ReqUser() user: JwtPayload,
   ) {
     assertOperador(user, 'remover portão do Guarita');
+    assertSindicoEstrito(user, 'remover portão do Guarita');
     return this.portoes.remover(idCondominio, deviceId, idPortao);
   }
 
@@ -183,6 +186,7 @@ export class GuaritaController {
     @ReqUser() user: JwtPayload,
   ) {
     assertOperador(user, 'importar o cadastro do Guarita');
+    assertSindicoEstrito(user, 'importar o cadastro do Guarita');
     return this.importacao.solicitar(idCondominio, deviceId, 'importar', autorDoUsuario(user));
   }
 
@@ -193,6 +197,7 @@ export class GuaritaController {
     @ReqUser() user: JwtPayload,
   ) {
     assertOperador(user, 'conferir o cadastro do Guarita');
+    assertSindicoEstrito(user, 'conferir o cadastro do Guarita');
     return this.importacao.solicitar(idCondominio, deviceId, 'conferir', autorDoUsuario(user));
   }
 
@@ -243,6 +248,7 @@ export class GuaritaController {
     @ReqUser() user: JwtPayload,
   ) {
     assertOperador(user, 'atualizar os receptores do Guarita');
+    assertSindicoEstrito(user, 'atualizar os receptores do Guarita');
     return this.operacoes.solicitarAtualizarReceptores(idCondominio, deviceId, autorDoUsuario(user));
   }
 

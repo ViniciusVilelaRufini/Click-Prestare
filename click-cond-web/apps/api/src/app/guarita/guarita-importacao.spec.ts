@@ -12,7 +12,8 @@ import { codificarDispositivo } from './guarita-frame.util';
  * unidade e veículo, e a conferência que NUNCA apaga nada do Guarita.
  */
 
-const OPERADOR: any = { sub: 1, nome: 'Porteiro Zé', id_condominio: 7 };
+const OPERADOR: any = { sub: 1, nome: 'Porteiro Zé', id_condominio: 7, typeAccess: 'Sindico' };
+const PORTEIRO: any = { sub: 2, nome: 'Porteiro', id_condominio: 7 };
 const MORADOR: any = { sub: 99, nome: 'Morador', typeAccess: 'Morador' };
 
 function frame(tipo: number, serialHex: string, extra: Partial<Parameters<typeof codificarDispositivo>[0]> = {}) {

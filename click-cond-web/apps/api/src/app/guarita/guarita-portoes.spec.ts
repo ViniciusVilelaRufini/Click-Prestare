@@ -6,7 +6,8 @@ import { montarConsole } from './guarita-console.testutil';
  * auditoria) e o estado do aparelho para o console.
  */
 
-const OPERADOR: any = { sub: 1, nome: 'Porteiro Zé', id_condominio: 7, tipo_sub: 'funcionario_portaria' };
+const OPERADOR: any = { sub: 1, nome: 'Porteiro Zé', id_condominio: 7, typeAccess: 'Sindico' };
+const PORTEIRO: any = { sub: 2, nome: 'Porteiro', id_condominio: 7, tipo_sub: 'funcionario_portaria' };
 const MORADOR: any = { sub: 9, nome: 'Morador', typeAccess: 'Morador' };
 const FUNCIONARIO_APP: any = { sub: 8, nome: 'Func', typeAccess: 'Funcionario' };
 
@@ -35,6 +36,18 @@ describe('Guarita — portões (CRUD)', () => {
   ])('portão inválido %j → 400', async (corpo) => {
     const { ctrl } = montarConsole(jest.fn);
     await expect(ctrl.criarPortao(7, 10, corpo as any, OPERADOR)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('configuração do Guarita (portões, importar, conferir, 29) só para síndico; o porteiro lista e abre', async () => {
+    const { ctrl, bridge } = montarConsole(jest.fn);
+    await expect(ctrl.criarPortao(7, 10, PORTAO, PORTEIRO)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(ctrl.importar(7, 10, PORTEIRO)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(ctrl.conferir(7, 10, PORTEIRO)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(ctrl.atualizarReceptores(7, 10, PORTEIRO)).rejects.toBeInstanceOf(ForbiddenException);
+    const p: any = await ctrl.criarPortao(7, 10, PORTAO, OPERADOR);
+    expect(await ctrl.listarPortoes(7, 10, PORTEIRO)).toHaveLength(1);
+    await expect(ctrl.abrirPortao(7, 10, p.id, PORTEIRO)).resolves.toEqual({ enviado: true });
+    expect(bridge.enqueue).toHaveBeenCalledTimes(1);
   });
 
   it('Guarita de outro condomínio → 404; morador → 403', async () => {
