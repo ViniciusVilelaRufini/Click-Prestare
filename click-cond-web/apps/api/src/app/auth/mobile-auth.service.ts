@@ -101,6 +101,21 @@ const MSG_CODIGO_INVALIDO = 'Código incorreto ou expirado. Confira o código ou
 const MSG_SIGNUP_GENERICA =
   'Não foi possível concluir o cadastro com esses dados. Se você já tem conta, entre ou recupere a senha.';
 
+/**
+ * Estado da tag no Guarita como o app o vê (campos opcionais; app 1.2.49
+ * ignora). `conflito` sai como `falhou` com explicação; `ausente` e
+ * `a_vincular` (coisas do console) não são enviados; tag sem Guarita, nada.
+ */
+export function camposGuaritaParaApp(tag: any): Record<string, string | null> {
+  if (!tag || tag.id_device == null || !tag.guarita_estado) return {};
+  const estado: string = tag.guarita_estado;
+  if (estado === 'ausente' || estado === 'a_vincular') return {};
+  if (estado === 'conflito') {
+    return { guarita_estado: 'falhou', guarita_erro: 'Este código já está em uso em outra unidade. Procure a portaria.' };
+  }
+  return { guarita_estado: estado, guarita_erro: tag.guarita_erro ?? null };
+}
+
 @Injectable()
 export class MobileAuthService {
   constructor(
@@ -6094,7 +6109,7 @@ export class MobileAuthService {
       id_condominio: v.id_condominio,
       tag_codigo: v.tag?.codigo ?? null,
       // Módulo Guarita: só aparece quando a tag é de um Guarita (app 1.2.49 ignora).
-      ...(v.tag?.guarita_estado ? { guarita_estado: v.tag.guarita_estado } : {}),
+      ...camposGuaritaParaApp(v.tag),
     }));
   }
 
@@ -6118,8 +6133,8 @@ export class MobileAuthService {
       if (veiculo?.tag_codigo !== undefined) {
         await this.vincularTagAoVeiculo(m.id_condominio, criado.id, veiculo.tag_codigo);
       }
-      const guarita_estado = await this.estadoGuaritaDoVeiculo(criado.id);
-      return guarita_estado ? { ...criado, guarita_estado } : criado;
+      const campos = await this.estadoGuaritaDoVeiculo(criado.id);
+      return campos ? { ...criado, ...campos } : criado;
     } catch (err: any) {
       if (err?.code === 'P2002') {
         throw new BadRequestException('Já existe um veículo com essa placa neste condomínio.');
@@ -6236,15 +6251,15 @@ export class MobileAuthService {
     if (v?.id_tag == null) return null;
     return this.prisma.tags.findUnique({
       where: { id: v.id_tag },
-      select: { id: true, codigo: true, id_device: true, guarita_estado: true },
+      select: { id: true, codigo: true, id_device: true, guarita_estado: true, guarita_erro: true },
     });
   }
 
-  /** Estado no Guarita da tag do veículo, ou null (campo opcional das respostas do app). */
-  private async estadoGuaritaDoVeiculo(idVeiculo: number): Promise<string | null> {
+  /** `guarita_estado`/`guarita_erro` da tag do veículo para o app, ou null (campos opcionais). */
+  private async estadoGuaritaDoVeiculo(idVeiculo: number): Promise<Record<string, string | null> | null> {
     if (!this.guarita) return null;
-    const t = await this.tagAtualDoVeiculo(idVeiculo);
-    return t?.id_device != null ? t.guarita_estado ?? null : null;
+    const campos = camposGuaritaParaApp(await this.tagAtualDoVeiculo(idVeiculo));
+    return Object.keys(campos).length ? campos : null;
   }
 
   async atualizarVeiculoMorador(idUser: number, idCondominio: number, veiculo: any) {
@@ -6269,8 +6284,8 @@ export class MobileAuthService {
       if (veiculo?.tag_codigo !== undefined) {
         await this.vincularTagAoVeiculo(m.id_condominio, Number(veiculo.id), veiculo.tag_codigo);
       }
-      const guarita_estado = await this.estadoGuaritaDoVeiculo(Number(veiculo.id));
-      return guarita_estado ? { ok: true, guarita_estado } : { ok: true };
+      const campos = await this.estadoGuaritaDoVeiculo(Number(veiculo.id));
+      return campos ? { ok: true, ...campos } : { ok: true };
     } catch (err: any) {
       if (err?.code === 'P2002') {
         throw new BadRequestException('Já existe um veículo com essa placa neste condomínio.');

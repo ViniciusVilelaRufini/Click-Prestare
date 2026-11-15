@@ -259,6 +259,28 @@ export class GuaritaOperacoesService {
     });
   }
 
+  /** `POST …/atualizar-receptores`: um 29 pedido pelo console (no máximo um pendente por Guarita). */
+  async solicitarAtualizarReceptores(idCondominio: number, deviceId: number, autor: string) {
+    const device = await buscarGuaritaDoCondominio(this.prisma, idCondominio, deviceId);
+    if (device.ativo !== 1) throw new BadRequestException('Este Guarita está desativado.');
+    let op = await this.prisma.guarita_Operacoes.findFirst({
+      where: { id_device: device.id, tipo: 'atualizar_receptores', estado: ESTADO_OP.pendente },
+      orderBy: { id: 'desc' },
+    });
+    if (!op) {
+      op = await this.prisma.guarita_Operacoes.create({
+        data: {
+          id_condominio: device.id_condominio,
+          id_device: device.id,
+          tipo: 'atualizar_receptores',
+          estado: ESTADO_OP.pendente,
+          criado_por: String(autor ?? 'Portaria').slice(0, 120),
+        },
+      });
+    }
+    return { id: op.id, tipo: op.tipo, estado: op.estado, erro: op.erro ?? null };
+  }
+
   /**
    * `POST …/dispositivos/:idTag/regravar`: dispositivo `ausente` (sumiu do
    * Guarita) volta a ser cadastrado, por decisão do síndico. Com veículo, o

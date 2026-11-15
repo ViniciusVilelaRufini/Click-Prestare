@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
 import {
@@ -61,6 +61,10 @@ export class GuaritaCapturaService {
     const device = await buscarGuaritaDoCondominio(this.prisma, idCondominio, deviceId);
     if (device.ativo !== 1) throw new BadRequestException('Este Guarita está desativado.');
     const veiculo = await this.veiculoLivre(device.id_condominio, idVeiculoBruto);
+    // Uma captura por Guarita: abrir outra com uma janela de 60 s ainda aberta → 409.
+    if (await this.janelaAberta(device.id, JANELA_CAPTURA_MS)) {
+      throw new ConflictException('Já existe um cadastro por captura em andamento neste Guarita.');
+    }
     await this.prisma.guarita_Operacoes.updateMany({
       where: { id_device: device.id, tipo: OPERACAO_CAPTURA, estado: ESTADO_OP.pendente },
       data: { estado: ESTADO_OP.cancelada, concluida_em: new Date() },
@@ -158,6 +162,12 @@ export class GuaritaCapturaService {
       .sort((a, b) => a.chegou_em.localeCompare(b.chegou_em));
   }
 
+  /**
+   * Veículo que pode receber o dispositivo. Uma tag por veículo ativo (regra
+   * de Veículos): a tag atual só é trocada quando ela ainda não está no Guarita
+   * pelo Prestare — `aguardando_aprovacao`, `recusada` ou `conflito` — e aí é
+   * desfeita no Prestare (sem operação) ao CONFIRMAR. Qualquer outra → 400.
+   */
   private async veiculoLivre(idCondominio: number, idVeiculoBruto: unknown) {
     const idVeiculo = Number(idVeiculoBruto);
     if (!Number.isInteger(idVeiculo) || idVeiculo <= 0) throw new BadRequestException('Informe o veículo.');
@@ -166,9 +176,16 @@ export class GuaritaCapturaService {
       select: { id: true, id_tag: true },
     });
     if (!veiculo) throw new NotFoundException('Veículo não encontrado.');
-    // Uma tag por veículo ativo (regra de Veículos): o controle/tag do Guarita ocupa o lugar.
-    if (veiculo.id_tag != null) throw new BadRequestException('Este veículo já tem uma tag. Desvincule a atual antes.');
-    return veiculo;
+    let substituir: any = null;
+    if (veiculo.id_tag != null) {
+      const atual = await this.prisma.tags.findUnique({ where: { id: veiculo.id_tag } });
+      const trocavel = ['aguardando_aprovacao', 'recusada', 'conflito'];
+      if (!atual || atual.id_device == null || !trocavel.includes(atual.guarita_estado ?? '')) {
+        throw new BadRequestException('Remova a tag atual deste veículo antes de cadastrar outra.');
+      }
+      substituir = atual;
+    }
+    return { ...veiculo, substituir };
   }
 
   /** Tag nova do Guarita ligada ao veículo + cadastro na fila; se o cadastro não monta, nada fica. */
@@ -186,6 +203,11 @@ export class GuaritaCapturaService {
     });
     if (repetida) throw new BadRequestException('Este dispositivo já está cadastrado neste Guarita.');
     const veiculo = await this.veiculoLivre(device.id_condominio, idVeiculo);
+    if (veiculo.substituir) {
+      // A tag que estava esperando (aprovação, recusada ou em conflito) sai do Prestare; nada vai ao Guarita.
+      await this.operacoes.desfazerNoPrestare(veiculo.substituir);
+      await this.prisma.veiculos.update({ where: { id: veiculo.id }, data: { id_tag: null } });
+    }
     const base = `G${tipo}-${serial}`;
     let tag: any = null;
     for (const codigo of [base, `${base}-D${device.id}`]) {

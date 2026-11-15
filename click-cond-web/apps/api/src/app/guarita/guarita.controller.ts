@@ -215,9 +215,35 @@ export class GuaritaController {
     @Param('deviceId', ParseIntPipe) deviceId: number,
     @Query('estado') estado: string | undefined,
     @ReqUser() user: JwtPayload,
+    @Query('busca') busca?: string,
+    @Query('pagina') pagina?: string,
+    @Query('por_pagina') porPagina?: string,
   ) {
     assertOperador(user, 'listar os dispositivos do Guarita');
-    return this.importacao.listarDispositivos(idCondominio, deviceId, estado);
+    return this.importacao.listarDispositivosPaginado(idCondominio, deviceId, { estado, busca, pagina, por_pagina: porPagina });
+  }
+
+  @Get(':deviceId/veiculos-para-vincular')
+  async veiculosParaVincular(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @Query('busca') busca: string | undefined,
+    @Query('limite') limite: string | undefined,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'buscar veículos para vincular ao Guarita');
+    return this.importacao.veiculosParaVincular(idCondominio, deviceId, busca, limite);
+  }
+
+  /** Pede um 29 (atualizar receptores) — o "Tentar de novo" do console. */
+  @Post(':deviceId/atualizar-receptores')
+  async atualizarReceptores(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'atualizar os receptores do Guarita');
+    return this.operacoes.solicitarAtualizarReceptores(idCondominio, deviceId, autorDoUsuario(user));
   }
 
   @Post(':deviceId/dispositivos/:idTag/vincular')

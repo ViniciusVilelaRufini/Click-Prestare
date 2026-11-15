@@ -55,13 +55,32 @@ describe('Guarita — captura', () => {
     expect(await ctrl.listarCaptura(7, 10, OPERADOR)).toEqual(vistoPelaOutra);
   });
 
-  it('janela nova substitui a anterior (uma por Guarita) e a janela nunca vai para o agente', async () => {
+  it('segunda captura com uma janela de 60 s aberta: 409; depois dela, a nova substitui; a janela nunca vai para o agente', async () => {
     const { ctrl, db, agente } = montar();
     await ctrl.abrirCaptura(7, 10, { id_veiculo: 70 }, OPERADOR);
+    await expect(ctrl.abrirCaptura(7, 10, { id_veiculo: 70 }, OPERADOR)).rejects.toThrow(
+      'Já existe um cadastro por captura em andamento neste Guarita.',
+    );
+    db.linhas('guarita_Operacoes')[0].created_at = new Date(Date.now() - 61_000);
     await ctrl.abrirCaptura(7, 10, { id_veiculo: 70 }, OPERADOR);
     const janelas = db.linhas('guarita_Operacoes').filter((o: any) => o.tipo === 'captura');
     expect(janelas.map((j: any) => j.estado)).toEqual(['cancelada', 'pendente']);
     expect((await agente.buscarOperacoes(DEV)).operacoes).toEqual([]);
+  });
+
+  it('veículo com tag aguardando aprovação/recusada/conflito: a captura confirmada troca a tag (a antiga é desfeita no Prestare)', async () => {
+    const { ctrl, agente, db } = montar();
+    db.semear('tags', [{ id: 5, id_condominio: 7, codigo: '985198', tipo: 'rfid', id_device: 10, guarita_estado: 'aguardando_aprovacao', guarita_serial: '0F086E' }]);
+    db.linhas('veiculos')[0].id_tag = 5;
+    await ctrl.abrirCaptura(7, 10, { id_veiculo: 70 }, OPERADOR);
+    await new Promise((r) => setTimeout(r, 5));
+    await agente.registrarNaoCadastrado(DEV, naoCad({ comando: 42, tipo: 2, serial_hex: '000007' }));
+    await ctrl.confirmarCaptura(7, 10, { tipo: 2, serial_hex: '000007', id_veiculo: 70 }, OPERADOR);
+    const antiga = db.linhas('tags').find((t: any) => t.id === 5);
+    expect(antiga).toMatchObject({ id_device: null, guarita_estado: null });
+    const novaId = db.linhas('veiculos')[0].id_tag;
+    expect(db.linhas('tags').find((t: any) => t.id === novaId)).toMatchObject({ codigo: 'G2-000007', guarita_estado: 'pendente' });
+    expect(db.linhas('guarita_Operacoes').filter((o: any) => o.tipo === 'apagar')).toHaveLength(0);
   });
 
   it('confirmar cria a tag, vincula ao veículo e enfileira o cadastro', async () => {
@@ -97,8 +116,9 @@ describe('Guarita — captura', () => {
   it('veículo de outro condomínio → 404; veículo que já tem tag → 400', async () => {
     const { ctrl, db } = montar();
     await expect(ctrl.abrirCaptura(7, 10, { id_veiculo: 80 }, OPERADOR)).rejects.toBeInstanceOf(NotFoundException);
+    db.semear('tags', [{ id: 99, id_condominio: 7, codigo: 'G2-000099', id_device: 10, guarita_tipo: 2, guarita_serial: '000099', guarita_estado: 'ativo' }]);
     db.linhas('veiculos')[0].id_tag = 99;
-    await expect(ctrl.abrirCaptura(7, 10, { id_veiculo: 70 }, OPERADOR)).rejects.toThrow(/já tem uma tag/);
+    await expect(ctrl.abrirCaptura(7, 10, { id_veiculo: 70 }, OPERADOR)).rejects.toThrow('Remova a tag atual deste veículo antes de cadastrar outra.');
   });
 });
 

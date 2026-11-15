@@ -374,6 +374,7 @@ describe('Guarita — tag vinculada pelo morador no app (payloads do app 1.2.49)
     // insert do app 1.2.49: { placa, cor, marca_modelo, tag_codigo }
     const criado = await svc.criarVeiculoMorador(500, 7, { placa: 'ABC1D23', cor: 'Prata', marca_modelo: 'Fiat Uno', tag_codigo: '015 02158' });
     expect(criado.guarita_estado).toBe('aguardando_aprovacao');
+    expect(criado).toHaveProperty('guarita_erro', null);
     const tag = db.linhas('tags')[0];
     expect(tag).toMatchObject({ id_device: 10, guarita_estado: 'aguardando_aprovacao', guarita_serial: '0F086E' });
     expect(db.linhas('guarita_Operacoes')).toHaveLength(0);
@@ -401,6 +402,24 @@ describe('Guarita — tag vinculada pelo morador no app (payloads do app 1.2.49)
     expect(semGuarita.db.linhas('guarita_Operacoes')).toHaveLength(0);
   });
 
+  it('para o app: conflito sai como falhou com explicação; ausente e a_vincular não são enviados; erro vai junto', async () => {
+    const { db, ops } = montar();
+    tagComVeiculo(db, { idTag: 1, idVeiculo: 70, idMorador: 50, estado: 'conflito', serial: '0F086E' });
+    const svc = app(db, ops);
+    expect((await svc.listVeiculosByUser(500, 7))[0]).toMatchObject({
+      guarita_estado: 'falhou',
+      guarita_erro: 'Este código já está em uso em outra unidade. Procure a portaria.',
+    });
+    for (const e of ['ausente', 'a_vincular']) {
+      db.linhas('tags')[0].guarita_estado = e;
+      const v = (await svc.listVeiculosByUser(500, 7))[0];
+      expect(v).not.toHaveProperty('guarita_estado');
+      expect(v).not.toHaveProperty('guarita_erro');
+    }
+    Object.assign(db.linhas('tags')[0], { guarita_estado: 'falhou', guarita_erro: 'Memória do Guarita cheia.' });
+    expect((await svc.listVeiculosByUser(500, 7))[0]).toMatchObject({ guarita_estado: 'falhou', guarita_erro: 'Memória do Guarita cheia.' });
+  });
+
   it('o app reenvia o código da tag do Guarita a cada edição: nada muda', async () => {
     const { db, ops } = montar();
     tagComVeiculo(db, { idTag: 1, idVeiculo: 70, idMorador: 50, estado: 'ativo', serial: '0F086E', placa: 'ABC1D23' });
@@ -408,6 +427,7 @@ describe('Guarita — tag vinculada pelo morador no app (payloads do app 1.2.49)
     await expect(svc.atualizarVeiculoMorador(500, 7, { id: 70, placa: 'ABC1D23', tag_codigo: 'G2-0F086E' })).resolves.toEqual({
       ok: true,
       guarita_estado: 'ativo',
+      guarita_erro: null,
     });
     expect(db.linhas('tags')).toHaveLength(1);
     expect(db.linhas('veiculos')[0].id_tag).toBe(1);
@@ -457,6 +477,17 @@ describe('Guarita — tag vinculada pelo morador no app (payloads do app 1.2.49)
     const nova = db.linhas('veiculos').find((x: any) => x.id === v.id).id_tag;
     expect(db.linhas('tags').find((t: any) => t.id === nova).guarita_estado).toBe('aguardando_aprovacao');
     expect(db.linhas('guarita_Operacoes')).toHaveLength(0);
+  });
+});
+
+describe('Guarita — atualizar receptores pelo console', () => {
+  it('enfileira no máximo um pendente', async () => {
+    const { db, ops } = montar();
+    const a = await ops.solicitarAtualizarReceptores(7, 10, 'x');
+    const b = await ops.solicitarAtualizarReceptores(7, 10, 'x');
+    expect(a).toMatchObject({ tipo: 'atualizar_receptores', estado: 'pendente' });
+    expect(b.id).toBe(a.id);
+    expect(db.linhas('guarita_Operacoes')).toHaveLength(1);
   });
 });
 

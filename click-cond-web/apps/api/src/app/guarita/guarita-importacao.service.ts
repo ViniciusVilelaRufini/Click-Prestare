@@ -574,6 +574,80 @@ export class GuaritaImportacaoService {
   // ------------------------------------------------------ rotas do console
 
   /** `GET …/dispositivos?estado=`: os dispositivos deste Guarita, com unidade, veículo, estado e erro. */
+  /**
+   * `GET …/dispositivos?estado=&busca=&pagina=1&por_pagina=50` →
+   * `{ itens, total, pagina, por_pagina }`. A busca (sem caixa) olha serial,
+   * placa (do Guarita e do veículo), rótulo, unidade, apartamento e morador.
+   */
+  async listarDispositivosPaginado(
+    idCondominio: number,
+    deviceId: number,
+    q: { estado?: string; busca?: string; pagina?: unknown; por_pagina?: unknown } = {},
+  ) {
+    const todos = await this.listarDispositivos(idCondominio, deviceId, q.estado);
+    const termo = String(q.busca ?? '').trim().toUpperCase();
+    const filtrados = termo
+      ? todos.filter((d: any) =>
+          [d.guarita_serial, d.placa, d.veiculo_placa, d.rotulo, d.unidade != null ? String(d.unidade) : null, d.apartamento, d.morador_nome, d.codigo]
+            .filter((x) => x != null)
+            .some((x) => String(x).toUpperCase().includes(termo)),
+        )
+      : todos;
+    const porPagina = Math.min(200, Math.max(1, Number.parseInt(String(q.por_pagina ?? '50'), 10) || 50));
+    const pagina = Math.max(1, Number.parseInt(String(q.pagina ?? '1'), 10) || 1);
+    return {
+      itens: filtrados.slice((pagina - 1) * porPagina, pagina * porPagina),
+      total: filtrados.length,
+      pagina,
+      por_pagina: porPagina,
+    };
+  }
+
+  /**
+   * `GET …/veiculos-para-vincular?busca=&limite=20`: veículos ATIVOS SEM TAG do
+   * condomínio, por placa, nome do morador ou unidade.
+   */
+  async veiculosParaVincular(idCondominio: number, deviceId: number, busca?: string, limiteBruto?: unknown) {
+    const device = await buscarGuaritaDoCondominio(this.prisma, idCondominio, deviceId);
+    const limite = Math.min(50, Math.max(1, Number.parseInt(String(limiteBruto ?? '20'), 10) || 20));
+    const veiculos = await this.prisma.veiculos.findMany({
+      where: { id_condominio: device.id_condominio, ativo: 1, id_tag: null },
+      orderBy: { id: 'asc' },
+      select: { id: true, placa: true, marca_modelo: true, id_morador: true },
+    });
+    const idsMoradores = [...new Set(veiculos.map((v: any) => v.id_morador))];
+    const moradores = idsMoradores.length
+      ? await this.prisma.moradores.findMany({
+          where: { id: { in: idsMoradores } },
+          select: { id: true, nome: true, bloco: true, apartamento: true },
+        })
+      : [];
+    const porId = new Map(moradores.map((m: any) => [m.id, m]));
+    const termo = String(busca ?? '').trim().toUpperCase();
+    const termoPlaca = normalizarPlaca(termo);
+    const saida: Array<Record<string, unknown>> = [];
+    for (const v of veiculos) {
+      const m: any = porId.get(v.id_morador) ?? null;
+      const item = {
+        id: v.id,
+        placa: v.placa,
+        marca_modelo: v.marca_modelo ?? null,
+        morador_nome: m?.nome ?? null,
+        apartamento: m?.apartamento ?? null,
+        bloco: m?.bloco ?? null,
+      };
+      const casa =
+        !termo ||
+        (termoPlaca && normalizarPlaca(v.placa).includes(termoPlaca)) ||
+        [item.morador_nome, item.apartamento, item.bloco, `${item.bloco ?? ''} ${item.apartamento ?? ''}`]
+          .filter((x) => x != null)
+          .some((x) => String(x).toUpperCase().includes(termo));
+      if (casa) saida.push(item);
+      if (saida.length >= limite) break;
+    }
+    return saida;
+  }
+
   async listarDispositivos(idCondominio: number, deviceId: number, estado?: string) {
     const device = await buscarGuaritaDoCondominio(this.prisma, idCondominio, deviceId);
     if (estado !== undefined && estado !== '' && !(Object.values(ESTADO_TAG) as string[]).includes(estado)) {

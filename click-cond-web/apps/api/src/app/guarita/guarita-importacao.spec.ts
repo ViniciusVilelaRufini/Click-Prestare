@@ -366,7 +366,9 @@ describe('Guarita — rotas do console de dispositivos e cópias', () => {
 
   it('lista com unidade, veículo, estado e erro; filtra por estado', async () => {
     const { ctrl } = await comImportacao();
-    const todos: any[] = await ctrl.listarDispositivos(7, 10, undefined, OPERADOR);
+    const pagina: any = await ctrl.listarDispositivos(7, 10, undefined, OPERADOR);
+    expect(pagina).toMatchObject({ total: 2, pagina: 1, por_pagina: 50 });
+    const todos: any[] = pagina.itens;
     expect(todos).toHaveLength(2);
     expect(todos[0]).toMatchObject({
       id: expect.any(Number),
@@ -388,8 +390,23 @@ describe('Guarita — rotas do console de dispositivos e cópias', () => {
       id_morador: 50,
       morador_nome: 'Ana',
     });
-    const aVincular: any[] = await ctrl.listarDispositivos(7, 10, 'a_vincular', OPERADOR);
-    expect(aVincular.map((d) => d.guarita_serial)).toEqual(['000002']);
+    const aVincular: any = await ctrl.listarDispositivos(7, 10, 'a_vincular', OPERADOR);
+    expect(aVincular.itens.map((d: any) => d.guarita_serial)).toEqual(['000002']);
+    // Busca (serial, placa, rótulo, unidade...) e paginação no servidor.
+    expect((await ctrl.listarDispositivos(7, 10, undefined, OPERADOR, 'abc1d')).itens.map((d: any) => d.guarita_serial)).toEqual(['000001']);
+    expect((await ctrl.listarDispositivos(7, 10, undefined, OPERADOR, '202')).itens.map((d: any) => d.guarita_serial)).toEqual(['000002']);
+    const p2: any = await ctrl.listarDispositivos(7, 10, undefined, OPERADOR, undefined, '2', '1');
+    expect(p2).toMatchObject({ total: 2, pagina: 2, por_pagina: 1 });
+    expect(p2.itens.map((d: any) => d.guarita_serial)).toEqual(['000002']);
+  });
+
+  it('veículos para vincular: só ativos sem tag, por placa, morador ou unidade, até o limite', async () => {
+    const { ctrl } = await comImportacao();
+    const todos: any[] = await ctrl.veiculosParaVincular(7, 10, undefined, undefined, OPERADOR);
+    expect(todos).toEqual([{ id: 71, placa: 'XYZ9876', marca_modelo: null, morador_nome: 'Bruno', apartamento: '202', bloco: 'B' }]);
+    expect(await ctrl.veiculosParaVincular(7, 10, 'xyz-98', undefined, OPERADOR)).toHaveLength(1);
+    expect(await ctrl.veiculosParaVincular(7, 10, 'bruno', undefined, OPERADOR)).toHaveLength(1);
+    expect(await ctrl.veiculosParaVincular(7, 10, 'ana', undefined, OPERADOR)).toHaveLength(0);
   });
 
   it('cópias: lista sem os dados e download com os frames; cópia de outro Guarita → 404', async () => {
