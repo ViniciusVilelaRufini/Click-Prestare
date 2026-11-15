@@ -32,6 +32,18 @@ describe('I7 — remover a unidade tira do Guarita os dispositivos de quem morav
   });
 });
 
+describe('Menor 12 — unidade sem bloco: null e vazio são o mesmo bloco', () => {
+  it('apartamento com bloco null e morador com bloco vazio: a remoção sai', async () => {
+    const { db, ops } = montar();
+    db.linhas('apartamentos')[0].bloco = null;
+    db.linhas('moradores')[0].bloco = '';
+    const tenant: any = { assertEntidade: jest.fn(async () => true), assertPermissaoFuncionario: jest.fn(async () => true) };
+    const svc = new ApartamentosService(db as any, tenant, { registrar: jest.fn(async () => undefined) } as any, ops);
+    const r: any = await svc.remove(1, { sub: 1, nome: 'Síndica', typeAccess: 'Sindico' } as any);
+    expect(r.guarita_remocoes).toBe(1);
+  });
+});
+
 describe('I7 — troca/remoção de tag pelo app com o Guarita desativado', () => {
   it('a remoção da tag antiga entra na fila mesmo com o aparelho desativado', async () => {
     const { db, ops } = montar(0);

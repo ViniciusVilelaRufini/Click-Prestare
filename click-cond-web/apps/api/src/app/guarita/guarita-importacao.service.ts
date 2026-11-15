@@ -810,6 +810,19 @@ export class GuaritaImportacaoService {
       where: { id: tag.id },
       data: { guarita_estado: ESTADO_TAG.ativo, guarita_erro: null },
     });
-    return { id_tag: tag.id, estado: ESTADO_TAG.ativo, id_veiculo: veiculo.id };
+    // A decisão é humana; só avisa quando a unidade gravada no Guarita não é a
+    // do dono do veículo (a saída dele apagaria o dispositivo daquela unidade).
+    const comFrame = await this.prisma.tags.findUnique({ where: { id: tag.id }, select: { guarita_frame: true } });
+    let aviso: string | null = null;
+    try {
+      const d = comFrame?.guarita_frame ? decodificarDispositivo(comFrame.guarita_frame) : null;
+      const dono = await this.prisma.veiculos.findUnique({ where: { id: veiculo.id }, select: { id_morador: true } });
+      if (d && dono && !(await this.mesmaUnidadeDoMorador(dono.id_morador, d, await this.prisma.apartamentos.findMany({ where: { id_condominio: device.id_condominio }, select: { id: true, bloco: true, apto: true } })))) {
+        aviso = `No Guarita este dispositivo está na unidade ${d.unidade} bloco ${d.bloco}, diferente da unidade do dono do veículo.`;
+      }
+    } catch {
+      aviso = null;
+    }
+    return { id_tag: tag.id, estado: ESTADO_TAG.ativo, id_veiculo: veiculo.id, ...(aviso && { aviso }) };
   }
 }

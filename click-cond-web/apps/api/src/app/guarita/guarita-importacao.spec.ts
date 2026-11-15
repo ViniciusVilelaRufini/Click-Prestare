@@ -426,6 +426,15 @@ describe('Guarita — rotas do console de dispositivos e cópias', () => {
     const tag = db.linhas('tags').find((t: any) => t.guarita_serial === '000002');
     const r: any = await ctrl.vincular(7, 10, tag.id, { id_veiculo: 71 }, OPERADOR);
     expect(r).toMatchObject({ id_tag: tag.id, estado: 'ativo', id_veiculo: 71 });
+    expect(r).not.toHaveProperty('aviso'); // 202 B é a unidade do Bruno
+
+    // Vínculo com o veículo de outra unidade: vincula (decisão humana), mas avisa.
+    const outra = db.linhas('tags').find((t: any) => t.guarita_serial === '000001');
+    Object.assign(outra, { guarita_estado: 'a_vincular' });
+    db.linhas('veiculos').find((v: any) => v.id === 70).id_tag = null;
+    db.semear('veiculos', [{ id: 72, id_condominio: 7, id_morador: 51, placa: 'OUT1A11', ativo: 1, id_tag: null }]);
+    const r2: any = await ctrl.vincular(7, 10, outra.id, { id_veiculo: 72 }, OPERADOR);
+    expect(r2.aviso).toMatch(/unidade 101 bloco A, diferente da unidade do dono/);
     expect(db.linhas('veiculos').find((v: any) => v.id === 71).id_tag).toBe(tag.id);
     expect(db.linhas('guarita_Operacoes').filter((o: any) => o.tipo !== 'importar')).toEqual([]);
   });
