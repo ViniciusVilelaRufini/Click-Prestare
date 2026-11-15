@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../auth/public.decorator';
 import {
@@ -95,10 +95,21 @@ export class AgentController {
 
   @Public()
   @Get('condo/:token/poll')
-  async condoPoll(@Param('token') token: string) {
+  async condoPoll(@Param('token') token: string, @Query('capacidades') capacidades?: string) {
     const { idCondominio, soDispositivo, semAgentToken } = await this.escopo(token);
     const todos = await this.service.getActiveDevices(idCondominio);
-    const devices = soDispositivo == null ? todos : todos.filter((d) => d.id === soDispositivo);
+    // Módulo Guarita: só vai para o agente que declara falar com ele
+    // (`?capacidades=guarita`). O agente antigo não tem o driver e trataria o
+    // aparelho como REST genérico, abrindo conexão HTTP na porta única do
+    // Guarita a cada heartbeat; para ele o Guarita é omitido e o console avisa.
+    const falaGuarita = String(capacidades ?? '')
+      .split(',')
+      .map((c) => c.trim().toLowerCase())
+      .includes('guarita');
+    const temGuarita = todos.some((d) => d.tipo === 'guarita');
+    if (temGuarita) await this.bridge.marcarAgenteSemGuarita(idCondominio, !falaGuarita).catch(() => undefined);
+    const visiveis = falaGuarita ? todos : todos.filter((d) => d.tipo !== 'guarita');
+    const devices = soDispositivo == null ? visiveis : visiveis.filter((d) => d.id === soDispositivo);
     // Antes do poll (que marca o heartbeat): quem estava offline até agora.
     const reconectados = new Set(devices.filter((d) => !this.bridge.isOnline(d.id)).map((d) => d.id));
     // Uma leitura da fila para o condomínio inteiro, em vez de uma por device.

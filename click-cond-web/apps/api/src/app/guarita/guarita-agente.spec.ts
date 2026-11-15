@@ -437,3 +437,48 @@ describe('banco falso dos testes do Guarita', () => {
     expect(r.count).toBe(0);
   });
 });
+
+describe('I1 — o Guarita só vai para o agente que declara falar com ele', () => {
+  function montarPoll() {
+    const { AgentController } = require('../facial/agent.controller');
+    const devices = [
+      { id: 10, id_condominio: 7, nome: 'Guarita', tipo: 'guarita', fabricante: 'linear', ip: '10.0.0.10', porta: 9000, api_user: null, api_password: 'pw', ultima_sincr: new Date() },
+      { id: 11, id_condominio: 7, nome: 'Facial', tipo: 'facial', fabricante: 'intelbras', ip: '10.0.0.11', porta: 80, api_user: 'admin', api_password: 'x', ultima_sincr: new Date() },
+    ];
+    const service: any = {
+      resolveAgente: jest.fn(async () => ({ idCondominio: 7 })),
+      getActiveDevices: jest.fn(async () => devices.map((d) => ({ ...d }))),
+      syncAllForCondominio: jest.fn(async () => undefined),
+    };
+    const bridge = new AgentBridgeService();
+    const descoberta: any = { consumirPedido: jest.fn(async () => false) };
+    const ctrl = new AgentController(service, bridge, {} as any, descoberta);
+    return { ctrl, bridge };
+  }
+
+  it('sem ?capacidades=guarita o Guarita é omitido e o estado do aparelho manda atualizar o agente', async () => {
+    const { ctrl, bridge } = montarPoll();
+    const r: any = await ctrl.condoPoll('agente-7');
+    expect(r.devices.map((d: any) => d.device.id)).toEqual([11]);
+    expect(await bridge.agenteSemGuarita(7)).toBe(true);
+
+    const { GuaritaPortoesService } = require('./guarita-portoes.service');
+    const db = criarBancoFalso();
+    db.semear('facial_Devices', [{ id: 10, id_condominio: 7, nome: 'G', tipo: 'guarita', ativo: 1 }]);
+    const portoes = new GuaritaPortoesService(db as any, bridge, {} as any, new GuaritaAgenteService(db as any, {} as any));
+    await expect(portoes.estado(7, 10)).resolves.toMatchObject({
+      erro: 'O agente instalado não fala com o Módulo Guarita. Atualize o agente.',
+      erro_tipo: 'agente_desatualizado',
+    });
+  });
+
+  it('com ?capacidades=guarita o Guarita vem no poll (com a palavra, só para o agente)', async () => {
+    const { ctrl, bridge } = montarPoll();
+    const r: any = await ctrl.condoPoll('agente-7', 'guarita');
+    expect(r.devices.map((d: any) => d.device.id).sort()).toEqual([10, 11]);
+    expect(r.devices.find((d: any) => d.device.id === 10).device.api_password).toBe('pw');
+    expect(await bridge.agenteSemGuarita(7)).toBe(false);
+    const r2: any = await ctrl.condoPoll('agente-7', 'outra,guarita');
+    expect(r2.devices).toHaveLength(2);
+  });
+});

@@ -192,6 +192,23 @@ export class GuaritaPortoesService {
     });
     const erro29 = ultimo29?.estado === ESTADO_OP.falhou ? `Receptores não atualizados: ${ultimo29.erro ?? 'falha no comando 29'}` : null;
     const delta = e?.relogio_delta_s ?? null;
+    const agenteOnline = this.bridge.isOnline(device.id);
+    const desatualizado = !e && (await this.bridge.agenteSemGuarita?.(device.id_condominio));
+    let erro: string | null = null;
+    let erroTipo: 'receptores' | 'agente_desatualizado' | 'agente_offline' | 'palavra' | 'conexao' | null = null;
+    if (desatualizado) {
+      erro = 'O agente instalado não fala com o Módulo Guarita. Atualize o agente.';
+      erroTipo = 'agente_desatualizado';
+    } else if (e?.erro) {
+      erro = e.erro;
+      erroTipo = e.autorizado === false && /palavra|recusad|negad/i.test(e.erro) ? 'palavra' : 'conexao';
+    } else if (erro29) {
+      erro = erro29;
+      erroTipo = 'receptores';
+    } else if (!agenteOnline) {
+      erro = 'O Agente Local deste condomínio não está conectado.';
+      erroTipo = 'agente_offline';
+    }
     return {
       conectado: e ? e.conectado : null,
       autorizado: e ? e.autorizado : null,
@@ -201,12 +218,13 @@ export class GuaritaPortoesService {
       relogio_delta_s: delta,
       aviso_relogio: delta !== null && Math.abs(delta) > AVISO_RELOGIO_S,
       ultima_comunicacao: e?.recebido_em ?? extra?.ultima_sincr ?? null,
-      agente_online: this.bridge.isOnline(device.id),
+      agente_online: agenteOnline,
       pendentes,
       falhas,
       a_vincular: aVincular,
       aguardando_aprovacao: aguardando,
-      erro: e?.erro ?? erro29,
+      erro,
+      erro_tipo: erroTipo,
     };
   }
 }

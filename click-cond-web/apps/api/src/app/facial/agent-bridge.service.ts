@@ -644,6 +644,31 @@ export class AgentBridgeService implements OnModuleDestroy {
   async consumirPedidoDeAtualizacao(idCondominio: number): Promise<boolean> {
     return (await this.estado.consumirUmaVez<boolean>(`agente:pedido-atualizacao:${idCondominio}`)) !== null;
   }
+
+  // ---- Módulo Guarita: agente que não fala com ele ----
+  /** Só para não gravar a cada poll (a cada ~2 s): uma escrita por condomínio a cada minuto, por instância. */
+  private readonly avisoGuaritaGravadoEm = new Map<string, number>();
+
+  /**
+   * O poll veio de um agente que NÃO declarou `capacidades=guarita` num
+   * condomínio com Guarita (o Guarita foi omitido da lista). Fica 3 min no
+   * estado compartilhado para o console avisar "atualize o agente".
+   */
+  async marcarAgenteSemGuarita(idCondominio: number, semSuporte: boolean): Promise<void> {
+    const chave = `guarita:agente-sem-suporte:${idCondominio}`;
+    const memo = `${chave}:${semSuporte ? 1 : 0}`;
+    const agora = Date.now();
+    if (agora - (this.avisoGuaritaGravadoEm.get(memo) ?? 0) < 60_000) return;
+    this.avisoGuaritaGravadoEm.set(memo, agora);
+    if (this.avisoGuaritaGravadoEm.size > 5000) this.avisoGuaritaGravadoEm.clear();
+    if (semSuporte) await this.estado.definir(chave, true, 3 * 60 * 1000);
+    else await this.estado.remover(chave);
+  }
+
+  /** O último agente deste condomínio fez poll sem a capacidade `guarita`? */
+  async agenteSemGuarita(idCondominio: number): Promise<boolean> {
+    return (await this.estado.obter<boolean>(`guarita:agente-sem-suporte:${idCondominio}`)) !== null;
+  }
 }
 
 export type AgentCommandType =
