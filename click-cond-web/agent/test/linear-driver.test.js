@@ -726,7 +726,7 @@ test('I1: operação já concluída não é reexecutada depois de o agente reini
     await c.pronto();
     await c.relogio.avancar(0);
     await esperarAte(() => c.sim.comandosRecebidos(67).length === 1, { rotulo: 'o 67' });
-    await esperarAte(() => (armazem.ler()['42'] || []).length === 1, { rotulo: 'persistido' });
+    await esperarAte(() => (armazem.ler()['42'] || []).some((e) => e.id === 10 && e.corpo), { rotulo: 'persistido' });
     assert.deepEqual(armazem.ler()['42'], [{ id: 10, corpo: { ok: true, codigo: 0 }, enviado: false }]);
     c.reiniciarAgente();
     c.nuvem.falharResultados = false;
@@ -1114,5 +1114,37 @@ test('final I3: com o 7 mudo, importar falha na hora com erro claro e sem derrub
     assert.equal(c.sim.comandosRecebidos(7).length, 1);
     assert.equal(c.sim.conexoesAceitas, conexoes);
     assert.equal(c.servico().conectado, true);
+  });
+});
+
+
+test('final Menor 11: agente caiu entre escrever um editar e registrar o resultado → na reentrega confere (não reexecuta, não dá conflito falso)', async () => {
+  const { criarArmazemEmMemoria } = require('../src/drivers/linear-guarita');
+  const armazem = criarArmazemEmMemoria();
+  const antes = dispositivo(5); // unidade 5
+  const depois = Buffer.from(antes);
+  depois[7] = 6; // o editar mudou para a unidade 6 — e o Guarita já tem o novo
+  const op = { id: 80, tipo: 'editar', frame_hex: hex(depois), esperado: { unidade: 5, bloco: 0 } };
+  await cenario({ armazem, sim: { dispositivos: [antes] } }, async (c) => {
+    // 1ª vida do agente: registra "em andamento" ANTES de escrever.
+    c.nuvem.ops.push({ ...op });
+    c.sim.falhas.silencioEm({ comando: 67, opcao: 1 }); // o Ler responde; a escrita não volta e o agente "morre"
+    c.escutar();
+    await c.pronto();
+    await c.relogio.avancar(0);
+    await esperarAte(() => (armazem.ler()['42'] || []).some((e) => e.id === 80 && e.em_andamento), { rotulo: 'em andamento persistido' });
+    c.reiniciarAgente();
+  });
+  await cenario({ armazem, sim: { dispositivos: [depois] } }, async (c) => {
+    // 2ª vida: a nuvem reentrega a mesma operação.
+    c.nuvem.ops.push({ ...op });
+    c.escutar();
+    await c.pronto();
+    await c.relogio.avancar(0);
+    await esperarAte(() => c.nuvem.resultados.some((r) => r.id === 80), { rotulo: 'resultado' });
+    const r = c.nuvem.resultados.find((x) => x.id === 80);
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.equal(r.conflito, undefined);
+    assert.deepEqual(c.sim.comandosRecebidos(67).map((f) => f[2]), [3], 'só conferiu, não escreveu de novo');
   });
 });

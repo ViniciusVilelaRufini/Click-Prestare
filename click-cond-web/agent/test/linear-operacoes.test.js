@@ -658,3 +658,17 @@ test('final I2: conferirGravacao sem resposta → incerto', async () => {
     { relogio },
   );
 });
+
+
+test('final Menor 7: Ler que responde 0x00 com OUTRA chave não vira a mensagem "ok"', async () => {
+  const outro = dispositivo(9);
+  const sessaoFalsa = {
+    comando: async () => Buffer.concat([Buffer.from([0x03, 0x00]), outro]),
+    sequencia: async (fn) => fn({ comando: async () => Buffer.concat([Buffer.from([0x03, 0x00]), outro]) }),
+  };
+  const r = await ops.gravar(sessaoFalsa, { tipo: 'editar', frameHex: hex(dispositivo(5)), esperado: { unidade: 5, bloco: 0 } });
+  assert.equal(r.ok, false);
+  assert.equal(r.mensagem, 'O Guarita devolveu outro dispositivo na leitura.');
+  const c = await ops.conferirGravacao(sessaoFalsa, { tipo: 'cadastrar', frameHex: hex(dispositivo(5)) });
+  assert.equal(c.incerto, true);
+});

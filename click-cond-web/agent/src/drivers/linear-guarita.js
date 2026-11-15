@@ -495,7 +495,7 @@ class ServicoGuarita {
       this.filaEventos.splice(0, excesso);
       this._descartesLogados += excesso;
       this.log.error(
-        `${this.rotulo}: fila de eventos do Guarita cheia (${this.iv.limiteFilaEventos}); ${excesso} evento(s) mais antigo(s) descartado(s) — continuam na memória do Guarita e voltam na próxima recuperação`,
+        `${this.rotulo}: fila de eventos do Guarita cheia (${this.iv.limiteFilaEventos}); ${excesso} evento(s) mais antigo(s) descartado(s) — continuam na memória do Guarita e só voltam numa próxima recuperação (reinício do agente ou queda > 60 s)`,
       );
     }
   }
@@ -622,6 +622,10 @@ class ServicoGuarita {
       if (this.parado || !this.conectado) return;
       if (!op || typeof op !== 'object' || !Number.isInteger(op.id)) continue;
       const ja = this.executadas.get(op.id);
+      if (ja && ja.estado === 'a_conferir') {
+        await this._conferirPendente(op, ja);
+        continue;
+      }
       if (ja) {
         // Mesma operação devolvida de novo: NUNCA executa duas vezes. Se o
         // resultado já saiu, manda de novo (a rota é idempotente).
@@ -646,7 +650,13 @@ class ServicoGuarita {
       this.log.error(`${this.rotulo}: não consegui ler as operações concluídas (${(e && e.message) || e})`);
     }
     for (const item of lista) {
-      if (!item || !Number.isInteger(item.id) || !item.corpo || typeof item.corpo !== 'object') continue;
+      if (!item || !Number.isInteger(item.id)) continue;
+      if (item.em_andamento && item.op && typeof item.op === 'object') {
+        // O agente parou entre escrever e registrar: confere antes de repetir.
+        this.executadas.set(item.id, { estado: 'a_conferir', op: item.op, persistida: true });
+        continue;
+      }
+      if (!item.corpo || typeof item.corpo !== 'object') continue;
       this.executadas.set(item.id, { estado: 'concluida', partes: [item.corpo], enviadas: item.enviado ? 1 : 0, persistida: true });
     }
   }
@@ -655,8 +665,12 @@ class ServicoGuarita {
     try {
       const tudo = this.cfg.armazem.ler() || {};
       tudo[String(this.device.id)] = [...this.executadas]
-        .filter(([, e]) => e.persistida && e.estado === 'concluida')
-        .map(([id, e]) => ({ id, corpo: e.partes[0], enviado: e.enviadas >= e.partes.length }))
+        .filter(([, e]) => e.persistida && (e.estado === 'concluida' || ((e.estado === 'executando' || e.estado === 'a_conferir') && e.op)))
+        .map(([id, e]) =>
+          e.estado === 'concluida'
+            ? { id, corpo: e.partes[0], enviado: e.enviadas >= e.partes.length }
+            : { id, em_andamento: true, op: e.op },
+        )
         .slice(-MAX_PERSISTIDAS_POR_DEVICE);
       this.cfg.armazem.gravar(tudo);
     } catch (e) {
@@ -680,7 +694,14 @@ class ServicoGuarita {
       case 'cadastrar':
       case 'editar':
       case 'apagar': {
-        this._lembrar(op.id, { estado: 'executando' });
+        // Registrado em disco ANTES de escrever: se o agente parar no meio, a
+        // reentrega confere no Guarita em vez de repetir às cegas.
+        this._lembrar(op.id, {
+          estado: 'executando',
+          op: { id: op.id, tipo: op.tipo, frame_hex: op.frame_hex, esperado: op.esperado },
+          persistida: true,
+        });
+        this._persistirConcluidas();
         let r = await operacoes.gravar(sessao, { tipo: op.tipo, frameHex: op.frame_hex, esperado: op.esperado });
         if (r.escritoSemResposta) {
           // Saiu e não respondeu (a sessão caiu): pode ter gravado. Confere
@@ -688,21 +709,17 @@ class ServicoGuarita {
           this.log.error(`${this.rotulo}: operação ${op.id} (${op.tipo}) sem resposta; conferindo no Guarita depois de reconectar`);
           r = await this._conferirDepoisDaQueda(op);
         }
+        // Serviço parado no meio (ouvinte recriado, agente encerrando): não
+        // conclui nada — o registro "em andamento" fica em disco e o próximo
+        // serviço confere no Guarita.
+        if (this.parado) return;
         if (r.naoEnviado) {
           // Nem chegou ao Guarita (sessão caiu antes): fica para a reentrega.
           this.executadas.delete(op.id);
+          this._persistirConcluidas();
           return;
         }
-        const corpo = r.ok ? { ok: true } : { ok: false, erro: r.mensagem };
-        if (Number.isInteger(r.codigo)) corpo.codigo = r.codigo;
-        if (r.ja_estava) corpo.ja_estava = true;
-        if (r.conflito) corpo.conflito = true;
-        if (r.incerto) corpo.incerto = true;
-        if (r.lido) corpo.lido = r.lido;
-        // Qualquer ok (inclusive conferido depois da queda) pede o 29 do lote.
-        if (r.ok) this._marcarGravacao();
-        this.log.log(`${this.rotulo}: operação ${op.id} (${op.tipo}) → ${r.ok ? 'OK' : `FALHA (${r.mensagem})`}${r.ja_estava ? ' (já estava assim no Guarita)' : ''}`);
-        await this._concluir(op.id, [corpo], { persistir: true });
+        await this._concluirGravacao(op, r);
         return;
       }
       case 'atualizar_receptores': {
@@ -741,6 +758,40 @@ class ServicoGuarita {
         this._lembrar(op.id, { estado: 'executando' });
         await this._concluir(op.id, [{ ok: false, erro: `Operação desconhecida pelo agente: ${String(op.tipo)}.` }]);
     }
+  }
+
+  /** Corpo do resultado de uma gravação (contrato) a partir do retorno das operações. */
+  _corpoDaGravacao(r) {
+    const corpo = r.ok ? { ok: true } : { ok: false, erro: r.mensagem };
+    if (Number.isInteger(r.codigo)) corpo.codigo = r.codigo;
+    if (r.ja_estava) corpo.ja_estava = true;
+    if (r.conflito) corpo.conflito = true;
+    if (r.incerto) corpo.incerto = true;
+    if (r.lido) corpo.lido = r.lido;
+    return corpo;
+  }
+
+  async _concluirGravacao(op, r) {
+    // Qualquer ok (inclusive conferido depois da queda) pede o 29 do lote.
+    if (r.ok) this._marcarGravacao();
+    this.log.log(`${this.rotulo}: operação ${op.id} (${op.tipo}) → ${r.ok ? 'OK' : `FALHA (${r.mensagem})`}${r.ja_estava ? ' (já estava assim no Guarita)' : ''}`);
+    await this._concluir(op.id, [this._corpoDaGravacao(r)], { persistir: true });
+  }
+
+  /**
+   * Operação que estava "em andamento" quando o agente parou: confere no
+   * Guarita. Se o resultado pedido está lá (ou houve conflito/incerteza),
+   * informa; se claramente não foi feito, executa normalmente agora.
+   */
+  async _conferirPendente(op, ja) {
+    const pedido = ja.op;
+    const r = await operacoes.conferirGravacao(this.sessao, { tipo: pedido.tipo, frameHex: pedido.frame_hex, esperado: pedido.esperado });
+    if (!r.ok && !r.conflito && !r.incerto) {
+      this.executadas.delete(op.id);
+      await this._executarOperacao({ ...pedido, ...op });
+      return;
+    }
+    await this._concluirGravacao(pedido, r);
   }
 
   async _concluir(id, partes, { persistir = false } = {}) {

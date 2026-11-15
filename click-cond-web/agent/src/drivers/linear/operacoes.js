@@ -201,6 +201,8 @@ async function lerPelaChave(exec, frame) {
     return { existe: true, frame: Buffer.from(dados.subarray(2, 41)) };
   }
   if (dados[1] === 0x03) return { existe: false };
+  // 0x00 com outra chave (ou tamanho errado): não diz nada sobre este dispositivo.
+  if (dados[1] === 0x00) throw new Error('O Guarita devolveu outro dispositivo na leitura.');
   throw new Error(mensagemDoCodigo(dados[1]));
 }
 
@@ -233,7 +235,7 @@ function falhaDeComando(e, { escreveu = false } = {}) {
   if (e && e.codigo === 'desconectado') falha.naoEnviado = true;
   // A escrita saiu e a resposta não veio: pode ter gravado. Quem chama
   // confere depois de reconectar (conferirGravacao).
-  else if (escreveu && e && (e.codigo === 'sem_resposta' || e.codigo === 'queda')) falha.escritoSemResposta = true;
+  else if (escreveu && e && (e.codigo === 'sem_resposta' || e.codigo === 'queda' || e.codigo === 'fechada')) falha.escritoSemResposta = true;
   return falha;
 }
 
