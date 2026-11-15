@@ -49,6 +49,8 @@ export class DocumentosPageComponent implements OnInit {
   /** Erro ao publicar, mostrado dentro do drawer. */
   readonly erroUpload = signal<string | null>(null);
   novoDoc = { nome: '', isAta: false, base64: '' };
+  /** Muda quando o FileReader termina, para a tela se redesenhar (sem zone.js). */
+  readonly arquivoLido = signal(0);
 
   ngOnInit() {
     this.carregar();
@@ -100,6 +102,10 @@ export class DocumentosPageComponent implements OnInit {
           // Usa o nome do arquivo sem extensão como sugestão
           this.novoDoc.nome = file.name.replace(/\.[^/.]+$/, '');
         }
+        // O console roda sem zone.js e o FileReader termina fora de um evento
+        // da tela: sem um signal a tela não se redesenha e "Salvar" fica
+        // desabilitado (e o nome sugerido não aparece) até outro evento.
+        this.arquivoLido.update((n) => n + 1);
       };
       reader.readAsDataURL(file);
     }

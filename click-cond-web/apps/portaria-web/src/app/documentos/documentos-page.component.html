@@ -157,7 +157,7 @@
           <button (click)="fecharUpload()" [disabled]="salvando()" class="ps-btn ps-btn-ghost disabled:opacity-50">Cancelar</button>
           <button
             (click)="salvarDocumento()"
-            [disabled]="!novoDoc.nome || !novoDoc.base64 || salvando()"
+            [disabled]="arquivoLido() < 0 || !novoDoc.nome || !novoDoc.base64 || salvando()"
             class="ps-btn disabled:opacity-50"
           >
             Disponibilizar

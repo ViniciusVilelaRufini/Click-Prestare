@@ -79,7 +79,8 @@ export class AssembleiasPageComponent implements OnInit {
   readonly salvandoVotacao = signal(false);
   readonly erroAta = signal<string | null>(null);
   readonly ataNomeArquivo = signal('');
-  ataBase64 = '';
+  /** PDF da ATA lido (signal: o FileReader termina fora de um evento da tela e o console não usa zone.js). */
+  readonly ataBase64 = signal('');
   private assembleiaAFinalizar: Assembleia | null = null;
 
   readonly assembleias = signal<Assembleia[]>([]);
@@ -167,7 +168,7 @@ export class AssembleiasPageComponent implements OnInit {
   /** "Finalizar e Gerar ATA": pede o PDF da ATA antes de chamar a API. */
   abrirFinalizar(assemb: Assembleia) {
     this.assembleiaAFinalizar = assemb;
-    this.ataBase64 = '';
+    this.ataBase64.set('');
     this.ataNomeArquivo.set('');
     this.erroAta.set(null);
     this.modalFinalizar.set(true);
@@ -180,7 +181,7 @@ export class AssembleiasPageComponent implements OnInit {
 
   onAtaSelecionada(event: any) {
     const file: File | undefined = event.target.files?.[0];
-    this.ataBase64 = '';
+    this.ataBase64.set('');
     this.ataNomeArquivo.set('');
     this.erroAta.set(null);
     if (!file) return;
@@ -192,7 +193,7 @@ export class AssembleiasPageComponent implements OnInit {
     const reader = new FileReader();
     reader.onload = () => {
       // Sem o tipo no arquivo, o navegador devolve "data:application/octet-stream".
-      this.ataBase64 = String(reader.result ?? '').replace(/^data:[^;,]*/, 'data:application/pdf');
+      this.ataBase64.set(String(reader.result ?? '').replace(/^data:[^;,]*/, 'data:application/pdf'));
     };
     reader.onerror = () => this.erroAta.set('Não foi possível ler o arquivo.');
     reader.readAsDataURL(file);
@@ -200,10 +201,10 @@ export class AssembleiasPageComponent implements OnInit {
 
   confirmarFinalizacao() {
     const assemb = this.assembleiaAFinalizar;
-    if (!assemb || !this.ataBase64 || this.finalizando()) return;
+    if (!assemb || !this.ataBase64() || this.finalizando()) return;
     this.finalizando.set(true);
     this.erroAta.set(null);
-    this.api.finishAssembleia({ ...assemb, doc: this.ataBase64 }).subscribe({
+    this.api.finishAssembleia({ ...assemb, doc: this.ataBase64() }).subscribe({
       next: (res) => {
         this.finalizando.set(false);
         this.modalFinalizar.set(false);

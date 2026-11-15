@@ -203,7 +203,7 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
       const msg = 'Assembleia finalizada. ATA e apuração publicadas em Documentos.';
       const { comp } = render({ finishAssembleia: jest.fn(() => of({ success: true, message: msg })) });
       comp.abrirFinalizar(ASSEMBLEIA as any);
-      comp.ataBase64 = 'data:application/pdf;base64,JVBERi0=';
+      comp.ataBase64.set('data:application/pdf;base64,JVBERi0=');
       comp.confirmarFinalizacao();
       expect(alerta).toHaveBeenCalledWith(msg);
       alerta.mockRestore();

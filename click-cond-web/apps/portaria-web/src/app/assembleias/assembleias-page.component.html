@@ -516,7 +516,7 @@
           <button (click)="fecharFinalizar()" class="ps-btn ps-btn-sec" [disabled]="finalizando()">Cancelar</button>
           <button
             (click)="confirmarFinalizacao()"
-            [disabled]="!ataBase64 || finalizando()"
+            [disabled]="!ataBase64() || finalizando()"
             class="ps-btn disabled:opacity-50"
           >
             {{ finalizando() ? 'Finalizando…' : 'Finalizar e publicar ATA' }}

@@ -180,7 +180,7 @@ describe('AssembleiasPageComponent — erros, papel e ATA', () => {
       const { fixture, comp, api } = render(SINDICO);
       comp.verAssembleia(2);
       comp.abrirFinalizar(ASSEMBLEIA as any);
-      comp.ataBase64 = 'data:application/pdf;base64,JVBERi0=';
+      comp.ataBase64.set('data:application/pdf;base64,JVBERi0=');
       comp.confirmarFinalizacao();
       fixture.detectChanges();
       expect(api.finishAssembleia).toHaveBeenCalledWith(
@@ -195,7 +195,7 @@ describe('AssembleiasPageComponent — erros, papel e ATA', () => {
       });
       comp.verAssembleia(2);
       comp.abrirFinalizar(ASSEMBLEIA as any);
-      comp.ataBase64 = 'data:application/pdf;base64,JVBERi0=';
+      comp.ataBase64.set('data:application/pdf;base64,JVBERi0=');
       comp.confirmarFinalizacao();
       fixture.detectChanges();
       expect(comp.modalFinalizar()).toBe(true);
