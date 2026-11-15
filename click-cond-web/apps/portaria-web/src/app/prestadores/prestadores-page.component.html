@@ -221,6 +221,11 @@
               <span class="ml-2 text-xs font-medium text-slate-350">Acesso Portaria Web</span>
             </label>
           </div>
+          @if (loginDesativado && !novo.hasPortariaAccess) {
+            <p class="text-[11px] text-slate-450 -mt-1 mb-2">
+              Login desativado em Configurações › Equipe da portaria. Ligue a chave ou reative por lá para devolver o acesso.
+            </p>
+          }
 
           @if (novo.hasPortariaAccess) {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 animate-fade-in">

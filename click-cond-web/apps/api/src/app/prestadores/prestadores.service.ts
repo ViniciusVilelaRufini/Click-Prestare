@@ -869,8 +869,12 @@ export class PrestadoresService {
     const loginProprio =
       dto.hasPortariaAccess !== undefined || dto.email !== undefined ? await this.loginPortariaDoPrestador(atual) : null;
     // Revogar: desligar a chave ou limpar o e-mail (que é o login). Pedir o acesso com e-mail vence.
+    // Login desativado (aba Equipe da portaria): a lista já devolve hasPortariaAccess false para ele, e o console
+    // reenvia esse estado em todo salvar — `false` aqui é "a chave como estava", não revogar de vez.
+    const chaveJaDesligada = dto.hasPortariaAccess === false && !!loginProprio && loginProprio.ativo !== 1;
     const revoga =
-      !(dto.hasPortariaAccess && emailParaLogin) && (dto.hasPortariaAccess === false || (dto.email === null && !!atual.email));
+      !(dto.hasPortariaAccess && emailParaLogin) &&
+      ((dto.hasPortariaAccess === false && !chaveJaDesligada) || (dto.email === null && !!atual.email));
 
     // Conceder, mudar (senha, e-mail = login, reativar) ou revogar o login de portaria é do síndico, como no app.
     // Editar o prestador com a chave como está (o console manda o estado atual) continua com a portaria.

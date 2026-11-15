@@ -327,6 +327,11 @@ export class PrestadoresPageComponent implements OnInit {
   editingId: number | null = null;
   /** E-mail de acesso de quem já tem login, ao abrir a edição: trocá-lo exige senha nova (a API recusa sem). */
   emailDeAcessoOriginal: string | null = null;
+  /**
+   * Editando quem tem login próprio DESATIVADO (aba Equipe da portaria): a chave abre desligada. Salvar com ela como
+   * está não pode mandar `hasPortariaAccess: false`, que a API lê como revogar de vez. Ligar a chave reativa.
+   */
+  loginDesativado = false;
   readonly saving = signal(false);
 
   ngOnInit() {
@@ -366,6 +371,7 @@ export class PrestadoresPageComponent implements OnInit {
   abrirNovo() {
     this.editingId = null;
     this.emailDeAcessoOriginal = null;
+    this.loginDesativado = false;
     this.novo = { nome: '', telefone: '', email: '', senha: '', hasPortariaAccess: false, categorias: '', id_apartamento: 0, dias_semana: 'seg,ter,qua,qui,sex', foto_pessoa: undefined, foto_documento: undefined };
     this.categoriasSelecionadas.set(new Set());
     this.fotoPessoaBase64.set(null);
@@ -378,6 +384,7 @@ export class PrestadoresPageComponent implements OnInit {
   abrirEditar(p: Prestador) {
     this.editingId = p.id;
     this.emailDeAcessoOriginal = (p.loginPortariaProprio ?? p.hasPortariaAccess) ? (p.email ?? '').trim() : null;
+    this.loginDesativado = !!p.loginPortariaProprio && !p.hasPortariaAccess;
     this.fotoPessoaBase64.set(p.foto_pessoa ?? null);
     this.fotoDocumentoBase64.set(p.foto_documento ?? null);
     this.novo = {
@@ -459,7 +466,10 @@ export class PrestadoresPageComponent implements OnInit {
     this.saving.set(true);
     // Sem a alçada, a chave e a senha nem vão: a API mantém o login como está.
     const { hasPortariaAccess: _acesso, senha: _senha, ...semAcesso } = this.novo;
-    const dto = this.podeGerenciarAcesso() ? this.novo : semAcesso;
+    // Login desativado com a chave intocada (desligada): sem a chave, a API mantém o login como está.
+    const { hasPortariaAccess: _chave, ...semChave } = this.novo;
+    const manterDesativado = this.editingId !== null && this.loginDesativado && !this.novo.hasPortariaAccess;
+    const dto = !this.podeGerenciarAcesso() ? semAcesso : manterDesativado ? semChave : this.novo;
     const obs = this.editingId
       ? this.api.update(this.editingId, dto)
       : this.api.create(dto);

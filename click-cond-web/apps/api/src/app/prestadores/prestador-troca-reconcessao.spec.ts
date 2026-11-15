@@ -587,6 +587,34 @@ describe('Prestador × login de portaria — troca de e-mail, upsert por nome e 
     });
   });
 
+  describe('Rodada 4 (raia e) — login desativado na aba Equipe da portaria', () => {
+    // A lista devolve hasPortariaAccess false para o login inativo, e o console reenvia esse estado em todo salvar.
+    it.each([['síndico', sindico], ['porteiro', porteiro]])('%s salvando a edição com a chave desligada não revoga o login desativado', async (_n, user) => {
+      const { svc, db } = banco();
+      db.fp[0].ativo = 0;
+      await svc.update(1, { nome: 'Eletricista', email: 'a@x.com', telefone: '(11) 6666', hasPortariaAccess: false }, 1, user);
+      expect(db.prestadores[0].telefone).toBe('(11) 6666');
+      expect(db.fp).toEqual([expect.objectContaining({ id: 12, ativo: 0, login: 'a@x.com' })]);
+      expect(equipeAqui(db)).toHaveLength(1);
+      expect(conta(db, 5)).toEqual(expect.objectContaining({ login: 'a@x.com', password: '$2b$04$antiga', senha_alterada_em: null }));
+    });
+
+    it('limpar o e-mail de quem tem o login desativado continua revogando (síndico)', async () => {
+      const { svc, db } = banco();
+      db.fp[0].ativo = 0;
+      await svc.update(1, { email: null, hasPortariaAccess: false }, 1, sindico);
+      expect(db.fp).toHaveLength(0);
+      contaInutilizada(conta(db, 5));
+    });
+
+    it('ligar a chave reativa o login desativado (síndico), sem exigir senha', async () => {
+      const { svc, db } = banco();
+      db.fp[0].ativo = 0;
+      await svc.update(1, { email: 'a@x.com', hasPortariaAccess: true }, 1, sindico);
+      expect(db.fp).toEqual([expect.objectContaining({ id: 12, ativo: 1 })]);
+    });
+  });
+
   describe('Rodada 4 (raia e) — permissões guardadas ao desligar o acesso', () => {
     const flags = { areas_sociais: 1, comunicados: 0, ocorrencias: 1, manutencoes_programadas: 0, prestadores_servico: 1, agendar_mudanca: 0, cadastrar_visitante: 1, apartamentos: 0 };
     const todas = { areas_sociais: 1, comunicados: 1, ocorrencias: 1, manutencoes_programadas: 1, prestadores_servico: 1, agendar_mudanca: 1, cadastrar_visitante: 1, apartamentos: 1 };

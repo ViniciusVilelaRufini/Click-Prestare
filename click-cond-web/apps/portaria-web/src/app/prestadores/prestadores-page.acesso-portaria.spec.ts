@@ -104,6 +104,44 @@ describe('PrestadoresPageComponent — acesso à portaria só para o síndico', 
     expect((api.update.mock.calls[0] as any[])[1]).toHaveProperty('hasPortariaAccess', true);
   });
 
+  // Rodada 4 (raia e): o login desativado na aba "Equipe da portaria" aparece com a chave desligada. Salvar a edição
+  // (telefone, fotos) com a chave como está mandava hasPortariaAccess: false — e a API revogava o login de vez.
+  it('síndico edita quem tem o login desativado sem tocar na chave: a chave não vai (nada é revogado)', () => {
+    const { atualizar, cmp, api } = render(SINDICO, 'Síndico');
+    cmp.abrirEditar(loginInativo as any);
+    atualizar();
+    cmp.novo.telefone = '(11) 7777';
+    cmp.salvar();
+    const enviado = (api.update.mock.calls[0] as any[])[1];
+    expect(enviado).not.toHaveProperty('hasPortariaAccess');
+    expect(enviado.telefone).toBe('(11) 7777');
+  });
+
+  it('síndico liga a chave de quem tem o login desativado: a chave vai (reativa)', () => {
+    const { atualizar, cmp, api } = render(SINDICO, 'Síndico');
+    cmp.abrirEditar(loginInativo as any);
+    atualizar();
+    cmp.novo.hasPortariaAccess = true;
+    cmp.salvar();
+    expect((api.update.mock.calls[0] as any[])[1]).toHaveProperty('hasPortariaAccess', true);
+  });
+
+  it('a edição de quem tem o login desativado avisa onde reativar', () => {
+    const { atualizar, cmp, el } = render(SINDICO, 'Síndico');
+    cmp.abrirEditar(loginInativo as any);
+    atualizar();
+    expect(el.textContent).toContain('Login desativado em Configurações › Equipe da portaria');
+  });
+
+  it('desligar a chave de quem tem login ativo continua mandando false (revoga)', () => {
+    const { atualizar, cmp, api } = render(SINDICO, 'Síndico');
+    cmp.abrirEditar(comLogin as any);
+    atualizar();
+    cmp.novo.hasPortariaAccess = false;
+    cmp.salvar();
+    expect((api.update.mock.calls[0] as any[])[1]).toHaveProperty('hasPortariaAccess', false);
+  });
+
   it('porteiro não vê Excluir no prestador que tem login próprio, mesmo inativo; nos outros, vê', () => {
     const { el } = render(PORTEIRO, 'Diurno');
     expect(botoesExcluir(el)).toHaveLength(1);
