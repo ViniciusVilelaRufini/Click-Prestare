@@ -196,6 +196,8 @@ async function lerDispositivo(sessao, frame) {
 }
 
 const unidadeDe = (f) => f[6] * 100 + f[7];
+/** O que foi lido do Guarita, como vai no resultado: unidade, bloco e os 39 bytes. */
+const lidoDe = (f) => ({ unidade: unidadeDe(f), bloco: f[8], frame_hex: paraHex(f) });
 
 function esperadoValido(e) {
   return (
@@ -252,7 +254,7 @@ async function gravar(sessao, { tipo, frameHex, esperado } = {}) {
         }
         return { ok: false, codigo: 0x03, mensagem: mensagemDoCodigo(0x03) };
       }
-      const atual = { unidade: unidadeDe(lido.frame), bloco: lido.frame[8] };
+      const atual = lidoDe(lido.frame);
       if (atual.unidade !== esperado.unidade || atual.bloco !== esperado.bloco) {
         return {
           ok: false,
@@ -291,9 +293,12 @@ async function cadastrar(sessao, frame) {
   // confere pelo Ler se o objetivo já está atendido.
   const lido = await lerDispositivo(sessao, frame);
   if (!lido) return base;
-  const atual = { unidade: unidadeDe(lido), bloco: lido[8] };
-  if (atual.unidade === unidadeDe(frame) && atual.bloco === frame[8]) {
-    return { ok: true, codigo, ja_estava: true, mensagem: 'Este dispositivo já estava cadastrado no Guarita.' };
+  const atual = lidoDe(lido);
+  // ja_estava só com a mesma unidade, o mesmo bloco e, no RF, o mesmo contador.
+  const eRf = frame[0] >> 4 === 1;
+  const mesmoContador = !eRf || (lido[4] === frame[4] && lido[5] === frame[5]);
+  if (atual.unidade === unidadeDe(frame) && atual.bloco === frame[8] && mesmoContador) {
+    return { ok: true, codigo, ja_estava: true, lido: atual, mensagem: 'Este dispositivo já estava cadastrado no Guarita.' };
   }
   return {
     ok: false,

@@ -174,7 +174,13 @@ test('I1: cadastrar repetido (0x02) é conferido pelo 67 opção 3 — mesma uni
     const outroRotulo = Buffer.from(d);
     Buffer.from('OUTRO ROTULO'.padEnd(18, ' ')).copy(outroRotulo, 11);
     const r = await ops.gravar(sessao, { tipo: 'cadastrar', frameHex: hex(outroRotulo) });
-    assert.deepEqual(r, { ok: true, codigo: 2, ja_estava: true, mensagem: 'Este dispositivo já estava cadastrado no Guarita.' });
+    assert.deepEqual(r, {
+      ok: true,
+      codigo: 2,
+      ja_estava: true,
+      lido: { unidade: 7, bloco: 0, frame_hex: hex(d) },
+      mensagem: 'Este dispositivo já estava cadastrado no Guarita.',
+    });
     const leitura = sim.comandosRecebidos(67).at(-1);
     assert.equal(leitura[2], 0x03, 'conferiu com o Ler');
     assert.equal(hex(leitura.subarray(3, 7)), hex(d.subarray(0, 4)));
@@ -193,7 +199,7 @@ test('I1: cadastrar com 0x02 mas o Guarita tem o dispositivo em OUTRA unidade �
       ok: false,
       codigo: 2,
       conflito: true,
-      lido: { unidade: 7, bloco: 0 },
+      lido: { unidade: 7, bloco: 0, frame_hex: hex(d) },
       mensagem: 'Este dispositivo já está cadastrado no Guarita em outra unidade.',
     });
     const outroBloco = Buffer.from(d);
@@ -458,7 +464,7 @@ test('item 1: apagar — não existe (só lê, ja_estava), outra unidade (confli
       ok: false,
       codigo: null,
       conflito: true,
-      lido: { unidade: 6, bloco: 0 },
+      lido: { unidade: 6, bloco: 0, frame_hex: hex(outro) },
       mensagem: 'Este dispositivo está cadastrado no Guarita em outra unidade.',
     });
     assert.deepEqual(sim.comandosRecebidos(67).map((f) => f[2]), [3, 3], 'conflito: não escreveu');
@@ -482,7 +488,7 @@ test('item 1: editar — não existe (falha 0x03, não escreve), outra unidade (
     editado8[8] = 0x00;
     r = await ops.gravar(sessao, { tipo: 'editar', frameHex: hex(editado8), esperado: { unidade: 8, bloco: 0 } });
     assert.equal(r.conflito, true);
-    assert.deepEqual(r.lido, { unidade: 8, bloco: 7 });
+    assert.deepEqual(r.lido, { unidade: 8, bloco: 7, frame_hex: hex(bloco7) });
     assert.equal(r.ok, false);
     assert.deepEqual(sim.comandosRecebidos(67).map((f) => f[2]), [3, 3], 'nenhuma edição saiu');
     const novo = Buffer.from(meu);
@@ -529,4 +535,24 @@ test('item 1: Ler sem resposta → a sessão cai e NADA é escrito', async () =>
     },
     { relogio },
   );
+});
+
+test('final item 2: cadastrar RF com 0x02 só é ja_estava com o MESMO contador; contador diferente → conflito (com lido.frame_hex)', async () => {
+  const rf = dispositivo(12, 1);
+  rf[0] = 0x11; // serial de 7 dígitos
+  rf[4] = 0x12;
+  rf[5] = 0x34;
+  await cenario({ dispositivos: [rf] }, async ({ sessao }) => {
+    const mesmo = await ops.gravar(sessao, { tipo: 'cadastrar', frameHex: hex(rf) });
+    assert.equal(mesmo.ok, true);
+    assert.equal(mesmo.ja_estava, true);
+    assert.deepEqual(mesmo.lido, { unidade: 12, bloco: 0, frame_hex: hex(rf) });
+    const outroContador = Buffer.from(rf);
+    outroContador[5] = 0x35;
+    const r = await ops.gravar(sessao, { tipo: 'cadastrar', frameHex: hex(outroContador) });
+    assert.equal(r.ok, false);
+    assert.equal(r.conflito, true);
+    assert.equal(r.ja_estava, undefined);
+    assert.deepEqual(r.lido, { unidade: 12, bloco: 0, frame_hex: hex(rf) });
+  });
 });

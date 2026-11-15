@@ -743,7 +743,7 @@ test('I1: sem o registro (armazém perdido), o cadastrar repetido responde 0x02 
     await c.relogio.avancar(0);
     await esperarAte(() => c.nuvem.resultados.length === 2, { rotulo: 'resultados' });
     assert.deepEqual(c.nuvem.resultados, [
-      { id: 11, ok: true, codigo: 2, ja_estava: true },
+      { id: 11, ok: true, codigo: 2, ja_estava: true, lido: { unidade: 4, bloco: 0, frame_hex: hex(d) } },
       { id: 12, ok: true, ja_estava: true },
     ]);
     assert.equal(c.sim.memoria.dispositivos.length, 1);
@@ -966,7 +966,7 @@ test('item 1 (driver): resultado de conflito e de operação sem esperado no for
     await c.relogio.avancar(0);
     await esperarAte(() => c.nuvem.resultados.length === 2, { rotulo: 'resultados' });
     assert.deepEqual(c.nuvem.resultados, [
-      { id: 60, ok: false, erro: 'Este dispositivo está cadastrado no Guarita em outra unidade.', conflito: true, lido: { unidade: 6, bloco: 0 } },
+      { id: 60, ok: false, erro: 'Este dispositivo está cadastrado no Guarita em outra unidade.', conflito: true, lido: { unidade: 6, bloco: 0, frame_hex: hex(outro) } },
       { id: 61, ok: false, erro: 'Operação sem unidade esperada.' },
     ]);
     assert.equal(c.sim.memoria.dispositivos.length, 1);

@@ -632,10 +632,8 @@ class ServicoGuarita {
         const corpo = r.ok ? { ok: true } : { ok: false, erro: r.mensagem };
         if (Number.isInteger(r.codigo)) corpo.codigo = r.codigo;
         if (r.ja_estava) corpo.ja_estava = true;
-        if (r.conflito) {
-          corpo.conflito = true;
-          corpo.lido = r.lido;
-        }
+        if (r.conflito) corpo.conflito = true;
+        if (r.lido) corpo.lido = r.lido;
         if (r.ok && !r.ja_estava) this._marcarGravacao();
         this.log.log(`${this.rotulo}: operação ${op.id} (${op.tipo}) → ${r.ok ? 'OK' : `FALHA (${r.mensagem})`}${r.ja_estava ? ' (já estava assim no Guarita)' : ''}`);
         await this._concluir(op.id, [corpo], { persistir: true });
