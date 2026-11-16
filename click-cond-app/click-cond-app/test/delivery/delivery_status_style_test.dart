@@ -132,6 +132,22 @@ void main() {
     test('sem datas não mostra nada', () {
       expect(deliveryTimeLabel(const DeliveryModel(), now: now), isNull);
     });
+
+    test('previsão só enquanto agendado; depois de chegar mostra a criação',
+        () {
+      DeliveryModel com(String status) => DeliveryModel(
+            status: status,
+            previsaoEm: '2026-10-04T15:27:00',
+            createdAt: '2026-10-04T14:55:00',
+          );
+      expect(deliveryTimeLabel(com('AGENDADA'), now: now),
+          startsWith('Previsão '));
+      for (final status in ['CHEGOU', 'AUTORIZADA', 'RETIRADA_NA_PORTARIA']) {
+        final label = deliveryTimeLabel(com(status), now: now);
+        expect(label, isNot(contains('Previsão')), reason: status);
+        expect(label, 'há 5 min', reason: status);
+      }
+    });
   });
 
   group('splitDeliveries', () {

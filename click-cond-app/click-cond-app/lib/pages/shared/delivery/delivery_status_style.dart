@@ -140,12 +140,13 @@ String formatDeliveryDate(String iso) {
   return date == null ? iso : DateFormat('dd/MM/yyyy HH:mm').format(date);
 }
 
-/// Momento mostrado no card da lista: a previsão quando o aviso ainda está
-/// em andamento e ela é futura (ou recente), senão quando o aviso foi criado.
+/// Momento mostrado no card da lista: a previsão enquanto o aviso ainda está
+/// agendado e ela é futura (ou recente), senão quando o aviso foi criado.
+/// Depois que o entregador chega a previsão perde o sentido.
 String? deliveryTimeLabel(DeliveryModel delivery, {DateTime? now}) {
   final ref = now ?? DateTime.now();
   final previsao = _parse(delivery.previsaoEm);
-  if (isAtiva(delivery.status) &&
+  if (delivery.status == 'AGENDADA' &&
       previsao != null &&
       previsao.isAfter(ref.subtract(const Duration(hours: 1)))) {
     return 'Previsão ${relativeTime(delivery.previsaoEm!, now: ref)}';
