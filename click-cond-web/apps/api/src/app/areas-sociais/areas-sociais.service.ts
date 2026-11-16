@@ -1564,8 +1564,11 @@ export class AreasSociaisService {
         this.logger.warn(`syncReservaArea (status) ag ${id}: ${err?.message ?? err}`),
       );
 
-    // Send push notification if the user has an fcm_token
-    if (agendamento && agendamento.user && agendamento.user.fcm_token) {
+    // Push ao dono da reserva só quando quem mudou foi OUTRA pessoa
+    // (síndico/portaria): quem acabou de cancelar a própria reserva não
+    // precisa de aviso do que ele mesmo fez.
+    const mudouPeloDono = idUser != null && Number(agendamento?.id_user) === Number(idUser);
+    if (agendamento && !mudouPeloDono && agendamento.user && agendamento.user.fcm_token) {
       const token = agendamento.user.fcm_token;
       const areaNome = agendamento.area?.nome ?? 'Área Social';
       
