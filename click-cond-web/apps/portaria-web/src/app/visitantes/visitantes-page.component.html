@@ -1692,7 +1692,7 @@
               class="w-full rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white px-3 py-2.5 text-sm focus:outline-none focus:border-accent"
             >
               @for (a of apartamentos(); track a.id) {
-                <option [ngValue]="a.id" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{{ a.bloco ? 'Bloco ' + a.bloco + ' - ' : '' }}Apto {{ a.apto }}</option>
+                <option [ngValue]="a.id" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{{ a.bloco ? (a.bloco | blocoLabel) + ' - ' : '' }}Apto {{ a.apto }}</option>
               }
             </select>
           </label>

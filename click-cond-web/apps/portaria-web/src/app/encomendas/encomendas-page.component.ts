@@ -8,6 +8,7 @@ import {
 } from './encomendas.service';
 import { ConfirmService } from '../shared/confirm.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
+import { rotuloBloco } from '../shared/bloco-label.util';
 import { aplicarLeitura, reduzirImagem } from './foto-encomenda';
 import { Apartamento, ApartamentosApi } from '../apartamentos/apartamentos.service';
 import { ServerClockService } from '../core/server-clock.service';
@@ -863,15 +864,13 @@ export class EncomendasPageComponent implements OnInit {
 
   /** "Apto 101 · Bloco A" (o bloco pode vir "A" ou "Bloco A"). */
   rotuloDestino(e: Pick<Encomenda, 'destinatario_bloco' | 'destinatario_apto'>): string {
-    const bloco = (e.destinatario_bloco ?? '').toString().trim();
-    const blocoTxt = bloco ? (/^bloco\s/i.test(bloco) ? bloco : `Bloco ${bloco}`) : '';
+    const blocoTxt = rotuloBloco(e.destinatario_bloco);
     return blocoTxt ? `Apto ${e.destinatario_apto} · ${blocoTxt}` : `Apto ${e.destinatario_apto}`;
   }
 
   /** Rótulo do filtro de blocos: evita duplicar o prefixo quando o nome já vem como "Bloco A". */
-  rotuloBloco(bloco: string): string {
-    const b = (bloco ?? '').toString().trim();
-    return /^bloco\s/i.test(b) ? b : `Bloco ${b}`;
+  rotuloBloco(bloco: string | null | undefined): string {
+    return rotuloBloco(bloco);
   }
 
   private estadoInicial(): CreateEncomenda {

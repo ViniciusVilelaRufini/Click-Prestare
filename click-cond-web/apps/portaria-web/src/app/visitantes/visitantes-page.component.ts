@@ -22,6 +22,7 @@ import { compressImage } from '../shared/image-compress.util';
 import { RealtimeService } from '../shared/realtime.service';
 import { MaskDocPipe } from '../shared/mask-doc.pipe';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
+import { BlocoLabelPipe } from '../shared/bloco-label.pipe';
 import { AuthService } from '../auth/auth.service';
 import { ConsentimentosApi } from '../core/consentimentos.service';
 import { erroDocumento } from '../shared/documento.util';
@@ -37,7 +38,7 @@ import {
 @Component({
   selector: 'app-visitantes-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, InputMaskDirective, RouterLink, FacialCaptureComponent, MaskDocPipe, SlideIndicatorDirective],
+  imports: [CommonModule, FormsModule, InputMaskDirective, RouterLink, FacialCaptureComponent, MaskDocPipe, SlideIndicatorDirective, BlocoLabelPipe],
   templateUrl: './visitantes-page.component.html',
   styleUrl: './visitantes-page.component.css',
 })

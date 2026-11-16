@@ -5,10 +5,11 @@ import { FinanceiroApi, Lancamento } from './financeiro.service';
 import { ToastService } from '../shared/toast.service';
 
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
+import { BlocoLabelPipe } from '../shared/bloco-label.pipe';
 @Component({
   selector: 'app-financeiro-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, SlideIndicatorDirective],
+  imports: [CommonModule, FormsModule, SlideIndicatorDirective, BlocoLabelPipe],
   templateUrl: './financeiro-page.component.html',
 })
 export class FinanceiroPageComponent implements OnInit {

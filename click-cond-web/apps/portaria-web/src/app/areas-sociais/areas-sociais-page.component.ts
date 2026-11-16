@@ -5,6 +5,7 @@ import { AgendamentoArea, AreaSocial, AreasSociaisApi } from './areas-sociais.se
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { ConfirmService } from '../shared/confirm.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
+import { rotuloBloco } from '../shared/bloco-label.util';
 import { AuthService } from '../auth/auth.service';
 import { papelDoToken } from '../auth/papel';
 
@@ -127,9 +128,7 @@ export class AreasSociaisPageComponent implements OnInit {
 
   /** "Bloco A" para o valor "A" ou "Bloco A" (o cadastro guarda das duas formas). */
   rotuloBloco(bloco: string | null | undefined): string {
-    const b = (bloco ?? '').trim();
-    if (!b) return '';
-    return /^bloco\s/i.test(b) ? b : `Bloco ${b}`;
+    return rotuloBloco(bloco);
   }
 
   /**

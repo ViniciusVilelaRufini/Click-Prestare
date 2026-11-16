@@ -1046,7 +1046,7 @@
                   <option [value]="null" disabled selected>-- Selecione o Apartamento --</option>
                   @for (apt of apartamentos(); track apt.id) {
                     <option [value]="apt.id">
-                      Bloco {{ apt.bloco }} - Apto {{ apt.apto }}
+                      {{ apt.bloco ? (apt.bloco | blocoLabel) + ' - ' : '' }}Apto {{ apt.apto }}
                     </option>
                   }
                 </select>
@@ -1222,7 +1222,7 @@
                 <div class="grid grid-cols-2 gap-3 pt-3 border-t border-slate-200 dark:border-white/5 text-xs">
                   <div>
                     <span class="text-slate-400 dark:text-slate-500 block">Destino</span>
-                    <span class="text-slate-800 dark:text-slate-200 font-semibold">{{ validationResult().apto_bloco ? 'Bloco ' + validationResult().apto_bloco + ' - ' : '' }}Apto {{ validationResult().apto }}</span>
+                    <span class="text-slate-800 dark:text-slate-200 font-semibold">{{ validationResult().apto_bloco ? (validationResult().apto_bloco | blocoLabel) + ' - ' : '' }}Apto {{ validationResult().apto }}</span>
                   </div>
                   <div>
                     <span class="text-slate-400 dark:text-slate-500 block">Autorizado por</span>

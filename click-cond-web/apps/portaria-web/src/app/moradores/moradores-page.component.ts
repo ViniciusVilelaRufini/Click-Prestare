@@ -19,6 +19,7 @@ import { ToastService } from '../shared/toast.service';
 import { compressImage } from '../shared/image-compress.util';
 import { MaskDocPipe } from '../shared/mask-doc.pipe';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
+import { BlocoLabelPipe } from '../shared/bloco-label.pipe';
 
 declare var require: any;
 
@@ -28,7 +29,7 @@ const FILTRO_SEM_NASCIMENTO = 'sem_nascimento';
 @Component({
   selector: 'app-moradores-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, InputMaskDirective, EnrollCaptureComponent, FacialCaptureComponent, MaskDocPipe, SlideIndicatorDirective],
+  imports: [CommonModule, FormsModule, InputMaskDirective, EnrollCaptureComponent, FacialCaptureComponent, MaskDocPipe, SlideIndicatorDirective, BlocoLabelPipe],
   templateUrl: './moradores-page.component.html',
 })
 export class MoradoresPageComponent implements OnInit {

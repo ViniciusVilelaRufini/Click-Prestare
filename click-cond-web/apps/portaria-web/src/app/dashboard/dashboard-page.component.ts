@@ -12,12 +12,13 @@ import { statusVisitante } from '../core/status-visitante.util';
 import { NetworkStatusService } from '../core/network-status.service';
 import { direcaoLabel as direcaoLabelUtil } from '../shared/direcao-label.util';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
+import { BlocoLabelPipe } from '../shared/bloco-label.pipe';
 import { GuaritaPortariaComponent } from '../guarita/guarita-portaria.component';
 
 @Component({
   selector: 'app-dashboard-page',
   standalone: true,
-  imports: [CommonModule, RouterLink, FormsModule, MaskDocPipe, SlideIndicatorDirective, GuaritaPortariaComponent],
+  imports: [CommonModule, RouterLink, FormsModule, MaskDocPipe, SlideIndicatorDirective, GuaritaPortariaComponent, BlocoLabelPipe],
   templateUrl: './dashboard-page.component.html',
   host: {
     '(window:keydown.escape)': 'onEscapePressed()'

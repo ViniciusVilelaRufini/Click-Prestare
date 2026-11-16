@@ -948,7 +948,7 @@
                     class="w-full h-10 px-3 bg-graphite-200 border border-white/10 text-sm text-white focus:border-[var(--ink)] outline-none">
               <option [ngValue]="null" disabled>Selecione o apartamento</option>
               @for (a of apartamentos(); track a.id) {
-                <option [ngValue]="a.id">{{ a.bloco ? 'Bloco ' + a.bloco + ' - ' : '' }}Apto {{ a.apto }}</option>
+                <option [ngValue]="a.id">{{ a.bloco ? (a.bloco | blocoLabel) + ' - ' : '' }}Apto {{ a.apto }}</option>
               }
             </select>
           </div>

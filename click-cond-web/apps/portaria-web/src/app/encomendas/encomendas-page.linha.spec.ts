@@ -37,7 +37,7 @@ describe('EncomendasPageComponent — linha da tabela', () => {
   it.each([
     ['A', 'Bloco A'],
     ['Bloco A', 'Bloco A'],
-    ['bloco b', 'bloco b'],
+    ['bloco b', 'Bloco b'],
   ])('filtro de blocos: "%s" → "%s" (não duplica o prefixo)', (bloco, texto) => {
     expect(tela.rotuloBloco(bloco)).toBe(texto);
   });

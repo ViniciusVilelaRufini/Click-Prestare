@@ -11,6 +11,7 @@ import { AuthService } from '../auth/auth.service';
 import { MoradoresApi } from '../moradores/moradores.service';
 import { VagasApi, VagasResumo, VagaBeneficiarios } from './vagas.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
+import { BlocoLabelPipe } from '../shared/bloco-label.pipe';
 import { InputMaskDirective } from '../shared/input-mask.directive';
 import { papelDoToken } from '../auth/papel';
 
@@ -19,7 +20,7 @@ declare var require: any;
 @Component({
   selector: 'app-apartamentos-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, SlideIndicatorDirective, InputMaskDirective],
+  imports: [CommonModule, FormsModule, SlideIndicatorDirective, InputMaskDirective, BlocoLabelPipe],
   templateUrl: './apartamentos-page.component.html',
 })
 export class ApartamentosPageComponent implements OnInit {

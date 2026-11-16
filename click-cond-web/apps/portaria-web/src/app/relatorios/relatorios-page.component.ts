@@ -5,10 +5,11 @@ import { EventosPeriodo, RelatoriosApi } from './relatorios.service';
 import { direcaoLabel as direcaoLabelUtil } from '../shared/direcao-label.util';
 
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
+import { BlocoLabelPipe } from '../shared/bloco-label.pipe';
 @Component({
   selector: 'app-relatorios-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, SlideIndicatorDirective],
+  imports: [CommonModule, FormsModule, SlideIndicatorDirective, BlocoLabelPipe],
   templateUrl: './relatorios-page.component.html',
 })
 export class RelatoriosPageComponent {

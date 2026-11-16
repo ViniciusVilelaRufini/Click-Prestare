@@ -456,7 +456,7 @@
             <!-- Cabeçalho do bloco -->
             <div class="flex items-center justify-between gap-2 border-b border-white/5 pb-3 mb-3">
               <div class="flex items-center gap-2 min-w-0">
-                <span class="text-xs font-bold text-white uppercase tracking-wider truncate">Bloco {{ blocoInfo.bloco }}</span>
+                <span class="text-xs font-bold text-white uppercase tracking-wider truncate">{{ (blocoInfo.bloco | blocoLabel) || 'Sem Bloco' }}</span>
                 <span class="text-[10px] text-slate-500 font-medium shrink-0">{{ blocoInfo.aptos.length }} pendente{{ blocoInfo.aptos.length > 1 ? 's' : '' }}</span>
               </div>
               @if (blocoInfo.aptos.some(a => a.atrasadas > 0)) {
