@@ -437,16 +437,27 @@ export class DeliveryService {
       }
     }
 
+    // Aviso "Na portaria" sem pedido do portão: o "Autorizar" do morador deixa
+    // a entrega na portaria (ninguém sobe). Pedido do portão e respostas da
+    // portaria continuam como estão.
+    const statusGravado: DeliveryStatus =
+      statusNovo === 'AUTORIZADA' &&
+      respostaDoMorador &&
+      atendimento.modo_entrega === 'PORTARIA' &&
+      atendimento.id_pedido_portao == null
+        ? 'RETIRADA_NA_PORTARIA'
+        : statusNovo;
+
     const agora = new Date();
     const data: any = {
-      status: statusNovo,
+      status: statusGravado,
       ...(dto.id_entregador !== undefined && { id_entregador: idEntregador }),
       ...(dto.motivo?.trim() && { motivo: dto.motivo.trim() }),
-      ...(statusNovo === 'CHEGOU' && { chegou_em: agora }),
-      ...(statusNovo === 'AUTORIZADA' && { autorizado_em: agora }),
-      ...(statusNovo === 'CONCLUIDA' && { concluido_em: agora }),
-      ...(statusNovo === 'CANCELADA' && { cancelado_em: agora }),
-      ...(statusNovo === 'RECUSADA' && { recusado_em: agora }),
+      ...(statusGravado === 'CHEGOU' && { chegou_em: agora }),
+      ...(statusGravado === 'AUTORIZADA' && { autorizado_em: agora }),
+      ...(statusGravado === 'CONCLUIDA' && { concluido_em: agora }),
+      ...(statusGravado === 'CANCELADA' && { cancelado_em: agora }),
+      ...(statusGravado === 'RECUSADA' && { recusado_em: agora }),
       ...(respostaDoMorador && semDono && { id_morador_user: this.idUsuario(user) }),
     };
     const atualizado = await (this.prisma as any).$transaction(async (tx: any) => {
@@ -459,7 +470,7 @@ export class DeliveryService {
       }
       const registro = await tx.deliveryAtendimentos.findUnique({ where: { id: Number(id) } });
       if (!registro) throw new NotFoundException(`Atendimento de delivery ${id} não encontrado`);
-      await this.registrarEvento(tx, registro.id, statusAtual, statusNovo, user, dto.observacao ?? dto.motivo);
+      await this.registrarEvento(tx, registro.id, statusAtual, statusGravado, user, dto.observacao ?? dto.motivo);
       return registro;
     });
     // Recusada e retirada na portaria também mudam o que o morador precisa
@@ -476,7 +487,7 @@ export class DeliveryService {
       ? (user.nome ?? user.user?.name ?? '').toString().trim() || 'Outro morador da unidade'
       : null;
     // Portão: libera, abre ou avisa a página do entregador (antes do aviso ao morador).
-    const gancho = this.chamarGancho(atualizado, statusNovo, {
+    const gancho = this.chamarGancho(atualizado, statusGravado, {
       idUser,
       // Respondeu pela unidade (mesmo sendo síndico/funcionário): é o morador; a nuvem abre.
       operador: operador && !respostaDoMorador,
@@ -490,13 +501,13 @@ export class DeliveryService {
           this.logger.warn(`Card ao vivo do delivery ${atualizado.id} (outros moradores): ${e?.message ?? e}`),
         );
       }
-      await this.avisarMorador(atualizado, statusNovo, comoMorador, respostaDoMorador, dto.motivo, outroRespondeu);
+      await this.avisarMorador(atualizado, statusGravado, comoMorador, respostaDoMorador, dto.motivo, outroRespondeu);
     })().catch((e: any) => this.logger.warn(`Aviso do delivery ${atualizado.id}: ${e?.message ?? e}`));
     await this.comTeto(Promise.all([gancho, aviso]));
     if (!isOperador(user)) return this.paraMorador(atualizado);
     // Pedido de autorização: a portaria precisa saber se alguém pode receber
     // (com 0, a tela manda interfonar em vez de esperar sem prazo).
-    if (statusNovo === 'AGUARDANDO_AUTORIZACAO') {
+    if (statusGravado === 'AGUARDANDO_AUTORIZACAO') {
       const avisados = await this.aparelhosAvisados(atualizado.id, atualizado.id_apartamento);
       if (avisados !== null) return { ...atualizado, avisados };
     }
