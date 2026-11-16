@@ -101,7 +101,7 @@ class ListDeliveryState extends State<ListDelivery> {
     if (result.success) {
       HapticFeedback.mediumImpact();
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(mensagemRespostaDelivery(delivery, resposta))));
+          .showSnackBar(SnackBar(content: Text(mensagemRespostaDelivery(delivery, resposta, statusGravado: result.delivery?.status))));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(result.message ?? 'Não foi possível enviar sua resposta.'),

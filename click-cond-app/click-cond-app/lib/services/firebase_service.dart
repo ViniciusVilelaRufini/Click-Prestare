@@ -6,6 +6,7 @@ import 'package:click/pages/shared/encomendas/list_encomendas.dart';
 import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart';
 import 'package:click/pages/shared/notificacoes/historico_acessos_page.dart';
 import 'package:click/pages/shared/ocorrencias/list_ocorrencias.dart';
+import 'package:click/pages/shared/delivery/resposta_delivery.dart';
 import 'package:click/controllers/controller_delivery.dart';
 import 'package:click/controllers/controller_visitantes.dart';
 import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
@@ -199,7 +200,9 @@ class FirebaseService {
         final ctx = NavigationService.navigatorKey.currentContext;
         if (ctx == null) return;
         ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(SnackBar(
-          content: Text(r.success ? 'Entrega autorizada.' : (r.message ?? 'Não foi possível autorizar.')),
+          content: Text(r.success
+              ? mensagemAutorizacaoDelivery(r.delivery?.status)
+              : (r.message ?? 'Não foi possível autorizar.')),
         ));
       });
       return;

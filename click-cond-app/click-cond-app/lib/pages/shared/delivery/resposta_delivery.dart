@@ -17,10 +17,13 @@ Future<DeliveryResult> enviarRespostaDelivery(DeliveryModel delivery, RespostaDe
   }
 }
 
-/// Texto do aviso depois que a API aceitou a resposta.
-String mensagemRespostaDelivery(DeliveryModel delivery, RespostaDelivery resposta) {
+/// Texto do aviso depois que a API aceitou a resposta. [statusGravado] é o
+/// status que a API devolveu: o "Autorizar" num aviso "Na portaria" é
+/// gravado como RETIRADA_NA_PORTARIA (a entrega fica na portaria).
+String mensagemRespostaDelivery(DeliveryModel delivery, RespostaDelivery resposta, {String? statusGravado}) {
   switch (resposta) {
     case RespostaDelivery.autorizar:
+      if (statusGravado == 'RETIRADA_NA_PORTARIA') return mensagemAutorizacaoDelivery(statusGravado);
       return delivery.respondeNoPortao ? 'Entrada liberada.' : 'Entrega autorizada.';
     case RespostaDelivery.vouBuscar:
       return 'Avisamos o entregador que você vai buscar.';
@@ -28,6 +31,10 @@ String mensagemRespostaDelivery(DeliveryModel delivery, RespostaDelivery respost
       return 'Entrega recusada.';
   }
 }
+
+/// Texto do "Autorizar" pelo status gravado (também no AUTORIZAR do card).
+String mensagemAutorizacaoDelivery(String? statusGravado) =>
+    statusGravado == 'RETIRADA_NA_PORTARIA' ? 'Combinado: a entrega fica na portaria.' : 'Entrega autorizada.';
 
 /// Confirmação antes de recusar: no portão quem fica sabendo é o entregador.
 String textoConfirmarRecusa(DeliveryModel delivery) => delivery.respondeNoPortao

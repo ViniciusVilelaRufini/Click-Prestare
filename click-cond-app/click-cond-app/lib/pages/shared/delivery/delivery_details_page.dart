@@ -94,7 +94,7 @@ class _DeliveryDetailsPageState extends State<DeliveryDetailsPage> {
       HapticFeedback.mediumImpact();
       widget.onChanged?.call();
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(mensagemRespostaDelivery(delivery, resposta))));
+          .showSnackBar(SnackBar(content: Text(mensagemRespostaDelivery(delivery, resposta, statusGravado: result.delivery?.status))));
       if (autorizar && !_reduceMotion(context)) {
         setState(() => _celebrando = true);
         await Future<void>.delayed(const Duration(milliseconds: 550));

@@ -5,7 +5,9 @@ import 'package:click/controllers/controller_generic.dart';
 import 'package:click/pages/shared/delivery/list_delivery.dart';
 import 'package:click/pages/shared/ocorrencias/detail_ocorrencia.dart';
 import 'package:click/pages/shared/ocorrencias/list_ocorrencias_todos.dart';
+import 'package:click/pages/sindico/list_condominiums.dart';
 import 'package:click/pages/singleton.dart';
+import 'package:click/utils/cond_cache.dart';
 import 'package:click/services/atualizacoes_app.dart';
 import 'package:click/utils/api_client.dart';
 import 'package:click/utils/local_storage.dart';
@@ -183,5 +185,46 @@ void main() {
 
     expect(enviados, hasLength(1));
     expect((enviados.single['ocorrencia'] as Map)['status'], 'ciente');
+  });
+
+  group('início (ListCondomiums)', () {
+    // getCondominios* devolvem [] num 5xx: a recarga automática não pode
+    // esvaziar o início; a carga inicial segue mostrando o que veio.
+    Future<void> montar(WidgetTester tester, bool Function() falhar) async {
+      storageMorador({'token': 'sessao', 'user': {'id': 100, 'nome': 'Ana'}});
+      ApiClient.client = MockClient((req) async {
+        if (req.url.path.endsWith('/moradores/list-condominios')) {
+          if (falhar()) return http.Response('erro', 503);
+          return http.Response(jsonEncode([{'id': 5, 'nome': 'Residencial Aurora', 'saldo': '1'}]), 200,
+              headers: json);
+        }
+        if (req.url.path.contains('dashboard/summary') || req.url.path.contains('moradores/get')) {
+          return http.Response('{}', 200, headers: json);
+        }
+        return http.Response('[]', 200, headers: json);
+      });
+      tester.view.physicalSize = const Size(1200, 2600);
+      tester.view.devicePixelRatio = 2;
+      addTearDown(tester.view.reset);
+      addTearDown(CondCache.clear);
+      await tester.pumpWidget(const MaterialApp(home: ListCondomiums()));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('recarga automática com 5xx mantém o condomínio na tela', (tester) async {
+      var falhar = false;
+      await montar(tester, () => falhar);
+      expect(find.textContaining('Residencial Aurora'), findsWidgets);
+
+      falhar = true;
+      AtualizacoesApp.avisar(DominioApp.tudo);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Residencial Aurora'), findsWidgets);
+    });
+
+    testWidgets('carga inicial vazia segue vazia (sem condomínio na tela)', (tester) async {
+      await montar(tester, () => true);
+      expect(find.textContaining('Residencial Aurora'), findsNothing);
+    });
   });
 }

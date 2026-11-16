@@ -171,3 +171,15 @@ TextosCard textosCard(Map<String, dynamic> c, {String origem = 'visitante'}) {
       return TextosCard(titulo: '$tipo na portaria', corpo: nome, emAndamento: false, comBotoes: false);
   }
 }
+
+/// O card toca (som e vibração) nesta fase? Portaria: só na chegada do
+/// pedido (`aguardando`). Delivery: na chegada, no pedido de autorização e
+/// quando é para descer à portaria (`retirar`), mas nunca pela resposta do
+/// próprio morador (`voceRespondeu`): o "Autorizar" dele num aviso "Na
+/// portaria" vira `retirar` e não deve tocar de volta.
+bool cardToca(Map<String, dynamic> conteudo, {required String origem}) {
+  final fase = '${conteudo['fase']}';
+  if (origem != 'delivery') return fase == 'aguardando';
+  if (conteudo['voceRespondeu'] == true) return false;
+  return const ['chegou', 'aguardando', 'retirar'].contains(fase);
+}

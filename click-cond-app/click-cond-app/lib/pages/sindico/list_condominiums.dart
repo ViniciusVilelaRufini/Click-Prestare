@@ -60,8 +60,9 @@ class _ListCondomiumsState extends State<ListCondomiums> {
   int _naoLidas = 0;
   int _pendentesCount = 0;
 
-  /// Qualquer push (todo aviso vira notificação e pode mexer nos eventos e
-  /// no resumo) ou a volta ao app: recarrega o início sem skeleton.
+  /// Push em primeiro plano de um domínio mapeado em `dominioDoPush` (pode
+  /// mexer nos eventos e no resumo) ou a volta ao app: recarrega o início sem
+  /// skeleton. Push sem domínio não chega aqui.
   StreamSubscription<DominioApp>? _atualizacoes;
 
   @override
@@ -103,7 +104,9 @@ class _ListCondomiumsState extends State<ListCondomiums> {
   }
 
   /// [recarga] na atualização automática: se falhar e já houver lista, ela
-  /// fica na tela em vez de virar a mensagem de erro.
+  /// fica na tela em vez de virar a mensagem de erro. Também quando a lista
+  /// volta vazia: `getCondominios*` devolvem [] num 5xx, e o início não pode
+  /// esvaziar por isso (carga inicial e puxar para atualizar seguem iguais).
   Future<void> _loadList({bool recarga = false}) async {
     if (!mounted) return;
     final token = getToken();
@@ -145,6 +148,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
       // Resposta de uma sessão que já saiu não vai para o cache nem para a tela.
       if (getToken() != token) return;
       if (results[0] is List) {
+        if (recarga && (results[0] as List).isEmpty && _list.isNotEmpty) return;
         if (results.length > 2 && results[2] is Map) {
           final userDetails = results[2] as Map<String, dynamic>;
           final fetchedPhoto = (userDetails['foto_pessoa'] ??

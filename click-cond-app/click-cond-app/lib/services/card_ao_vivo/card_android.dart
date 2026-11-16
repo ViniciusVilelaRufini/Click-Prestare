@@ -171,8 +171,8 @@ class CardAndroid {
     final regressiva = !delivery && fase == 'aguardando';
     final progressiva = delivery && (fase == 'chegou' || fase == 'aguardando');
     // Toca na chegada do pedido; no delivery, também quando pede autorização
-    // ou quando é para descer à portaria.
-    final toca = delivery ? const ['chegou', 'aguardando', 'retirar'].contains(fase) : fase == 'aguardando';
+    // ou quando é para descer à portaria — nunca pela resposta do próprio morador.
+    final toca = cardToca(conteudo, origem: origem);
     final foto = await _arquivoFoto(idCartao);
     final detalhes = AndroidNotificationDetails(
       canalId,

@@ -6,9 +6,18 @@ import 'package:flutter/widgets.dart';
 /// mostram e recarregam quando chega um deles (ou [tudo]).
 enum DominioApp { delivery, ocorrencia, reserva, visitante, encomenda, comunicado, enquete, tudo }
 
-/// Assunto de um push pelo `type` do payload. `null` quando nenhuma tela
-/// precisa recarregar por causa dele.
+/// Assunto de um push pelo `type` do payload. Sem `type` conhecido, a
+/// notificação comum do delivery (só `id_delivery` e `status`) é
+/// [DominioApp.delivery]. `null` quando nenhuma tela precisa recarregar por
+/// causa dele.
 DominioApp? dominioDoPush(Map<String, dynamic> data) {
+  final pelo = _dominioPeloTipo(data);
+  if (pelo != null) return pelo;
+  if (data['id_delivery'] != null) return DominioApp.delivery;
+  return null;
+}
+
+DominioApp? _dominioPeloTipo(Map<String, dynamic> data) {
   switch (data['type']?.toString()) {
     case 'card_portaria':
       return data['origem']?.toString() == 'delivery' ? DominioApp.delivery : DominioApp.visitante;
@@ -18,6 +27,7 @@ DominioApp? dominioDoPush(Map<String, dynamic> data) {
       return DominioApp.visitante;
     case 'ocorrencia':
     case 'ocorrencia_chat':
+    case 'ocorrencia_atribuida':
       return DominioApp.ocorrencia;
     case 'reserva_status':
     case 'confirmacao_reserva':

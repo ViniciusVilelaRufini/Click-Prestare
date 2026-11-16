@@ -259,8 +259,9 @@ class ListEncomendasState extends State<ListEncomendas> {
     );
   }
 
-  /// Aguardando primeiro (a mais antiga no topo), depois as encerradas por
-  /// dia ('Hoje', 'Ontem', '27 de set').
+  /// Aguardando primeiro (a mais antiga no topo), depois 'A caminho (n)'
+  /// (só avisadas, ainda não chegaram) e as encerradas por dia ('Hoje',
+  /// 'Ontem', '27 de set').
   Widget _buildSections(List<EncomendaModel> lista) {
     final showUnit = showUnitBadge(lista, isStaff: _isStaff);
     final sections = encomendaSections(lista, _filtro);
@@ -1411,8 +1412,8 @@ class _EncomendaCard extends StatelessWidget {
   }
 }
 
-/// Cabeçalho de seção: principal ('Aguardando retirada (n)', 'Entregues (n)')
-/// ou de dia ('Hoje', 'Ontem'), menor e mais discreto.
+/// Cabeçalho de seção: principal ('Aguardando retirada (n)', 'A caminho (n)',
+/// 'Entregues (n)') ou de dia ('Hoje', 'Ontem'), menor e mais discreto.
 class _SectionHeader extends StatelessWidget {
   final String text;
   final bool major;

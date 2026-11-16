@@ -19,6 +19,11 @@ void main() {
       {'type': 'comunicado'}: DominioApp.comunicado,
       {'type': 'enquete'}: DominioApp.enquete,
       {'type': 'assembleia'}: DominioApp.enquete,
+      {'type': 'ocorrencia_atribuida'}: DominioApp.ocorrencia,
+      // Notificação comum do delivery (status) não tem `type`, só o id.
+      {'id_delivery': '12', 'status': 'CONCLUIDA'}: DominioApp.delivery,
+      {'type': 'tipo_que_nao_existe', 'id_delivery': '12'}: DominioApp.delivery,
+      {'type': 'comunicado', 'id_delivery': '12'}: DominioApp.comunicado,
       {'type': 'tipo_que_nao_existe'}: null,
       {}: null,
     };

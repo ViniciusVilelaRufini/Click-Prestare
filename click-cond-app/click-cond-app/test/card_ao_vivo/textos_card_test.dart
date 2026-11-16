@@ -145,4 +145,27 @@ void main() {
     expect(x.rotuloEsquerdo, 'NEGAR');
     expect(x.rotuloDireito, 'AUTORIZAR');
   });
+
+  group('cardToca', () {
+    test('portaria: só aguardando', () {
+      expect(cardToca({'fase': 'aguardando'}, origem: 'portaria'), isTrue);
+      expect(cardToca({'fase': 'liberado'}, origem: 'portaria'), isFalse);
+      expect(cardToca({'fase': 'entrou'}, origem: ''), isFalse);
+    });
+
+    test('delivery: chegou, aguardando e retirar tocam; as demais não', () {
+      for (final f in ['chegou', 'aguardando', 'retirar']) {
+        expect(cardToca({'fase': f, 'voceRespondeu': false}, origem: 'delivery'), isTrue, reason: f);
+      }
+      for (final f in ['autorizado', 'entregue', 'recusado', 'cancelado']) {
+        expect(cardToca({'fase': f}, origem: 'delivery'), isFalse, reason: f);
+      }
+    });
+
+    test('delivery: resposta do próprio morador não toca (Autorizar em aviso "Na portaria" → retirar)', () {
+      expect(cardToca({'fase': 'retirar', 'voceRespondeu': true}, origem: 'delivery'), isFalse);
+      // Retirar decidido pela portaria ou por outro morador segue tocando.
+      expect(cardToca({'fase': 'retirar', 'voceRespondeu': false, 'pelaPortaria': true}, origem: 'delivery'), isTrue);
+    });
+  });
 }

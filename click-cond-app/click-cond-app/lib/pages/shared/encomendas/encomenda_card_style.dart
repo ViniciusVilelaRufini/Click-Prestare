@@ -16,8 +16,8 @@ enum EncomendaTier { normal, atrasada, aCaminho, entregue, cancelada }
 enum EncomendaFiltro { todas, aguardando, entregues }
 
 /// Seção da lista: cabeçalho opcional + encomendas. [major] distingue as
-/// seções principais ('Aguardando retirada (n)', 'Entregues (n)') dos
-/// cabeçalhos de dia, que ficam subordinados.
+/// seções principais ('Aguardando retirada (n)', 'A caminho (n)',
+/// 'Entregues (n)') dos cabeçalhos de dia, que ficam subordinados.
 typedef EncomendaSection = ({String? title, bool major, List<EncomendaModel> items});
 
 EncomendaKind encomendaKind(String? status) {
