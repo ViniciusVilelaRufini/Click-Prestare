@@ -79,6 +79,21 @@ export const MOTIVO_SEM_CHEGADA = 'Sem chegada';
  * da rotina por minutos; o resto sai nas passadas seguintes.
  */
 export const LOTE_SEM_CHEGADA = 50;
+/**
+ * Atendimento da portaria (sem pedido de portão) parado este tempo é
+ * encerrado pela rotina: AUTORIZADA/RETIRADA_NA_PORTARIA → CONCLUIDA;
+ * CHEGOU/AGUARDANDO_AUTORIZACAO → CANCELADA com motivo "Sem resposta".
+ */
+export const PARADO_PORTARIA_MS = 24 * 3_600_000;
+export const MOTIVO_PARADO_SEM_RESPOSTA = 'Sem resposta';
+export const MSG_ENCERRADO_AUTOMATICAMENTE = 'Encerrado automaticamente';
+/** Status do atendimento da portaria parado → para onde a rotina o leva. */
+const DESTINO_PARADO_PORTARIA: Partial<Record<DeliveryStatus, { status: DeliveryStatus; mensagem: string }>> = {
+  CHEGOU: { status: 'CANCELADA', mensagem: MOTIVO_PARADO_SEM_RESPOSTA },
+  AGUARDANDO_AUTORIZACAO: { status: 'CANCELADA', mensagem: MOTIVO_PARADO_SEM_RESPOSTA },
+  AUTORIZADA: { status: 'CONCLUIDA', mensagem: MSG_ENCERRADO_AUTOMATICAMENTE },
+  RETIRADA_NA_PORTARIA: { status: 'CONCLUIDA', mensagem: MSG_ENCERRADO_AUTOMATICAMENTE },
+};
 const MSG_JA_TEM_PEDIDO = 'Este atendimento já tem um pedido de portão.';
 const MSG_ENTREGADOR_SAIU = 'O entregador não está mais no portão.';
 const AUTOR_AUTOATENDIMENTO = 'Autoatendimento';
@@ -734,8 +749,9 @@ export class DeliveryService {
    * motivo "Sem chegada" 24 h depois da previsão ou, sem previsão, da
    * criação. Chamado pela rotina periódica do delivery (DeliveryPortaoService.tick).
    * Pelo sistema: entra na linha do tempo e não manda a notificação comum de
-   * cancelamento. Os demais status não são encerrados aqui (a fila do console
-   * os destaca). Devolve quantos cancelou; um que falha não impede os outros.
+   * cancelamento. Os demais status não são encerrados aqui (o atendimento da
+   * portaria parado é de encerrarParadosDaPortaria). Devolve quantos
+   * cancelou; um que falha não impede os outros.
    */
   async cancelarAvisosSemChegada(): Promise<number> {
     const corte = new Date(this.agora() - AVISO_SEM_CHEGADA_MS);
@@ -764,6 +780,44 @@ export class DeliveryService {
       }
     }
     return cancelados;
+  }
+
+  /**
+   * Atendimento da portaria (sem pedido de portão) parado há PARADO_PORTARIA_MS
+   * (pelo updated_at): AUTORIZADA/RETIRADA_NA_PORTARIA → CONCLUIDA
+   * ("Encerrado automaticamente"); CHEGOU/AGUARDANDO_AUTORIZACAO → CANCELADA
+   * com motivo "Sem resposta". Com pedido de portão valem as regras de 2 h do
+   * portão; AGENDADA é de cancelarAvisosSemChegada. Chamado pela rotina
+   * periódica (DeliveryPortaoService.tick), em lote, sem esperar card/aviso.
+   * Devolve quantos mudaram; um que falha não impede os outros.
+   */
+  async encerrarParadosDaPortaria(): Promise<number> {
+    const corte = new Date(this.agora() - PARADO_PORTARIA_MS);
+    const lista = (await (this.prisma as any).deliveryAtendimentos.findMany({
+      where: {
+        id_pedido_portao: null,
+        status: { in: Object.keys(DESTINO_PARADO_PORTARIA) },
+        updated_at: { lte: corte },
+      },
+      select: { id: true, status: true },
+      orderBy: { id: 'asc' },
+      take: LOTE_SEM_CHEGADA,
+    })) as { id: number; status: DeliveryStatus }[];
+    let mudados = 0;
+    for (const a of lista) {
+      const destino = DESTINO_PARADO_PORTARIA[a.status];
+      if (!destino) continue;
+      try {
+        const ok = await this.transicionarPeloSistema(a.id, destino.status, destino.mensagem, {
+          somenteDe: a.status,
+          semEsperarAviso: true,
+        });
+        if (ok) mudados++;
+      } catch (e: any) {
+        this.logger.warn(`Delivery ${a.id} parado na portaria: ${e?.message ?? e}`);
+      }
+    }
+    return mudados;
   }
 
   /**

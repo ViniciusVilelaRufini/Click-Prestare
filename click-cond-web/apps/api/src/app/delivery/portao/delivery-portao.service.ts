@@ -214,6 +214,10 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
    * "Com pedido de portão" inclui o aviso AGENDADA do morador reaproveitado pelo portão.
    * 5. aviso AGENDADA sem chegada 24 h depois da previsão (ou da criação) → CANCELADA ("Sem chegada")
    *    — DeliveryService.cancelarAvisosSemChegada; vale com ou sem autoatendimento.
+   * 6. sem pedido de portão (atendimento da portaria), parado há 24 h: AUTORIZADA ou
+   *    RETIRADA_NA_PORTARIA → CONCLUIDA ("Encerrado automaticamente"); CHEGOU ou
+   *    AGUARDANDO_AUTORIZACAO → CANCELADA ("Sem resposta")
+   *    — DeliveryService.encerrarParadosDaPortaria; vale com ou sem autoatendimento.
    * Uma etapa (ou um atendimento) que falha não impede as outras.
    */
   async tick(): Promise<void> {
@@ -280,6 +284,7 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     });
 
     await this.etapa('cancelar aviso sem chegada', () => this.delivery.cancelarAvisosSemChegada());
+    await this.etapa('encerrar parados da portaria', () => this.delivery.encerrarParadosDaPortaria());
   }
 
   /**

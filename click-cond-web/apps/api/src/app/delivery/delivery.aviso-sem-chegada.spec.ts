@@ -8,8 +8,9 @@ import { LOTE_SEM_CHEGADA } from './delivery.service';
  * 24 h depois da previsão (ou da criação, sem previsão), pela rotina periódica
  * do delivery (a mesma do portão, a cada 5 min com lock). Entra na linha do
  * tempo com autor "Sistema" e sem a notificação comum de cancelamento (o card,
- * se houver, só é encerrado). Os demais status NÃO são encerrados aqui — o
- * console só os destaca na fila.
+ * se houver, só é encerrado). Os demais status NÃO são encerrados por esta
+ * regra (o atendimento da portaria parado há 24 h é de
+ * encerrarParadosDaPortaria — delivery.parado-portaria.spec.ts).
  */
 describe('delivery — aviso AGENDADA sem chegada', () => {
   const H = 3_600_000;
@@ -78,7 +79,7 @@ describe('delivery — aviso AGENDADA sem chegada', () => {
     expect(k.notifications.sendPushNotification).not.toHaveBeenCalled();
   });
 
-  it('os demais status parados há dias não são encerrados', async () => {
+  it('a regra "Sem chegada" não encerra os demais status (esses são de encerrarParadosDaPortaria)', async () => {
     const k = montarPortao({
       atendimentos: [
         aviso(1, { status: 'CHEGOU', chegou_em: em(-72 * H), created_at: em(-72 * H), updated_at: em(-72 * H) }),
@@ -87,7 +88,7 @@ describe('delivery — aviso AGENDADA sem chegada', () => {
         aviso(4, { status: 'AUTORIZADA', chegou_em: em(-72 * H), created_at: em(-72 * H), updated_at: em(-72 * H), id_apartamento: 201 }),
       ],
     });
-    await k.svc.tick();
+    expect(await k.delivery.cancelarAvisosSemChegada()).toBe(0);
     expect(status(k).map(([, s]) => s)).toEqual(['CHEGOU', 'AGUARDANDO_AUTORIZACAO', 'RETIRADA_NA_PORTARIA', 'AUTORIZADA']);
   });
 
