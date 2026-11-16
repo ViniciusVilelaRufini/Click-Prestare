@@ -710,6 +710,11 @@ export class DeliveryService {
       somenteDe?: DeliveryStatus;
       /** Não espera o card/aviso (nem o teto): a rotina em lote não fica presa no APNs/FCM. */
       semEsperarAviso?: boolean;
+      /**
+       * Não manda a notificação comum (o card ainda acompanha até o fim). A
+       * rotina das 24 h usa: "Sua entrega foi concluída." um dia depois só confunde.
+       */
+      semNotificacaoComum?: boolean;
     } = {},
   ): Promise<boolean> {
     const { somenteDe } = opcoes;
@@ -737,7 +742,7 @@ export class DeliveryService {
     if (!atualizado) return false;
     const gancho = this.chamarGancho(atualizado, statusNovo, { idUser: null, operador: false, sistema: true });
     const aviso = this.avisarMorador(atualizado, statusNovo, false, false, data.motivo, null, {
-      semNotificacaoComum: statusNovo === 'CANCELADA',
+      semNotificacaoComum: statusNovo === 'CANCELADA' || !!opcoes.semNotificacaoComum,
     }).catch((e: any) => this.logger.warn(`Aviso do delivery ${atualizado.id}: ${e?.message ?? e}`));
     // Ambos nunca rejeitam; em lote seguem em segundo plano.
     if (!opcoes.semEsperarAviso) await this.comTeto(Promise.all([gancho, aviso]));
@@ -789,7 +794,7 @@ export class DeliveryService {
    * com motivo "Sem resposta". Com pedido de portão valem as regras de 2 h do
    * portão; AGENDADA é de cancelarAvisosSemChegada. Chamado pela rotina
    * periódica (DeliveryPortaoService.tick), em lote, sem esperar card/aviso.
-   * Devolve quantos mudaram; um que falha não impede os outros.
+   * Sem a notificação comum (o card vai ao estado final). Devolve quantos mudaram; um que falha não impede os outros.
    */
   async encerrarParadosDaPortaria(): Promise<number> {
     const corte = new Date(this.agora() - PARADO_PORTARIA_MS);
@@ -811,6 +816,7 @@ export class DeliveryService {
         const ok = await this.transicionarPeloSistema(a.id, destino.status, destino.mensagem, {
           somenteDe: a.status,
           semEsperarAviso: true,
+          semNotificacaoComum: true,
         });
         if (ok) mudados++;
       } catch (e: any) {

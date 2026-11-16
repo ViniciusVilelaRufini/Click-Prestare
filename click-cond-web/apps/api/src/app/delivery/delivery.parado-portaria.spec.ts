@@ -65,6 +65,45 @@ describe('delivery — atendimento da portaria parado há 24 h', () => {
     expect(status(k)).toEqual([[1, 'CONCLUIDA', null]]);
   });
 
+  // O aviso da rotina vai em segundo plano (semEsperarAviso): deixa assentar.
+  const assentar = async () => {
+    for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+  };
+
+  it('conclusão automática não manda a notificação comum ao morador, mas o card chega ao fim', async () => {
+    const k = montarPortao({
+      atendimentos: [
+        atendimento(1, 'AUTORIZADA', 25 * H),
+        atendimento(2, 'RETIRADA_NA_PORTARIA', 25 * H),
+      ],
+    });
+    const n = await k.delivery.encerrarParadosDaPortaria();
+    await assentar();
+    expect(n).toBe(2);
+    expect(k.notifications.sendPushNotification).not.toHaveBeenCalled();
+    expect(k.card.atualizarDelivery).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 1, status: 'CONCLUIDA' }),
+      7,
+      { voceRespondeu: false },
+    );
+    expect(k.card.atualizarDelivery).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 2, status: 'CONCLUIDA' }),
+      7,
+      { voceRespondeu: false },
+    );
+  });
+
+  it('outros chamadores de transicionarPeloSistema seguem mandando a notificação comum de CONCLUIDA', async () => {
+    const k = montarPortao({ atendimentos: [atendimento(1, 'AUTORIZADA', 1 * H)] });
+    expect(await k.delivery.transicionarPeloSistema(1, 'CONCLUIDA', 'Concluído na saída do entregador')).toBe(true);
+    expect(k.notifications.sendPushNotification).toHaveBeenCalledWith(
+      'fcm-7',
+      'Delivery',
+      expect.any(String),
+      { id_delivery: '1', status: 'CONCLUIDA' },
+    );
+  });
+
   it("CHEGOU e AGUARDANDO_AUTORIZACAO sem pedido, parados 25 h → CANCELADA com motivo 'Sem resposta'", async () => {
     const k = montarPortao({
       atendimentos: [
