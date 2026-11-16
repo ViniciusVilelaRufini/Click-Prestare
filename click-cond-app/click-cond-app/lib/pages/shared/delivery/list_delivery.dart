@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:click/controllers/controller_delivery.dart';
 import 'package:click/models/delivery_model.dart';
 import 'package:click/pages/shared/delivery/delivery_details_page.dart';
@@ -5,6 +7,7 @@ import 'package:click/pages/shared/delivery/delivery_form_page.dart';
 import 'package:click/pages/shared/delivery/delivery_status_style.dart';
 import 'package:click/pages/shared/delivery/resposta_delivery.dart';
 import 'package:click/pages/shared/delivery/selfie_entregador.dart';
+import 'package:click/services/atualizacoes_app.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -26,7 +29,7 @@ class ListDelivery extends StatefulWidget {
   ListDeliveryState createState() => ListDeliveryState();
 }
 
-class ListDeliveryState extends State<ListDelivery> with WidgetsBindingObserver {
+class ListDeliveryState extends State<ListDelivery> {
   List<DeliveryModel> _deliveries = const [];
   String? _error;
   bool _loading = false;
@@ -34,24 +37,23 @@ class ListDeliveryState extends State<ListDelivery> with WidgetsBindingObserver 
   /// Avisos com resposta (autorizar/recusar) em envio pelo destaque.
   final Set<int?> _respondendo = {};
 
+  /// O status muda na portaria com a tela aberta ou com o app em segundo
+  /// plano: o push do delivery e a volta ao app recarregam a lista.
+  StreamSubscription<DominioApp>? _atualizacoes;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
+    _atualizacoes = ouvirAtualizacoes({DominioApp.delivery}, () {
+      if (mounted) loadList();
+    });
     loadList();
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
+    _atualizacoes?.cancel();
     super.dispose();
-  }
-
-  /// O status muda na portaria enquanto o app está em segundo plano (o push
-  /// chega, o morador volta ao app): recarrega em vez de mostrar o antigo.
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && mounted) loadList();
   }
 
   Future<void> loadList() async {

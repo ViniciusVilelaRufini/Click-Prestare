@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/pages/shared/ocorrencias/detail_ocorrencia.dart';
 import 'package:click/pages/shared/ocorrencias/ocorrencia_sla.dart';
+import 'package:click/services/atualizacoes_app.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -68,18 +71,32 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
     }).toList();
   }
 
+  /// Push de ocorrência ou volta ao app: cada aba aberta recarrega a sua
+  /// lista (a tela das abas, [ListOcorrencias], não precisa assinar).
+  StreamSubscription<DominioApp>? _atualizacoes;
+
   @override
   void initState() {
     super.initState();
+    _atualizacoes = ouvirAtualizacoes({DominioApp.ocorrencia}, () {
+      if (mounted) loadList(avisarErro: false);
+    });
     loadList();
   }
 
-  Future<void> loadList() async {
+  @override
+  void dispose() {
+    _atualizacoes?.cancel();
+    super.dispose();
+  }
+
+  /// [avisarErro] falso na recarga automática: sem rede, fica a lista atual.
+  Future<void> loadList({bool avisarErro = true}) async {
     try {
       if (list.isEmpty) setState(() => _isLoading = true);
       list = await apiGetAll("ocorrencias/todos");
     } catch (e) {
-      if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
+      if (mounted && avisarErro) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

@@ -8,6 +8,7 @@ import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
 import 'package:click/pages/shared/visitantes/convites_visita.dart';
 import 'package:click/pages/shared/visitantes/compartilhar_passe.dart';
 import 'package:click/pages/singleton.dart';
+import 'package:click/services/atualizacoes_app.dart';
 import 'package:click/utils/visitantes_presenca.dart';
 import 'package:click/utils/visitantes_pessoas.dart';
 import 'package:click/theme/app_colors.dart';
@@ -51,9 +52,18 @@ class ListVisitantesPageState extends State<ListVisitantes> {
   // Esta tela mostra visitantes e prestadores no mesmo lugar; o chip escolhe o recorte.
   String _tipoFiltro = 'todos'; // todos | visitantes | prestadores
 
+  /// Push de visitante (chegou, saiu, pediu autorização) ou volta ao app:
+  /// recarrega a lista e o contador de pendentes.
+  StreamSubscription<DominioApp>? _atualizacoes;
+
   @override
   void initState() {
     super.initState();
+    _atualizacoes = ouvirAtualizacoes({DominioApp.visitante}, () {
+      if (!mounted) return;
+      loadList(avisarErro: false);
+      _loadPendentes();
+    });
     loadList();
     _loadPendentes();
   }
@@ -73,6 +83,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
 
   @override
   void dispose() {
+    _atualizacoes?.cancel();
     txtSearch.dispose();
     _timerSearch?.cancel();
     super.dispose();
@@ -168,16 +179,18 @@ class ListVisitantesPageState extends State<ListVisitantes> {
     );
   }
 
-  Future<void> loadList() async {
+  /// [avisarErro] falso na recarga automática: sem rede, fica a lista atual.
+  Future<void> loadList({bool avisarErro = true}) async {
     try {
       // Stale-while-revalidate: skeleton só sem cache; ao voltar, mantém a lista.
       if (list.isEmpty) setState(() => _isLoading = true);
       list = await apiGetAllVisitantes(txtSearch.text,
           allCondos: widget.allCondos);
     } catch (e) {
-      if (mounted)
+      if (mounted && avisarErro) {
         displayMessage(
             context, getText('alert_error'), getText('alert_generic_error'));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

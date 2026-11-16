@@ -1,10 +1,12 @@
 import 'package:click/utils/log.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/pages/shared/areas%20sociais/new_reserva.dart';
 import 'package:click/pages/singleton.dart';
+import 'package:click/services/atualizacoes_app.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -39,25 +41,42 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
   bool _weatherLoading = false;
   String? _cityName;
 
+  /// Push de reserva (aprovada, recusada, cancelada) ou volta ao app:
+  /// recarrega a área e as reservas dela.
+  StreamSubscription<DominioApp>? _atualizacoes;
+
   @override
   void initState() {
     super.initState();
+    _atualizacoes = ouvirAtualizacoes({DominioApp.reserva}, () {
+      if (mounted) load(recarga: true);
+    });
     load();
   }
 
-  Future<void> load() async {
+  @override
+  void dispose() {
+    _atualizacoes?.cancel();
+    super.dispose();
+  }
+
+  /// [recarga] na atualização automática: sem tela cheia de carregamento,
+  /// sem alerta de erro (fica o que já está na tela) e sem refazer o clima.
+  Future<void> load({bool recarga = false}) async {
     try {
-      setState(() => _isLoading = true);
-      obj = await apiGetDetails('areas-sociais', widget.myId!);
+      if (obj == null) setState(() => _isLoading = true);
+      final novo = await apiGetDetails('areas-sociais', widget.myId!);
+      if (recarga && novo == null && obj != null) return;
+      obj = novo;
       if (obj == null && mounted) {
         displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
       }
       if (mounted) setState(() {});
       
       // Load weather info after social area is fetched
-      _fetchWeatherForCondominium();
+      if (!recarga) _fetchWeatherForCondominium();
     } catch (e) {
-      if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
+      if (mounted && !recarga) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

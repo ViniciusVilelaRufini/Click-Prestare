@@ -9,6 +9,7 @@ import 'package:click/pages/shared/ocorrencias/list_ocorrencias.dart';
 import 'package:click/controllers/controller_delivery.dart';
 import 'package:click/controllers/controller_visitantes.dart';
 import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
+import 'package:click/services/atualizacoes_app.dart';
 import 'package:click/services/card_ao_vivo/card_android.dart';
 import 'package:click/services/card_ao_vivo/card_ao_vivo_ios.dart';
 import 'package:click/theme/theme_controller.dart';
@@ -135,6 +136,11 @@ class FirebaseService {
       if (kDebugMode) {
         logDebug('Got a message whilst in the foreground! Data: ${message.data}');
       }
+
+      // Telas abertas que mostram este assunto recarregam (reserva aprovada,
+      // ocorrência resolvida, visitante que saiu...).
+      final dominio = dominioDoPush(message.data);
+      if (dominio != null) AtualizacoesApp.avisar(dominio);
 
       final type = message.data['type']?.toString();
       if (type == 'card_portaria') {

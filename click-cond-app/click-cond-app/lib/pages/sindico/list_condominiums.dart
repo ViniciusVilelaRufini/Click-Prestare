@@ -4,6 +4,7 @@ import 'package:click/pages/shared/areas%20sociais/list_areas_sociais.dart';
 import 'package:click/utils/rotulo_bloco.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/utils/log.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:click/controllers/controller_condominio.dart';
@@ -28,6 +29,7 @@ import 'package:click/pages/shared/visitantes/list_visitantes.dart';
 import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
 import 'package:click/pages/sindico/edit_sindico.dart';
 import 'package:click/pages/singleton.dart';
+import 'package:click/services/atualizacoes_app.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/utils/cond_cache.dart';
@@ -58,12 +60,28 @@ class _ListCondomiumsState extends State<ListCondomiums> {
   int _naoLidas = 0;
   int _pendentesCount = 0;
 
+  /// Qualquer push (todo aviso vira notificação e pode mexer nos eventos e
+  /// no resumo) ou a volta ao app: recarrega o início sem skeleton.
+  StreamSubscription<DominioApp>? _atualizacoes;
+
   @override
   void initState() {
     super.initState();
+    _atualizacoes = ouvirAtualizacoes(DominioApp.values.toSet(), () {
+      if (!mounted) return;
+      _loadList(recarga: true);
+      _carregarNaoLidas();
+      _carregarPendentes();
+    });
     _loadList();
     _carregarNaoLidas();
     _carregarPendentes();
+  }
+
+  @override
+  void dispose() {
+    _atualizacoes?.cancel();
+    super.dispose();
   }
 
   Future<void> _carregarNaoLidas() async {
@@ -84,7 +102,9 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     } catch (_) {}
   }
 
-  Future<void> _loadList() async {
+  /// [recarga] na atualização automática: se falhar e já houver lista, ela
+  /// fica na tela em vez de virar a mensagem de erro.
+  Future<void> _loadList({bool recarga = false}) async {
     if (!mounted) return;
     final token = getToken();
     if (token.isEmpty) {
@@ -169,13 +189,14 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               ? results[3] as List
               : [];
         });
-      } else {
+      } else if (!(recarga && _list.isNotEmpty)) {
         setState(() => _errorMessage = getText('alert_generic_error'));
       }
     } catch (e) {
       logDebug('[ListCondomiums] Error: $e');
-      if (mounted)
+      if (mounted && !(recarga && _list.isNotEmpty)) {
         setState(() => _errorMessage = getText('alert_generic_error'));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/pages/shared/areas%20sociais/agendamentos_cells.dart';
 import 'package:click/pages/shared/areas%20sociais/areas_sociais_cells.dart';
 import 'package:click/pages/shared/areas%20sociais/meus_agendamentos_cells.dart';
 import 'package:click/pages/shared/areas%20sociais/new_area_social.dart';
+import 'package:click/services/atualizacoes_app.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -26,14 +29,27 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
   int _currentTab = 0;
   bool _isLoading = false;
 
+  /// Push de reserva ou volta ao app: recarrega áreas e reservas.
+  StreamSubscription<DominioApp>? _atualizacoes;
+
   @override
   void initState() {
     super.initState();
+    _atualizacoes = ouvirAtualizacoes({DominioApp.reserva}, () {
+      if (mounted) loadAll();
+    });
     loadAll();
   }
 
+  @override
+  void dispose() {
+    _atualizacoes?.cancel();
+    super.dispose();
+  }
+
   Future<void> loadAll() async {
-    setState(() => _isLoading = true);
+    // Tela cheia de carregamento só quando ainda não há nada para mostrar.
+    if (list.isEmpty) setState(() => _isLoading = true);
     try {
       final List<Future<dynamic>> futures = [
         apiGetAll("areas-sociais"),

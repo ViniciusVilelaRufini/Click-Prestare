@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:click/controllers/controller_delivery.dart';
 import 'package:click/models/delivery_model.dart';
 import 'package:click/pages/shared/delivery/delivery_form_page.dart';
 import 'package:click/pages/shared/delivery/delivery_status_style.dart';
 import 'package:click/pages/shared/delivery/resposta_delivery.dart';
 import 'package:click/pages/shared/delivery/selfie_entregador.dart';
+import 'package:click/services/atualizacoes_app.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -34,8 +37,49 @@ class _DeliveryDetailsPageState extends State<DeliveryDetailsPage> {
   /// Check animado no card principal logo depois de autorizar.
   bool _celebrando = false;
 
+  /// Aviso mostrado: começa com o que veio da lista e é trocado pelo do
+  /// servidor quando chega push do delivery ou o app volta ao primeiro plano.
+  late DeliveryModel _delivery = widget.delivery;
+  StreamSubscription<DominioApp>? _atualizacoes;
+
+  @override
+  void initState() {
+    super.initState();
+    _atualizacoes = ouvirAtualizacoes({DominioApp.delivery}, () {
+      if (mounted) _recarregar();
+    });
+  }
+
+  /// Quem abriu passou outro aviso (mesma tela reaproveitada): vale o novo.
+  @override
+  void didUpdateWidget(DeliveryDetailsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.delivery, widget.delivery)) _delivery = widget.delivery;
+  }
+
+  @override
+  void dispose() {
+    _atualizacoes?.cancel();
+    super.dispose();
+  }
+
+  /// Não há busca por id: refaz a lista (a mesma da tela anterior) e pega
+  /// este aviso. Se ele não vier (erro ou sumiu), fica o que já está na tela.
+  Future<void> _recarregar() async {
+    final id = _delivery.id;
+    if (id == null) return;
+    final result = await apiGetDeliveries(idCondominio: _delivery.idCondominio);
+    if (!mounted) return;
+    for (final d in result.deliveries) {
+      if (d.id == id) {
+        setState(() => _delivery = d);
+        return;
+      }
+    }
+  }
+
   Future<void> _responder(RespostaDelivery resposta) async {
-    final delivery = widget.delivery;
+    final delivery = _delivery;
     final autorizar = resposta == RespostaDelivery.autorizar;
     if (resposta != RespostaDelivery.recusar) HapticFeedback.lightImpact();
     if (resposta == RespostaDelivery.recusar) {
@@ -72,7 +116,7 @@ class _DeliveryDetailsPageState extends State<DeliveryDetailsPage> {
     if (confirmed != true || !mounted) return;
 
     setState(() => _cancelling = true);
-    final result = await apiCancelDelivery(widget.delivery);
+    final result = await apiCancelDelivery(_delivery);
     if (!mounted) return;
     setState(() => _cancelling = false);
     if (result.success) {
@@ -92,7 +136,7 @@ class _DeliveryDetailsPageState extends State<DeliveryDetailsPage> {
     final created = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (_) => DeliveryFormPage(prefillEstablishment: widget.delivery.estabelecimento),
+        builder: (_) => DeliveryFormPage(prefillEstablishment: _delivery.estabelecimento),
       ),
     );
     if (created != true || !mounted) return;
@@ -186,7 +230,7 @@ class _DeliveryDetailsPageState extends State<DeliveryDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final delivery = widget.delivery;
+    final delivery = _delivery;
     final actions = _buildActions(delivery);
 
     return AppScaffold(

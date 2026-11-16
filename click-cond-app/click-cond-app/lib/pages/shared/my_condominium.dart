@@ -1,5 +1,6 @@
 import 'package:click/widgets/app/app_card.dart';
 import 'package:click/utils/log.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
 import 'package:http/http.dart' as http;
@@ -36,6 +37,7 @@ import 'package:click/pages/shared/enquetes/list_enquetes.dart';
 import 'package:click/pages/shared/chat_ia/chat_ia_page.dart';
 import 'package:click/pages/shared/veiculos/list_veiculos.dart';
 import 'package:click/pages/singleton.dart';
+import 'package:click/services/atualizacoes_app.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -134,7 +136,23 @@ class _MyCondominiumState extends State<MyCondominium> {
       };
     }
 
+    _atualizacoes = ouvirAtualizacoes(
+      {DominioApp.visitante, DominioApp.encomenda, DominioApp.delivery, DominioApp.ocorrencia},
+      () {
+        if (mounted) _loadCond(recarga: true);
+      },
+    );
     _loadCond();
+  }
+
+  /// Contadores do painel (visitas no local, encomendas, pendentes,
+  /// ocorrências abertas): push desses assuntos ou volta ao app recarregam.
+  StreamSubscription<DominioApp>? _atualizacoes;
+
+  @override
+  void dispose() {
+    _atualizacoes?.cancel();
+    super.dispose();
   }
 
   /// Formata um valor cru ("30180.88", "R$30180.88" ou "30.180,88") como
@@ -228,7 +246,9 @@ class _MyCondominiumState extends State<MyCondominium> {
     } catch (_) {}
   }
 
-  Future<void> _loadCond() async {
+  /// [recarga] na atualização automática: se falhar, fica o que já está na
+  /// tela (sem o alerta que fecha a tela) e o clima não é buscado de novo.
+  Future<void> _loadCond({bool recarga = false}) async {
     if (!mounted || !temSessao()) return;
     _carregarPendentes();
     // Stale-while-revalidate: skeleton só no 1º load (sem cache). Ao voltar,
@@ -277,14 +297,14 @@ class _MyCondominiumState extends State<MyCondominium> {
         // Trigger weather fetch
         final String city = cond['cidade'] ?? '';
         final String stateCode = cond['uf'] ?? '';
-        if (city.isNotEmpty) {
+        if (city.isNotEmpty && !recarga) {
           _fetchWeather(city, stateCode);
         }
-      } else if (temSessao()) {
+      } else if (temSessao() && !recarga) {
         _err();
       }
     } catch (_) {
-      if (mounted && temSessao()) _err();
+      if (mounted && temSessao() && !recarga) _err();
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

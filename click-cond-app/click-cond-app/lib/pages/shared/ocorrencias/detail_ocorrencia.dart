@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:click/services/atualizacoes_app.dart';
 import 'package:click/utils/datas.dart';
 import 'package:click/utils/log.dart';
 import 'package:click/pages/shared/ocorrencias/ocorrencia_chat.dart';
@@ -36,8 +39,12 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
   List<dynamic> list = [];
   var currentStatus = '';
 
+  /// Push de ocorrência ou volta ao app: recarrega (status, resposta).
+  StreamSubscription<DominioApp>? _atualizacoes;
+
   @override
   void dispose() {
+    _atualizacoes?.cancel();
     txtResposta.dispose();
     super.dispose();
   }
@@ -45,20 +52,29 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
   @override
   void initState() {
     super.initState();
+    _atualizacoes = ouvirAtualizacoes({DominioApp.ocorrencia}, () {
+      if (mounted) load(avisarErro: false);
+    });
     load();
   }
 
-  Future<void> load() async {
+  /// [avisarErro] falso na recarga automática: sem rede ao voltar ao app,
+  /// fica o que já está na tela em vez de abrir um alerta por tela.
+  Future<void> load({bool avisarErro = true}) async {
     try {
-      setState(() => _isLoading = true);
-      obj = await apiGetDetails("ocorrencias", widget.id);
+      // Tela cheia de carregamento só na primeira vez; depois troca no lugar.
+      if (obj == null) setState(() => _isLoading = true);
+      final novo = await apiGetDetails("ocorrencias", widget.id);
+      // Recarga automática que falhou (sem rede): fica o que já está na tela.
+      if (novo == null && !avisarErro && obj != null) return;
+      obj = novo;
       currentStatus = obj['status'];
       // Chat e anexos ao mesmo tempo: o chat só decide o lápis do autor.
       await Future.wait([_conferirChat(), _carregarAnexos()]);
       if (mounted) setState(() {});
     } catch (e) {
       logDebug('[DetailOcorrencia] Erro no load: $e');
-      if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
+      if (mounted && avisarErro) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

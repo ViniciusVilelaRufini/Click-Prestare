@@ -1,4 +1,5 @@
 import 'package:click/utils/rotulo_bloco.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -6,6 +7,7 @@ import 'package:click/controllers/controller_encomendas.dart';
 import 'package:click/models/encomenda_model.dart';
 import 'package:click/pages/shared/encomendas/encomenda_card_style.dart';
 import 'package:click/pages/shared/encomendas/new_encomenda.dart';
+import 'package:click/services/atualizacoes_app.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -50,19 +52,27 @@ class ListEncomendasState extends State<ListEncomendas> {
     return type == 'sindico' || type == 'funcionario';
   }
 
+  /// Push de encomenda (chegou, retirada) ou volta ao app: recarrega a lista.
+  StreamSubscription<DominioApp>? _atualizacoes;
+
   @override
   void initState() {
     super.initState();
+    _atualizacoes = ouvirAtualizacoes({DominioApp.encomenda}, () {
+      if (mounted) _loadList(avisarErro: false);
+    });
     _loadList();
   }
 
   @override
   void dispose() {
+    _atualizacoes?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadList() async {
+  /// [avisarErro] falso na recarga automática: sem rede, fica a lista atual.
+  Future<void> _loadList({bool avisarErro = true}) async {
     if (_encomendas.isEmpty) setState(() => _isLoading = true);
     try {
       final List<dynamic> result = await apiGetAllEncomendas(allCondos: widget.allCondos);
@@ -73,7 +83,7 @@ class ListEncomendasState extends State<ListEncomendas> {
         _abrirDestaqueSeNecessario();
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && avisarErro) {
         displayMessage(context, getText('alert_error'), 'Erro ao carregar encomendas');
       }
     } finally {

@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'package:click/services/atualizacoes_app.dart';
 import 'package:click/services/firebase_service.dart';
 
 void main() async {
@@ -37,6 +38,9 @@ void main() async {
   // conseguir abrir o app e usar portaria, reservas e financeiro.
   runApp(const MyApp());
 
+  // Volta do segundo plano: as telas abertas recarregam (fora do Firebase,
+  // para funcionar mesmo sem push).
+  WidgetsBinding.instance.addObserver(ObservadorVoltaAoApp());
   FirebaseService.instance.init();
 }
 
