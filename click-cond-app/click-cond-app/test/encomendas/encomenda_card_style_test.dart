@@ -113,6 +113,12 @@ void main() {
           'chegou 28/09 às 18:38',
       enc(status: 'aguardando', recebidoDe: '  ', recebidoEm: '2026-09-28T18:38:00'):
           'chegou 28/09 às 18:38',
+      // Só avisada pelo morador: recebidoEm é a hora do aviso, não da chegada.
+      enc(
+              status: 'Esperando',
+              recebidoDe: 'Correios',
+              recebidoEm: '2026-11-16T10:57:00'):
+          'Correios · avisada 16/11 às 10:57',
       enc(status: 'esperando', recebidoDe: 'iFood'): 'iFood',
       enc(status: 'esperando'): null,
     };
@@ -184,11 +190,46 @@ void main() {
 
     test('todas: aguardando primeiro (mais antiga primeiro), depois por dia', () {
       expect(resumo(encomendaSections(todas, EncomendaFiltro.todas, now: now)), [
-        '# Aguardando retirada (3): 2,3,1',
+        '# Aguardando retirada (2): 2,3',
+        '# A caminho (1): 1',
         '# Entregues (3): ',
         '- Hoje: 6,4',
         '- Ontem: 5',
       ]);
+    });
+
+    test('todas: 1 que chegou e 1 avisada separam "Aguardando" de "A caminho"',
+        () {
+      expect(
+          resumo(encomendaSections(
+              [entregueHoje, esperando, recente], EncomendaFiltro.todas,
+              now: now)),
+          [
+            '# Aguardando retirada (1): 3',
+            '# A caminho (1): 1',
+            '# Entregues (1): ',
+            '- Hoje: 4',
+          ]);
+    });
+
+    test('todas: sem avisada não há seção "A caminho"', () {
+      final secoes = encomendaSections(
+          [antiga, recente, entregueHoje], EncomendaFiltro.todas,
+          now: now);
+      expect(resumo(secoes), [
+        '# Aguardando retirada (2): 2,3',
+        '# Entregues (1): ',
+        '- Hoje: 4',
+      ]);
+      expect(secoes.any((x) => (x.title ?? '').startsWith('A caminho')),
+          isFalse);
+    });
+
+    test('todas: só avisada mostra "A caminho" sem "Aguardando retirada"', () {
+      expect(
+          resumo(encomendaSections([esperando], EncomendaFiltro.todas,
+              now: now)),
+          ['# A caminho (1): 1']);
     });
 
     test('aguardando: só as que esperam, mais urgente primeiro, sem cabeçalho',

@@ -139,13 +139,17 @@ Color encomendaTierColor(BuildContext context, EncomendaTier tier) {
 }
 
 /// Linha discreta do card que aguarda: 'Correios · chegou 28/09 às 18:38'
-/// (sem remetente vazio ou 'N/A'); null quando não há nada a mostrar.
+/// (sem remetente vazio ou 'N/A'); null quando não há nada a mostrar. A só
+/// avisada pelo morador ainda não chegou: o recebidoEm dela é a hora do
+/// aviso, então sai 'Correios · avisada 16/11 às 10:57'.
 String? encomendaMetaLine(EncomendaModel e, {DateTime? now}) {
   final ref = now ?? DateTime.now();
-  final chegada = _parse(e.recebidoEm);
+  final data = _parse(e.recebidoEm);
+  final palavra =
+      encomendaKind(e.status) == EncomendaKind.esperando ? 'avisada' : 'chegou';
   final partes = [
     if (_texto(e.recebidoDe) != null) _texto(e.recebidoDe)!,
-    if (chegada != null) 'chegou ${_dataHora(chegada, ref)}',
+    if (data != null) '$palavra ${_dataHora(data, ref)}',
   ];
   return partes.isEmpty ? null : partes.join(' · ');
 }
@@ -179,8 +183,10 @@ bool encomendaNoFiltro(EncomendaModel e, EncomendaFiltro filtro) =>
 int encomendaCount(List<EncomendaModel> lista, EncomendaFiltro filtro) =>
     lista.where((e) => encomendaNoFiltro(e, filtro)).length;
 
-/// Seções da lista: as que aguardam (a mais antiga primeiro, a caminho no
-/// fim) e as encerradas (mais recentes primeiro, sob cabeçalhos de dia).
+/// Seções da lista: as que aguardam (a mais antiga primeiro), as só avisadas
+/// ('A caminho', logo depois: ainda não chegaram) e as encerradas (mais
+/// recentes primeiro, sob cabeçalhos de dia). O filtro 'aguardando' junta as
+/// que chegaram e as avisadas numa lista só, como o contador dele.
 List<EncomendaSection> encomendaSections(
     List<EncomendaModel> lista, EncomendaFiltro filtro,
     {DateTime? now}) {
@@ -220,9 +226,17 @@ List<EncomendaSection> encomendaSections(
     case EncomendaFiltro.entregues:
       return dias;
     case EncomendaFiltro.todas:
+      final naPortaria = aguardando
+          .where((e) => encomendaKind(e.status) != EncomendaKind.esperando)
+          .toList();
+      final aCaminho = aguardando
+          .where((e) => encomendaKind(e.status) == EncomendaKind.esperando)
+          .toList();
       return [
-        if (aguardando.isNotEmpty)
-          (title: 'Aguardando retirada (${aguardando.length})', major: true, items: aguardando),
+        if (naPortaria.isNotEmpty)
+          (title: 'Aguardando retirada (${naPortaria.length})', major: true, items: naPortaria),
+        if (aCaminho.isNotEmpty)
+          (title: 'A caminho (${aCaminho.length})', major: true, items: aCaminho),
         // Cabeçalho principal antes dos dias, para eles não parecerem parte
         // da seção de cima.
         if (encerradas.isNotEmpty)
