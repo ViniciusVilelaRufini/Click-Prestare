@@ -59,7 +59,7 @@ class ListEncomendasState extends State<ListEncomendas> {
   void initState() {
     super.initState();
     _atualizacoes = ouvirAtualizacoes({DominioApp.encomenda}, () {
-      if (mounted) _loadList(avisarErro: false);
+      if (mounted) _loadList(recarga: true);
     });
     _loadList();
   }
@@ -71,19 +71,22 @@ class ListEncomendasState extends State<ListEncomendas> {
     super.dispose();
   }
 
-  /// [avisarErro] falso na recarga automática: sem rede, fica a lista atual.
-  Future<void> _loadList({bool avisarErro = true}) async {
+  /// [recarga] na atualização automática: se a busca falhar (sem rede,
+  /// 401/5xx), fica a lista atual e não abre alerta.
+  Future<void> _loadList({bool recarga = false}) async {
     if (_encomendas.isEmpty) setState(() => _isLoading = true);
     try {
-      final List<dynamic> result = await apiGetAllEncomendas(allCondos: widget.allCondos);
-      if (mounted) {
+      final List<dynamic>? result = recarga
+          ? await apiGetAllEncomendasOuNull(allCondos: widget.allCondos)
+          : await apiGetAllEncomendas(allCondos: widget.allCondos);
+      if (result != null && mounted) {
         setState(() {
           _encomendas = result.map((e) => EncomendaModel.fromJson(e)).toList();
         });
         _abrirDestaqueSeNecessario();
       }
     } catch (e) {
-      if (mounted && avisarErro) {
+      if (mounted && !recarga) {
         displayMessage(context, getText('alert_error'), 'Erro ao carregar encomendas');
       }
     } finally {

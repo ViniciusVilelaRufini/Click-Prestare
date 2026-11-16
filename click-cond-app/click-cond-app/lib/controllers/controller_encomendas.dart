@@ -6,6 +6,12 @@ import 'package:click/utils/api_config.dart';
 import 'package:click/utils/api_client.dart';
 
 apiGetAllEncomendas({String? status, bool allCondos = false}) async {
+  return await apiGetAllEncomendasOuNull(status: status, allCondos: allCondos) ?? [];
+}
+
+/// Igual ao [apiGetAllEncomendas], mas devolve `null` quando a busca falha
+/// (status diferente de 200, sem rede): a recarga automática mantém a lista.
+Future<dynamic> apiGetAllEncomendasOuNull({String? status, bool allCondos = false}) async {
   final Map<String, String> params = {};
   if (!allCondos && Singleton.instance.id_condominio != 0) {
     params['id_condominio'] = Singleton.instance.id_condominio.toString();
@@ -24,11 +30,11 @@ apiGetAllEncomendas({String? status, bool allCondos = false}) async {
       var parsed = jsonDecode(response.body);
       return parsed ?? [];
     } else {
-      return [];
+      return null;
     }
   } catch (e) {
     logDebug(e);
-    return [];
+    return null;
   }
 }
 

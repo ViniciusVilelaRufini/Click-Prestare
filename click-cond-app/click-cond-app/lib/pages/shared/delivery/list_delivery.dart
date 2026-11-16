@@ -45,7 +45,7 @@ class ListDeliveryState extends State<ListDelivery> {
   void initState() {
     super.initState();
     _atualizacoes = ouvirAtualizacoes({DominioApp.delivery}, () {
-      if (mounted) loadList();
+      if (mounted) loadList(recarga: true);
     });
     loadList();
   }
@@ -56,10 +56,16 @@ class ListDeliveryState extends State<ListDelivery> {
     super.dispose();
   }
 
-  Future<void> loadList() async {
+  /// [recarga] na atualização automática: se a busca falhar (sem rede,
+  /// 401/5xx), fica a lista atual em vez da tela de erro.
+  Future<void> loadList({bool recarga = false}) async {
     if (_deliveries.isEmpty) setState(() => _loading = true);
     final result = await apiGetDeliveries();
     if (!mounted) return;
+    if (recarga && result.message != null) {
+      setState(() => _loading = false);
+      return;
+    }
     setState(() {
       _loading = false;
       _deliveries = result.deliveries;

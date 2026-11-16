@@ -29,6 +29,19 @@ class DetailOcorrencia extends StatefulWidget {
   _DetailOcorrenciaPageState createState() => _DetailOcorrenciaPageState();
 }
 
+/// Status do seletor depois de (re)carregar a ocorrência. Vale o do servidor,
+/// a não ser que o síndico tenha tocado em outro chip e ainda não salvo (o
+/// escolhido difere do que o servidor mandou da última vez): aí a escolha fica.
+@visibleForTesting
+String statusDoSeletorAposCarga({
+  required String escolhido,
+  required String? anteriorDoServidor,
+  required String novoDoServidor,
+}) {
+  if (anteriorDoServidor == null || escolhido == anteriorDoServidor) return novoDoServidor;
+  return escolhido;
+}
+
 class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
   var _isLoading = false;
   var _isSaving = false;
@@ -38,6 +51,10 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
   List<dynamic>? _mensagensChat;
   List<dynamic> list = [];
   var currentStatus = '';
+
+  /// Status que veio do servidor no último carregamento: a recarga só troca
+  /// o seletor se o síndico ainda não escolheu outro.
+  String? _statusDoServidor;
 
   /// Push de ocorrência ou volta ao app: recarrega (status, resposta).
   StreamSubscription<DominioApp>? _atualizacoes;
@@ -68,7 +85,13 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
       // Recarga automática que falhou (sem rede): fica o que já está na tela.
       if (novo == null && !avisarErro && obj != null) return;
       obj = novo;
-      currentStatus = obj['status'];
+      final status = obj['status']?.toString() ?? '';
+      currentStatus = statusDoSeletorAposCarga(
+        escolhido: currentStatus,
+        anteriorDoServidor: _statusDoServidor,
+        novoDoServidor: status,
+      );
+      _statusDoServidor = status;
       // Chat e anexos ao mesmo tempo: o chat só decide o lápis do autor.
       await Future.wait([_conferirChat(), _carregarAnexos()]);
       if (mounted) setState(() {});

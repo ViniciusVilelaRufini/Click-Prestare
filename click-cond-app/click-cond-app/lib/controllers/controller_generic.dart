@@ -190,6 +190,14 @@ Future<ResultadoApi> apiDeleteObjectResultado(String route, int idObj) async {
 /// `{'incluir_finalizadas': '1'}` na lista de assembleias); sem ele a chamada
 /// é a mesma de antes.
 apiGetAll(String route, {Map<String, String>? extras}) async {
+  return await apiGetAllOuNull(route, extras: extras) ?? [];
+}
+
+/// Igual ao [apiGetAll], mas devolve `null` quando a busca falha (status
+/// diferente de 200, sem rede, tempo esgotado). A recarga automática das
+/// telas usa esta: com `null` a lista que já está na tela fica, em vez de
+/// virar um falso "nada por aqui".
+Future<dynamic> apiGetAllOuNull(String route, {Map<String, String>? extras}) async {
   final url = _buildUri('/$route/get-all', {
     'id_condominio': Singleton.instance.id_condominio.toString(),
     'offset': '0',
@@ -207,10 +215,10 @@ apiGetAll(String route, {Map<String, String>? extras}) async {
       logDebug('[apiGetAll] $route -> ${resultado is List ? resultado.length : "não-lista: ${resultado.runtimeType}"} item(ns)');
       return resultado;
     }
-    return [];
+    return null;
   } catch (e) {
     logDebug('[apiGetAll] $route -> ERRO: $e');
-    return [];
+    return null;
   }
 }
 

@@ -36,7 +36,7 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
   void initState() {
     super.initState();
     _atualizacoes = ouvirAtualizacoes({DominioApp.reserva}, () {
-      if (mounted) loadAll();
+      if (mounted) loadAll(recarga: true);
     });
     loadAll();
   }
@@ -47,19 +47,26 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
     super.dispose();
   }
 
-  Future<void> loadAll() async {
+  /// [recarga] na atualização automática: se alguma busca falhar (sem rede,
+  /// 401/5xx), ficam as listas atuais em vez de um falso "nada por aqui".
+  Future<void> loadAll({bool recarga = false}) async {
     // Tela cheia de carregamento só quando ainda não há nada para mostrar.
     if (list.isEmpty) setState(() => _isLoading = true);
     try {
+      final buscar = recarga ? apiGetAllOuNull : apiGetAll;
       final List<Future<dynamic>> futures = [
-        apiGetAll("areas-sociais"),
-        apiGetAll("areas-sociais/meus-agendamentos"),
+        buscar("areas-sociais"),
+        buscar("areas-sociais/meus-agendamentos"),
       ];
       if (_isSindico) {
-        futures.add(apiGetAll("areas-sociais/agendamentos"));
+        futures.add(buscar("areas-sociais/agendamentos"));
       }
 
       final results = await Future.wait(futures);
+      if (results.contains(null)) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
       list = results[0];
       listMeusAgendamentos = results[1];
       if (_isSindico) {

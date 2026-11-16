@@ -79,7 +79,7 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
   void initState() {
     super.initState();
     _atualizacoes = ouvirAtualizacoes({DominioApp.ocorrencia}, () {
-      if (mounted) loadList(avisarErro: false);
+      if (mounted) loadList(recarga: true);
     });
     loadList();
   }
@@ -90,13 +90,19 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
     super.dispose();
   }
 
-  /// [avisarErro] falso na recarga automática: sem rede, fica a lista atual.
-  Future<void> loadList({bool avisarErro = true}) async {
+  /// [recarga] na atualização automática: se a busca falhar (sem rede,
+  /// 401/5xx), fica a lista atual e não abre alerta.
+  Future<void> loadList({bool recarga = false}) async {
     try {
       if (list.isEmpty) setState(() => _isLoading = true);
-      list = await apiGetAll("ocorrencias/todos");
+      if (recarga) {
+        final novo = await apiGetAllOuNull("ocorrencias/todos");
+        if (novo != null) list = novo;
+      } else {
+        list = await apiGetAll("ocorrencias/todos");
+      }
     } catch (e) {
-      if (mounted && avisarErro) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
+      if (mounted && !recarga) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
