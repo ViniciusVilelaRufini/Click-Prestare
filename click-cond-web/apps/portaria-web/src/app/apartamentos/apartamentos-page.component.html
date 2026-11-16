@@ -152,7 +152,7 @@
               <div class="ps-ico !w-7 !h-7">
                 <span class="ps-label !text-[var(--ink)]">{{ b.nome.charAt(0) }}</span>
               </div>
-              <h3 class="ps-h2">{{ b.nome | blocoLabel }}</h3>
+              <h3 class="ps-h2">{{ nomeBloco(b.nome) }}</h3>
               <svg class="w-3.5 h-3.5 text-slate-500 group-hover:text-[var(--ink)] transition ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
               </svg>
@@ -267,7 +267,7 @@
                   Apto {{ moradoresApto.apto }}
                   @if (moradoresApto.bloco) { · {{ moradoresApto.bloco | blocoLabel }} }
                 } @else {
-                  {{ moradoresBlocoNome | blocoLabel }} · Todos os moradores
+                  {{ nomeBloco(moradoresBlocoNome) }} · Todos os moradores
                 }
               </h3>
               <p class="text-xs text-slate-400 mt-0.5">{{ moradores().length }} morador(es) encontrado(s)</p>

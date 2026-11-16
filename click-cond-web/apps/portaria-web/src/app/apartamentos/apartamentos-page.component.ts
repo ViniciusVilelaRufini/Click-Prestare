@@ -12,10 +12,14 @@ import { MoradoresApi } from '../moradores/moradores.service';
 import { VagasApi, VagasResumo, VagaBeneficiarios } from './vagas.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 import { BlocoLabelPipe } from '../shared/bloco-label.pipe';
+import { rotuloBloco } from '../shared/bloco-label.util';
 import { InputMaskDirective } from '../shared/input-mask.directive';
 import { papelDoToken } from '../auth/papel';
 
 declare var require: any;
+
+/** Grupo dos apartamentos sem bloco. */
+const SEM_BLOCO = 'Sem bloco';
 
 @Component({
   selector: 'app-apartamentos-page',
@@ -49,10 +53,15 @@ export class ApartamentosPageComponent implements OnInit {
   readonly search = signal('');
   readonly viewMode = signal<'grid' | 'tabela'>('grid');
 
+  /** Título do grupo de bloco: "Sem bloco" como está (o rótulo daria "Bloco Sem bloco"). */
+  nomeBloco(nome: string | null | undefined): string {
+    return nome === SEM_BLOCO ? nome : rotuloBloco(nome);
+  }
+
   readonly blocos = computed(() => {
     const map = new Map<string, Apartamento[]>();
     for (const a of this.apartamentos()) {
-      const k = a.bloco || 'Sem bloco';
+      const k = a.bloco || SEM_BLOCO;
       if (!map.has(k)) map.set(k, []);
       map.get(k)!.push(a);
     }
@@ -318,7 +327,7 @@ export class ApartamentosPageComponent implements OnInit {
         } else {
           // Filtrar por bloco usando a lista de aptos do bloco
           const aptosBloco = this.apartamentos()
-            .filter(a => (a.bloco ?? 'Sem bloco') === bloco)
+            .filter(a => (a.bloco || SEM_BLOCO) === bloco)
             .map(a => a.id);
           this.moradores.set(data.filter((m: any) =>
             aptosBloco.includes(m.id_apartamento)
