@@ -276,10 +276,11 @@ export class CrmCondominiosService {
     });
     if (!cond) throw new NotFoundException('Condomínio não encontrado.');
 
-    const existente = await this.prisma.users.findFirst({
-      where: { OR: [{ email }, { login: email }] },
-      select: { id: true, name: true, is_sindico: true },
-    });
+    // Prioridade: e-mail primeiro, depois login (como no create de moradores).
+    const colunasConta = { id: true, name: true, is_sindico: true } as const;
+    const existente =
+      (await this.prisma.users.findFirst({ where: { email }, select: colunasConta })) ??
+      (await this.prisma.users.findFirst({ where: { login: email }, select: colunasConta }));
     if (!existente && (await this.loginEmUsoNaPortaria(email))) {
       throw new ConflictException(MSG_EMAIL_DE_OUTRA_CONTA);
     }
@@ -294,9 +295,11 @@ export class CrmCondominiosService {
     }
     const nomeAtual = atual?.user?.name ?? atual?.user?.email ?? 'síndico atual';
     if (atual && !dto.substituirAtual) {
-      throw new ConflictException(
-        `Este condomínio já tem síndico (${nomeAtual}). Confirme a substituição.`,
-      );
+      throw new ConflictException({
+        message: `Este condomínio já tem síndico (${nomeAtual}). Confirme a substituição.`,
+        code: 'SINDICO_EXISTENTE',
+        nomeAtual,
+      });
     }
 
     const senha = existente ? null : this.gerarSenha();
@@ -342,6 +345,10 @@ export class CrmCondominiosService {
       });
     } catch (e: any) {
       if (e?.code === 'P2002') {
+        const alvo = [e?.meta?.target].flat().filter(Boolean).join(',');
+        if (/email|login/i.test(alvo) && !/sindico|id_user|id_condominio/i.test(alvo)) {
+          throw new ConflictException('Já existe outro usuário com este e-mail.');
+        }
         throw new ConflictException('Essa pessoa já é síndica deste condomínio.');
       }
       throw e;
@@ -365,6 +372,7 @@ export class CrmCondominiosService {
     return {
       id_user: idUser,
       contaExistente: !!existente,
+      ...(existente ? { nomeConta: existente.name || nome } : {}),
       ...(senha ? { senhaSindico: senha } : {}),
       ...(atual ? { anteriorRemovido: { id_user: atual.id_user, nome: nomeAtual } } : {}),
     };

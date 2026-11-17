@@ -401,9 +401,14 @@
                       <p class="text-xs font-semibold text-ink">Senha do app</p>
                       <p class="mt-0.5 text-2xs text-ink-muted">Guardada com criptografia — só pode ser redefinida.</p>
                     </div>
-                    <button type="button" class="btn-secondary btn-sm press shrink-0" (click)="abrirSenhaSindico()">
-                      Redefinir
-                    </button>
+                    <div class="flex shrink-0 items-center gap-2">
+                      <button type="button" class="btn-secondary btn-sm press" (click)="abrirVincularSindico()">
+                        Trocar síndico
+                      </button>
+                      <button type="button" class="btn-secondary btn-sm press" (click)="abrirSenhaSindico()">
+                        Redefinir
+                      </button>
+                    </div>
                   </div>
                 } @else {
                   <p class="text-sm text-ink-muted">Sem síndico ou contato administrativo cadastrado.</p>

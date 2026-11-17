@@ -52,7 +52,7 @@ describe('CrmCondominiosService.vincularSindico', () => {
     expect(tx.users.update).toHaveBeenCalledWith({ where: { id: 40 }, data: { is_sindico: 1 } });
     expect(tx.sindicos.create).toHaveBeenCalled();
     expect(tx.sindicos_Condominios.create).toHaveBeenCalledWith({ data: { id_user: 40, id_condominio: 9 } });
-    expect(r).toEqual({ id_user: 40, contaExistente: true });
+    expect(r).toEqual({ id_user: 40, contaExistente: true, nomeConta: 'Ana' });
     expect(tx.moradores.update).not.toHaveBeenCalled();
     expect(tx.moradores.deleteMany).not.toHaveBeenCalled();
     expect(tx.apartamentos_Users.deleteMany).not.toHaveBeenCalled();
@@ -102,5 +102,31 @@ describe('CrmCondominiosService.vincularSindico', () => {
     await expect(svc.vincularSindico(9, dto({ email: 'xx' }), operador)).rejects.toBeInstanceOf(
       BadRequestException,
     );
+  });
+  it('409 de substituição traz código estruturado e o nome atual', async () => {
+    const { svc } = build({ atual: beto });
+    const e: any = await svc.vincularSindico(9, dto(), operador).catch((x) => x);
+    expect(e).toBeInstanceOf(ConflictException);
+    expect(e.getResponse()).toMatchObject({
+      message: 'Este condomínio já tem síndico (Beto). Confirme a substituição.',
+      code: 'SINDICO_EXISTENTE',
+      nomeAtual: 'Beto',
+    });
+  });
+
+  it('procura a conta pelo e-mail antes do login', async () => {
+    const { svc, prisma } = build({ existente: { id: 40, name: 'Ana', is_sindico: 1 } });
+    await svc.vincularSindico(9, dto(), operador);
+    expect(prisma.users.findFirst).toHaveBeenCalledTimes(1);
+    expect(prisma.users.findFirst.mock.calls[0][0].where).toEqual({ email: 'ana@x.com' });
+  });
+
+  it('P2002 de e-mail/login: mensagem de usuário duplicado; do vínculo: já é síndica', async () => {
+    const a = build();
+    a.prisma.$transaction.mockRejectedValue({ code: 'P2002', meta: { target: 'Users_email_key' } });
+    await expect(a.svc.vincularSindico(9, dto(), operador)).rejects.toThrow('Já existe outro usuário com este e-mail.');
+    const b = build();
+    b.prisma.$transaction.mockRejectedValue({ code: 'P2002', meta: { target: 'uq_sindico_condominio' } });
+    await expect(b.svc.vincularSindico(9, dto(), operador)).rejects.toThrow('Essa pessoa já é síndica deste condomínio.');
   });
 });

@@ -106,4 +106,48 @@ describe('ClienteDrawerComponent: vincular síndico', () => {
     comp.vincularSindico();
     expect(comp.erroVincularSindico()).toBe('Essa pessoa já é síndica deste condomínio.');
   });
+  it('síndico presente: botão "Trocar síndico" abre o mesmo modal e a troca confirma com o código estruturado', () => {
+    const vincular = jest
+      .fn()
+      .mockReturnValueOnce(
+        throwError(() => ({
+          status: 409,
+          error: { message: 'texto qualquer', code: 'SINDICO_EXISTENTE', nomeAtual: 'Beto' },
+        })),
+      )
+      .mockReturnValueOnce(of({ id_user: 7, contaExistente: false, senhaSindico: 'x1y2z3' }));
+    const { fixture, comp } = montar(vincular, { nome: 'Beto', email: 'b@x.com', telefone: null, papel: 'Síndico' });
+    fixture.detectChanges();
+    const botoes: HTMLButtonElement[] = Array.from(fixture.nativeElement.querySelectorAll('button'));
+    const trocar = botoes.find((b) => (b.textContent ?? '').trim() === 'Trocar síndico');
+    expect(trocar).toBeTruthy();
+    trocar!.click();
+    expect(comp.modalVincularSindico()).toBe(true);
+
+    comp.formVincularSindico = { nome: 'Ana', email: 'ana@x.com', telefone: '', documento: '' };
+    comp.vincularSindico();
+    expect(comp.substituirSindicoNome()).toBe('Beto');
+    comp.vincularSindico(true);
+    expect(vincular).toHaveBeenLastCalledWith(1, expect.objectContaining({ substituirAtual: true }));
+  });
+
+  it('conta existente: o aviso mostra o nome da conta ligada', () => {
+    const { comp, toast } = montar(jest.fn(() => of({ id_user: 7, contaExistente: true, nomeConta: 'Ana Souza' })));
+    preencher(comp);
+    comp.vincularSindico();
+    expect(toast.trigger).toHaveBeenCalledWith(
+      'Síndico vinculado: Ana Souza. A senha continua a mesma.',
+      'success',
+    );
+  });
+
+  it('salvar edição com erro mostra a mensagem do servidor', () => {
+    const { comp, toast, api } = montar(jest.fn());
+    (api as any).atualizar = jest.fn(() =>
+      throwError(() => ({ status: 422, error: { message: 'Este condomínio ainda não tem síndico.' } })),
+    );
+    comp.iniciarEdicao();
+    comp.salvarEdicao();
+    expect(toast.trigger).toHaveBeenCalledWith('Este condomínio ainda não tem síndico.', 'error');
+  });
 });

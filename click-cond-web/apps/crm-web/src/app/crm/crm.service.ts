@@ -401,6 +401,8 @@ export interface VincularSindicoDto {
 export interface VincularSindicoResposta {
   id_user: number;
   contaExistente: boolean;
+  /** Nome da conta existente ligada (para o operador notar e-mail digitado errado). */
+  nomeConta?: string;
   senhaSindico?: string;
   anteriorRemovido?: { id_user: number; nome: string };
 }

@@ -384,7 +384,10 @@ export class ClienteDrawerComponent {
       error: (err) => {
         console.error('Erro ao salvar cliente:', err);
         this.store.salvando.set(false);
-        this.toast.trigger('Não foi possível salvar as alterações. Verifique os dados e tente novamente.', 'error');
+        this.toast.trigger(
+          err?.error?.message ?? 'Não foi possível salvar as alterações. Verifique os dados e tente novamente.',
+          'error',
+        );
       },
     });
   }
@@ -493,7 +496,9 @@ export class ClienteDrawerComponent {
           this.store.carregar();
           this.toast.trigger(
             r.contaExistente
-              ? 'Síndico vinculado à conta que já existia. A senha dele continua a mesma.'
+              ? r.nomeConta
+                ? `Síndico vinculado: ${r.nomeConta}. A senha continua a mesma.`
+                : 'Síndico vinculado à conta que já existia. A senha dele continua a mesma.'
               : 'Síndico vinculado.',
             'success',
           );
@@ -506,6 +511,11 @@ export class ClienteDrawerComponent {
         error: (err) => {
           this.vinculandoSindico.set(false);
           const msg: string = err?.error?.message ?? 'Não foi possível vincular o síndico.';
+          if (err?.status === 409 && err?.error?.code === 'SINDICO_EXISTENTE') {
+            this.substituirSindicoNome.set(err.error.nomeAtual ?? 'síndico atual');
+            return;
+          }
+          // Fallback: API antiga sem o código estruturado.
           const m = /^Este condomínio já tem síndico \((.+)\)\. Confirme a substituição\.$/.exec(msg);
           if (err?.status === 409 && m) {
             this.substituirSindicoNome.set(m[1]);
