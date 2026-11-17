@@ -91,6 +91,8 @@ export const MSG_AVISO_EMAIL_CADASTRO =
 
 /** Tempo total que a importação espera pelos e-mails antes de responder; o que sobra segue em segundo plano. */
 export const ORCAMENTO_ENVIO_IMPORTACAO_MS = 25_000;
+/** Prazo absoluto da importação, contado do início (cadastro das linhas + espera dos e-mails): fica abaixo dos ~60 s do ALB. */
+export const PRAZO_TOTAL_IMPORTACAO_MS = 40_000;
 /** Falhas seguidas que fazem a importação parar de tentar enviar (SMTP fora do ar). */
 const FALHAS_SEGUIDAS_PARA_PARAR = 3;
 
@@ -2118,9 +2120,11 @@ export class MoradoresService {
     linhas: any[],
     opcoes: { podeCriarUnidade?: boolean; operador?: JwtPayload; /** só testes */ orcamentoEnvioMs?: number } = {},
   ) {
+    const inicioImportacao = Date.now();
     const criados = [];
     const erros: { nome: string; erro: string }[] = [];
     const semAcesso: { nome: string; motivo: string }[] = [];
+    /** `linha` = número da linha na planilha (cabeçalho é a 1; o 1º morador é a 2). */
     const semEmail: { linha: number; nome: string }[] = [];
     const envios: Array<{ linha: number; nome: string; enviar: () => Promise<void> }> = [];
     // Unidades do condomínio, lidas uma vez e só se preciso: "Bloco A"/101 da planilha é a unidade A/101.
@@ -2202,7 +2206,7 @@ export class MoradoresService {
             sendCredentials: !semContaApp && item.sendCredentials !== false,
           },
           opcoes.operador,
-          { semContaApp, adiarEnvio: (enviar) => envios.push({ linha: indice + 1, nome: item.nome, enviar }) },
+          { semContaApp, adiarEnvio: (enviar) => envios.push({ linha: indice + 2, nome: item.nome, enviar }) },
         );
         criados.push(m);
         if (semContaApp) semAcesso.push({ nome: item.nome, motivo: 'Sem data de nascimento: importado sem acesso ao app.' });
@@ -2237,7 +2241,9 @@ export class MoradoresService {
       await Promise.race([
         Promise.all(tarefas),
         new Promise<void>((resolve) => {
-          timer = setTimeout(resolve, opcoes.orcamentoEnvioMs ?? ORCAMENTO_ENVIO_IMPORTACAO_MS);
+          // Espera os envios no máximo pelo orçamento, e nunca além do prazo total contado do início.
+          const restante = Math.max(0, inicioImportacao + PRAZO_TOTAL_IMPORTACAO_MS - Date.now());
+          timer = setTimeout(resolve, Math.min(opcoes.orcamentoEnvioMs ?? ORCAMENTO_ENVIO_IMPORTACAO_MS, restante));
         }),
       ]);
       if (timer) clearTimeout(timer);

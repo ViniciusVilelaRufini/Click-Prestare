@@ -1,5 +1,5 @@
 import { ServiceUnavailableException } from '@nestjs/common';
-import { MoradoresService, ORCAMENTO_ENVIO_IMPORTACAO_MS } from './moradores.service';
+import { MoradoresService, ORCAMENTO_ENVIO_IMPORTACAO_MS, PRAZO_TOTAL_IMPORTACAO_MS } from './moradores.service';
 
 /**
  * Bloqueador 6 do onboarding: "acesso enviado" só quando o e-mail sai de verdade.
@@ -130,7 +130,7 @@ describe('importBulk — e-mail que não sai', () => {
 
     expect(res.total).toBe(3);
     expect(res.erros).toEqual([]);
-    expect(res.sem_email).toEqual([{ linha: 2, nome: 'Dois' }]);
+    expect(res.sem_email).toEqual([{ linha: 3, nome: 'Dois' }]);
   });
 });
 
@@ -172,11 +172,36 @@ describe('importBulk — limite, orçamento de tempo e interrupção', () => {
       expect(Date.now() - inicio).toBeLessThan(3000); // não esperou os envios que nunca terminam
       expect(res.total).toBe(6);
       expect(res.sem_email).toEqual([]);
-      expect(res.email_pendente.map((e: any) => e.linha)).toEqual([1, 2, 3, 4, 5, 6]);
+      expect(res.email_pendente.map((e: any) => e.linha)).toEqual([2, 3, 4, 5, 6, 7]);
     } finally {
       liberado = true; // libera as vagas do limitador (compartilhado no processo)
       soltar.forEach((f) => f());
     }
+  });
+
+  it('prazo total esgotado no cadastro das linhas: não espera os envios (todos em email_pendente)', async () => {
+    const { service, mail } = harness();
+    const soltar: Array<() => void> = [];
+    let liberado = false;
+    mail.sendWelcomeMorador.mockImplementation(() => new Promise<void>((r) => (liberado ? r() : soltar.push(r))));
+    const t0 = Date.now();
+    let chamadas = 0;
+    const spy = jest.spyOn(Date, 'now').mockImplementation(() => (chamadas++ === 0 ? t0 : t0 + PRAZO_TOTAL_IMPORTACAO_MS + 1000));
+    const inicio = process.hrtime.bigint();
+    try {
+      const res: any = await service.importBulk(1, linhas(3)); // orçamento padrão de 25 s
+      expect(Number(process.hrtime.bigint() - inicio) / 1e6).toBeLessThan(3000);
+      expect(res.total).toBe(3);
+      expect(res.email_pendente.map((e: any) => e.linha)).toEqual([2, 3, 4]);
+    } finally {
+      spy.mockRestore();
+      liberado = true;
+      soltar.forEach((f) => f());
+    }
+  });
+
+  it('o prazo total é de 40 s', () => {
+    expect(PRAZO_TOTAL_IMPORTACAO_MS).toBe(40_000);
   });
 
   it('o orçamento padrão é de 25 s', () => {
