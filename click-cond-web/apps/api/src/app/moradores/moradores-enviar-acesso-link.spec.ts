@@ -44,7 +44,7 @@ describe('MoradoresService.sendCredentials — link para quem já tem senha', ()
     };
     const mail: any = { sendWelcomeMorador: jest.fn().mockResolvedValue({}), sendWelcomeMoradorExisting: jest.fn() };
     const auditoria: any = { registrar: jest.fn().mockResolvedValue({}) };
-    const mobileAuth: any = { solicitarRedefinicaoSenha: jest.fn().mockResolvedValue({ success: true, message: 'ok' }) };
+    const mobileAuth: any = { enviarLinkDefinirSenhaOperador: jest.fn().mockResolvedValue(undefined) };
     const service = new MoradoresService(prisma, mail, {} as any, {} as any, auditoria, {} as any, undefined, mobileAuth);
     jest.spyOn(service, 'findOne').mockResolvedValue({
       id: 5, nome: 'Bia', email: 'bia@x.com', id_user: 50, id_condominio: 1, data_nascimento: ADULTO,
@@ -60,7 +60,7 @@ describe('MoradoresService.sendCredentials — link para quem já tem senha', ()
     const res = await service.sendCredentials(5);
 
     expect(res).toMatchObject({ ok: true, modo: 'link' });
-    expect(mobileAuth.solicitarRedefinicaoSenha).toHaveBeenCalledWith('bia@x.com', 'morador');
+    expect(mobileAuth.enviarLinkDefinirSenhaOperador).toHaveBeenCalledWith(50);
     expect(prisma.users.update).not.toHaveBeenCalled();
     expect(mail.sendWelcomeMorador).not.toHaveBeenCalled();
   });
@@ -73,7 +73,7 @@ describe('MoradoresService.sendCredentials — link para quem já tem senha', ()
 
     const res = await service.sendCredentials(5);
 
-    expect(mobileAuth.solicitarRedefinicaoSenha).toHaveBeenCalledWith('bia@x.com', 'morador');
+    expect(mobileAuth.enviarLinkDefinirSenhaOperador).toHaveBeenCalledWith(50);
     // O login da conta, diferente do e-mail do cadastro, não aparece para o operador.
     expect(res.message).not.toContain('bia@x.com');
     expect(res.message).toContain('e-mail de acesso do morador');
@@ -93,7 +93,7 @@ describe('MoradoresService.sendCredentials — link para quem já tem senha', ()
         const { service, prisma, mail, mobileAuth } = harness({ conta: { ...NUNCA_ENTROU, ...papel }, loginDePortaria: portaria });
         const res = await service.sendCredentials(5);
         expect(res).toMatchObject({ ok: true, modo: 'link' });
-        expect(mobileAuth.solicitarRedefinicaoSenha).toHaveBeenCalledWith('bia@x.com', 'morador');
+        expect(mobileAuth.enviarLinkDefinirSenhaOperador).toHaveBeenCalledWith(50);
         expect(prisma.users.update).not.toHaveBeenCalled();
         expect(mail.sendWelcomeMorador).not.toHaveBeenCalled();
       });
@@ -119,7 +119,7 @@ describe('MoradoresService.sendCredentials — link para quem já tem senha', ()
       const { service, prisma, mail, mobileAuth } = harness({ conta: { ...NUNCA_ENTROU } });
       const res = await service.sendCredentials(5);
       expect(res).toMatchObject({ ok: true, modo: 'senha' });
-      expect(mobileAuth.solicitarRedefinicaoSenha).not.toHaveBeenCalled();
+      expect(mobileAuth.enviarLinkDefinirSenhaOperador).not.toHaveBeenCalled();
       expect(prisma.users.update.mock.calls[0][0].data).toMatchObject({ password: expect.any(String) });
       expect(mail.sendWelcomeMorador).toHaveBeenCalledWith('bia@x.com', 'Bia', expect.stringMatching(/^[0-9a-f]{8}$/));
     });
@@ -128,7 +128,7 @@ describe('MoradoresService.sendCredentials — link para quem já tem senha', ()
       const { service, prisma, mail, mobileAuth } = harness({ conta: { ...NUNCA_ENTROU }, outroCondominio: true });
       const res = await service.sendCredentials(5);
       expect(res).toMatchObject({ ok: true, modo: 'link' });
-      expect(mobileAuth.solicitarRedefinicaoSenha).toHaveBeenCalledWith('bia@x.com', 'morador');
+      expect(mobileAuth.enviarLinkDefinirSenhaOperador).toHaveBeenCalledWith(50);
       expect(prisma.users.update).not.toHaveBeenCalled();
       expect(mail.sendWelcomeMorador).not.toHaveBeenCalled();
     });
@@ -137,7 +137,7 @@ describe('MoradoresService.sendCredentials — link para quem já tem senha', ()
       for (const sinal of [{ fcm_token: 'tok' }, { _count: { devices: 1 } }]) {
         const { service, prisma, mobileAuth } = harness({ conta: { ...NUNCA_ENTROU, ...sinal } });
         await expect(service.sendCredentials(5)).resolves.toMatchObject({ modo: 'link' });
-        expect(mobileAuth.solicitarRedefinicaoSenha).toHaveBeenCalled();
+        expect(mobileAuth.enviarLinkDefinirSenhaOperador).toHaveBeenCalled();
         expect(prisma.users.update).not.toHaveBeenCalled();
       }
     });
@@ -154,7 +154,7 @@ describe('MoradoresService.sendCredentials — link para quem já tem senha', ()
     expect(erro).toBeInstanceOf(BadRequestException);
     expect(erro.message).toBe('O e-mail de acesso deste morador é diferente do e-mail do cadastro; peça a ele para usar "Esqueci a senha" no app.');
     expect(erro.message).not.toContain('bia@x.com');
-    expect(mobileAuth.solicitarRedefinicaoSenha).not.toHaveBeenCalled();
+    expect(mobileAuth.enviarLinkDefinirSenhaOperador).not.toHaveBeenCalled();
   });
 
   it('limite de 3 links por hora já atingido: recusa em vez de dizer que enviou', async () => {
@@ -164,7 +164,7 @@ describe('MoradoresService.sendCredentials — link para quem já tem senha', ()
 
     expect(erro).toBeInstanceOf(BadRequestException);
     expect(erro.message).toContain('última hora');
-    expect(mobileAuth.solicitarRedefinicaoSenha).not.toHaveBeenCalled();
+    expect(mobileAuth.enviarLinkDefinirSenhaOperador).not.toHaveBeenCalled();
   });
 
   it('conta com login e sem senha, só deste condomínio: define a senha inicial e envia (como antes)', async () => {
@@ -173,7 +173,7 @@ describe('MoradoresService.sendCredentials — link para quem já tem senha', ()
     const res = await service.sendCredentials(5);
 
     expect(res).toMatchObject({ ok: true, modo: 'senha' });
-    expect(mobileAuth.solicitarRedefinicaoSenha).not.toHaveBeenCalled();
+    expect(mobileAuth.enviarLinkDefinirSenhaOperador).not.toHaveBeenCalled();
     expect(prisma.users.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 50 }, data: expect.objectContaining({ password: expect.any(String) }) }),
     );
@@ -213,7 +213,7 @@ describe('MoradoresService.sendCredentials — link para quem já tem senha', ()
     expect(prisma.moradores.update).toHaveBeenCalledWith({ where: { id: 5 }, data: { id_user: 77 } });
     expect(prisma.users.update).not.toHaveBeenCalled();
     expect(mail.sendWelcomeMorador).not.toHaveBeenCalled();
-    expect(mobileAuth.solicitarRedefinicaoSenha).toHaveBeenCalledWith('bia@x.com', 'morador');
+    expect(mobileAuth.enviarLinkDefinirSenhaOperador).toHaveBeenCalledWith(77);
   });
 
   it('cadastro sem conta ligada, conta achada pelo e-mail e recusa (limite de links): o cadastro não fica ligado', async () => {
@@ -225,7 +225,7 @@ describe('MoradoresService.sendCredentials — link para quem já tem senha', ()
 
     await expect(service.sendCredentials(5)).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.moradores.update).not.toHaveBeenCalled();
-    expect(mobileAuth.solicitarRedefinicaoSenha).not.toHaveBeenCalled();
+    expect(mobileAuth.enviarLinkDefinirSenhaOperador).not.toHaveBeenCalled();
   });
 
   it('sem data de nascimento: 400 pedindo a data, sem gravar nada nem enviar', async () => {
@@ -237,7 +237,7 @@ describe('MoradoresService.sendCredentials — link para quem já tem senha', ()
     expect(erro.message).toBe('Informe a data de nascimento do morador antes de enviar o acesso.');
     expect(prisma.users.update).not.toHaveBeenCalled();
     expect(mail.sendWelcomeMorador).not.toHaveBeenCalled();
-    expect(mobileAuth.solicitarRedefinicaoSenha).not.toHaveBeenCalled();
+    expect(mobileAuth.enviarLinkDefinirSenhaOperador).not.toHaveBeenCalled();
   });
 
   it('a auditoria registra o link, não "reenviou credenciais"', async () => {

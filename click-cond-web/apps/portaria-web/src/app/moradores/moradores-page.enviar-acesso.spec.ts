@@ -74,3 +74,28 @@ describe('MoradoresPageComponent — Enviar Acesso', () => {
     expect(toast.error).toHaveBeenCalledWith('Este morador é menor de 18 anos e não recebe acesso ao app.');
   });
 });
+
+describe('MoradoresPageComponent — cadastro com e-mail que não saiu', () => {
+  const AVISO = 'Morador cadastrado, mas o e-mail de acesso não saiu. Use "Enviar acesso" para tentar de novo.';
+
+  function cadastrar(resposta: any) {
+    const create = jest.fn(() => of(resposta));
+    const { tela, toast } = build(jest.fn());
+    (tela as any).api = { create, list: jest.fn(() => of([])) };
+    tela.novo = { ...tela.novo, nome: 'Bia', id_apartamento: 1 } as any;
+    return { tela, toast };
+  }
+
+  it('credenciais_enviadas:false mostra o aviso e não o sucesso', async () => {
+    const { tela, toast } = cadastrar({ id: 9, credenciais_enviadas: false, aviso_email: AVISO });
+    await tela.salvar();
+    expect(toast.warning).toHaveBeenCalledWith(AVISO);
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it('e-mail que saiu: sem aviso', async () => {
+    const { tela, toast } = cadastrar({ id: 9, credenciais_enviadas: true });
+    await tela.salvar();
+    expect(toast.warning).not.toHaveBeenCalled();
+  });
+});

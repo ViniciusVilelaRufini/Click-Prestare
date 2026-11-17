@@ -1,4 +1,5 @@
-import { BadRequestException, HttpException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException } from '@nestjs/common';
+import { limitarConcorrencia } from '../common/limitar-concorrencia';
 import { assertEmailNaoReservado } from '../common/email-reservado.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../common/mail/mail.service';
@@ -83,6 +84,11 @@ type ContaEnvioAcesso = {
  * (`senha_alterada_em`: redefinição, troca no app ou senha inicial já enviada), ou aparelho com push
  * registrado (`fcm_token` / Users_Devices). A senha aleatória do cadastro sozinha não conta.
  */
+export const MSG_EMAIL_ACESSO_FALHOU =
+  'Não conseguimos enviar o e-mail agora. O morador ainda não tem acesso; tente de novo.';
+export const MSG_AVISO_EMAIL_CADASTRO =
+  'Morador cadastrado, mas o e-mail de acesso não saiu. Use "Enviar acesso" para tentar de novo.';
+
 export function jaAcessouApp(conta: ContaEnvioAcesso | null | undefined): boolean {
   if (!conta) return false;
   return !!conta.senha_alterada_em || !!(conta.fcm_token ?? '').trim() || (conta._count?.devices ?? 0) > 0;
@@ -254,6 +260,20 @@ export class MoradoresService {
     this.facial
       .syncMorador(idMorador)
       .catch((err) => this.logger.warn(`Sync facial morador ${idMorador} falhou: ${err?.message ?? err}`));
+  }
+
+  /**
+   * Envia o e-mail de acesso e ESPERA o resultado: falha (inclusive "sem provedor de e-mail configurado")
+   * sobe como erro, para quem chama não dizer "acesso enviado" sem ter saído.
+   */
+  private async enviarEmailAcesso(email: string, nome: string, senha?: string): Promise<void> {
+    try {
+      if (senha) await this.mail.sendWelcomeMorador(email, nome, senha);
+      else await this.mail.sendWelcomeMoradorExisting(email, nome);
+    } catch (err: any) {
+      this.logger.warn(`Falha ao enviar acesso para ${email}: ${err?.message ?? err}`);
+      throw err;
+    }
   }
 
   private fireWelcomeEmail(email: string, nome: string, senha?: string) {
@@ -1020,7 +1040,12 @@ export class MoradoresService {
   async create(
     dto: CreateMoradorDto,
     operador?: JwtPayload,
-    opts?: { permitirContaDeOutroCondominio?: boolean; semContaApp?: boolean },
+    opts?: {
+      permitirContaDeOutroCondominio?: boolean;
+      semContaApp?: boolean;
+      /** Importação: em vez de enviar na hora, entrega o envio a quem chama (que o roda com limite de concorrência). */
+      adiarEnvio?: (enviar: () => Promise<void>) => void;
+    },
   ) {
     if (!this.prisma.isConnected) {
       const newM = {
@@ -1294,8 +1319,20 @@ export class MoradoresService {
     // A conta existente foi achada por dto.email, então o aviso vai sempre para o endereço
     // dela. Conta de outro condomínio não recebe senha nova (passwordWasSet fica false):
     // só o aviso de "você já tem conta", sem credencial.
+    let credenciaisEnviadas = false;
+    let avisoEmail: string | undefined;
     if (dto.sendCredentials && criaContaApp) {
-      this.fireWelcomeEmail(dto.email!, dto.nome, passwordWasSet ? senhaInicial : undefined);
+      const enviar = () => this.enviarEmailAcesso(dto.email!, dto.nome, passwordWasSet ? senhaInicial : undefined);
+      if (opts?.adiarEnvio) {
+        opts.adiarEnvio(enviar);
+      } else {
+        try {
+          await enviar();
+          credenciaisEnviadas = true;
+        } catch {
+          avisoEmail = MSG_AVISO_EMAIL_CADASTRO;
+        }
+      }
     }
 
     // Mão dupla com a Superlógica. Best-effort de propósito: o ERP fora do ar
@@ -1333,7 +1370,8 @@ export class MoradoresService {
       detalhes: ctx ?? undefined,
     });
 
-    return this.findOne(createdMorador.id);
+    const criado = (await this.findOne(createdMorador.id)) as any;
+    return { ...criado, credenciais_enviadas: credenciaisEnviadas, ...(avisoEmail && { aviso_email: avisoEmail }) };
   }
 
   async update(id: number, dto: Partial<CreateMoradorDto>, operador?: JwtPayload) {
@@ -1809,6 +1847,9 @@ export class MoradoresService {
     // Gera uma senha temporária aleatória de 8 caracteres alfanuméricos
     // (mesmo padrão da recuperação de senha), em vez de usar o CPF da pessoa.
     const senhaInicial = this.gerarSenhaAleatoria();
+    // Valor de senha_alterada_em antes da troca: volta se o e-mail não sair (jaAcessouApp depende dele).
+    let userIdSenha: number | null = null;
+    let senhaAlteradaAntes: Date | string | null = null;
     // Para onde a senha vai. Conta nova: o e-mail do cadastro. Conta existente:
     // SEMPRE o e-mail da própria conta, porque Moradores.email pode ter sido
     // editado por um operador e divergir de Users (mandar para lá entregaria a
@@ -1854,7 +1895,12 @@ export class MoradoresService {
         const login = String(conta?.login ?? '').trim().toLowerCase();
         await this.conferirLinkRedefinicao(userId!, login);
         if (ligarCadastro) await this.prisma.moradores.update({ where: { id }, data: { id_user: userId! } });
-        await this.mobileAuth!.solicitarRedefinicaoSenha(login, 'morador');
+        try {
+          await this.mobileAuth!.enviarLinkDefinirSenhaOperador(userId!);
+        } catch (err: any) {
+          this.logger.warn(`Falha ao enviar link de acesso do morador ${id}: ${err?.message ?? err}`);
+          throw new ServiceUnavailableException(MSG_EMAIL_ACESSO_FALHOU);
+        }
         // O login da conta só aparece para o operador quando é o próprio e-mail do cadastro.
         const destino = login === String(m.email).trim().toLowerCase() ? login : 'o e-mail de acesso do morador';
         const ctxLink = await this.carregarContextoMorador(id);
@@ -1919,6 +1965,8 @@ export class MoradoresService {
       }
       if (ligarCadastro) await this.prisma.moradores.update({ where: { id }, data: { id_user: userId! } });
       const senhaHash = await bcrypt.hash(senhaInicial, 10);
+      userIdSenha = userId!;
+      senhaAlteradaAntes = conta?.senha_alterada_em ?? null;
       await this.prisma.users.update({
         where: { id: userId! },
         data: {
@@ -1931,7 +1979,19 @@ export class MoradoresService {
         },
       });
     }
-    this.fireWelcomeEmail(emailDestino, m.nome, senhaInicial);
+    try {
+      await this.enviarEmailAcesso(emailDestino, m.nome, senhaInicial);
+    } catch {
+      // Sem e-mail não há acesso: a conta volta a "nunca entrou" para a próxima tentativa repetir a senha inicial.
+      if (userIdSenha != null) {
+        try {
+          await this.prisma.users.update({ where: { id: userIdSenha }, data: { senha_alterada_em: senhaAlteradaAntes } });
+        } catch (e: any) {
+          this.logger.error(`Não foi possível restaurar senha_alterada_em do user ${userIdSenha}: ${e?.message ?? e}`);
+        }
+      }
+      throw new ServiceUnavailableException(MSG_EMAIL_ACESSO_FALHOU);
+    }
 
     const destinoSenha =
       emailDestino.trim().toLowerCase() === String(m.email).trim().toLowerCase() ? emailDestino : 'o e-mail de acesso do morador';
@@ -2057,9 +2117,11 @@ export class MoradoresService {
     const criados = [];
     const erros: { nome: string; erro: string }[] = [];
     const semAcesso: { nome: string; motivo: string }[] = [];
+    const semEmail: { linha: number; nome: string }[] = [];
+    const envios: Array<{ linha: number; nome: string; enviar: () => Promise<void> }> = [];
     // Unidades do condomínio, lidas uma vez e só se preciso: "Bloco A"/101 da planilha é a unidade A/101.
     let unidades: Array<{ id: number; bloco: string | null; apto: string | null }> | null = null;
-    for (const item of linhas) {
+    for (const [indice, item] of linhas.entries()) {
       if (!item.nome) continue;
       try {
         let idApto = 0;
@@ -2136,7 +2198,7 @@ export class MoradoresService {
             sendCredentials: !semContaApp && item.sendCredentials !== false,
           },
           opcoes.operador,
-          { semContaApp },
+          { semContaApp, adiarEnvio: (enviar) => envios.push({ linha: indice + 1, nome: item.nome, enviar }) },
         );
         criados.push(m);
         if (semContaApp) semAcesso.push({ nome: item.nome, motivo: 'Sem data de nascimento: importado sem acesso ao app.' });
@@ -2145,7 +2207,19 @@ export class MoradoresService {
         erros.push({ nome: item.nome, erro: err?.message ?? 'Erro desconhecido' });
       }
     }
-    return { ok: true, total: criados.length, criados, erros, sem_acesso: semAcesso };
+    // Envios depois do cadastro, no máximo 4 ao mesmo tempo (SMTP aguenta pouca conexão simultânea).
+    if (envios.length) {
+      const limitar = limitarConcorrencia('moradores-importacao-email', 4, { filaMaxima: envios.length, esperaMaximaMs: 600_000 });
+      await Promise.all(
+        envios.map((e) =>
+          limitar(e.enviar).catch(() => {
+            semEmail.push({ linha: e.linha, nome: e.nome });
+          }),
+        ),
+      );
+      semEmail.sort((a, b) => a.linha - b.linha);
+    }
+    return { ok: true, total: criados.length, criados, erros, sem_acesso: semAcesso, sem_email: semEmail };
   }
 
   /**

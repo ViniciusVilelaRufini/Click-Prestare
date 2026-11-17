@@ -87,8 +87,8 @@ export class MoradoresApi {
     return this.http.get<Morador>(`${this.base}/${id}`);
   }
 
-  create(dto: CreateMorador): Observable<Morador> {
-    return this.http.post<Morador>(this.base, dto);
+  create(dto: CreateMorador): Observable<Morador & RespostaEnvioAcesso> {
+    return this.http.post<Morador & RespostaEnvioAcesso>(this.base, dto);
   }
 
   update(id: number, dto: Partial<CreateMorador>): Observable<Morador> {
@@ -152,12 +152,20 @@ export class MoradoresApi {
   }
 }
 
+/** O cadastro responde se o e-mail de acesso saiu; quando não saiu, `aviso_email` diz o que fazer. */
+export interface RespostaEnvioAcesso {
+  credenciais_enviadas?: boolean;
+  aviso_email?: string;
+}
+
 export interface ResultadoImportacao {
   ok: boolean;
   total: number;
   criados: any[];
   erros?: { nome: string; erro: string }[];
   sem_acesso?: { nome: string; motivo: string }[];
+  /** Cadastradas, mas o e-mail de acesso não saiu: `linha` é a posição na planilha enviada (1 = primeira). */
+  sem_email?: { linha: number; nome: string }[];
 }
 
 export interface SindicoOption {

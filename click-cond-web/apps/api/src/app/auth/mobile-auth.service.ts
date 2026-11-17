@@ -3162,27 +3162,7 @@ export class MobileAuthService {
           return defaultResponse;
         }
 
-        // Gerar token seguro aleatório
-        const token = randomBytes(32).toString('base64url');
-        const tokenHash = createHash('sha256').update(token).digest('hex');
-
-        // Invalidar tokens ativos anteriores desta conta e papel
-        await this.prisma.redefinicoes_Senha.updateMany({
-          where: { id_conta: idConta, papel, usado_em: null },
-          data: { usado_em: new Date() },
-        });
-
-        // Grava token com validade de 30 minutos
-        const expiraEm = new Date(Date.now() + 30 * 60 * 1000);
-        await this.prisma.redefinicoes_Senha.create({
-          data: {
-            papel,
-            id_conta: idConta,
-            token_hash: tokenHash,
-            expira_em: expiraEm,
-            ip: ip ?? null,
-          },
-        });
+        const token = await this.emitirTokenRedefinicao(idConta, papel, ip);
 
         // Envio assíncrono para neutralizar timing attack (tempo de resposta idêntico a e-mail inexistente)
         setImmediate(() => {
@@ -3198,6 +3178,39 @@ export class MobileAuthService {
     }
 
     return defaultResponse;
+  }
+
+  /** Invalida os tokens ativos da conta/papel e grava um novo, válido por 30 minutos. Devolve o token em claro. */
+  private async emitirTokenRedefinicao(idConta: number, papel: string, ip?: string): Promise<string> {
+    const token = randomBytes(32).toString('base64url');
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    await this.prisma.redefinicoes_Senha.updateMany({
+      where: { id_conta: idConta, papel, usado_em: null },
+      data: { usado_em: new Date() },
+    });
+    await this.prisma.redefinicoes_Senha.create({
+      data: {
+        papel,
+        id_conta: idConta,
+        token_hash: tokenHash,
+        expira_em: new Date(Date.now() + 30 * 60 * 1000),
+        ip: ip ?? null,
+      },
+    });
+    return token;
+  }
+
+  /**
+   * Variante do operador (portaria/síndico mandando o acesso a um morador): espera o e-mail sair e
+   * propaga o erro. O "Esqueci a senha" público continua em segundo plano (timing attack); aqui quem
+   * pede é um operador autenticado e precisa saber se o link saiu.
+   */
+  async enviarLinkDefinirSenhaOperador(idUser: number): Promise<void> {
+    const user = await this.prisma.users.findUnique({ where: { id: idUser }, select: { id: true, login: true } });
+    const login = String(user?.login ?? '').trim().toLowerCase();
+    if (!user || !login) throw new NotFoundException('Conta de acesso não encontrada.');
+    const token = await this.emitirTokenRedefinicao(user.id, 'morador');
+    await this.mail.sendResetPasswordLink(login, token, 'Morador');
   }
 
   private maskEmail(email: string): string {

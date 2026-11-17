@@ -5,6 +5,7 @@ import {
   Apartamento, ApartamentosApi, CreateApartamento,
 } from './apartamentos.service';
 import { ConfirmService } from '../shared/confirm.service';
+import { ToastService } from '../shared/toast.service';
 import { HttpClient } from '@angular/common/http';
 import { API_BASE } from '../shared/api.config';
 import { AuthService } from '../auth/auth.service';
@@ -30,6 +31,7 @@ const SEM_BLOCO = 'Sem bloco';
 export class ApartamentosPageComponent implements OnInit {
   private api = inject(ApartamentosApi);
   private confirm = inject(ConfirmService);
+  private toast = inject(ToastService);
   private http = inject(HttpClient);
   private auth = inject(AuthService);
   private moradoresApi = inject(MoradoresApi);
@@ -271,8 +273,10 @@ export class ApartamentosPageComponent implements OnInit {
     };
 
     this.moradoresApi.create(dto).subscribe({
-      next: () => {
+      next: (res) => {
         this.savingMorador.set(false);
+        // O cadastro entrou, mas o e-mail de acesso não saiu: diz isso em vez de ficar calado.
+        if (res?.credenciais_enviadas === false && res?.aviso_email) this.toast.warning(res.aviso_email);
         this.showAddMoradorForm = false;
         this.novoMorador = this.novoMoradorVazio();
         this.carregarMoradores(this.moradoresBlocoNome, aptoId);

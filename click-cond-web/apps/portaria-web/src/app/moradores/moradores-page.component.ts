@@ -590,8 +590,10 @@ export class MoradoresPageComponent implements OnInit {
       ? this.api.update(this.editingId, payloadEdicaoMorador(this.originalEdicao, this.novo))
       : this.api.create(payloadCadastroMorador(this.novo));
     obs.subscribe({
-      next: () => {
+      next: (res: any) => {
         this.saving.set(false);
+        // O cadastro entrou, mas o e-mail de acesso não saiu: diz isso em vez de ficar calado.
+        if (res?.credenciais_enviadas === false && res?.aviso_email) this.toast.warning(res.aviso_email);
         this.cancelarForm();
         this.novo = this.estadoInicial();
         this.carregar();
@@ -916,7 +918,7 @@ export class MoradoresPageComponent implements OnInit {
   showBulkModal = false;
   bulkLinhas = signal<any[]>([]);
   bulkStatus = signal<'idle' | 'reading' | 'ready' | 'uploading' | 'done'>('idle');
-  bulkResult = signal<{ total?: number; criados?: any[]; erros?: { nome: string; erro: string }[]; sem_acesso?: { nome: string; motivo: string }[] }>({});
+  bulkResult = signal<{ total?: number; criados?: any[]; erros?: { nome: string; erro: string }[]; sem_acesso?: { nome: string; motivo: string }[]; sem_email?: { linha: number; nome: string }[] }>({});
   readonly temDataNascimento = temDataNascimento;
 
   downloadTemplate() {
