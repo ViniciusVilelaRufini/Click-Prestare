@@ -216,18 +216,23 @@ export class CrmService {
       sindicoNome !== undefined || sindicoEmail !== undefined || sindicoTelefone !== undefined;
     let vinculoSindico: { id_user: number } | null = null;
     let emailSindico: string | undefined;
+    // Só conta como "mexer" quando algum campo vem preenchido: o drawer manda '' para condomínio sem síndico.
+    const enviouValorDeSindico = [sindicoNome, sindicoEmail, sindicoTelefone].some(
+      (v) => typeof v === 'string' && v.trim() !== '',
+    );
     if (mexeNoSindico) {
       vinculoSindico = await this.prisma.sindicos_Condominios.findFirst({
         where: { id_condominio: id },
         orderBy: { id: 'asc' },
       });
-      if (!vinculoSindico) {
+      if (!vinculoSindico && enviouValorDeSindico) {
         throw new UnprocessableEntityException(
           'Este condomínio ainda não tem síndico. Use "Vincular síndico".',
         );
       }
+      // Sem síndico e nada preenchido: edição só de plano/nome/vencimento.
       const emailInformado = String(sindicoEmail ?? '').trim().toLowerCase();
-      if (emailInformado) {
+      if (vinculoSindico && emailInformado) {
         if (emailInformado.length > 255 || !EMAIL_RE.test(emailInformado)) {
           throw new BadRequestException('Informe um e-mail válido para o síndico.');
         }

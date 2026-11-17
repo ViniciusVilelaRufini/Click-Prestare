@@ -66,3 +66,26 @@ describe('CrmService.atualizarCliente: síndico', () => {
     expect(prisma.sindicos_Condominios.findFirst).not.toHaveBeenCalled();
   });
 });
+
+describe('CrmService.atualizarCliente: condomínio sem síndico', () => {
+  it('edita o plano com campos de síndico vazios → ok', async () => {
+    const { svc, prisma } = buildAtualizarCliente({ vinculos: [] });
+    await expect(
+      svc.atualizarCliente(9, {
+        plano: 'Profissional',
+        sindicoNome: '',
+        sindicoEmail: '',
+        sindicoTelefone: '',
+      } as any),
+    ).resolves.toBeDefined();
+    expect(prisma.condominios.update).toHaveBeenCalled();
+    expect(prisma.users.update).not.toHaveBeenCalled();
+  });
+
+  it('valor preenchido sem vínculo continua 422', async () => {
+    const { svc } = buildAtualizarCliente({ vinculos: [] });
+    await expect(
+      svc.atualizarCliente(9, { sindicoNome: '', sindicoEmail: 'a@x.com' } as any),
+    ).rejects.toThrow(UnprocessableEntityException);
+  });
+});
