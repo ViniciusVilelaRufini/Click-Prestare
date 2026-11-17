@@ -150,10 +150,7 @@ export class CrmController {
     });
   }
 
-  /**
-   * Redefine a senha do síndico e devolve a nova em texto claro.
-   * Não existe rota para ler a senha atual: o banco guarda bcrypt.
-   */
+  /** Liga (ou troca) o síndico de um condomínio que já existe. */
   @UseGuards(CrmAdminGuard)
   @Post('clientes/:id/sindico')
   vincularSindico(
@@ -164,6 +161,10 @@ export class CrmController {
     return this.condominios.vincularSindico(id, dto, user);
   }
 
+  /**
+   * Redefine a senha do síndico e devolve a nova em texto claro.
+   * Não existe rota para ler a senha atual: o banco guarda bcrypt.
+   */
   @UseGuards(CrmAdminGuard)
   @Post('clientes/:id/sindico/senha')
   redefinirSenhaSindico(

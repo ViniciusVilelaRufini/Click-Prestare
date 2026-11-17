@@ -542,9 +542,13 @@
               <div class="w-10 h-10 rounded-full border border-[var(--line-200)] flex items-center justify-center mx-auto">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l4 4L19 7"/></svg>
               </div>
-              <p class="text-sm font-semibold">Importação Concluída com Sucesso!</p>
+              <p class="text-sm font-semibold">{{ bulkResult().total > 0 ? 'Importação Concluída com Sucesso!' : 'Nenhuma unidade nova cadastrada' }}</p>
               <p class="text-xs text-slate-400">
-                Foram cadastradas com sucesso <strong>{{ bulkResult().total }}</strong> novas unidades de apartamentos/lotes.
+                @if (bulkResult().total > 0) {
+                  Foram cadastradas com sucesso <strong>{{ bulkResult().total }}</strong> novas unidades de apartamentos/lotes.
+                } @else {
+                  Nenhuma unidade foi cadastrada nesta importação.
+                }
               </p>
               @if (bulkResult().ignorados?.length) {
                 <div class="text-left pt-3" data-testid="bulk-ignorados">

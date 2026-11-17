@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { hojeBrasilia, intervaloHojeBrasilia } from '../common/hora-brasilia.util';
-import { normalizarBloco } from '../common/rotulo-bloco.util';
+import { chaveUnidade, normalizarBloco } from '../common/rotulo-bloco.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
 import { MailService } from '../common/mail/mail.service';
@@ -4556,8 +4556,6 @@ export class MobileAuthService {
           orderBy: { id: 'desc' },
         })
       : [];
-    const chaveUnidade = (b: string | null | undefined, a: string | null | undefined) =>
-      `${normalizarBloco(b)}|${(a ?? '').trim().toLowerCase()}`;
     const tipoPorVinculo = new Map<string, string | null>();
     for (const v of vinculos) {
       const k = `${v.id_user}|${chaveUnidade(v.apartamento?.bloco, v.apartamento?.apto)}`;

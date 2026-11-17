@@ -84,5 +84,18 @@ describe('ApartamentosPage — importação em massa mostra as linhas ignoradas'
     const txt = (el.querySelector('[data-testid="bulk-ignorados"]')?.textContent ?? '').replace(/\s+/g, ' ');
     expect(txt).toContain('1 linha não foi cadastrada');
     expect(txt).toContain('Bloco A 101 — Unidade já cadastrada');
+    // Nada cadastrado: o título não pode comemorar.
+    expect(el.textContent).not.toContain('Importação Concluída com Sucesso!');
+    expect(el.textContent).toContain('Nenhuma unidade nova cadastrada');
+  });
+
+  it('com unidades criadas mantém o título de sucesso', async () => {
+    const { f, tela, el } = build([]);
+    tela.showBulkModal = true;
+    tela.bulkStatus.set('done');
+    tela.bulkResult.set({ total: 2, criados: [], ignorados: [] });
+    await f.whenStable();
+    f.detectChanges();
+    expect(el.textContent).toContain('Importação Concluída com Sucesso!');
   });
 });
