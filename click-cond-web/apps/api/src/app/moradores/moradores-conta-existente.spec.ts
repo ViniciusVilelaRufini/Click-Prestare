@@ -82,13 +82,23 @@ describe('MoradoresService.create — conta existente com vínculo em outro cond
   });
 
   describe('colisão de login/e-mail/CPF no cadastro manual', () => {
-    it('acha a conta pelo login quando o email da conta é outro', async () => {
+    it('acha a conta pelo login quando nenhuma conta tem esse e-mail', async () => {
       const { svc, prisma } = build(false);
+      prisma.users.findFirst = jest.fn(async ({ where }: any) => (where.login ? { ...existente, email: 'outro@x.com' } : null));
       await svc.create(dto as any);
-      expect(prisma.users.findFirst).toHaveBeenCalledWith({
-        where: { OR: [{ email: 'v@x.com' }, { login: 'v@x.com' }] },
-      });
+      expect(prisma.users.findFirst).toHaveBeenNthCalledWith(1, { where: { email: 'v@x.com' } });
+      expect(prisma.users.findFirst).toHaveBeenNthCalledWith(2, { where: { login: 'v@x.com' } });
       expect(prisma.users.create).not.toHaveBeenCalled();
+    });
+
+    it('conta A com o e-mail e conta B com o login igual: liga a A', async () => {
+      const { svc, prisma } = build(false);
+      const A = { ...existente, id: 71, email: 'v@x.com', login: null };
+      const B = { ...existente, id: 72, email: 'b@x.com', login: 'v@x.com' };
+      prisma.users.findFirst = jest.fn(async ({ where }: any) => (where.email ? A : where.login ? B : null));
+      await svc.create({ ...dto, id_apartamento: 55 } as any);
+      expect(prisma.apartamentos_Users.create).toHaveBeenCalledWith({ data: expect.objectContaining({ id_user: 71 }) });
+      expect(prisma.moradores.create).toHaveBeenCalledWith({ data: expect.objectContaining({ id_user: 71 }) });
     });
 
     function comP2002(target: any) {

@@ -1196,10 +1196,11 @@ export class MoradoresService {
           });
           userId = u.id;
         } else if (criaContaApp) {
-          const existing = await tx.users.findFirst({
-            // Conta antiga pode ter o e-mail só no login (mesma busca do importBulk e do sendCredentials).
-            where: { OR: [{ email: dto.email }, { login: dto.email }] },
-          });
+          // O e-mail da conta tem prioridade; só sem ele cai no login (conta antiga com e-mail só no login).
+          // Uma busca com OR escolheria uma das duas contas ao acaso e ligaria a unidade à errada.
+          const existing =
+            (await tx.users.findFirst({ where: { email: dto.email } })) ??
+            (await tx.users.findFirst({ where: { login: dto.email } }));
           if (existing) {
             userId = existing.id;
             // Users é global: conta com vínculo em OUTRO condomínio só é ligada a este cadastro.
