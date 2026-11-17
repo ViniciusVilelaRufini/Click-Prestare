@@ -18,7 +18,9 @@ export function rotuloBloco(bloco: string | null | undefined): string {
  * mesmo bloco; "Bloco 10" continua diferente de "Bloco 1").
  */
 export function normalizarBloco(bloco: string | null | undefined): string {
-  return (bloco ?? '').trim().toLowerCase().replace(/^(bloco|quadra|torre)\s*/, '');
+  const s = (bloco ?? '').trim().toLowerCase();
+  // O prefixo só conta se vier colado em espaço, número ou ponto; sozinho ("Quadra") continua sendo o nome.
+  return s.replace(/^(bloco|quadra|torre)(?=[\s\d.]|$)\.?\s*/, '') || (/^(quadra|torre)$/.test(s) ? s : '');
 }
 
 /**
@@ -27,11 +29,9 @@ export function normalizarBloco(bloco: string | null | undefined): string {
  * há números, sem zeros à esquerda ("0101" e "Apto 101" são "101"; "0" fica "0").
  */
 export function normalizarApto(apto: string | null | undefined): string {
-  const s = (apto ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/^(lote|casa|apto\.?|apartamento|unidade)\s*/, '')
-    .replace(/\s+/g, '');
+  const bruto = (apto ?? '').trim().toLowerCase();
+  const semPrefixo = bruto.replace(/^(lote|casa|apto|apartamento|unidade)(?=[\s\d.]|$)\.?\s*/, '');
+  const s = (semPrefixo || bruto).replace(/\s+/g, '');
   return /^\d+$/.test(s) ? s.replace(/^0+(?=\d)/, '') : s;
 }
 

@@ -546,6 +546,16 @@
               <p class="text-xs text-slate-400">
                 Foram cadastradas com sucesso <strong>{{ bulkResult().total }}</strong> novas unidades de apartamentos/lotes.
               </p>
+              @if (bulkResult().ignorados?.length) {
+                <div class="text-left pt-3" data-testid="bulk-ignorados">
+                  <p class="text-xs font-semibold">{{ bulkResult().ignorados!.length }} {{ bulkResult().ignorados!.length === 1 ? 'linha não foi cadastrada' : 'linhas não foram cadastradas' }}</p>
+                  <ul class="text-xs text-slate-400 space-y-1 mt-1">
+                    @for (i of bulkResult().ignorados!; track $index) {
+                      <li>{{ i.bloco ? nomeBloco(i.bloco) + ' ' : '' }}{{ i.apto }} — {{ i.motivo }}</li>
+                    }
+                  </ul>
+                </div>
+              }
             </div>
           }
 

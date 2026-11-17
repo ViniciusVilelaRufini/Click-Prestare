@@ -72,3 +72,17 @@ describe('ApartamentosPage — grafias do mesmo bloco', () => {
     expect(titulos(el).filter((x) => x === 'Bloco A')).toHaveLength(1);
   });
 });
+
+describe('ApartamentosPage — importação em massa mostra as linhas ignoradas', () => {
+  it('lista bloco, apto e o motivo', async () => {
+    const { f, tela, el } = build([]);
+    tela.showBulkModal = true;
+    tela.bulkStatus.set('done');
+    tela.bulkResult.set({ total: 0, criados: [], ignorados: [{ apto: '101', bloco: 'A', motivo: 'Unidade já cadastrada' }] });
+    await f.whenStable();
+    f.detectChanges();
+    const txt = (el.querySelector('[data-testid="bulk-ignorados"]')?.textContent ?? '').replace(/\s+/g, ' ');
+    expect(txt).toContain('1 linha não foi cadastrada');
+    expect(txt).toContain('Bloco A 101 — Unidade já cadastrada');
+  });
+});

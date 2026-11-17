@@ -348,7 +348,7 @@ export class ApartamentosPageComponent implements OnInit {
   showBulkModal = false;
   bulkLinhas = signal<any[]>([]);
   bulkStatus = signal<'idle' | 'reading' | 'ready' | 'uploading' | 'done'>('idle');
-  bulkResult = signal<{ total?: number; criados?: any[] }>({});
+  bulkResult = signal<{ total?: number; criados?: any[]; ignorados?: Array<{ apto: string; bloco: string; motivo: string }> }>({});
 
   downloadTemplate() {
     try {

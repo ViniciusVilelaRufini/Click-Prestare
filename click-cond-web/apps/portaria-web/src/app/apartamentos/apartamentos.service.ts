@@ -55,7 +55,7 @@ export class ApartamentosApi {
     return this.http.get<{ gerenciar: boolean }>(`${this.base}/acesso`);
   }
 
-  importBulk(linhas: any[]): Observable<{ ok: boolean; total: number; criados: any[] }> {
-    return this.http.post<{ ok: boolean; total: number; criados: any[] }>(`${this.base}/import-bulk`, { linhas });
+  importBulk(linhas: any[]): Observable<{ ok: boolean; total: number; criados: any[]; ignorados: Array<{ apto: string; bloco: string; motivo: string }> }> {
+    return this.http.post<{ ok: boolean; total: number; criados: any[]; ignorados: Array<{ apto: string; bloco: string; motivo: string }> }>(`${this.base}/import-bulk`, { linhas });
   }
 }

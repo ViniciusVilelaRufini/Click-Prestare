@@ -30,4 +30,18 @@ describe('normalizarBloco / normalizarApto / chaveUnidade', () => {
     expect(chaveUnidade('Quadra A', 'Lote 12')).toBe(chaveUnidade('A', '12'));
     expect(chaveUnidade(null, '12')).not.toBe(chaveUnidade('A', '12'));
   });
+
+  it('prefixo só vale como palavra: "Casarão" e "Loteamento" ficam', () => {
+    expect(normalizarApto('Casarão')).toBe('casarão');
+    expect(normalizarApto('Loteamento 5')).toBe('loteamento5');
+    expect(normalizarBloco('Torreão')).toBe('torreão');
+    expect(normalizarBloco('Blocos')).toBe('blocos');
+  });
+
+  it('prefixo sem nada depois não vira vazio', () => {
+    expect(normalizarApto('Casa')).toBe('casa');
+    expect(normalizarApto('Lote')).toBe('lote');
+    expect(normalizarBloco('Quadra')).toBe('quadra');
+    expect(normalizarApto('Apto.')).toBe('apto.');
+  });
 });
