@@ -14,6 +14,7 @@ describe('POST /condominio/register — condomínio autocadastrado nasce pendent
       endereco: { create: jest.fn(async () => ({ id: 3 })) },
       condominios: { create: jest.fn(async ({ data }: any) => ({ id: 77, nome: data.nome })) },
       sindicos_Condominios: { create: jest.fn(async () => ({})) },
+      $transaction: jest.fn(async (fn: any) => fn(prisma)),
     };
     const svc = new MobileAuthService(prisma, {} as any, {} as any, {} as any, {} as any, {} as any);
     await svc.registerCondominio({ condominio: { nome: 'Edifício Teste' }, address: { cep: '15800000' } }, 5);

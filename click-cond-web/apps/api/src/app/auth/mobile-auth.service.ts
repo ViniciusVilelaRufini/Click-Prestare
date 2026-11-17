@@ -2783,10 +2783,11 @@ export class MobileAuthService {
     const identificacao = data.identificacao || '';
 
     try {
+      return await this.prisma.$transaction(async (tx) => {
       // 1. Criar Endereço se houver dados
       let idEndereco = null;
       if (addr.cep || addr.rua) {
-        const e = await this.prisma.endereco.create({
+        const e = await tx.endereco.create({
           data: {
             cep: addr.cep,
             rua: addr.rua,
@@ -2802,7 +2803,7 @@ export class MobileAuthService {
       }
 
       // 2. Criar Condomínio
-      const c = await this.prisma.condominios.create({
+      const c = await tx.condominios.create({
         data: {
           nome: nome,
           identificacao: identificacao,
@@ -2817,7 +2818,7 @@ export class MobileAuthService {
       });
 
       // 3. Vincular o usuário como síndico desse condomínio
-      await this.prisma.sindicos_Condominios.create({
+      await tx.sindicos_Condominios.create({
         data: {
           id_user: idUser,
           id_condominio: c.id,
@@ -2825,6 +2826,7 @@ export class MobileAuthService {
       });
 
       return { success: true, id: c.id, nome: c.nome };
+      });
     } catch (e: any) {
       this.logger.error(`Erro ao registrar condomínio: ${e?.message ?? e}`);
       throw new ServiceUnavailableException('Não foi possível cadastrar o condomínio agora. Tente de novo.');
@@ -2844,8 +2846,9 @@ export class MobileAuthService {
     return isNaN(d.getTime()) ? null : d;
   }
 
-    async getInfosCondominio(id: number, user?: JwtPayload) {
+  async getInfosCondominio(id: number, user?: JwtPayload) {
     await this.tenant.assertCondominio(id, user);
+    try {
     const c = await this.prisma.condominios.findUnique({
       where: { id },
       select: {
@@ -2857,7 +2860,7 @@ export class MobileAuthService {
         data_termino_mandato: true,
       },
     });
-    if (!c) return null;
+    if (!c) throw new NotFoundException('Condomínio não encontrado.');
     return {
       nome: c.nome,
       identificacao: c.identificacao ?? '',
@@ -2866,10 +2869,16 @@ export class MobileAuthService {
       data_inicio_mandato: c.data_inicio_mandato ? c.data_inicio_mandato.toLocaleDateString('pt-BR') : '',
       data_termino_mandato: c.data_termino_mandato ? c.data_termino_mandato.toLocaleDateString('pt-BR') : '',
     };
+    } catch (e: any) {
+      if (e instanceof HttpException) throw e;
+      this.logger.error(`Falha ao carregar os dados do condomínio ${id}: ${e?.message ?? e}`);
+      throw new ServiceUnavailableException('Não foi possível carregar o condomínio agora. Tente de novo em instantes.');
+    }
   }
 
   async getAddressCondominio(idCondominio: number, user?: JwtPayload) {
     await this.tenant.assertCondominio(idCondominio, user);
+    try {
     const c = await this.prisma.condominios.findUnique({
       where: { id: idCondominio },
       select: {
@@ -2887,7 +2896,13 @@ export class MobileAuthService {
         },
       },
     });
-    return c?.enderecoRel ?? null;
+    if (!c) throw new NotFoundException('Condomínio não encontrado.');
+    return c.enderecoRel ?? null;
+    } catch (e: any) {
+      if (e instanceof HttpException) throw e;
+      this.logger.error(`Falha ao carregar o endereço do condomínio ${idCondominio}: ${e?.message ?? e}`);
+      throw new ServiceUnavailableException('Não foi possível carregar o condomínio agora. Tente de novo em instantes.');
+    }
   }
 
   async updateInfosCondominio(body: any, user?: JwtPayload) {

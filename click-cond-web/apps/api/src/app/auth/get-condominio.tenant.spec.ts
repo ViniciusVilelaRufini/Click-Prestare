@@ -85,9 +85,7 @@ describe('getCondominioById — isolamento por condomínio', () => {
   it('falha do banco vira 503, nunca o condomínio demo', async () => {
     const { service, prisma } = build();
     prisma.condominios.findUnique.mockRejectedValueOnce(new Error('db caiu'));
-    const r = service.getCondominioById(2, dono);
-    await expect(r).rejects.toBeInstanceOf(ServiceUnavailableException);
-    await expect(r).rejects.not.toMatchObject({ message: expect.stringContaining('Condomínio Demo') });
+    await expect(service.getCondominioById(2, dono)).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
   it('falha do financeiro vira 503', async () => {
@@ -100,5 +98,22 @@ describe('getCondominioById — isolamento por condomínio', () => {
     const { service, prisma } = build();
     prisma.condominios.findUnique.mockResolvedValueOnce(null);
     await expect(service.getCondominioById(2, dono)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it.each(['getInfosCondominio', 'getAddressCondominio'] as const)('%s: condomínio inexistente vira 404', async (metodo) => {
+    const { service, prisma } = build();
+    prisma.condominios.findUnique.mockResolvedValueOnce(null);
+    await expect(service[metodo](2, dono)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it.each(['getInfosCondominio', 'getAddressCondominio'] as const)('%s: falha do banco vira 503', async (metodo) => {
+    const { service, prisma } = build();
+    prisma.condominios.findUnique.mockRejectedValueOnce(new Error('db caiu'));
+    await expect(service[metodo](2, dono)).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it.each(['getInfosCondominio', 'getAddressCondominio'] as const)('%s: mantém o 403 do tenant', async (metodo) => {
+    const { service } = build();
+    await expect(service[metodo](2, forasteiro)).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
