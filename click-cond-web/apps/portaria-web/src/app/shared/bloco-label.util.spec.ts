@@ -1,4 +1,4 @@
-import { rotuloBloco } from './bloco-label.util';
+import { chaveBloco, rotuloBloco } from './bloco-label.util';
 
 /**
  * O cadastro guarda o nome do bloco das duas formas ("A" ou "Bloco A") e
@@ -31,5 +31,19 @@ describe('rotuloBloco', () => {
 
   it('só remove a palavra inteira "bloco"', () => {
     expect(rotuloBloco('Blocos')).toBe('Bloco Blocos');
+  });
+});
+
+describe('chaveBloco e rótulo de quadra/torre', () => {
+  it('"A", "Bloco A" e "Quadra A" têm a mesma chave; "Bloco 10" difere de "Bloco 1"', () => {
+    expect(chaveBloco('Bloco A')).toBe(chaveBloco('A'));
+    expect(chaveBloco('Quadra A')).toBe(chaveBloco('A'));
+    expect(chaveBloco('Bloco 10')).not.toBe(chaveBloco('Bloco 1'));
+    expect(chaveBloco(null)).toBe('');
+  });
+
+  it('quadra e torre não ganham "Bloco" na frente', () => {
+    expect(rotuloBloco('Quadra A')).toBe('Quadra A');
+    expect(rotuloBloco('Torre 2')).toBe('Torre 2');
   });
 });

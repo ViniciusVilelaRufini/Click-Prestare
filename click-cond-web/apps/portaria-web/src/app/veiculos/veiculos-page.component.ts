@@ -22,6 +22,7 @@ import {
   rotuloEstadoGuarita,
 } from '../guarita/guarita.service';
 import { GuaritaCapturaComponent } from '../guarita/guarita-captura.component';
+import { rotuloBloco } from '../shared/bloco-label.util';
 
 /** Tag de Guarita com operação em curso ou sem confirmação: não é oferecida para outro veículo. */
 const ESTADOS_GUARITA_FORA_DA_ESCOLHA = ['removendo', 'remocao_falhou', 'incerto', 'conflito'];
@@ -839,7 +840,7 @@ export class VeiculosPageComponent implements OnInit {
   unidadeDoDispositivo(d: GuaritaDispositivo): string {
     const partes: string[] = [];
     if (d.unidade != null && d.unidade !== '') partes.push(`Unidade ${d.unidade}`);
-    if (d.bloco) partes.push(`Bloco ${d.bloco}`);
+    if (d.bloco) partes.push(rotuloBloco(d.bloco));
     return partes.join(' · ') || 'Sem unidade';
   }
 }

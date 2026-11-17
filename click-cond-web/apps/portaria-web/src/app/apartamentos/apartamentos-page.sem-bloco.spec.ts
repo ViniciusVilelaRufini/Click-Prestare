@@ -62,3 +62,13 @@ describe('ApartamentosPage — grupo "Sem bloco"', () => {
     expect(tela.nomeBloco('Bloco B')).toBe('Bloco B');
   });
 });
+
+describe('ApartamentosPage — grafias do mesmo bloco', () => {
+  it('"A" e "Bloco A" ficam no mesmo grupo', () => {
+    const { el } = build([
+      { id: 1, apto: '101', bloco: 'A' },
+      { id: 2, apto: '102', bloco: 'Bloco A' },
+    ]);
+    expect(titulos(el).filter((x) => x === 'Bloco A')).toHaveLength(1);
+  });
+});

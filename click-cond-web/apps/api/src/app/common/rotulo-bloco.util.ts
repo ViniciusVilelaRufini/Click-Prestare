@@ -14,8 +14,28 @@ export function rotuloBloco(bloco: string | null | undefined): string {
 
 /**
  * Chave de comparação do bloco: sem espaços nas pontas, minúsculas e sem o
- * prefixo "bloco" ("Bloco A", "bloco a" e "A" são o mesmo bloco).
+ * prefixo "bloco", "quadra" ou "torre" ("Bloco A", "Quadra A" e "A" são o
+ * mesmo bloco; "Bloco 10" continua diferente de "Bloco 1").
  */
 export function normalizarBloco(bloco: string | null | undefined): string {
-  return (bloco ?? '').trim().toLowerCase().replace(/^bloco\s*/, '');
+  return (bloco ?? '').trim().toLowerCase().replace(/^(bloco|quadra|torre)\s*/, '');
+}
+
+/**
+ * Chave de comparação da unidade: sem o prefixo "lote", "casa", "apto"
+ * (com ou sem ponto), "apartamento" ou "unidade", sem espaços e, quando só
+ * há números, sem zeros à esquerda ("0101" e "Apto 101" são "101"; "0" fica "0").
+ */
+export function normalizarApto(apto: string | null | undefined): string {
+  const s = (apto ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/^(lote|casa|apto\.?|apartamento|unidade)\s*/, '')
+    .replace(/\s+/g, '');
+  return /^\d+$/.test(s) ? s.replace(/^0+(?=\d)/, '') : s;
+}
+
+/** Chave única da unidade (bloco + apto) para comparar cadastro, importação e planilha. */
+export function chaveUnidade(bloco: string | null | undefined, apto: string | null | undefined): string {
+  return `${normalizarBloco(bloco)}|${normalizarApto(apto)}`;
 }

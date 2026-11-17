@@ -27,6 +27,7 @@ describe('ApartamentosService — exige a flag apartamentos', () => {
     const prisma: any = {
       isConnected: true,
       apartamentos: {
+        findMany: jest.fn(async () => []),
         create: jest.fn(async () => ({ id: 30, apto: '101', id_condominio: 2 })),
         findUnique: jest.fn(async () => ({ id: 30, apto: '101', bloco: 'A', id_condominio: 2 })),
         update: jest.fn(async () => ({ id: 30 })),

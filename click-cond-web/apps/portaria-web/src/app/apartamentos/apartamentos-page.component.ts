@@ -13,7 +13,7 @@ import { MoradoresApi } from '../moradores/moradores.service';
 import { VagasApi, VagasResumo, VagaBeneficiarios } from './vagas.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 import { BlocoLabelPipe } from '../shared/bloco-label.pipe';
-import { rotuloBloco } from '../shared/bloco-label.util';
+import { chaveBloco, rotuloBloco } from '../shared/bloco-label.util';
 import { InputMaskDirective } from '../shared/input-mask.directive';
 import { papelDoToken } from '../auth/papel';
 
@@ -61,14 +61,15 @@ export class ApartamentosPageComponent implements OnInit {
   }
 
   readonly blocos = computed(() => {
-    const map = new Map<string, Apartamento[]>();
+    // Agrupa pela chave normalizada: "A" e "Bloco A" são o mesmo grupo (o título é a 1ª grafia).
+    const map = new Map<string, { nome: string; aptos: Apartamento[] }>();
     for (const a of this.apartamentos()) {
-      const k = a.bloco || SEM_BLOCO;
-      if (!map.has(k)) map.set(k, []);
-      map.get(k)!.push(a);
+      const k = chaveBloco(a.bloco) || SEM_BLOCO;
+      if (!map.has(k)) map.set(k, { nome: (chaveBloco(a.bloco) ? a.bloco : null) || SEM_BLOCO, aptos: [] });
+      map.get(k)!.aptos.push(a);
     }
-    return Array.from(map.entries())
-      .map(([nome, aptos]) => ({ nome, aptos: aptos.sort((x,y) => x.apto.localeCompare(y.apto, 'pt', { numeric: true })) }))
+    return Array.from(map.values())
+      .map(({ nome, aptos }) => ({ nome, aptos: aptos.sort((x,y) => x.apto.localeCompare(y.apto, 'pt', { numeric: true })) }))
       .sort((a, b) => a.nome.localeCompare(b.nome));
   });
 
@@ -331,7 +332,7 @@ export class ApartamentosPageComponent implements OnInit {
         } else {
           // Filtrar por bloco usando a lista de aptos do bloco
           const aptosBloco = this.apartamentos()
-            .filter(a => (a.bloco || SEM_BLOCO) === bloco)
+            .filter(a => (chaveBloco(a.bloco) || SEM_BLOCO) === (bloco === SEM_BLOCO ? SEM_BLOCO : chaveBloco(bloco)))
             .map(a => a.id);
           this.moradores.set(data.filter((m: any) =>
             aptosBloco.includes(m.id_apartamento)

@@ -7,7 +7,7 @@ import { assertStaff } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 
-import { normalizarBloco, rotuloBloco } from '../common/rotulo-bloco.util';
+import { chaveUnidade, normalizarBloco, rotuloBloco } from '../common/rotulo-bloco.util';
 export interface CreateApartamentoDto {
   bloco?: string;
   apto: string;
@@ -148,6 +148,18 @@ export class ApartamentosService {
         created_at: new Date(),
         updated_at: new Date(),
       };
+    }
+
+    // "Bloco A"/"A", "Lote 12"/"12" e "0101"/"101" são a mesma unidade: o @@unique do banco só pega texto idêntico.
+    const doCondominio = await this.prisma.apartamentos.findMany({
+      where: { id_condominio: Number(dto.id_condominio) },
+      select: { id: true, bloco: true, apto: true },
+    });
+    const chaveNova = chaveUnidade(dto.bloco, dto.apto);
+    const repetida = doCondominio.find((u) => chaveUnidade(u.bloco, u.apto) === chaveNova);
+    if (repetida) {
+      const nome = [repetida.bloco, repetida.apto].filter((x) => (x ?? '').toString().trim()).join(' ');
+      throw new ConflictException(`Essa unidade já existe (${nome}).`);
     }
 
     try {
@@ -437,6 +449,15 @@ export class ApartamentosService {
     await this.tenant.assertPermissaoFuncionario(idCondominio, 'apartamentos', user);
     const criados = [];
     const ignorados: { apto: string; bloco: string | null; motivo: string }[] = [];
+    // Chaves das unidades já existentes e das criadas nesta planilha: "Bloco A"/101 = A/101.
+    const chaves = new Set<string>();
+    if (this.prisma.isConnected) {
+      const existentes = await this.prisma.apartamentos.findMany({
+        where: { id_condominio: Number(idCondominio) },
+        select: { bloco: true, apto: true },
+      });
+      for (const u of existentes) chaves.add(chaveUnidade(u.bloco, u.apto));
+    }
     for (const item of linhas) {
       const apto = item.apto?.toString() || item.lote?.toString();
       if (!apto) continue;
@@ -453,14 +474,12 @@ export class ApartamentosService {
 
       try {
         if (this.prisma.isConnected) {
-          const existing = await this.prisma.apartamentos.findFirst({
-            where: {
-              id_condominio: Number(idCondominio),
-              apto,
-              bloco,
-            },
-          });
-          if (existing) continue;
+          const chave = chaveUnidade(bloco, apto);
+          if (chaves.has(chave)) {
+            ignorados.push({ apto, bloco, motivo: 'Unidade já cadastrada' });
+            continue;
+          }
+          chaves.add(chave);
 
           const novo = await this.prisma.apartamentos.create({
             data: {

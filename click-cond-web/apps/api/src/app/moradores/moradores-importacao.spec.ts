@@ -94,6 +94,18 @@ describe('MoradoresService.importBulk — unidade que não existe', () => {
     expect(r.total).toBe(1);
     expect(prisma.apartamentos_Users.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ id_apto: 55 }) }));
   });
+
+  it('"Quadra A"/"Lote 12" da planilha casa com a unidade A/12', async () => {
+    const prisma = prismaBase({ unidades: [{ id: 56, id_condominio: 1, bloco: 'A', apto: '12' }] });
+    const { svc } = servico(prisma);
+
+    const r = await svc.importBulk(1, [linha({ bloco: 'Quadra A', apartamento: 'Lote 12' })], { podeCriarUnidade: false });
+
+    expect(r.erros).toEqual([]);
+    expect(r.total).toBe(1);
+    expect(prisma.apartamentos.create).not.toHaveBeenCalled();
+    expect(prisma.apartamentos_Users.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ id_apto: 56 }) }));
+  });
 });
 
 describe('MoradoresService.importBulk — bloco da planilha (revisão, item 8)', () => {

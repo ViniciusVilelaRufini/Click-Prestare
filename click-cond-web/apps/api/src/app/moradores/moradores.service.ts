@@ -18,7 +18,7 @@ import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { randomBytes } from 'crypto';
 import { calcularIdade, temTermoResponsavel, validarBiometria, validarMaioridade } from '../common/idade.util';
 
-import { normalizarBloco, rotuloBloco } from '../common/rotulo-bloco.util';
+import { chaveUnidade, normalizarBloco, rotuloBloco } from '../common/rotulo-bloco.util';
 import { validarCodigoTag } from '../common/tag-codigo.util';
 import { assertTagNaoEmUso } from '../common/tag-em-uso.util';
 import { REVOGADO_PELO_OPERADOR } from '../consentimentos/consentimentos.service';
@@ -133,11 +133,6 @@ export function modoEnvioAcesso(
   if (!(conta?.login ?? '').trim()) return 'senha';
   if (ctx.outroCondominio) return 'link';
   return conta!.password && jaAcessouApp(conta) ? 'link' : 'senha';
-}
-
-/** Chave da unidade: bloco normalizado ("Bloco A" = "A") e apto sem espaços nem caixa. */
-function chaveUnidade(bloco: string | null | undefined, apto: string | null | undefined): string {
-  return `${normalizarBloco(bloco)}|${(apto ?? '').trim().toLowerCase()}`;
 }
 
 /**
