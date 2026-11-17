@@ -544,7 +544,11 @@ export class CrmCondominiosService {
     }
 
     await this.prisma.$transaction([
-      this.prisma.condominios.update({ where: { id }, data: { ativo: 1 } }),
+      // reativar é também a aprovação do autocadastro: aprovado_em só é gravado na 1ª vez.
+      this.prisma.condominios.update({
+        where: { id },
+        data: cond.aprovado_em ? { ativo: 1 } : { ativo: 1, aprovado_em: new Date() },
+      }),
       this.prisma.facial_Devices.updateMany({
         where: { id_condominio: id },
         data: { ativo: 1 },

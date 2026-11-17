@@ -16,6 +16,8 @@ jest.mock('./login-portaria-desativado.util', () => ({
  */
 const SUSPENSO = 'O acesso deste condomínio está suspenso. Fale com a administração.';
 
+const EM_ANALISE = 'Seu condomínio está em análise. Avisaremos quando o acesso for liberado.';
+
 /** Simula o banco: o vínculo só "existe" se o filtro de condomínio ativo bater com o estado do condomínio. */
 function vinculoQueRespeitaAtivo(condominioAtivo: boolean) {
   return jest.fn(async ({ where }: any) => {
@@ -73,7 +75,8 @@ describe('logins do app — condomínio inativo', () => {
 
   const svcCom = (prisma: any) =>
     new MobileAuthService(prisma, { sign: jest.fn(() => 'tok') } as any, {} as any, {} as any, {} as any, {} as any);
-  const inativo = { condominio: { ativo: 0 } };
+  const inativo = { condominio: { ativo: 0, aprovado_em: new Date('2026-01-01') } };
+  const pendente = { condominio: { ativo: 0, aprovado_em: null } };
   const ativo = { condominio: { ativo: 1 } };
 
   it('loginSindico: só vínculos inativos → recusa com a mensagem de suspensão', async () => {
@@ -160,5 +163,48 @@ describe('logins do app — condomínio inativo', () => {
       },
     };
     await expect(svcCom(prisma).loginFuncionario('a', 'senha')).resolves.toMatchObject({ token: 'tok' });
+  });
+
+  it('loginSindico: só vínculos pendentes (autocadastro) → "em análise"', async () => {
+    const prisma: any = {
+      isConnected: true,
+      users: {
+        findFirst: jest.fn(async () => ({
+          id: 1, login: 'a', password: hash, sindicos: [{ name: 'S' }], sindicosCondominios: [pendente],
+        })),
+      },
+    };
+    const err = await svcCom(prisma).loginSindico('a', 'senha').catch((e) => e);
+    expect(err).toBeInstanceOf(UnauthorizedException);
+    expect(err.message).toBe(EM_ANALISE);
+  });
+
+  it('loginSindico: pendente e suspenso → continua "suspenso"', async () => {
+    const prisma: any = {
+      isConnected: true,
+      users: {
+        findFirst: jest.fn(async () => ({
+          id: 1, login: 'a', password: hash, sindicos: [{ name: 'S' }], sindicosCondominios: [pendente, inativo],
+        })),
+      },
+    };
+    const err = await svcCom(prisma).loginSindico('a', 'senha').catch((e) => e);
+    expect(err.message).toBe(SUSPENSO);
+  });
+
+  it('loginMorador: só vínculos pendentes → "em análise"', async () => {
+    const prisma: any = {
+      isConnected: true,
+      users: {
+        findFirst: jest.fn(async () => ({
+          id: 1, login: 'a', password: hash,
+          moradores: [{ nome: 'M', condominio: { ativo: 0, aprovado_em: null } }],
+          apartamentosUsers: [{ apartamento: pendente }],
+        })),
+      },
+    };
+    const err = await svcCom(prisma).loginMorador('a', 'senha').catch((e) => e);
+    expect(err).toBeInstanceOf(UnauthorizedException);
+    expect(err.message).toBe(EM_ANALISE);
   });
 });

@@ -46,6 +46,7 @@ export class CrmClientesComponent implements OnInit {
     { valor: 'trial', label: 'Trial' },
     { valor: 'em_atraso', label: 'Em atraso' },
     { valor: 'lead', label: 'Leads' },
+    { valor: 'pendente', label: 'Em análise' },
     { valor: 'churn', label: 'Churn' },
   ];
 

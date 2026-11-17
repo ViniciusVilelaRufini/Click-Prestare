@@ -19,7 +19,7 @@ import { assertEmailNaoReservado } from '../common/email-reservado.util';
  * está offline (sem DATABASE_URL), para o portal funcionar em dev.
  */
 
-export type EstagioCrm = 'lead' | 'trial' | 'ativo' | 'em_atraso' | 'churn';
+export type EstagioCrm = 'pendente' | 'lead' | 'trial' | 'ativo' | 'em_atraso' | 'churn';
 export type StatusPagamento = 'em_dia' | 'vencendo' | 'atrasado' | 'sem_cobranca';
 
 // --- Motor de risco de churn (sinais operacionais do controle de acesso) ---
@@ -535,15 +535,19 @@ export class CrmService {
         ? (agora.getTime() - new Date(clienteDesde).getTime()) / (24 * 3600 * 1000) <= 45
         : false;
 
-    const estagio: EstagioCrm = !ativo
-      ? 'churn'
-      : statusPagamento === 'atrasado'
-        ? 'em_atraso'
-        : emTrial
-          ? 'trial'
-          : mrr <= 0
-            ? 'lead'
-            : 'ativo';
+    // Autocadastro aguardando aprovação (ativo 0, nunca aprovado) não é churn.
+    const pendente = !ativo && c.aprovado_em === null;
+    const estagio: EstagioCrm = pendente
+      ? 'pendente'
+      : !ativo
+        ? 'churn'
+        : statusPagamento === 'atrasado'
+          ? 'em_atraso'
+          : emTrial
+            ? 'trial'
+            : mrr <= 0
+              ? 'lead'
+              : 'ativo';
 
     const ultimaAtividade: Date | null = ultimoAcesso?.created_at ?? null;
 
@@ -772,6 +776,7 @@ export class CrmService {
     const churn = clientes.filter((c) => c.estagio === 'churn');
 
     const porEstagio: Record<EstagioCrm, number> = {
+      pendente: 0,
       lead: 0,
       trial: 0,
       ativo: 0,

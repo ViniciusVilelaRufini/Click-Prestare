@@ -219,6 +219,9 @@ model Condominios {
   moeda                String?                   @default("BRL") @db.VarChar(10)
   ativo                Int                       @default(1) @db.TinyInt
   liberado_exclusao    Int                       @default(0) @db.TinyInt
+  // Autocadastro nasce ativo = 0 e aprovado_em nulo ("em análise"); o CRM preenche ao ativar.
+  // ativo = 0 com aprovado_em preenchido é condomínio desativado (suspenso/churn).
+  aprovado_em          DateTime?                 @db.DateTime(0)
   // Token estável do Agente Local deste condomínio (modo condomínio): 1 token
   // gerencia todos os dispositivos. Gerado sob demanda no 1o download de config.
   agent_token          String?                   @db.VarChar(64)
@@ -372,6 +375,7 @@ model Sindicos_Condominios {
   condominio    Condominios @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_sc_cond")
   user          Users       @relation(fields: [id_user], references: [id], onDelete: Cascade, map: "fk_sc_user")
 
+  @@unique([id_user, id_condominio], map: "uq_sindico_condominio")
   @@index([id_user])
   @@index([id_condominio])
 }

@@ -241,15 +241,20 @@ export class MobileAuthService {
   }
 
   /**
-   * Condomínio desativado no CRM não oferece acesso pelo app (a web já corta no login). Recebe os
-   * vínculos do usuário já com `condominio.ativo`: se há vínculos e TODOS são de condomínio inativo,
-   * recusa. Com ao menos um ativo entra — os inativos nem aparecem nas listas (list-condominios) e
+   * Condomínio fora do ar não oferece acesso pelo app (a web já corta no login). Recebe os vínculos do
+   * usuário já com `condominio.ativo` e `condominio.aprovado_em`: se há vínculos e TODOS são de condomínio
+   * inativo, recusa. Com ao menos um ativo entra — os inativos nem aparecem nas listas (list-condominios) e
    * assertCondominio os nega. Sem vínculo algum, mantém o comportamento anterior.
+   * Inativo sem `aprovado_em` é autocadastro aguardando aprovação ("em análise"); com `aprovado_em` foi
+   * desativado depois no CRM ("suspenso"). Qualquer suspenso na lista prevalece sobre o "em análise".
    */
-  private recusarSeSoCondominiosInativos(vinculos: Array<{ condominio?: { ativo: number } | null } | null | undefined> | undefined) {
-    const lista = (vinculos ?? []).filter((v): v is { condominio?: { ativo: number } | null } => !!v);
+  private recusarSeSoCondominiosInativos(vinculos: Array<{ condominio?: { ativo: number; aprovado_em?: Date | null } | null } | null | undefined> | undefined) {
+    const lista = (vinculos ?? []).filter((v): v is { condominio?: { ativo: number; aprovado_em?: Date | null } | null } => !!v);
     if (lista.length === 0) return;
     if (lista.every((v) => v.condominio != null && Number(v.condominio.ativo) !== 1)) {
+      if (lista.every((v) => v.condominio!.aprovado_em === null)) {
+        throw new UnauthorizedException('Seu condomínio está em análise. Avisaremos quando o acesso for liberado.');
+      }
       throw new UnauthorizedException('O acesso deste condomínio está suspenso. Fale com a administração.');
     }
   }
@@ -271,7 +276,7 @@ export class MobileAuthService {
       where: { login },
       include: {
         sindicos: true,
-        sindicosCondominios: { select: { condominio: { select: { ativo: true } } } },
+        sindicosCondominios: { select: { condominio: { select: { ativo: true, aprovado_em: true } } } },
       },
     });
 
@@ -938,8 +943,8 @@ export class MobileAuthService {
     const user = await this.prisma.users.findFirst({
       where: { OR: [{ login }, { email: login }] },
       include: {
-        moradores: { include: { condominio: { select: { ativo: true } } } },
-        apartamentosUsers: { select: { apartamento: { select: { condominio: { select: { ativo: true } } } } } },
+        moradores: { include: { condominio: { select: { ativo: true, aprovado_em: true } } } },
+        apartamentosUsers: { select: { apartamento: { select: { condominio: { select: { ativo: true, aprovado_em: true } } } } } },
       },
     });
 
@@ -1062,7 +1067,7 @@ export class MobileAuthService {
           { email: cleanLogin },
         ],
       },
-      include: { funcionarios: { include: { condominio: { select: { ativo: true } } } } },
+      include: { funcionarios: { include: { condominio: { select: { ativo: true, aprovado_em: true } } } } },
     });
 
     // Se o usuário não existe em Users ou não tem o vínculo na tabela Funcionarios,
@@ -1077,7 +1082,7 @@ export class MobileAuthService {
           ],
           ativo: 1,
         },
-        include: { condominio: { select: { ativo: true } } },
+        include: { condominio: { select: { ativo: true, aprovado_em: true } } },
       });
 
       if (!portaria) {
@@ -1156,7 +1161,7 @@ export class MobileAuthService {
             is_sindico: 0,
             is_morador: 0,
           },
-          include: { funcionarios: { include: { condominio: { select: { ativo: true } } } } },
+          include: { funcionarios: { include: { condominio: { select: { ativo: true, aprovado_em: true } } } } },
         });
       } else {
         await this.prisma.users.update({
@@ -2813,6 +2818,7 @@ export class MobileAuthService {
           moeda: 'BRL',
           // Autocadastro nasce pendente: só o CRM ativa (crm-condominios.service reativar).
           ativo: 0,
+          aprovado_em: null,
           endereco: idEndereco,
         }
       });

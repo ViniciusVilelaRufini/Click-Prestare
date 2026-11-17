@@ -23,7 +23,7 @@ export function iniciais(nome: string): string {
 
 export function estagioLabel(e: EstagioCrm): string {
   return (
-    { lead: 'Lead', trial: 'Trial', ativo: 'Ativo', em_atraso: 'Em atraso', churn: 'Churn' } as Record<EstagioCrm, string>
+    { pendente: 'Em análise', lead: 'Lead', trial: 'Trial', ativo: 'Ativo', em_atraso: 'Em atraso', churn: 'Churn' } as Record<EstagioCrm, string>
   )[e];
 }
 
@@ -31,6 +31,7 @@ export function estagioLabel(e: EstagioCrm): string {
 export function estagioClasse(e: EstagioCrm): string {
   return (
     {
+      pendente: 'badge-warning',
       ativo: 'badge-success',
       trial: 'badge-accent',
       lead: 'badge-info',

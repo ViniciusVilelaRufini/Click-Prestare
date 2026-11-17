@@ -134,6 +134,23 @@ export class AuthService {
     }
   }
 
+  /**
+   * O síndico sem condomínio ativo só tem condomínio de autocadastro aguardando aprovação (ativo 0 e
+   * aprovado_em nulo)? Consulta à parte porque o login filtra `condominio.ativo = 1`. Erro de leitura
+   * mantém a mensagem antiga (apenas texto; a recusa já está decidida).
+   */
+  private async sindicoSoComCondominiosEmAnalise(idUser: number): Promise<boolean> {
+    try {
+      const vinculos = await this.prisma.sindicos_Condominios.findMany({
+        where: { id_user: idUser },
+        select: { condominio: { select: { ativo: true, aprovado_em: true } } },
+      });
+      return vinculos.length > 0 && vinculos.every((v) => v.condominio.ativo !== 1 && v.condominio.aprovado_em === null);
+    } catch {
+      return false;
+    }
+  }
+
   private async limparFalhas(login: string): Promise<void> {
     const chave = this.chaveLockout(login);
     try {
@@ -411,7 +428,14 @@ export class AuthService {
     // Depois da senha: antes saía para qualquer um que digitasse o login, e revelava que a conta é de síndico.
     if (!user.sindicosCondominios || user.sindicosCondominios.length === 0) {
       auditarFalhas();
-      throw new UnauthorizedException('Síndico sem condomínio ativo vinculado.');
+      // Autocadastro aguardando aprovação também cai aqui (o filtro acima só traz condomínio ativo):
+      // se TODO vínculo do síndico é pendente (ativo 0, nunca aprovado), o texto é "em análise".
+      const pendente = await this.sindicoSoComCondominiosEmAnalise(user.id);
+      throw new UnauthorizedException(
+        pendente
+          ? 'Seu condomínio está em análise. Avisaremos quando o acesso for liberado.'
+          : 'Síndico sem condomínio ativo vinculado.',
+      );
     }
 
     await this.limparFalhas(login);

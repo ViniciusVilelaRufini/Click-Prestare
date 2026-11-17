@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 import { API_BASE } from '../shared/api.config';
 import type { Apartamento, Morador } from './crm.models';
 
-export type EstagioCrm = 'lead' | 'trial' | 'ativo' | 'em_atraso' | 'churn';
+export type EstagioCrm = 'pendente' | 'lead' | 'trial' | 'ativo' | 'em_atraso' | 'churn';
 export type StatusPagamento = 'em_dia' | 'vencendo' | 'atrasado' | 'sem_cobranca';
 
 export type RiscoNivel = 'alto' | 'medio' | 'baixo';

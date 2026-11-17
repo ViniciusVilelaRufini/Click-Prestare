@@ -59,7 +59,7 @@ describe('AuthService — sessão do console (rodada 3)', () => {
   });
 
   describe('M12/M13/B1 — login por senha', () => {
-    function build(opts: { ativos?: number[]; comPortaria?: boolean; sindicoEm?: number[] } = {}) {
+    function build(opts: { ativos?: number[]; comPortaria?: boolean; sindicoEm?: number[]; pendentes?: boolean } = {}) {
       const sindicoEm = opts.sindicoEm ?? [7, 8];
       const ativos = new Set(opts.ativos ?? [7, 8]);
       const assinados: JwtPayload[] = [];
@@ -76,6 +76,8 @@ describe('AuthService — sessão do console (rodada 3)', () => {
           update: jest.fn(),
         },
         condominios: { findUnique: jest.fn(async () => ({ nome: 'C7' })) },
+        // Vínculos de síndico vistos sem o filtro de ativo (para distinguir "em análise" de "suspenso").
+        sindicos_Condominios: { findMany: jest.fn(async () => opts.pendentes ? [{ condominio: { ativo: 0, aprovado_em: null } }] : []) },
         users: {
           // Respeita os filtros do include de sindicosCondominios (por condomínio e por condomínio ativo).
           findFirst: jest.fn(async (args: any) => {
@@ -122,6 +124,13 @@ describe('AuthService — sessão do console (rodada 3)', () => {
       const { svc } = build({ ativos: [7] });
       const res: any = await svc.loginPortaria('sindico@demo.com', 'senha-do-sindico');
       expect(res.condominios).toEqual([{ id: 7, nome: 'C7' }]);
+    });
+
+    it('autocadastro pendente: a mensagem é "em análise", não "sem condomínio ativo"', async () => {
+      const { svc } = build({ ativos: [], comPortaria: false, pendentes: true });
+      await expect(svc.loginPortaria('sindico@demo.com', 'senha-do-sindico')).rejects.toThrow(
+        'Seu condomínio está em análise. Avisaremos quando o acesso for liberado.',
+      );
     });
 
     it('B1: "sem condomínio ativo" só aparece para quem sabe a senha', async () => {

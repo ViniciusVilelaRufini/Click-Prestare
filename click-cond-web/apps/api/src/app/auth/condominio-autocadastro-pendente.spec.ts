@@ -19,6 +19,7 @@ describe('POST /condominio/register — condomínio autocadastrado nasce pendent
     const svc = new MobileAuthService(prisma, {} as any, {} as any, {} as any, {} as any, {} as any);
     await svc.registerCondominio({ condominio: { nome: 'Edifício Teste' }, address: { cep: '15800000' } }, 5);
     expect(prisma.condominios.create.mock.calls[0][0].data.ativo).toBe(0);
+    expect(prisma.condominios.create.mock.calls[0][0].data.aprovado_em).toBeNull();
     expect(prisma.sindicos_Condominios.create).toHaveBeenCalledWith({ data: { id_user: 5, id_condominio: 77 } });
   });
 
