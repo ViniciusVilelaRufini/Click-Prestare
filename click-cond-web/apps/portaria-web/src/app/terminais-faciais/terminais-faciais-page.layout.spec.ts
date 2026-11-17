@@ -86,7 +86,7 @@ describe('TerminaisFaciaisPageComponent — agente e sincronização', () => {
     const tela = build();
     const pessoaComErro = {
       ...pessoas[0],
-      motivo_detalhado: 'O terminal recusou a foto porque nÃ£o encontrou um rosto vÃ¡lido.',
+      motivo_detalhado: 'O terminal recusou a foto porque não encontrou um rosto válido.',
     } as any;
 
     tela.toggleDetalhePessoa(pessoaComErro);
@@ -96,7 +96,7 @@ describe('TerminaisFaciaisPageComponent — agente e sincronização', () => {
     expect(tela.pessoaDetalhada()).toBeNull();
   });
 
-  it('atalho de motivo abre o primeiro erro jÃ¡ expandido', () => {
+  it('atalho de motivo abre o primeiro erro já expandido', () => {
     const tela = build();
 
     tela.verMotivoErro();
@@ -106,7 +106,7 @@ describe('TerminaisFaciaisPageComponent — agente e sincronização', () => {
     expect(tela.pessoaDetalhada()).toBe('visitante_1');
   });
 
-  it('mantÃ©m o reenvio da pessoa bloqueado enquanto a solicitaÃ§Ã£o estÃ¡ em andamento', () => {
+  it('mantém o reenvio da pessoa bloqueado enquanto a solicitação está em andamento', () => {
     const respostaReenvio = new Subject<unknown>();
     const tela = build({ syncVisitante: jest.fn(() => respostaReenvio) });
 

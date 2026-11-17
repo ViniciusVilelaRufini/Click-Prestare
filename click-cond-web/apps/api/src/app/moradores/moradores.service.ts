@@ -21,7 +21,7 @@ import { calcularIdade, temTermoResponsavel, validarBiometria, validarMaioridade
 import { chaveUnidade, normalizarBloco, rotuloBloco } from '../common/rotulo-bloco.util';
 import { validarCodigoTag } from '../common/tag-codigo.util';
 import { assertTagNaoEmUso } from '../common/tag-em-uso.util';
-import { REVOGADO_PELO_OPERADOR } from '../consentimentos/consentimentos.service';
+import { REVOGADO_PELO_OPERADOR, lerBiometriaAutorizada } from '../consentimentos/consentimentos.service';
 import { GuaritaOperacoesService } from '../guarita/guarita-operacoes.service';
 export interface CreateMoradorDto {
   nome: string;
@@ -472,17 +472,8 @@ export class MoradoresService {
    * nunca grava consentimento de morador. `null` quando não deu para ler (a lista não cai pelo aviso).
    */
   private async biometriaAutorizadaPorUsuario(idsUser: Array<number | null | undefined>): Promise<Map<number, boolean> | null> {
-    const ids = [...new Set(idsUser.filter((v): v is number => v != null).map(Number))];
-    if (ids.length === 0) return new Map();
     try {
-      const rows = await this.prisma.consentimentos.findMany({
-        where: { id_user: { in: ids }, tipo: 'biometria' },
-        orderBy: [{ registrado_em: 'desc' }, { id: 'desc' }],
-        select: { id_user: true, aceito: true },
-      });
-      const out = new Map<number, boolean>();
-      for (const r of rows) if (!out.has(r.id_user)) out.set(r.id_user, r.aceito === 1);
-      return out;
+      return await lerBiometriaAutorizada(this.prisma, idsUser);
     } catch (e: any) {
       this.logger.warn(`[moradores.findAll] consentimentos de biometria não lidos: ${e?.message ?? e}`);
       return null;

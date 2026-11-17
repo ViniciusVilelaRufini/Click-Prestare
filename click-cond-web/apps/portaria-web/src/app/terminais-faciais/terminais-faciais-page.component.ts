@@ -271,7 +271,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   readonly pessoas = signal<SyncPessoa[]>([]);
   readonly mostrarPessoas = signal(false);
   readonly retryingPessoa = signal<string | null>(null);
-  /** Pessoa cujo detalhe do envio estÃ¡ aberto na lista. */
+  /** Pessoa cujo detalhe do envio está aberto na lista. */
   readonly pessoaDetalhada = signal<string | null>(null);
 
   // Estimativa de tempo restante (ETA)
@@ -1258,7 +1258,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       error: (err) => {
         this.retryingPessoa.set(null);
         this.loadPessoas();
-        this.errorMessage.set(err?.error?.message ?? 'NÃ£o foi possÃ­vel reenviar este rosto.');
+        this.errorMessage.set(err?.error?.message ?? 'Não foi possível reenviar este rosto.');
         setTimeout(() => this.errorMessage.set(null), 5000);
       },
     });

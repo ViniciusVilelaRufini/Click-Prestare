@@ -27,6 +27,27 @@ export type TipoConsentimento = 'privacidade' | 'biometria';
 export const REVOGADO_PELO_OPERADOR = 'revogado_pelo_operador';
 
 /**
+ * Último registro de biometria de cada titular (a regra de `autorizouBiometria`), numa consulta só.
+ * Só leitura. Quem não tem registro não entra no mapa (conta como não autorizado). Lança se a
+ * leitura falhar: quem chama decide se o aviso cai ou não.
+ */
+export async function lerBiometriaAutorizada(
+  prisma: Pick<PrismaService, 'consentimentos'>,
+  ids: Array<number | null | undefined>,
+): Promise<Map<number, boolean>> {
+  const unicos = [...new Set(ids.filter((v): v is number => v != null).map(Number))];
+  const out = new Map<number, boolean>();
+  if (unicos.length === 0) return out;
+  const rows = await prisma.consentimentos.findMany({
+    where: { id_user: { in: unicos }, tipo: 'biometria' },
+    orderBy: [{ registrado_em: 'desc' }, { id: 'desc' }],
+    select: { id_user: true, aceito: true },
+  });
+  for (const r of rows) if (!out.has(r.id_user)) out.set(r.id_user, r.aceito === 1);
+  return out;
+}
+
+/**
  * Consentimento LGPD do titular.
  *
  * Tabela append-only: a revogação é um registro novo, nunca a edição do
@@ -184,16 +205,7 @@ export class ConsentimentosService {
    * Só leitura. Quem não tem registro não entra no mapa (conta como não autorizado).
    */
   async biometriaAutorizadaPorUsuario(ids: number[]): Promise<Map<number, boolean>> {
-    const unicos = [...new Set(ids.filter((v) => v != null).map(Number))];
-    const out = new Map<number, boolean>();
-    if (unicos.length === 0) return out;
-    const rows = await this.prisma.consentimentos.findMany({
-      where: { id_user: { in: unicos }, tipo: 'biometria' },
-      orderBy: [{ registrado_em: 'desc' }, { id: 'desc' }],
-      select: { id_user: true, aceito: true },
-    });
-    for (const r of rows) if (!out.has(r.id_user)) out.set(r.id_user, r.aceito === 1);
-    return out;
+    return lerBiometriaAutorizada(this.prisma, ids);
   }
 
   /**

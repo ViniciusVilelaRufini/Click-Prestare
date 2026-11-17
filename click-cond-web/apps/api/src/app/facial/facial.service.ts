@@ -4937,7 +4937,8 @@ export class FacialService {
         where: {
           id_condominio: idCondominio,
           foto_pessoa: { not: null },
-          NOT: { face_sync_status: 'synced' },
+          // NULL = foto recém-colocada; `NOT synced` sozinho a deixaria de fora no SQL.
+          OR: [{ face_sync_status: null }, { face_sync_status: { not: 'synced' } }],
         },
         select: { id_user: true, face_sync_status: true, face_sync_error: true },
       });
