@@ -166,6 +166,8 @@ export interface ResultadoImportacao {
   sem_acesso?: { nome: string; motivo: string }[];
   /** Cadastradas, mas o e-mail de acesso não saiu: `linha` é a posição na planilha enviada (1 = primeira). */
   sem_email?: { linha: number; nome: string }[];
+  /** Cadastradas; o e-mail de acesso ainda estava sendo enviado quando a resposta saiu. */
+  email_pendente?: { linha: number; nome: string }[];
 }
 
 export interface SindicoOption {

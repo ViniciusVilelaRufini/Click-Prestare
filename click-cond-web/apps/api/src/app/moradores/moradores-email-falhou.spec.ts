@@ -1,5 +1,5 @@
 import { ServiceUnavailableException } from '@nestjs/common';
-import { MoradoresService } from './moradores.service';
+import { MoradoresService, ORCAMENTO_ENVIO_IMPORTACAO_MS } from './moradores.service';
 
 /**
  * Bloqueador 6 do onboarding: "acesso enviado" só quando o e-mail sai de verdade.
@@ -131,5 +131,67 @@ describe('importBulk — e-mail que não sai', () => {
     expect(res.total).toBe(3);
     expect(res.erros).toEqual([]);
     expect(res.sem_email).toEqual([{ linha: 2, nome: 'Dois' }]);
+  });
+});
+
+describe('importBulk — limite, orçamento de tempo e interrupção', () => {
+  const linha = (i: number) => ({ nome: `M${i}`, email: `m${i}@x.com`, bloco: 'A', apartamento: '101', data_nascimento: '15/05/1985' });
+  const linhas = (n: number) => Array.from({ length: n }, (_, i) => linha(i + 1));
+
+  it('nunca passa de 4 envios simultâneos', async () => {
+    const { service, mail } = harness();
+    let ativos = 0;
+    let pico = 0;
+    mail.sendWelcomeMorador.mockImplementation(async () => {
+      ativos++;
+      pico = Math.max(pico, ativos);
+      await new Promise((r) => setTimeout(r, 15));
+      ativos--;
+      return {};
+    });
+
+    const res: any = await service.importBulk(1, linhas(10));
+
+    expect(res.total).toBe(10);
+    expect(mail.sendWelcomeMorador).toHaveBeenCalledTimes(10);
+    expect(pico).toBe(4);
+    expect(res.sem_email).toEqual([]);
+    expect(res.email_pendente).toEqual([]);
+    expect(res.criados[0].credenciais_enviadas).toBeUndefined();
+  });
+
+  it('responde no orçamento de tempo e lista em email_pendente o que não terminou', async () => {
+    const { service, mail } = harness();
+    const soltar: Array<() => void> = [];
+    let liberado = false;
+    mail.sendWelcomeMorador.mockImplementation(() => new Promise<void>((r) => (liberado ? r() : soltar.push(r)))); // só termina quando o teste solta
+    const inicio = Date.now();
+    try {
+      const res: any = await service.importBulk(1, linhas(6), { orcamentoEnvioMs: 80 });
+
+      expect(Date.now() - inicio).toBeLessThan(3000); // não esperou os envios que nunca terminam
+      expect(res.total).toBe(6);
+      expect(res.sem_email).toEqual([]);
+      expect(res.email_pendente.map((e: any) => e.linha)).toEqual([1, 2, 3, 4, 5, 6]);
+    } finally {
+      liberado = true; // libera as vagas do limitador (compartilhado no processo)
+      soltar.forEach((f) => f());
+    }
+  });
+
+  it('o orçamento padrão é de 25 s', () => {
+    expect(ORCAMENTO_ENVIO_IMPORTACAO_MS).toBe(25_000);
+  });
+
+  it('3 falhas seguidas: para de tentar e o resto vai para sem_email', async () => {
+    const { service, mail } = harness();
+    mail.sendWelcomeMorador.mockRejectedValue(new Error('ECONNREFUSED'));
+
+    const res: any = await service.importBulk(1, linhas(12));
+
+    expect(res.total).toBe(12);
+    expect(res.sem_email).toHaveLength(12);
+    expect(mail.sendWelcomeMorador.mock.calls.length).toBeLessThan(12);
+    expect(mail.sendWelcomeMorador.mock.calls.length).toBeGreaterThanOrEqual(3);
   });
 });

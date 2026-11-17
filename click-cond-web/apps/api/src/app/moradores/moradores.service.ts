@@ -89,6 +89,11 @@ export const MSG_EMAIL_ACESSO_FALHOU =
 export const MSG_AVISO_EMAIL_CADASTRO =
   'Morador cadastrado, mas o e-mail de acesso não saiu. Use "Enviar acesso" para tentar de novo.';
 
+/** Tempo total que a importação espera pelos e-mails antes de responder; o que sobra segue em segundo plano. */
+export const ORCAMENTO_ENVIO_IMPORTACAO_MS = 25_000;
+/** Falhas seguidas que fazem a importação parar de tentar enviar (SMTP fora do ar). */
+const FALHAS_SEGUIDAS_PARA_PARAR = 3;
+
 export function jaAcessouApp(conta: ContaEnvioAcesso | null | undefined): boolean {
   if (!conta) return false;
   return !!conta.senha_alterada_em || !!(conta.fcm_token ?? '').trim() || (conta._count?.devices ?? 0) > 0;
@@ -1319,7 +1324,7 @@ export class MoradoresService {
     // A conta existente foi achada por dto.email, então o aviso vai sempre para o endereço
     // dela. Conta de outro condomínio não recebe senha nova (passwordWasSet fica false):
     // só o aviso de "você já tem conta", sem credencial.
-    let credenciaisEnviadas = false;
+    let credenciaisEnviadas: boolean | undefined;
     let avisoEmail: string | undefined;
     if (dto.sendCredentials && criaContaApp) {
       const enviar = () => this.enviarEmailAcesso(dto.email!, dto.nome, passwordWasSet ? senhaInicial : undefined);
@@ -1330,6 +1335,7 @@ export class MoradoresService {
           await enviar();
           credenciaisEnviadas = true;
         } catch {
+          credenciaisEnviadas = false;
           avisoEmail = MSG_AVISO_EMAIL_CADASTRO;
         }
       }
@@ -1371,7 +1377,11 @@ export class MoradoresService {
     });
 
     const criado = (await this.findOne(createdMorador.id)) as any;
-    return { ...criado, credenciais_enviadas: credenciaisEnviadas, ...(avisoEmail && { aviso_email: avisoEmail }) };
+    return {
+      ...criado,
+      ...(credenciaisEnviadas !== undefined && { credenciais_enviadas: credenciaisEnviadas }),
+      ...(avisoEmail && { aviso_email: avisoEmail }),
+    };
   }
 
   async update(id: number, dto: Partial<CreateMoradorDto>, operador?: JwtPayload) {
@@ -2112,7 +2122,7 @@ export class MoradoresService {
   async importBulk(
     idCondominio: number,
     linhas: any[],
-    opcoes: { podeCriarUnidade?: boolean; operador?: JwtPayload } = {},
+    opcoes: { podeCriarUnidade?: boolean; operador?: JwtPayload; /** só testes */ orcamentoEnvioMs?: number } = {},
   ) {
     const criados = [];
     const erros: { nome: string; erro: string }[] = [];
@@ -2207,19 +2217,42 @@ export class MoradoresService {
         erros.push({ nome: item.nome, erro: err?.message ?? 'Erro desconhecido' });
       }
     }
-    // Envios depois do cadastro, no máximo 4 ao mesmo tempo (SMTP aguenta pouca conexão simultânea).
+    // Envios depois do cadastro: no máximo 4 ao mesmo tempo (SMTP aguenta pouca conexão simultânea),
+    // com orçamento total de tempo para a requisição não estourar (ALB/CloudFront cortam em ~60 s).
+    const emailPendente: { linha: number; nome: string }[] = [];
     if (envios.length) {
-      const limitar = limitarConcorrencia('moradores-importacao-email', 4, { filaMaxima: envios.length, esperaMaximaMs: 600_000 });
-      await Promise.all(
-        envios.map((e) =>
-          limitar(e.enviar).catch(() => {
-            semEmail.push({ linha: e.linha, nome: e.nome });
+      const limitar = limitarConcorrencia('moradores-importacao-email', 4, { filaMaxima: 1000, esperaMaximaMs: 600_000 });
+      const estado: Array<'pendente' | 'ok' | 'falhou'> = envios.map(() => 'pendente');
+      let falhasSeguidas = 0;
+      const tarefas = envios.map((e, i) =>
+        limitar(async () => {
+          if (falhasSeguidas >= FALHAS_SEGUIDAS_PARA_PARAR) throw new Error('envio interrompido: SMTP indisponível');
+          await e.enviar();
+        })
+          .then(() => {
+            falhasSeguidas = 0;
+            estado[i] = 'ok';
+          })
+          .catch((err: any) => {
+            falhasSeguidas++;
+            estado[i] = 'falhou';
+            this.logger.warn(`[moradores.importBulk] e-mail de acesso de "${e.nome}" não saiu: ${err?.message ?? err}`);
           }),
-        ),
       );
-      semEmail.sort((a, b) => a.linha - b.linha);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        Promise.all(tarefas),
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, opcoes.orcamentoEnvioMs ?? ORCAMENTO_ENVIO_IMPORTACAO_MS);
+        }),
+      ]);
+      if (timer) clearTimeout(timer);
+      envios.forEach((e, i) => {
+        if (estado[i] === 'falhou') semEmail.push({ linha: e.linha, nome: e.nome });
+        else if (estado[i] === 'pendente') emailPendente.push({ linha: e.linha, nome: e.nome });
+      });
     }
-    return { ok: true, total: criados.length, criados, erros, sem_acesso: semAcesso, sem_email: semEmail };
+    return { ok: true, total: criados.length, criados, erros, sem_acesso: semAcesso, sem_email: semEmail, email_pendente: emailPendente };
   }
 
   /**
