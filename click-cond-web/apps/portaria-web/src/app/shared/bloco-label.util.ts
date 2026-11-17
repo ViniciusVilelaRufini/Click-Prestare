@@ -20,5 +20,8 @@ export function rotuloBloco(bloco: string | null | undefined): string {
  * ou "torre" — "A", "Bloco A" e "Quadra A" caem no mesmo grupo (mesma regra da API).
  */
 export function chaveBloco(bloco: string | null | undefined): string {
-  return String(bloco ?? '').trim().toLowerCase().replace(/^(bloco|quadra|torre)\s*/, '');
+  const s = String(bloco ?? '').trim().toLowerCase();
+  // Idêntico a normalizarBloco da API: o prefixo só conta colado em espaço, número ou ponto;
+  // "Quadra"/"Torre" sozinhos continuam sendo o nome do bloco.
+  return s.replace(/^(bloco|quadra|torre)(?=[\s\d.]|$)\.?\s*/, '') || (/^(quadra|torre)$/.test(s) ? s : '');
 }

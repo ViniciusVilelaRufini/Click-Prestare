@@ -47,3 +47,24 @@ describe('chaveBloco e rótulo de quadra/torre', () => {
     expect(rotuloBloco('Torre 2')).toBe('Torre 2');
   });
 });
+
+describe('chaveBloco espelha normalizarBloco da API', () => {
+  it('"Torre" e "Quadra" sozinhos mantêm a palavra (não caem em "Sem bloco")', () => {
+    expect(chaveBloco('Torre')).toBe('torre');
+    expect(chaveBloco('Quadra')).toBe('quadra');
+    expect(chaveBloco('Bloco')).toBe('');
+  });
+
+  it('o prefixo é palavra inteira: "Torreão" e "Blocos" ficam como estão', () => {
+    expect(chaveBloco('Torreão')).toBe('torreão');
+    expect(chaveBloco('Blocos')).toBe('blocos');
+  });
+
+  it('"Bloco A", "Quadra A", "Torre 2", "Bloco.A" e "A"', () => {
+    expect(chaveBloco('Bloco A')).toBe('a');
+    expect(chaveBloco('A')).toBe('a');
+    expect(chaveBloco('Torre 2')).toBe('2');
+    expect(chaveBloco('Bloco 10')).toBe('10');
+    expect(chaveBloco('Bloco. A')).toBe('a');
+  });
+});
