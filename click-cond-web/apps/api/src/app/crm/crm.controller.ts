@@ -3,7 +3,7 @@ import { Public } from '../auth/public.decorator';
 import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 import { CrmService } from './crm.service';
 import { CrmCondominiosService } from './crm-condominios.service';
-import type { CriarCondominioDto } from './crm-condominios.service';
+import type { CriarCondominioDto, VincularSindicoDto } from './crm-condominios.service';
 import { CrmFaturasService } from './crm-faturas.service';
 import { CrmAdminGuard } from './crm-admin.guard';
 import { MoradoresService } from '../moradores/moradores.service';
@@ -154,6 +154,16 @@ export class CrmController {
    * Redefine a senha do síndico e devolve a nova em texto claro.
    * Não existe rota para ler a senha atual: o banco guarda bcrypt.
    */
+  @UseGuards(CrmAdminGuard)
+  @Post('clientes/:id/sindico')
+  vincularSindico(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: VincularSindicoDto,
+    @ReqUser() user: JwtPayload,
+  ) {
+    return this.condominios.vincularSindico(id, dto, user);
+  }
+
   @UseGuards(CrmAdminGuard)
   @Post('clientes/:id/sindico/senha')
   redefinirSenhaSindico(

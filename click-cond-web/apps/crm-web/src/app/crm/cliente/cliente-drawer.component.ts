@@ -413,6 +413,7 @@ export class ClienteDrawerComponent {
   senhaDigitada = '';
 
   abrirSenhaSindico(): void {
+    this.senhaSindicoCriada.set(false);
     this.senhaDigitada = '';
     this.senhaSindicoNova.set(null);
     this.modalSenhaSindico.set(true);
@@ -436,6 +437,85 @@ export class ClienteDrawerComponent {
         this.toast.trigger(err?.error?.message ?? 'Não foi possível redefinir a senha.', 'error');
       },
     });
+  }
+
+  // ── Vincular síndico ──
+  // Um síndico por condomínio. E-mail já cadastrado liga a conta existente; se já há outro síndico, a API
+  // devolve 409 e a tela pergunta "Substituir <nome>?" antes de reenviar com substituirAtual.
+
+  readonly modalVincularSindico = signal(false);
+  readonly vinculandoSindico = signal(false);
+  readonly erroVincularSindico = signal<string | null>(null);
+  readonly substituirSindicoNome = signal<string | null>(null);
+  /** O painel de senha única serve à redefinição e à criação da conta. */
+  readonly senhaSindicoCriada = signal(false);
+  formVincularSindico = { nome: '', email: '', telefone: '', documento: '' };
+
+  abrirVincularSindico(): void {
+    this.formVincularSindico = { nome: '', email: '', telefone: '', documento: '' };
+    this.erroVincularSindico.set(null);
+    this.substituirSindicoNome.set(null);
+    this.modalVincularSindico.set(true);
+  }
+
+  vincularSindico(substituirAtual = false): void {
+    const c = this.store.clienteSelecionado();
+    if (!c) return;
+    const f = this.formVincularSindico;
+    const nome = f.nome.trim();
+    const email = f.email.trim();
+    if (!nome || !email) {
+      this.erroVincularSindico.set('Informe o nome e o e-mail do síndico.');
+      return;
+    }
+    this.erroVincularSindico.set(null);
+    this.vinculandoSindico.set(true);
+    this.api
+      .vincularSindico(c.id, {
+        nome,
+        email,
+        telefone: f.telefone.trim() || undefined,
+        documento: f.documento.trim() || undefined,
+        ...(substituirAtual ? { substituirAtual: true } : {}),
+      })
+      .subscribe({
+        next: (r) => {
+          this.vinculandoSindico.set(false);
+          this.substituirSindicoNome.set(null);
+          this.modalVincularSindico.set(false);
+          this.store.clienteSelecionado.set({
+            ...c,
+            contatoPrincipal: {
+              nome,
+              email: email.toLowerCase(),
+              telefone: f.telefone.trim() || null,
+              papel: 'Síndico',
+            },
+          } as any);
+          this.store.carregar();
+          this.toast.trigger(
+            r.contaExistente
+              ? 'Síndico vinculado à conta que já existia. A senha dele continua a mesma.'
+              : 'Síndico vinculado.',
+            'success',
+          );
+          if (r.senhaSindico) {
+            this.senhaSindicoCriada.set(true);
+            this.senhaSindicoNova.set({ login: email.toLowerCase(), senha: r.senhaSindico });
+            this.modalSenhaSindico.set(true);
+          }
+        },
+        error: (err) => {
+          this.vinculandoSindico.set(false);
+          const msg: string = err?.error?.message ?? 'Não foi possível vincular o síndico.';
+          const m = /^Este condomínio já tem síndico \((.+)\)\. Confirme a substituição\.$/.exec(msg);
+          if (err?.status === 409 && m) {
+            this.substituirSindicoNome.set(m[1]);
+            return;
+          }
+          this.erroVincularSindico.set(msg);
+        },
+      });
   }
 
   copiarCredenciaisSindico(): void {

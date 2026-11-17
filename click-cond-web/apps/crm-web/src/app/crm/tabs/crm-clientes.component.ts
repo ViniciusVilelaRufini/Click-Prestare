@@ -171,7 +171,7 @@ export class CrmClientesComponent implements OnInit {
     plano: 'Profissional',
     valorMensal: 0,
     diaVencimento: 10,
-    comSindico: false,
+    comSindico: true,
     sindicoNome: '',
     sindicoEmail: '',
     sindicoTelefone: '',
@@ -197,7 +197,7 @@ export class CrmClientesComponent implements OnInit {
   abrirNovo(): void {
     this.novo = {
       nome: '', identificacao: '', plano: 'Profissional', valorMensal: 0, diaVencimento: 10,
-      comSindico: false, sindicoNome: '', sindicoEmail: '', sindicoTelefone: '', sindicoDocumento: '',
+      comSindico: true, sindicoNome: '', sindicoEmail: '', sindicoTelefone: '', sindicoDocumento: '',
       comApartamentos: false, blocos: 'A', andares: 4, porAndar: 4,
     };
     this.senhaGerada.set(null);

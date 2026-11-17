@@ -440,6 +440,9 @@
                   </div>
                 } @else {
                   <p class="text-sm text-ink-muted">Sem síndico ou contato administrativo cadastrado.</p>
+                  <button type="button" class="btn-secondary btn-sm press" (click)="abrirVincularSindico()">
+                    Vincular síndico
+                  </button>
                 }
               </div>
             </div>
@@ -982,6 +985,56 @@
     </div>
   </div>
 
+  <!-- ══ Vincular síndico ══ -->
+  @if (modalVincularSindico()) {
+    <app-modal-shell maxWidth="max-w-md" ariaLabel="Vincular síndico" (fechar)="modalVincularSindico.set(false)">
+      <div class="px-6 pb-2 pt-6">
+        <h3 class="section-title">Vincular síndico</h3>
+        <p class="mt-1 text-sm text-ink-muted">
+          Se o e-mail já tiver conta (por exemplo, um morador), a conta é ligada como síndica e a senha dela não muda.
+          Caso contrário, criamos o acesso e mostramos a senha uma única vez.
+        </p>
+
+        <div class="mt-5 space-y-3">
+          <label class="block">
+            <span class="eyebrow mb-1.5 block">Nome</span>
+            <input type="text" class="input" [(ngModel)]="formVincularSindico.nome" name="vs-nome" autocomplete="off" />
+          </label>
+          <label class="block">
+            <span class="eyebrow mb-1.5 block">E-mail</span>
+            <input type="email" class="input" [(ngModel)]="formVincularSindico.email" name="vs-email" autocomplete="off" />
+          </label>
+          <label class="block">
+            <span class="eyebrow mb-1.5 block">Telefone (opcional)</span>
+            <input type="text" class="input" [(ngModel)]="formVincularSindico.telefone" name="vs-telefone" autocomplete="off" />
+          </label>
+          <label class="block">
+            <span class="eyebrow mb-1.5 block">Documento (opcional)</span>
+            <input type="text" class="input" [(ngModel)]="formVincularSindico.documento" name="vs-documento" autocomplete="off" />
+          </label>
+        </div>
+
+        @if (substituirSindicoNome(); as atual) {
+          <p class="mt-4 flex items-start gap-2 rounded-xl bg-warning-soft p-3 text-xs text-warning">
+            <span>Este condomínio já tem síndico. Substituir {{ atual }}? A conta dele continua, só perde o vínculo de síndico daqui.</span>
+          </p>
+        }
+        @if (erroVincularSindico(); as erro) {
+          <p class="mt-4 text-xs text-danger">{{ erro }}</p>
+        }
+      </div>
+
+      <div class="flex items-center justify-end gap-2 px-6 pb-6 pt-4">
+        <button type="button" class="btn-ghost press" (click)="modalVincularSindico.set(false)">Cancelar</button>
+        @if (substituirSindicoNome()) {
+          <button type="button" class="btn-primary press" [disabled]="vinculandoSindico()" (click)="vincularSindico(true)">Substituir</button>
+        } @else {
+          <button type="button" class="btn-primary press" [disabled]="vinculandoSindico()" (click)="vincularSindico()">Vincular</button>
+        }
+      </div>
+    </app-modal-shell>
+  }
+
   <!-- ══ Senha do síndico ══ -->
   @if (modalSenhaSindico()) {
     <app-modal-shell maxWidth="max-w-md" ariaLabel="Redefinir senha do síndico" (fechar)="modalSenhaSindico.set(false)">
@@ -994,9 +1047,9 @@
               </svg>
             </div>
             <div class="min-w-0">
-              <h3 class="section-title">Senha redefinida</h3>
+              <h3 class="section-title">{{ senhaSindicoCriada() ? 'Acesso do síndico criado' : 'Senha redefinida' }}</h3>
               <p class="mt-0.5 text-sm text-ink-muted">
-                A senha anterior deixou de valer. <strong class="font-semibold text-ink">Esta é a única vez que ela
+                @if (!senhaSindicoCriada()) { A senha anterior deixou de valer. } <strong class="font-semibold text-ink">Esta é a única vez que ela
                 aparece</strong> — depois de fechar, só redefinindo de novo.
               </p>
             </div>

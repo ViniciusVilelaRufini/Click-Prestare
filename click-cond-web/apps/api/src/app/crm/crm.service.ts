@@ -1,4 +1,4 @@
-import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { OcorrenciasService } from '../ocorrencias/ocorrencias.service';
 import { INCLUDE_AUTOR_MENSAGEM, mensagemParaResposta } from '../ocorrencias/mensagem-ocorrencia.util';
@@ -208,6 +208,41 @@ export class CrmService {
     const cond = await this.prisma.condominios.findUnique({ where: { id } });
     if (!cond) return null;
 
+    // Síndico: valida antes de gravar qualquer coisa (nada de "sucesso" que descarta o pedido).
+    const mexeNoSindico =
+      sindicoNome !== undefined || sindicoEmail !== undefined || sindicoTelefone !== undefined;
+    let vinculoSindico: { id_user: number } | null = null;
+    let emailSindico: string | undefined;
+    if (mexeNoSindico) {
+      vinculoSindico = await this.prisma.sindicos_Condominios.findFirst({
+        where: { id_condominio: id },
+        orderBy: { id: 'asc' },
+      });
+      if (!vinculoSindico) {
+        throw new UnprocessableEntityException(
+          'Este condomínio ainda não tem síndico. Use "Vincular síndico".',
+        );
+      }
+      const emailInformado = String(sindicoEmail ?? '').trim().toLowerCase();
+      if (emailInformado) {
+        emailSindico = emailInformado;
+        assertEmailNaoReservado(emailSindico);
+        const outraConta = await this.prisma.users.findFirst({
+          where: {
+            id: { not: vinculoSindico.id_user },
+            OR: [{ email: emailSindico }, { login: emailSindico }],
+          },
+          select: { id: true },
+        });
+        const portaria = await this.prisma.funcionarios_Portaria.count({ where: { login: emailSindico } });
+        if (outraConta || portaria > 0) {
+          throw new ConflictException(
+            'Este e-mail já pertence a outra conta. Use outro e-mail ou vincule essa conta pelo botão "Vincular síndico".',
+          );
+        }
+      }
+    }
+
     // 1. Atualiza condomínio
     await this.prisma.condominios.update({
       where: { id },
@@ -256,28 +291,36 @@ export class CrmService {
     }
 
     // 3. Atualiza síndico e usuário associado
-    const vinculos = await this.prisma.sindicos_Condominios.findMany({ where: { id_condominio: id } });
-    if (vinculos.length > 0) {
-      const idUser = vinculos[0].id_user;
+    if (vinculoSindico) {
+      const idUser = vinculoSindico.id_user;
       const sindico = await this.prisma.sindicos.findFirst({ where: { id_user: idUser } });
-      if (sindico) {
-        await this.prisma.sindicos.update({
-          where: { id: sindico.id },
+      try {
+        if (sindico) {
+          await this.prisma.sindicos.update({
+            where: { id: sindico.id },
+            data: {
+              name: sindicoNome !== undefined ? sindicoNome : undefined,
+              email: emailSindico,
+              phone: sindicoTelefone !== undefined ? sindicoTelefone : undefined,
+            }
+          });
+        }
+        await this.prisma.users.update({
+          where: { id: idUser },
           data: {
             name: sindicoNome !== undefined ? sindicoNome : undefined,
-            email: sindicoEmail !== undefined ? sindicoEmail : undefined,
+            // e-mail e login andam juntos: o login da conta é o e-mail.
+            email: emailSindico,
+            login: emailSindico,
             phone: sindicoTelefone !== undefined ? sindicoTelefone : undefined,
           }
         });
-      }
-      await this.prisma.users.update({
-        where: { id: idUser },
-        data: {
-          name: sindicoNome !== undefined ? sindicoNome : undefined,
-          email: sindicoEmail !== undefined ? sindicoEmail : undefined,
-          phone: sindicoTelefone !== undefined ? sindicoTelefone : undefined,
+      } catch (e: any) {
+        if (e?.code === 'P2002') {
+          throw new ConflictException('Este e-mail já pertence a outra conta.');
         }
-      });
+        throw e;
+      }
     }
 
     return this.cliente(id);

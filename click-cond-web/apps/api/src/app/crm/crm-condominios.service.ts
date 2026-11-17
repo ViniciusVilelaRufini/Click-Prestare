@@ -35,6 +35,14 @@ function mascararEmail(email: string): string {
   return `${usuario.substring(0, 2)}****@${dominio}`;
 }
 
+export interface VincularSindicoDto {
+  nome: string;
+  email: string;
+  telefone?: string | null;
+  documento?: string | null;
+  substituirAtual?: boolean;
+}
+
 export interface CriarCondominioDto {
   nome: string;
   identificacao?: string | null;
@@ -116,6 +124,7 @@ export class CrmCondominiosService {
     const nome = (dto?.nome ?? '').trim();
     if (!nome) throw new BadRequestException('Informe o nome do condomínio.');
     // E-mail do síndico vira login da conta: o domínio das lápides de revogação é recusado.
+    if (dto.sindico?.email) dto.sindico.email = dto.sindico.email.trim().toLowerCase();
     assertEmailNaoReservado(dto.sindico?.email);
 
     if (dto.sindico?.email) {
@@ -155,28 +164,12 @@ export class CrmCondominiosService {
 
       let idUserSindico: number | null = null;
       if (dto.sindico?.nome && dto.sindico?.email) {
-        const user = await tx.users.create({
-          data: {
-            name: dto.sindico.nome.trim(),
-            email: dto.sindico.email.trim(),
-            login: dto.sindico.email.trim(),
-            password: await bcrypt.hash(senhaSindico, 10),
-            phone: dto.sindico.telefone?.trim() || null,
-            cpf: dto.sindico.documento?.trim() || null,
-            is_sindico: 1,
-          },
-        });
-        await tx.sindicos.create({
-          data: {
-            name: dto.sindico.nome.trim(),
-            email: dto.sindico.email.trim(),
-            phone: dto.sindico.telefone?.trim() || null,
-            doc_identification: dto.sindico.documento?.trim() || null,
-            id_user: user.id,
-          },
-        });
-        await tx.sindicos_Condominios.create({
-          data: { id_user: user.id, id_condominio: cond.id },
+        const user = await this.criarContaSindico(tx, cond.id, {
+          nome: dto.sindico.nome,
+          email: dto.sindico.email,
+          telefone: dto.sindico.telefone,
+          documento: dto.sindico.documento,
+          senha: senhaSindico,
         });
         idUserSindico = user.id;
       }
@@ -204,6 +197,156 @@ export class CrmCondominiosService {
       sindicoCriado: resultado.idUserSindico != null,
       // Devolvida uma única vez, para a UI mostrar/enviar ao síndico.
       senhaSindico: resultado.idUserSindico != null ? senhaSindico : null,
+    };
+  }
+
+  /** Users (is_sindico 1, login = e-mail, bcrypt) + Sindicos + vínculo com o condomínio. */
+  private async criarContaSindico(
+    tx: any,
+    idCondominio: number,
+    s: { nome: string; email: string; telefone?: string | null; documento?: string | null; senha: string },
+  ) {
+    const user = await tx.users.create({
+      data: {
+        name: s.nome.trim(),
+        email: s.email.trim(),
+        login: s.email.trim(),
+        password: await bcrypt.hash(s.senha, 10),
+        phone: s.telefone?.trim() || null,
+        cpf: s.documento?.trim() || null,
+        is_sindico: 1,
+      },
+    });
+    await tx.sindicos.create({
+      data: {
+        name: s.nome.trim(),
+        email: s.email.trim(),
+        phone: s.telefone?.trim() || null,
+        doc_identification: s.documento?.trim() || null,
+        id_user: user.id,
+      },
+    });
+    await tx.sindicos_Condominios.create({
+      data: { id_user: user.id, id_condominio: idCondominio },
+    });
+    return user as { id: number };
+  }
+
+  /**
+   * Liga uma pessoa como síndico de um condomínio que já existe. Um síndico por condomínio:
+   * trocar remove só o vínculo (Sindicos_Condominios) do anterior, a conta dele continua.
+   * E-mail já cadastrado → liga a conta existente (sem tocar em moradores/apartamentos e sem senha).
+   */
+  async vincularSindico(
+    idCondominio: number,
+    dto: VincularSindicoDto,
+    operador: JwtPayload | undefined,
+  ) {
+    const nome = (dto?.nome ?? '').trim();
+    const email = (dto?.email ?? '').trim().toLowerCase();
+    if (!nome) throw new BadRequestException('Informe o nome do síndico.');
+    if (!email || email.length > 255 || !EMAIL_RE.test(email)) {
+      throw new BadRequestException('Informe um e-mail válido.');
+    }
+    assertEmailNaoReservado(email);
+
+    const cond = await this.prisma.condominios.findUnique({
+      where: { id: idCondominio },
+      select: { id: true, nome: true },
+    });
+    if (!cond) throw new NotFoundException('Condomínio não encontrado.');
+
+    const existente = await this.prisma.users.findFirst({
+      where: { OR: [{ email }, { login: email }] },
+      select: { id: true, name: true, is_sindico: true },
+    });
+    if (!existente && (await this.loginEmUsoNaPortaria(email))) {
+      throw new ConflictException(MSG_EMAIL_DE_OUTRA_CONTA);
+    }
+
+    const atual = await this.prisma.sindicos_Condominios.findFirst({
+      where: { id_condominio: idCondominio },
+      orderBy: { id: 'asc' },
+      include: { user: { select: { id: true, name: true, email: true } } },
+    });
+    if (atual && existente && atual.id_user === existente.id) {
+      throw new ConflictException('Essa pessoa já é síndica deste condomínio.');
+    }
+    const nomeAtual = atual?.user?.name ?? atual?.user?.email ?? 'síndico atual';
+    if (atual && !dto.substituirAtual) {
+      throw new ConflictException(
+        `Este condomínio já tem síndico (${nomeAtual}). Confirme a substituição.`,
+      );
+    }
+
+    const senha = existente ? null : this.gerarSenha();
+    let idUser: number;
+    try {
+      idUser = await this.prisma.$transaction(async (tx) => {
+        if (atual) {
+          // Só o vínculo de síndico deste condomínio; a conta do anterior continua.
+          await tx.sindicos_Condominios.deleteMany({ where: { id_condominio: idCondominio } });
+        }
+        if (!existente) {
+          const user = await this.criarContaSindico(tx, idCondominio, {
+            nome,
+            email,
+            telefone: dto.telefone,
+            documento: dto.documento,
+            senha: senha as string,
+          });
+          return user.id;
+        }
+        if (!existente.is_sindico) {
+          await tx.users.update({ where: { id: existente.id }, data: { is_sindico: 1 } });
+        }
+        const jaTemSindicos = await tx.sindicos.findFirst({
+          where: { id_user: existente.id },
+          select: { id: true },
+        });
+        if (!jaTemSindicos) {
+          await tx.sindicos.create({
+            data: {
+              name: existente.name || nome,
+              email,
+              phone: dto.telefone?.trim() || null,
+              doc_identification: dto.documento?.trim() || null,
+              id_user: existente.id,
+            },
+          });
+        }
+        await tx.sindicos_Condominios.create({
+          data: { id_user: existente.id, id_condominio: idCondominio },
+        });
+        return existente.id;
+      });
+    } catch (e: any) {
+      if (e?.code === 'P2002') {
+        throw new ConflictException('Essa pessoa já é síndica deste condomínio.');
+      }
+      throw e;
+    }
+
+    await this.auditoria.registrar({
+      id_condominio: idCondominio,
+      usuario_nome:
+        (operador as any)?.nome ?? (operador as any)?.user?.name ?? (operador as any)?.email ?? 'Admin CRM',
+      acao: 'UPDATE',
+      modulo: 'crm-condominio',
+      entidade_id: idUser,
+      descricao: `Síndico ${nome} vinculado a "${cond.nome}" pelo CRM`,
+      detalhes: {
+        email: mascararEmail(email),
+        contaExistente: !!existente,
+        anteriorRemovido: atual ? atual.id_user : null,
+      },
+    });
+
+    return {
+      id_user: idUser,
+      contaExistente: !!existente,
+      ...(senha ? { senhaSindico: senha } : {}),
+      ...(atual ? { anteriorRemovido: { id_user: atual.id_user, nome: nomeAtual } } : {}),
     };
   }
 
@@ -265,6 +408,7 @@ export class CrmCondominiosService {
   ) {
     const vinculo = await this.prisma.sindicos_Condominios.findFirst({
       where: { id_condominio: idCondominio },
+      orderBy: { id: 'asc' },
       include: { user: { select: { id: true, name: true, email: true, login: true } } },
     });
     if (!vinculo?.user) {

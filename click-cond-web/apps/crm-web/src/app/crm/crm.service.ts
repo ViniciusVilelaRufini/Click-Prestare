@@ -190,6 +190,14 @@ export class CrmApi {
   }
 
   /**
+   * Liga uma pessoa como síndico do condomínio. E-mail já cadastrado liga a conta existente (sem senha).
+   * Se já houver outro síndico, a API responde 409; reenvie com `substituirAtual: true` para trocar.
+   */
+  vincularSindico(idCondominio: number, dto: VincularSindicoDto): Observable<VincularSindicoResposta> {
+    return this.http.post<VincularSindicoResposta>(`${this.base}/clientes/${idCondominio}/sindico`, dto);
+  }
+
+  /**
    * Suporte: corrige o e-mail de acesso de um morador cadastrado com o e-mail
    * errado. A API encerra as sessões da conta e não gera senha — depois o
    * morador usa "Esqueci a senha" ou a portaria reenvia as credenciais.
@@ -381,3 +389,18 @@ export interface CrmDisparo {
 }
 
 
+
+export interface VincularSindicoDto {
+  nome: string;
+  email: string;
+  telefone?: string;
+  documento?: string;
+  substituirAtual?: boolean;
+}
+
+export interface VincularSindicoResposta {
+  id_user: number;
+  contaExistente: boolean;
+  senhaSindico?: string;
+  anteriorRemovido?: { id_user: number; nome: string };
+}
