@@ -153,7 +153,47 @@ export class ConsentimentosService {
         `privacidade=${dados.privacidade}, biometria=${dados.biometria}`,
     );
 
+    // Aceite de biometria sobe o rosto na hora, sem esperar o ciclo de 30–60 min. Não bloqueia a
+    // resposta e nunca faz o registro falhar. Revogação não envia nada.
+    if (dados.biometria) void this.enviarRostosAposAceite(idUser);
+
     return { ok: true, versao: POLITICA_VERSAO };
+  }
+
+  /** Envia o rosto de cada cadastro de morador do usuário; qualquer falha vira só log. */
+  private async enviarRostosAposAceite(idUser: number): Promise<void> {
+    try {
+      const moradores = await this.prisma.moradores.findMany({
+        where: { id_user: idUser },
+        select: { id: true },
+      });
+      for (const m of moradores) {
+        try {
+          await this.facial.syncMorador(m.id);
+        } catch (e: any) {
+          this.logger.warn(`Envio do rosto do morador ${m.id} após o aceite falhou: ${e?.message ?? e}`);
+        }
+      }
+    } catch (e: any) {
+      this.logger.warn(`Envio dos rostos após o aceite do usuário ${idUser} falhou: ${e?.message ?? e}`);
+    }
+  }
+
+  /**
+   * Último registro de biometria de cada titular (mesma regra de `autorizouBiometria`).
+   * Só leitura. Quem não tem registro não entra no mapa (conta como não autorizado).
+   */
+  async biometriaAutorizadaPorUsuario(ids: number[]): Promise<Map<number, boolean>> {
+    const unicos = [...new Set(ids.filter((v) => v != null).map(Number))];
+    const out = new Map<number, boolean>();
+    if (unicos.length === 0) return out;
+    const rows = await this.prisma.consentimentos.findMany({
+      where: { id_user: { in: unicos }, tipo: 'biometria' },
+      orderBy: [{ registrado_em: 'desc' }, { id: 'desc' }],
+      select: { id_user: true, aceito: true },
+    });
+    for (const r of rows) if (!out.has(r.id_user)) out.set(r.id_user, r.aceito === 1);
+    return out;
   }
 
   /**

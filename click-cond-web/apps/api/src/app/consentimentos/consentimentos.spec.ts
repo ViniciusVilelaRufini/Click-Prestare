@@ -228,3 +228,54 @@ describe('ConsentimentosService', () => {
     });
   });
 });
+
+describe('ConsentimentosService.registrar envia o rosto na hora', () => {
+  const USER: JwtPayload = { sub: 7, nome: 'Morador', typeAccess: 'Morador' };
+  function build(syncImpl?: () => Promise<any>) {
+    const prisma: any = {
+      isConnected: true,
+      consentimentos: { createMany: jest.fn().mockResolvedValue({ count: 2 }) },
+      moradores: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        findMany: jest.fn().mockResolvedValue([{ id: 101 }, { id: 102 }]),
+      },
+    };
+    const facial: any = { syncMorador: jest.fn(syncImpl ?? (async () => ({ ok: true }))) };
+    return { svc: new ConsentimentosService(prisma, facial), facial };
+  }
+  const flush = () => new Promise((r) => setImmediate(r));
+
+  it('aceite de biometria chama syncMorador de cada morador do usuario', async () => {
+    const { svc, facial } = build();
+    await svc.registrar(USER, { privacidade: true, biometria: true });
+    await flush();
+    expect(facial.syncMorador).toHaveBeenCalledWith(101);
+    expect(facial.syncMorador).toHaveBeenCalledWith(102);
+  });
+
+  it('nao espera o envio terminar', async () => {
+    const { svc, facial } = build(() => new Promise(() => undefined));
+    await expect(svc.registrar(USER, { privacidade: true, biometria: true })).resolves.toEqual(
+      expect.objectContaining({ ok: true }),
+    );
+    await flush();
+    expect(facial.syncMorador).toHaveBeenCalled();
+  });
+
+  it('falha do sync nao faz o registro falhar', async () => {
+    const { svc } = build(async () => {
+      throw new Error('terminal fora');
+    });
+    await expect(svc.registrar(USER, { privacidade: true, biometria: true })).resolves.toEqual(
+      expect.objectContaining({ ok: true }),
+    );
+    await flush();
+  });
+
+  it('revogacao (biometria false) nao envia nada', async () => {
+    const { svc, facial } = build();
+    await svc.registrar(USER, { privacidade: true, biometria: false });
+    await flush();
+    expect(facial.syncMorador).not.toHaveBeenCalled();
+  });
+});

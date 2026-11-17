@@ -576,6 +576,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     return [
       { status: 'synced', label: 'Enviados', valor: s.synced, cor: 'text-emerald-600 dark:text-emerald-400', alerta: false },
       { status: 'pending', label: 'Pendentes', valor: s.pending, cor: 'text-amber-600 dark:text-amber-400', alerta: false },
+      { status: 'aguardando_aceite', label: 'Aguardando aceite', valor: s.aguardando_aceite ?? 0, cor: 'text-sky-600 dark:text-sky-400', alerta: false },
       {
         status: 'error',
         label: 'Erros',
@@ -598,7 +599,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
 
   tituloListaPessoas(): string {
     return (
-      { error: 'Com erro', pending: 'Pendentes', synced: 'Enviados', no_photo: 'Sem foto' } as Record<string, string>
+      { error: 'Com erro', pending: 'Pendentes', aguardando_aceite: 'Aguardando aceite', synced: 'Enviados', no_photo: 'Sem foto' } as Record<string, string>
     )[this.filtroPessoas() ?? ''] ?? 'Todas as pessoas';
   }
 

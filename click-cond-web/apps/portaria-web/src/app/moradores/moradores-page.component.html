@@ -699,14 +699,14 @@
                   <p class="font-medium text-white truncate">{{ m.nome }}</p>
                   @if (m.face_sync_status === 'synced') {
                     <span class="ps-tag !h-[18px] !px-1.5 !text-[9px]"><span class="ps-dot ps-dot-ok"></span>Facial</span>
-                  } @else if (m.face_sync_status === 'pending') {
+                  } @else if (m.face_sync_status === 'pending' && !m.aguardando_aceite_biometria) {
                     <span class="ps-tag !h-[18px] !px-1.5 !text-[9px]"><span class="ps-dot ps-dot-warn"></span>Sinc.</span>
-                  } @else if (m.face_sync_status === 'error') {
+                  } @else if (m.face_sync_status === 'error' && !m.aguardando_aceite_biometria) {
                     <span class="ps-tag !h-[18px] !px-1.5 !text-[9px]" [title]="m.face_sync_error || 'Erro na sincronização facial'"><span class="ps-dot ps-dot-danger"></span>Erro</span>
                   } @else if (m.face_sync_status === 'revoked') {
                     <span class="ps-tag !h-[18px] !px-1.5 !text-[9px]"><span class="ps-dot"></span>Biometria revogada</span>
                   } @else if (m.aguardando_aceite_biometria) {
-                    <span class="ps-tag !h-[18px] !px-1.5 !text-[9px]" title="O rosto só vai para os terminais depois que o morador aceitar a biometria no app"><span class="ps-dot ps-dot-warn"></span>Aguardando aceite</span>
+                    <span class="ps-tag !h-[18px] !px-1.5 !text-[9px]" title="O rosto só vai para os terminais depois que o morador aceitar a biometria no app"><span class="ps-dot ps-dot-warn"></span>Aguardando aceite (no app)</span>
                   } @else if (m.biometria_sem_conta_app) {
                     <span class="ps-tag !h-[18px] !px-1.5 !text-[9px]" title="Envie o acesso ao app: o rosto só vai para os terminais depois que o morador aceitar a biometria"><span class="ps-dot ps-dot-warn"></span>Sem acesso ao app</span>
                   }
@@ -775,14 +775,14 @@
                       <p class="font-medium text-white truncate group-hover:text-accent transition">{{ m.nome }}</p>
                       @if (m.face_sync_status === 'synced') {
                         <span class="ps-tag !h-[18px] !px-1.5 !text-[9px] shrink-0" title="Reconhecimento facial sincronizado"><span class="ps-dot ps-dot-ok"></span>Facial</span>
-                      } @else if (m.face_sync_status === 'pending') {
+                      } @else if (m.face_sync_status === 'pending' && !m.aguardando_aceite_biometria) {
                         <span class="ps-tag !h-[18px] !px-1.5 !text-[9px] shrink-0" title="Sincronização pendente"><span class="ps-dot ps-dot-warn"></span>Sinc.</span>
-                      } @else if (m.face_sync_status === 'error') {
+                      } @else if (m.face_sync_status === 'error' && !m.aguardando_aceite_biometria) {
                         <span class="ps-tag !h-[18px] !px-1.5 !text-[9px] shrink-0" [title]="m.face_sync_error || 'Erro na sincronização facial'"><span class="ps-dot ps-dot-danger"></span>Erro</span>
                       } @else if (m.face_sync_status === 'revoked') {
                         <span class="ps-tag !h-[18px] !px-1.5 !text-[9px] shrink-0" title="Biometria revogada"><span class="ps-dot"></span>Biometria revogada</span>
                       } @else if (m.aguardando_aceite_biometria) {
-                        <span class="ps-tag !h-[18px] !px-1.5 !text-[9px] shrink-0" title="O rosto só vai para os terminais depois que o morador aceitar a biometria no app"><span class="ps-dot ps-dot-warn"></span>Aguardando aceite</span>
+                        <span class="ps-tag !h-[18px] !px-1.5 !text-[9px] shrink-0" title="O rosto só vai para os terminais depois que o morador aceitar a biometria no app"><span class="ps-dot ps-dot-warn"></span>Aguardando aceite (no app)</span>
                       } @else if (m.biometria_sem_conta_app) {
                         <span class="ps-tag !h-[18px] !px-1.5 !text-[9px] shrink-0" title="Envie o acesso ao app: o rosto só vai para os terminais depois que o morador aceitar a biometria"><span class="ps-dot ps-dot-warn"></span>Sem acesso ao app</span>
                       }
@@ -1215,7 +1215,7 @@
               <span class="ps-tag"><span class="ps-dot ps-dot-ok"></span>
                 Facial
               </span>
-            } @else if (selectedMorador()!.face_sync_status === 'pending') {
+            } @else if (selectedMorador()!.face_sync_status === 'pending' && !selectedMorador()!.aguardando_aceite_biometria) {
               <span class="ps-tag"><span class="ps-dot ps-dot-warn"></span>
                 Sinc. Pendente
               </span>
@@ -1227,13 +1227,13 @@
               <span class="ps-tag"><span class="ps-dot "></span>
                 Biometria Revogada
               </span>
-            } @else if (selectedMorador()!.face_sync_status === 'error') {
+            } @else if (selectedMorador()!.face_sync_status === 'error' && !selectedMorador()!.aguardando_aceite_biometria) {
               <span class="ps-tag" [title]="selectedMorador()!.face_sync_error || 'Erro na sincronização facial'"><span class="ps-dot ps-dot-danger"></span>
                 Erro Facial
               </span>
             } @else if (selectedMorador()!.aguardando_aceite_biometria) {
               <span class="ps-tag" title="O rosto só vai para os terminais depois que o morador aceitar a biometria no app"><span class="ps-dot ps-dot-warn"></span>
-                Aguardando aceite no app
+                Aguardando aceite (no app)
               </span>
             } @else if (selectedMorador()!.biometria_sem_conta_app) {
               <span class="ps-tag" title="Envie o acesso ao app: o rosto só vai para os terminais depois que o morador aceitar a biometria"><span class="ps-dot ps-dot-warn"></span>

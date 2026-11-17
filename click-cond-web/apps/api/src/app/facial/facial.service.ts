@@ -4881,6 +4881,7 @@ export class FacialService {
         synced: 0,
         pending: 0,
         error: 0,
+        aguardando_aceite: 0,
         semFoto: 0,
         comFoto: 0,
         total: 0,
@@ -4922,15 +4923,40 @@ export class FacialService {
       this.prisma.visitantes.count({ where: vis }),
     ]);
     const synced = mSynced + vSynced;
-    const error = mError + vError;
+    const errorBruto = mError + vError;
     const comFoto = mComFoto + vComFoto;
     const total = mTotal + vTotal;
     // Pendente = tem foto mas ainda não está 'synced' nem em 'error'.
-    const pending = Math.max(comFoto - synced - error, 0);
+    const pendingBruto = Math.max(comFoto - synced - errorBruto, 0);
+    // Morador com foto que ainda não autorizou a biometria no app não está "pendente" nem "com erro":
+    // espera o aceite (o syncMorador o pula). O aceite dele dispara o envio.
+    let aguardando = 0;
+    let aguardandoComErro = 0;
+    try {
+      const rows = await this.prisma.moradores.findMany({
+        where: {
+          id_condominio: idCondominio,
+          foto_pessoa: { not: null },
+          NOT: { face_sync_status: 'synced' },
+        },
+        select: { id_user: true, face_sync_status: true, face_sync_error: true },
+      });
+      const aguardam = await this.moradoresAguardandoAceite(rows);
+      for (const r of rows) {
+        if (!aguardam(r)) continue;
+        aguardando++;
+        if (r.face_sync_status === 'error') aguardandoComErro++;
+      }
+    } catch (e: any) {
+      this.logger?.warn(`getSyncStatus: aceite de biometria não lido: ${e?.message ?? e}`);
+    }
+    const error = Math.max(errorBruto - aguardandoComErro, 0);
+    const pending = Math.max(pendingBruto - (aguardando - aguardandoComErro), 0);
     return {
       synced,
       pending,
       error,
+      aguardando_aceite: aguardando,
       semFoto: total - comFoto,
       comFoto,
       total,
@@ -4953,6 +4979,7 @@ export class FacialService {
         where: { id_condominio: idCondominio, ...where },
         select: {
           id: true,
+          id_user: true,
           nome: true,
           tipo: true,
           foto_pessoa: true,
@@ -4973,18 +5000,42 @@ export class FacialService {
       }),
     ]);
 
-    const lista = [
-      ...moradores.map((m) => ({
-        tipo: 'morador' as const,
-        categoria:
-          m.tipo?.toLowerCase() === 'funcionario' ? 'funcionario' : 'morador',
-        id: m.id,
-        nome: m.nome,
-        tem_foto: !!m.foto_pessoa,
-        status: this.statusPessoa(m.face_sync_status, !!m.foto_pessoa),
-        motivo: this.motivoSync(m.face_sync_status, !!m.foto_pessoa),
-        motivo_detalhado: m.face_sync_error,
-      })),
+    let aguardaAceite: ((m: any) => boolean) | null = null;
+    try {
+      aguardaAceite = await this.moradoresAguardandoAceite(moradores);
+    } catch (e: any) {
+      this.logger?.warn(`listSyncPessoas: aceite de biometria não lido: ${e?.message ?? e}`);
+    }
+
+    const lista: Array<{
+      tipo: 'morador' | 'visitante';
+      categoria: string;
+      id: number;
+      nome: string | null;
+      tem_foto: boolean;
+      status: string;
+      motivo: string;
+      motivo_detalhado: string | null;
+    }> = [
+      ...moradores.map((m) => {
+        // Não distingue "recusou" de "não respondeu": biometria é dado sensível.
+        const espera = !!aguardaAceite && aguardaAceite(m);
+        return {
+          tipo: 'morador' as const,
+          categoria:
+            m.tipo?.toLowerCase() === 'funcionario' ? 'funcionario' : 'morador',
+          id: m.id,
+          nome: m.nome,
+          tem_foto: !!m.foto_pessoa,
+          status: espera
+            ? 'aguardando_aceite'
+            : this.statusPessoa(m.face_sync_status, !!m.foto_pessoa),
+          motivo: espera
+            ? 'Aguardando o morador autorizar a biometria no app.'
+            : this.motivoSync(m.face_sync_status, !!m.foto_pessoa),
+          motivo_detalhado: espera ? null : m.face_sync_error,
+        };
+      }),
       ...visitantes.map((v) => ({
         tipo: 'visitante' as const,
         categoria: v.is_prestador === 1 ? 'prestador' : 'visitante',
@@ -5000,11 +5051,30 @@ export class FacialService {
     const ordem: Record<string, number> = {
       error: 0,
       pending: 1,
-      no_photo: 2,
-      synced: 3,
+      aguardando_aceite: 2,
+      no_photo: 3,
+      synced: 4,
     };
     lista.sort((a, b) => (ordem[a.status] ?? 9) - (ordem[b.status] ?? 9));
     return lista;
+  }
+
+  /**
+   * Predicado "este morador espera o aceite da biometria": tem foto, ainda não está 'synced' e o
+   * titular não autorizou (sem registro, recusa ou revogação do operador). Lança se a consulta de
+   * consentimentos falhar (o chamador decide ignorar o aviso).
+   */
+  private async moradoresAguardandoAceite(
+    rows: Array<{ id_user?: number | null }>,
+  ): Promise<(m: any) => boolean> {
+    const ids = rows.map((r) => r.id_user).filter((v): v is number => v != null);
+    const autorizados = await this.consentimentos.biometriaAutorizadaPorUsuario(ids);
+    return (m) =>
+      (m.foto_pessoa === undefined || !!m.foto_pessoa) &&
+      m.face_sync_status !== 'synced' &&
+      (m.id_user == null ||
+        m.face_sync_error === REVOGADO_PELO_OPERADOR ||
+        autorizados.get(m.id_user) !== true);
   }
 
   private statusPessoa(

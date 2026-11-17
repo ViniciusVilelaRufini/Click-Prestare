@@ -130,6 +130,8 @@ export interface FacialSyncStatus {
   synced: number;
   pending: number;
   error: number;
+  /** Moradores com foto que esperam o aceite da biometria no app (sem distinguir recusa). */
+  aguardando_aceite?: number;
   semFoto: number;
   comFoto: number;
   total: number;
@@ -207,7 +209,7 @@ export interface SyncPessoa {
   id: number;
   nome: string;
   tem_foto: boolean;
-  status: 'synced' | 'error' | 'pending' | 'no_photo';
+  status: 'synced' | 'error' | 'pending' | 'aguardando_aceite' | 'no_photo';
   motivo: string;
   /** Detalhe registrado pelo terminal/agente quando o envio falhou. */
   motivo_detalhado: string | null;
