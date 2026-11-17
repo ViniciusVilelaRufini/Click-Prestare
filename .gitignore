@@ -62,3 +62,5 @@ comercial/
 
 # Artefatos do Playwright MCP (capturas e logs de sessao de navegador)
 .playwright-mcp/
+
+.superpowers/
