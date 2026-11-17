@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ConflictException, HttpException, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException } from '@nestjs/common';
 import { limitarConcorrencia } from '../common/limitar-concorrencia';
 import { assertEmailNaoReservado } from '../common/email-reservado.util';
 import { PrismaService } from '../prisma/prisma.service';
@@ -1197,7 +1197,8 @@ export class MoradoresService {
           userId = u.id;
         } else if (criaContaApp) {
           const existing = await tx.users.findFirst({
-            where: { email: dto.email },
+            // Conta antiga pode ter o e-mail só no login (mesma busca do importBulk e do sendCredentials).
+            where: { OR: [{ email: dto.email }, { login: dto.email }] },
           });
           if (existing) {
             userId = existing.id;
@@ -1312,6 +1313,12 @@ export class MoradoresService {
       await apagarEnviadas();
       // Recusas da própria API (conta de outro condomínio, login da portaria) saem com a mensagem.
       if (err instanceof HttpException) throw err;
+      if (err?.code === 'P2002') {
+        // meta.target pode ser o nome do índice (user_login, uni_cpf) ou a lista de campos.
+        const alvo = String(err?.meta?.target ?? '').toLowerCase();
+        if (alvo.includes('cpf')) throw new ConflictException('Este CPF já pertence a outra conta.');
+        if (alvo.includes('login') || alvo.includes('email')) throw new ConflictException('Já existe outro usuário com este e-mail.');
+      }
       this.logger.error(
         `[moradores.create] Falha ao criar morador: ${err?.message ?? err}`,
         err?.stack,

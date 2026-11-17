@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { MoradoresService } from './moradores.service';
 
 /** Mesma regra no cadastro do console (e no import-bulk, que chama create por linha). */
@@ -78,5 +79,41 @@ describe('MoradoresService.create — conta existente com vínculo em outro cond
     await expect(svc.create({ ...dto, id_apartamento: 55 } as any)).rejects.toThrow(MSG);
     expect(prisma.apartamentos_Users.create).not.toHaveBeenCalled();
     expect(prisma.moradores.create).not.toHaveBeenCalled();
+  });
+
+  describe('colisão de login/e-mail/CPF no cadastro manual', () => {
+    it('acha a conta pelo login quando o email da conta é outro', async () => {
+      const { svc, prisma } = build(false);
+      await svc.create(dto as any);
+      expect(prisma.users.findFirst).toHaveBeenCalledWith({
+        where: { OR: [{ email: 'v@x.com' }, { login: 'v@x.com' }] },
+      });
+      expect(prisma.users.create).not.toHaveBeenCalled();
+    });
+
+    function comP2002(target: any) {
+      const b = build(false);
+      b.prisma.users.findFirst = jest.fn(async () => null);
+      b.prisma.users.create = jest.fn(async () => {
+        throw Object.assign(new Error('Unique constraint failed'), { code: 'P2002', meta: { target } });
+      });
+      return b;
+    }
+
+    it('P2002 em login/email vira mensagem clara', async () => {
+      for (const target of ['user_login', 'uni_email', ['login']]) {
+        const { svc } = comP2002(target);
+        await expect(svc.create(dto as any)).rejects.toMatchObject({ response: { message: 'Já existe outro usuário com este e-mail.' } });
+        await expect(svc.create(dto as any)).rejects.toBeInstanceOf(ConflictException);
+      }
+    });
+
+    it('CPF de outra conta é recusado', async () => {
+      for (const target of ['uni_cpf', ['cpf']]) {
+        const { svc } = comP2002(target);
+        await expect(svc.create(dto as any)).rejects.toThrow('Este CPF já pertence a outra conta.');
+        await expect(svc.create(dto as any)).rejects.toBeInstanceOf(ConflictException);
+      }
+    });
   });
 });
