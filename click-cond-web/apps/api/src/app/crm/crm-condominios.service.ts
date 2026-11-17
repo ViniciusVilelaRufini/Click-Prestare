@@ -17,8 +17,8 @@ import { PREFIXOS_FOTO_MORADOR, StorageService } from '../common/storage/storage
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { FacialDeviceClientService } from '../facial/facial-device-client.service';
+import { EMAIL_RE, proximoVencimento } from './crm-assinatura.util';
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MOTIVO_MAX = 500;
 const MSG_EMAIL_DE_OUTRA_CONTA =
   'Este e-mail já pertence a outra conta. Confirme o endereço com o morador ou use outro e-mail.';
@@ -149,11 +149,29 @@ export class CrmCondominiosService {
           nome,
           identificacao: dto.identificacao?.trim() || null,
           ativo: 1,
-          categoria_padrao: dto.plano?.trim() || 'Taxa Condominial',
-          valor_condominio: Number(dto.valorMensal ?? 0),
-          dia_vencimento: Number(dto.diaVencimento ?? 10),
         },
       });
+
+      // Plano e mensalidade são da Prestare: vão para a assinatura, nunca para a cobrança
+      // dos moradores (valor_condominio/categoria_padrao/dia_vencimento).
+      const plano = dto.plano?.trim();
+      if (plano) {
+        const dataFim = proximoVencimento(Number(dto.diaVencimento ?? 10));
+        await tx.assinaturas_Condominios.create({
+          data: {
+            id_condominio: cond.id,
+            plano,
+            valor: Number(dto.valorMensal ?? 0),
+            data_ini: new Date(),
+            data_fim: dataFim,
+            email_user: dto.sindico?.email?.trim().toLowerCase() || 'sindico@clickprestare.com.br',
+            plataforma: 'CRM',
+            codigo: 'CRM-MANUAL',
+            dias: 365,
+          },
+        });
+        await tx.condominios.update({ where: { id: cond.id }, data: { vencimento: dataFim } });
+      }
 
       // Apartamentos em lote. skipDuplicates protege a unique
       // (id_condominio, bloco, apto) se o operador repetir um bloco.

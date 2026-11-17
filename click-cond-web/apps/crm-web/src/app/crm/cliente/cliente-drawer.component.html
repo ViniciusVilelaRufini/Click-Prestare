@@ -137,7 +137,7 @@
                   <!-- Rótulo envolve o campo: associação implícita, sem depender
                        de pares for/id únicos dentro do drawer. -->
                   <label class="block">
-                    <span class="eyebrow mb-1.5 block">Plano de Assinatura</span>
+                    <span class="eyebrow mb-1.5 block">Plano Prestare</span>
                     <select [(ngModel)]="dadosEditados.plano" (ngModelChange)="atualizarMrrCalculado()"
                       class="input cursor-pointer">
                       <option value="Essencial">Essencial</option>
@@ -166,29 +166,8 @@
                 </div>
               </div>
 
-              <!-- Coluna direita: automações + contato -->
+              <!-- Coluna direita: contato -->
               <div class="space-y-4">
-              <div class="card-inset p-4 space-y-3.5">
-                <p class="eyebrow">Automações Integradas</p>
-                <div class="space-y-3">
-                  <div class="flex items-center justify-between text-xs">
-                    <span class="text-ink-soft">Recorrência Automática</span>
-                    <label class="switch">
-                      <input type="checkbox" [(ngModel)]="dadosEditados.recorrenciaAtiva" class="peer sr-only">
-                      <span class="switch-track"></span>
-                    </label>
-                  </div>
-                  
-                  <div class="flex items-center justify-between text-xs">
-                    <span class="text-ink-soft">Régua de WhatsApp</span>
-                    <label class="switch">
-                      <input type="checkbox" [(ngModel)]="dadosEditados.cobrancaAutoWhats" class="peer sr-only">
-                      <span class="switch-track"></span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-
               <div class="card-inset p-4 space-y-3.5">
                 <p class="eyebrow">Contato principal (Administrativo)</p>
                 <div class="space-y-3">
@@ -349,19 +328,7 @@
 
               <!-- AUTOMAÇÕES -->
               <div class="card-inset space-y-3 p-4">
-                <p class="eyebrow">Automações da conta</p>
-                <div class="flex items-center justify-between text-sm">
-                  <span class="text-ink-soft">Recorrência automática</span>
-                  <span class="badge" [class]="c.recorrenciaAtiva ? 'badge badge-success' : 'badge badge-neutral'">
-                    {{ c.recorrenciaAtiva ? 'Ativa' : 'Inativa' }}
-                  </span>
-                </div>
-                <div class="flex items-center justify-between text-sm">
-                  <span class="text-ink-soft">Régua de WhatsApp</span>
-                  <span class="badge" [class]="c.cobrancaAutoWhats ? 'badge badge-success' : 'badge badge-neutral'">
-                    {{ c.cobrancaAutoWhats ? 'Ativa' : 'Inativa' }}
-                  </span>
-                </div>
+                <p class="eyebrow">Operação da conta</p>
                 <div class="flex items-center justify-between border-t border-line pt-3 text-sm">
                   <span class="text-ink-soft">Prestadores cadastrados</span>
                   <span class="font-mono font-semibold text-ink">{{ c.prestadoresCadastrados }}</span>

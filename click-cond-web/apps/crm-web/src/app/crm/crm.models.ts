@@ -29,8 +29,6 @@ export interface ClienteEdicao {
   totalApartamentos: number;
   mrr: number;
   vencimento: string;
-  recorrenciaAtiva: boolean;
-  cobrancaAutoWhats: boolean;
   sindicoNome: string;
   sindicoEmail: string;
   sindicoTelefone: string;

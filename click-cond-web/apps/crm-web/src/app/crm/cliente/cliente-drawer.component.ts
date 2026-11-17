@@ -45,7 +45,7 @@ export class ClienteDrawerComponent {
   readonly modoEdicao = signal(false);
   dadosEditados: ClienteEdicao = {
     nome: '', identificacao: '', plano: 'Sem plano', totalApartamentos: 0, mrr: 0,
-    vencimento: '', recorrenciaAtiva: false, cobrancaAutoWhats: false,
+    vencimento: '',
     sindicoNome: '', sindicoEmail: '', sindicoTelefone: '',
   };
 
@@ -350,8 +350,6 @@ export class ClienteDrawerComponent {
       totalApartamentos: c.totalApartamentos,
       mrr: c.mrr,
       vencimento: c.vencimento ? c.vencimento.split('T')[0] : '',
-      recorrenciaAtiva: c.recorrenciaAtiva,
-      cobrancaAutoWhats: c.cobrancaAutoWhats,
       sindicoNome: c.contatoPrincipal?.nome ?? '',
       sindicoEmail: c.contatoPrincipal?.email ?? '',
       sindicoTelefone: c.contatoPrincipal?.telefone ?? '',

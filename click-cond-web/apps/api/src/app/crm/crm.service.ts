@@ -1,10 +1,11 @@
-import { ConflictException, Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { OcorrenciasService } from '../ocorrencias/ocorrencias.service';
 import { INCLUDE_AUTOR_MENSAGEM, mensagemParaResposta } from '../ocorrencias/mensagem-ocorrencia.util';
 import { AgentBridgeService } from '../facial/agent-bridge.service';
 import { csvCelula } from '../common/csv.util';
 import { assertEmailNaoReservado } from '../common/email-reservado.util';
+import { EMAIL_RE } from './crm-assinatura.util';
 
 
 /**
@@ -13,7 +14,11 @@ import { assertEmailNaoReservado } from '../common/email-reservado.util';
  *
  * A fonte da "assinatura" é, em ordem de prioridade:
  *   1. Assinaturas_Condominios (registro mais recente por data_fim)
- *   2. Condominios.valor_condominio + Condominios.vencimento (recorrência interna)
+ *   2. Condominios.vencimento (só a data, quando não há assinatura)
+ *
+ * O CRM só cuida da assinatura da Prestare: valor_condominio, categoria_padrao,
+ * dia_vencimento, recorrencia_ativa e cobranca_auto_whats são a cobrança dos
+ * moradores (Financeiro) e nunca são gravados ou lidos daqui.
  *
  * Como o restante do código, este service cai em dados mock quando o Prisma
  * está offline (sem DATABASE_URL), para o portal funcionar em dev.
@@ -195,8 +200,6 @@ export class CrmService {
     const {
       nome,
       identificacao,
-      recorrenciaAtiva,
-      cobrancaAutoWhats,
       mrr,
       plano,
       vencimento,
@@ -225,6 +228,9 @@ export class CrmService {
       }
       const emailInformado = String(sindicoEmail ?? '').trim().toLowerCase();
       if (emailInformado) {
+        if (emailInformado.length > 255 || !EMAIL_RE.test(emailInformado)) {
+          throw new BadRequestException('Informe um e-mail válido para o síndico.');
+        }
         emailSindico = emailInformado;
         assertEmailNaoReservado(emailSindico);
         const outraConta = await this.prisma.users.findFirst({
@@ -249,10 +255,6 @@ export class CrmService {
       data: {
         nome: nome !== undefined ? nome : undefined,
         identificacao: identificacao !== undefined ? identificacao : undefined,
-        recorrencia_ativa: recorrenciaAtiva !== undefined ? !!recorrenciaAtiva : undefined,
-        cobranca_auto_whats: cobrancaAutoWhats !== undefined ? !!cobrancaAutoWhats : undefined,
-        valor_condominio: mrr !== undefined ? this.toNumber(mrr) : undefined,
-        categoria_padrao: plano !== undefined ? plano : undefined,
         vencimento: vencimento !== undefined ? (vencimento ? new Date(vencimento) : null) : undefined,
       }
     });
@@ -281,7 +283,7 @@ export class CrmService {
             valor: mrr !== undefined ? this.toNumber(mrr) : 0,
             data_ini: new Date(),
             data_fim: vencimento ? new Date(vencimento) : new Date(Date.now() + 365*24*3600*1000),
-            email_user: sindicoEmail ?? 'sindico@clickprestare.com.br',
+            email_user: emailSindico ?? 'sindico@clickprestare.com.br',
             plataforma: 'CRM',
             codigo: 'CRM-MANUAL',
             dias: 365,
@@ -552,7 +554,7 @@ export class CrmService {
     const contato = await this.resolverContato(vinculosSindico);
 
     // Comercial
-    const plano = assinatura?.plano ?? (this.toNumber(c.valor_condominio) > 0 ? c.categoria_padrao : null);
+    const plano = assinatura?.plano ?? null;
     const totalApartamentos = aptosCount || 0;
     const ativo = c.ativo === 1 || c.ativo === true;
     const mrr = this.calcularMrr(plano, totalApartamentos, ativo);

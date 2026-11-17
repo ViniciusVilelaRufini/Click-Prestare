@@ -351,7 +351,7 @@
             <input type="text" class="input font-mono" placeholder="00.000.000/0001-00" [(ngModel)]="novo.identificacao" name="novo-ident" />
           </label>
           <label class="block">
-            <span class="eyebrow mb-1.5 block">Plano</span>
+            <span class="eyebrow mb-1.5 block">Plano Prestare</span>
             <select class="input cursor-pointer" [(ngModel)]="novo.plano" name="novo-plano">
               <option value="Essencial">Essencial</option>
               <option value="Profissional">Profissional</option>
@@ -359,11 +359,11 @@
             </select>
           </label>
           <label class="block">
-            <span class="eyebrow mb-1.5 block">Mensalidade (R$)</span>
+            <span class="eyebrow mb-1.5 block">Mensalidade Prestare (R$)</span>
             <input type="number" class="input font-mono" [(ngModel)]="novo.valorMensal" name="novo-valor" />
           </label>
           <label class="block">
-            <span class="eyebrow mb-1.5 block">Dia do vencimento</span>
+            <span class="eyebrow mb-1.5 block">Vencimento da Prestare (dia)</span>
             <input type="number" min="1" max="28" class="input font-mono" [(ngModel)]="novo.diaVencimento" name="novo-dia" />
           </label>
         </div>
