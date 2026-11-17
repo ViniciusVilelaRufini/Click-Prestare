@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { MobileAuthService } from './mobile-auth.service';
 
 /**
@@ -80,5 +80,25 @@ describe('getCondominioById — isolamento por condomínio', () => {
     await service.getCondominioById(2, dono);
     // getAll(id, mes, ano, isSindico, user) — o user precisa chegar no 5º argumento.
     expect(financeiro.getAll).toHaveBeenCalledWith(2, undefined, undefined, true, dono);
+  });
+
+  it('falha do banco vira 503, nunca o condomínio demo', async () => {
+    const { service, prisma } = build();
+    prisma.condominios.findUnique.mockRejectedValueOnce(new Error('db caiu'));
+    const r = service.getCondominioById(2, dono);
+    await expect(r).rejects.toBeInstanceOf(ServiceUnavailableException);
+    await expect(r).rejects.not.toMatchObject({ message: expect.stringContaining('Condomínio Demo') });
+  });
+
+  it('falha do financeiro vira 503', async () => {
+    const { service, financeiro } = build();
+    financeiro.getAll.mockRejectedValueOnce(new Error('financeiro caiu'));
+    await expect(service.getCondominioById(2, dono)).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it('condomínio inexistente vira 404', async () => {
+    const { service, prisma } = build();
+    prisma.condominios.findUnique.mockResolvedValueOnce(null);
+    await expect(service.getCondominioById(2, dono)).rejects.toBeInstanceOf(NotFoundException);
   });
 });

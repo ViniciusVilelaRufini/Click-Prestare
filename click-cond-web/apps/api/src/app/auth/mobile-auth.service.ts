@@ -2723,26 +2723,8 @@ export class MobileAuthService {
   // CONDOMÍNIO DETALHES GERAL
   // ==========================================
   async getCondominioById(id: number, user?: JwtPayload) {
-    // FORA do try: o catch abaixo devolve mockCond em qualquer erro, e engoliria
-    // o 403 — o chamador receberia 200 com dados fictícios em vez do bloqueio.
+    // FORA do try: o catch abaixo vira 503, e engoliria o 403 do tenant.
     await this.tenant.assertCondominio(Number(id), user);
-
-    const mockCond = {
-      id: id || 1,
-      nome: 'Condomínio Demo - Click Prestare',
-      saldo: '15.500,00',
-      photo: '',
-      num_aptos: 40,
-      num_blocos: 2,
-      moeda: 'R$',
-      identificacao: '12.345.678/0001-90',
-      subsindico_nome: 'Subsíndico Demo',
-      liberado_exclusao: 0,
-    };
-
-    if (!this.prisma.isConnected) {
-      return mockCond;
-    }
 
     try {
       const c = await this.prisma.condominios.findUnique({
@@ -2753,7 +2735,7 @@ export class MobileAuthService {
         },
       });
 
-      if (!c) return mockCond;
+      if (!c) throw new NotFoundException('Condomínio não encontrado.');
 
       // O saldo do card do dashboard é o MESMO que a tela de Financeiro do
       // condomínio mostra — por isso vem de getAll, e não de uma soma própria.
@@ -2786,8 +2768,10 @@ export class MobileAuthService {
         cidade: c.enderecoRel?.cidade ?? 'São Paulo',
         uf: c.enderecoRel?.uf ?? 'SP',
       };
-    } catch (e) {
-      return mockCond;
+    } catch (e: any) {
+      if (e instanceof HttpException) throw e;
+      this.logger.error(`Falha ao carregar o condomínio ${id}: ${e?.message ?? e}`);
+      throw new ServiceUnavailableException('Não foi possível carregar o condomínio agora. Tente de novo em instantes.');
     }
   }
 
@@ -2799,55 +2783,52 @@ export class MobileAuthService {
     const identificacao = data.identificacao || '';
 
     try {
-      if (this.prisma.isConnected) {
-        // 1. Criar Endereço se houver dados
-        let idEndereco = null;
-        if (addr.cep || addr.rua) {
-          const e = await this.prisma.endereco.create({
-            data: {
-              cep: addr.cep,
-              rua: addr.rua,
-              numero: String(addr.numero || ''),
-              complemento: addr.complemento,
-              bairro: addr.bairro,
-              cidade: addr.cidade,
-              uf: addr.uf,
-              pais: addr.pais,
-            }
-          });
-          idEndereco = e.id;
-        }
-
-        // 2. Criar Condomínio
-        const c = await this.prisma.condominios.create({
+      // 1. Criar Endereço se houver dados
+      let idEndereco = null;
+      if (addr.cep || addr.rua) {
+        const e = await this.prisma.endereco.create({
           data: {
-            nome: nome,
-            identificacao: identificacao,
-            subsindico_nome: data.subsindico_nome,
-            num_blocos: Number(data.num_blocos) || 1,
-            num_aptos: Number(data.num_aptos) || 0,
-            moeda: 'BRL',
-            // Autocadastro nasce pendente: só o CRM ativa (crm-condominios.service reativar).
-            ativo: 0,
-            endereco: idEndereco,
+            cep: addr.cep,
+            rua: addr.rua,
+            numero: String(addr.numero || ''),
+            complemento: addr.complemento,
+            bairro: addr.bairro,
+            cidade: addr.cidade,
+            uf: addr.uf,
+            pais: addr.pais,
           }
         });
-
-        // 3. Vincular o usuário como síndico desse condomínio
-        await this.prisma.sindicos_Condominios.create({
-          data: {
-            id_user: idUser,
-            id_condominio: c.id,
-          }
-        });
-
-        return { success: true, id: c.id, nome: c.nome };
+        idEndereco = e.id;
       }
-    } catch (e) {
-      console.error('Erro ao registrar condomínio:', e);
-    }
 
-    return { success: true, id: Date.now(), nome: nome };
+      // 2. Criar Condomínio
+      const c = await this.prisma.condominios.create({
+        data: {
+          nome: nome,
+          identificacao: identificacao,
+          subsindico_nome: data.subsindico_nome,
+          num_blocos: Number(data.num_blocos) || 1,
+          num_aptos: Number(data.num_aptos) || 0,
+          moeda: 'BRL',
+          // Autocadastro nasce pendente: só o CRM ativa (crm-condominios.service reativar).
+          ativo: 0,
+          endereco: idEndereco,
+        }
+      });
+
+      // 3. Vincular o usuário como síndico desse condomínio
+      await this.prisma.sindicos_Condominios.create({
+        data: {
+          id_user: idUser,
+          id_condominio: c.id,
+        }
+      });
+
+      return { success: true, id: c.id, nome: c.nome };
+    } catch (e: any) {
+      this.logger.error(`Erro ao registrar condomínio: ${e?.message ?? e}`);
+      throw new ServiceUnavailableException('Não foi possível cadastrar o condomínio agora. Tente de novo.');
+    }
   }
 
   private parsePtBrDate(dateStr: string): Date | null {
@@ -2863,20 +2844,8 @@ export class MobileAuthService {
     return isNaN(d.getTime()) ? null : d;
   }
 
-  // O assert vem ANTES do fallback de demo: senão a rota voltaria a responder
-  // 200 para forasteiro toda vez que o banco caísse.
-  async getInfosCondominio(id: number, user?: JwtPayload) {
+    async getInfosCondominio(id: number, user?: JwtPayload) {
     await this.tenant.assertCondominio(id, user);
-    if (!this.prisma.isConnected) {
-      return {
-        nome: 'Condomínio Demo - Click Prestare',
-        identificacao: '12.345.678/0001-90',
-        subsindico_nome: 'Subsíndico Demo',
-        photo: '',
-        data_inicio_mandato: '01/01/2026',
-        data_termino_mandato: '31/12/2027',
-      };
-    }
     const c = await this.prisma.condominios.findUnique({
       where: { id },
       select: {
@@ -2901,18 +2870,6 @@ export class MobileAuthService {
 
   async getAddressCondominio(idCondominio: number, user?: JwtPayload) {
     await this.tenant.assertCondominio(idCondominio, user);
-    if (!this.prisma.isConnected) {
-      return {
-        cep: '01001-000',
-        pais: 'Brasil',
-        uf: 'SP',
-        cidade: 'São Paulo',
-        bairro: 'Sé',
-        rua: 'Praça da Sé',
-        numero: '100',
-        complemento: 'Lado Par',
-      };
-    }
     const c = await this.prisma.condominios.findUnique({
       where: { id: idCondominio },
       select: {
