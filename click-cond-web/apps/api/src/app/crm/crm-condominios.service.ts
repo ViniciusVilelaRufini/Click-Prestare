@@ -135,7 +135,7 @@ export class CrmCondominiosService {
       // Login de portaria de outra pessoa: a mesma recusa (não diz que é de um porteiro).
       if (emailExistente || (await this.loginEmUsoNaPortaria(dto.sindico.email.trim()))) {
         throw new ConflictException(
-          'Já existe uma conta com este e-mail. Cadastre o condomínio e vincule o síndico existente depois.',
+          'Já existe uma conta com este e-mail. Cadastre o condomínio sem o acesso do síndico e use "Vincular síndico" no cadastro do cliente.',
         );
       }
     }
@@ -149,6 +149,8 @@ export class CrmCondominiosService {
           nome,
           identificacao: dto.identificacao?.trim() || null,
           ativo: 1,
+          // Criado pelo CRM já nasce aprovado: desativado depois é suspenso/churn, nunca "em análise".
+          aprovado_em: new Date(),
         },
       });
 
@@ -677,7 +679,8 @@ export class CrmCondominiosService {
       // (ativo = 0 abaixo). O agente perde a sincronização.
       this.prisma.condominios.update({
         where: { id },
-        data: { ativo: 0, agent_token: null },
+        // Legado sem aprovado_em: desativar não pode virar "em análise" (autocadastro nunca aprovado).
+        data: { ativo: 0, agent_token: null, aprovado_em: cond.aprovado_em ?? new Date() },
       }),
       this.prisma.facial_Devices.updateMany({
         where: { id_condominio: id },
