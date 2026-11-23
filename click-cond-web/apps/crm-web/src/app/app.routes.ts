@@ -37,6 +37,10 @@ export const appRoutes: Route[] = [
             loadComponent: () => import('./crm/tabs/crm-faturamento.component').then((m) => m.CrmFaturamentoComponent),
           },
           {
+            path: 'impostos',
+            loadComponent: () => import('./crm/tabs/crm-impostos.component').then((m) => m.CrmImpostosComponent),
+          },
+          {
             path: 'automacoes',
             loadComponent: () => import('./crm/tabs/crm-automacoes.component').then((m) => m.CrmAutomacoesComponent),
           },

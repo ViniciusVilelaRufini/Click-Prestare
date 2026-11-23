@@ -1,0 +1,202 @@
+@if (store.loading() && !store.overview()) {
+  <div class="space-y-5">
+    <app-skeleton variante="kpi" />
+    <app-skeleton variante="card" />
+  </div>
+} @else if (semDados()) {
+  <app-empty-state titulo="Ainda não há faturas para calcular o imposto." descricao="Assim que houver faturas emitidas, a estimativa do Simples Nacional aparece aqui." />
+} @else {
+  @let i = imp();
+  @let s = i.simples;
+  <div class="animate-fade-in space-y-5">
+    <!-- KPIs -->
+    <div class="stagger-children grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+      <app-kpi-card label="Receita 12 meses" [valor]="s.rbt12" formato="moeda" tom="green" [icone]="ICONES.receita"
+        [detalhe]="i.apuracao.proporcionalizada ? 'proporcionalizada' : ''" />
+      <app-kpi-card label="Faixa" [valor]="s.faixa" tom="beige" [icone]="ICONES.faixa" [detalhe]="'F' + s.faixa + ' · Anexo ' + s.anexo" />
+      <!-- Alíquota: o count-up do kpi-card arredonda para inteiro, então o valor é escrito direto, com o mesmo visual. -->
+      <div class="card kpi-card p-5">
+        <div class="flex items-center gap-3">
+          <div class="tile tile-purple">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" [attr.d]="ICONES.aliquota" />
+            </svg>
+          </div>
+          <p class="min-w-0 flex-1 truncate text-sm font-medium text-ink-soft">Alíquota efetiva</p>
+        </div>
+        <p class="stat-value mt-4">{{ pct(s.aliquotaEfetiva) }}</p>
+        <div class="mt-2 flex min-w-0 items-center gap-2">
+          <span class="truncate text-xs text-ink-muted">Sobre a receita do mês</span>
+        </div>
+      </div>
+      <app-kpi-card label="DAS estimado do mês" [valor]="i.das" formato="moeda" tom="tosca" [icone]="ICONES.das"
+        [detalhe]="i.receitaMesPeloMrr ? 'pelo MRR' : ''" />
+    </div>
+
+    <!-- Avisos -->
+    @if (i.folhaNaoInformada) {
+      <div class="badge badge-warning block w-full whitespace-normal rounded-xl p-3 text-sm">
+        @if (s.anexo === 'V') {
+          Folha + pró-labore não informada: o cálculo pelo Fator R caiu no Anexo V (15,5% na 1ª faixa). Preencha a folha na configuração abaixo.
+        } @else {
+          Folha + pró-labore não informada: preencha para o Fator R ser calculado.
+        }
+      </div>
+    }
+    @if (s.acimaDeUmPontoOitoMi) {
+      <div class="badge badge-warning block w-full whitespace-normal rounded-xl p-3 text-sm">
+        Receita de 12 meses acima de R$ 1,8 milhão: teto do ISS, sublimite e regras extras se aplicam. Confira com o contador.
+      </div>
+    }
+    @if (i.faturasPodemEstarCortadas) {
+      <div class="badge badge-warning block w-full whitespace-normal rounded-xl p-3 text-sm">
+        O CRM carrega no máximo 500 faturas; a receita de 12 meses pode estar abaixo da real.
+      </div>
+    }
+
+    <!-- Próxima faixa -->
+    <section class="card p-6">
+      <h2 class="section-title">Próxima faixa</h2>
+      @if (proximaFaixa(); as pf) {
+        <p class="mt-2 text-sm text-ink-soft">
+          Faltam <strong class="text-ink">{{ cents(pf.falta) }}</strong> de receita em 12 meses para a faixa {{ s.faixa + 1 }};
+          lá a alíquota efetiva começa em <strong class="text-ink">{{ pct(pf.aliquota) }}</strong>.
+        </p>
+      } @else {
+        <p class="mt-2 text-sm text-ink-soft">Última faixa do Simples.</p>
+      }
+    </section>
+
+    <!-- Por tributo -->
+    <section class="card overflow-hidden">
+      <div class="p-6 pb-2"><h2 class="section-title">Por tributo</h2></div>
+      <div class="overflow-x-auto p-3">
+        <table class="w-full border-collapse text-left text-sm">
+          <thead>
+            <tr class="table-head">
+              <th scope="col" class="rounded-l-xl py-3 pl-4 pr-4">Tributo</th>
+              <th scope="col" class="px-4 py-3 text-right">Valor no mês</th>
+              <th scope="col" class="rounded-r-xl py-3 pl-4 pr-4">Com a Reforma</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (t of i.porTributo; track t.tributo) {
+              <tr class="border-b border-line-subtle last:border-0">
+                <td class="py-3 pl-4 pr-4 text-ink">{{ t.tributo }}</td>
+                <td class="px-4 py-3 text-right tabular-nums">{{ cents(t.valor) }}</td>
+                <td class="py-3 pl-4 pr-4 text-ink-muted">{{ t.reforma }}</td>
+              </tr>
+            }
+          </tbody>
+          <tfoot>
+            <tr class="font-semibold">
+              <td class="py-3 pl-4 pr-4">Total</td>
+              <td class="px-4 py-3 text-right tabular-nums">{{ cents(i.das) }}</td>
+              <td class="py-3 pl-4 pr-4"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <p class="px-6 pb-5 text-xs text-ink-muted">No Simples o total não muda com a Reforma.</p>
+    </section>
+
+    <!-- Por cliente -->
+    <section class="card overflow-hidden">
+      <div class="p-6 pb-2"><h2 class="section-title">Por cliente</h2></div>
+      @if (i.porCliente.length === 0) {
+        <p class="px-6 pb-5 text-sm text-ink-muted">Nenhum cliente ativo.</p>
+      } @else {
+        <div class="overflow-x-auto p-3">
+          <table class="w-full border-collapse text-left text-sm">
+            <thead>
+              <tr class="table-head">
+                <th scope="col" class="rounded-l-xl py-3 pl-4 pr-4">Condomínio</th>
+                <th scope="col" class="px-4 py-3 text-right">Mensalidade</th>
+                <th scope="col" class="px-4 py-3 text-right">Imposto</th>
+                <th scope="col" class="rounded-r-xl py-3 pl-4 pr-4 text-right">Líquido</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (c of i.porCliente; track c.clienteId) {
+                <tr class="border-b border-line-subtle last:border-0">
+                  <td class="py-3 pl-4 pr-4 text-ink">{{ c.nome }}</td>
+                  <td class="px-4 py-3 text-right tabular-nums">{{ cents(c.mensalidade) }}</td>
+                  <td class="px-4 py-3 text-right tabular-nums">{{ cents(c.imposto) }}</td>
+                  <td class="py-3 pl-4 pr-4 text-right tabular-nums">{{ cents(c.liquido) }}</td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr class="font-semibold">
+                <td class="py-3 pl-4 pr-4">Total</td>
+                <td class="px-4 py-3 text-right tabular-nums">{{ cents(totaisClientes().mensalidade) }}</td>
+                <td class="px-4 py-3 text-right tabular-nums">{{ cents(totaisClientes().imposto) }}</td>
+                <td class="py-3 pl-4 pr-4 text-right tabular-nums">{{ cents(totaisClientes().liquido) }}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <p class="px-6 pb-5 text-xs text-ink-muted">Valores por cliente arredondados; a soma pode diferir do DAS em centavos.</p>
+      }
+    </section>
+
+    <!-- Simulador -->
+    <section class="card p-6">
+      <h2 class="section-title">Simulador de nova venda</h2>
+      <p class="mt-0.5 text-xs text-ink-muted">Com a alíquota efetiva atual ({{ pct(s.aliquotaEfetiva) }}).</p>
+      <div class="mt-4 max-w-xs">
+        <label class="eyebrow block" for="sim-unidades">Unidades do condomínio</label>
+        <input id="sim-unidades" type="number" min="0" class="input mt-1" [ngModel]="unidades()" (ngModelChange)="unidades.set($event)" />
+      </div>
+      <dl class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div class="rounded-xl bg-surface-sunken p-4">
+          <dt class="text-sm font-medium text-ink-soft">Mensalidade</dt>
+          <dd class="mt-1 text-sm text-ink-soft">
+            Bruta <strong class="text-ink">{{ cents(sim().mensalidade) }}</strong> · imposto {{ cents(sim().imposto) }} ·
+            líquida <strong class="text-ink">{{ cents(sim().liquido) }}</strong>
+          </dd>
+        </div>
+        <div class="rounded-xl bg-surface-sunken p-4">
+          <dt class="text-sm font-medium text-ink-soft">Implantação ({{ cents(TAXA_IMPLANTACAO) }})</dt>
+          <dd class="mt-1 text-sm text-ink-soft">
+            Imposto {{ cents(sim().impImpl) }} · líquida <strong class="text-ink">{{ cents(sim().liqImpl) }}</strong>
+          </dd>
+        </div>
+      </dl>
+    </section>
+
+    <!-- Configuração -->
+    <section class="card p-6">
+      <h2 class="section-title">Configuração</h2>
+      <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div>
+          <label class="eyebrow block" for="cfg-anexo">Anexo</label>
+          <select id="cfg-anexo" class="input mt-1 cursor-pointer" [ngModel]="cfgModo()" (ngModelChange)="cfgModo.set($event)">
+            <option value="fator_r">Pelo Fator R</option>
+            <option value="III">Anexo III</option>
+            <option value="V">Anexo V</option>
+          </select>
+        </div>
+        <div>
+          <label class="eyebrow block" for="cfg-folha">Folha + pró-labore mensal (R$)</label>
+          <input id="cfg-folha" type="number" min="0" step="0.01" class="input mt-1" [ngModel]="cfgFolha()" (ngModelChange)="cfgFolha.set($event)" />
+        </div>
+        <div>
+          <label class="eyebrow block" for="cfg-inicio">Início da atividade</label>
+          <input id="cfg-inicio" type="text" maxlength="7" placeholder="MM/AAAA" class="input mt-1" [ngModel]="cfgInicio()" (ngModelChange)="cfgInicio.set($event)" />
+        </div>
+      </div>
+      <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <p class="text-sm text-ink-soft">
+          Fator R calculado: <strong class="text-ink">{{ i.fatorR === null ? '—' : pct(i.fatorR) }}</strong>
+          <span class="text-xs text-ink-muted"> (Anexo III a partir de 28,00%)</span>
+        </p>
+        <button type="button" class="btn-primary press" [disabled]="store.salvandoConfigImposto()" (click)="salvar()">
+          {{ store.salvandoConfigImposto() ? 'Salvando…' : 'Salvar' }}
+        </button>
+      </div>
+    </section>
+
+    <p class="text-center text-xs text-ink-muted">Estimativa. Confirme os valores com o seu contador.</p>
+  </div>
+}

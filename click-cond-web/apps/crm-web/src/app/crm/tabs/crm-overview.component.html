@@ -40,6 +40,19 @@
       />
     </div>
 
+    <!-- ══ Imposto estimado do mês (faixa, não é KPI) ══ -->
+    @if (store.impostoMes(); as imp) {
+      <div class="card flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+        <div class="min-w-0">
+          <p class="text-sm font-medium text-ink">
+            Imposto estimado do mês: {{ moeda(imp.das) }} ({{ pct(imp.simples.aliquotaEfetiva) }})
+          </p>
+          <p class="mt-0.5 text-xs text-ink-muted">Estimativa. Confirme os valores com o seu contador.</p>
+        </div>
+        <a routerLink="../impostos" class="link-more shrink-0">Ver impostos</a>
+      </div>
+    }
+
     <!-- ══ Receita por mês + composição do MRR ══ -->
     <div class="grid grid-cols-1 gap-5 xl:grid-cols-3">
       <!-- Colunas de receita recorrente -->

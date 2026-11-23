@@ -31,6 +31,8 @@ export class CrmOverviewComponent {
 
   readonly Math = Math;
   readonly moeda = moeda;
+  /** Fração -> percentual pt-BR com 2 casas (0,06 -> "6,00%"). */
+  pct = (f: number): string => (f * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
   readonly iniciais = iniciais;
   readonly severidadeDot = severidadeDot;
   readonly CIRC_DONUT = CIRC_DONUT;
