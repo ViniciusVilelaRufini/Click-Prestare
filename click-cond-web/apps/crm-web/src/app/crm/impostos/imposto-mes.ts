@@ -3,7 +3,7 @@
  * Função pura, sem dependência de Angular.
  */
 import type { ConfigImposto } from '../crm.models';
-import { ApuracaoReceita, FaturaReceita, apurarReceita } from './apuracao-receita';
+import { ApuracaoReceita, FaturaReceita, apurarReceita, indiceMes } from './apuracao-receita';
 import { ModoAnexo, ResultadoSimples, anexoPorFatorR, calcularSimples } from './simples-nacional';
 
 export interface ImpostoCliente { clienteId: number; nome: string; mensalidade: number; imposto: number; liquido: number }
@@ -13,12 +13,14 @@ export interface ImpostoMes {
   simples: ResultadoSimples;
   fatorR: number | null;           // folha12 / rbt12; null quando rbt12 = 0
   folhaNaoInformada: boolean;      // modo fator_r e folha 0
+  semDados: boolean;               // sem faturas e sem MRR: nada a estimar
   receitaMes: number;
   receitaMesPeloMrr: boolean;
   das: number;                     // receitaMes × aliquotaEfetiva
   porTributo: { tributo: string; valor: number; reforma: string }[];
   porCliente: ImpostoCliente[];    // ordenado por mensalidade desc
   faturasPodemEstarCortadas: boolean;
+  faturasEstimadas: number;        // faturas com valor estimado na janela de 12 meses ou no mês
 }
 
 export interface EntradaImpostoMes {
@@ -41,8 +43,13 @@ export function calcularImpostoMes(e: EntradaImpostoMes): ImpostoMes {
   const anexo = e.config.modoAnexo === 'fator_r' ? anexoPorFatorR(folha12, apuracao.rbt12) : e.config.modoAnexo;
   const simples = calcularSimples(apuracao.rbt12, anexo);
 
-  const receitaMesPeloMrr = apuracao.receitaMes === 0;
+  const receitaMesPeloMrr = apuracao.receitaMes === 0 && e.mrrTotal > 0;
   const receitaMes = receitaMesPeloMrr ? e.mrrTotal : apuracao.receitaMes;
+  const alvo = indiceMes(e.mesApuracao);
+  const faturasEstimadas = alvo === null ? 0 : e.faturas.filter((f) => {
+    const i = indiceMes(f.referencia);
+    return f.estimada === true && i !== null && i >= alvo - 12 && i <= alvo;
+  }).length;
   const das = arredondar(receitaMes * simples.aliquotaEfetiva);
 
   const pt = simples.partilha;
@@ -69,12 +76,14 @@ export function calcularImpostoMes(e: EntradaImpostoMes): ImpostoMes {
     simples,
     fatorR: apuracao.rbt12 > 0 ? folha12 / apuracao.rbt12 : null,
     folhaNaoInformada: e.config.modoAnexo === 'fator_r' && e.config.folhaMensal <= 0,
+    semDados: apuracao.semDados && e.mrrTotal <= 0,
     receitaMes,
     receitaMesPeloMrr,
     das,
     porTributo,
     porCliente,
     faturasPodemEstarCortadas: e.totalFaturasCarregadas >= LIMITE_FATURAS,
+    faturasEstimadas,
   };
 }
 

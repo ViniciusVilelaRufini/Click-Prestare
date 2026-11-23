@@ -45,7 +45,11 @@
       <div class="card flex flex-wrap items-center justify-between gap-3 px-5 py-4">
         <div class="min-w-0">
           <p class="text-sm font-medium text-ink">
-            Imposto estimado do mês: {{ moeda(imp.das) }} ({{ pct(imp.simples.aliquotaEfetiva) }})
+            @if (imp.semDados) {
+              Imposto estimado do mês: ainda sem faturas
+            } @else {
+              Imposto estimado do mês: {{ moeda(imp.das) }} ({{ pct(imp.simples.aliquotaEfetiva) }})@if (imp.folhaNaoInformada && imp.simples.anexo === 'V') { · Anexo V (folha não informada)}@if (imp.receitaMesPeloMrr) { · pelo MRR}
+            }
           </p>
           <p class="mt-0.5 text-xs text-ink-muted">Estimativa. Confirme os valores com o seu contador.</p>
         </div>

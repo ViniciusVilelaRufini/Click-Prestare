@@ -48,6 +48,11 @@
         Receita de 12 meses acima de R$ 1,8 milhão: teto do ISS, sublimite e regras extras se aplicam. Confira com o contador.
       </div>
     }
+    @if (i.faturasEstimadas > 0) {
+      <div class="badge badge-warning block w-full whitespace-normal rounded-xl p-3 text-sm">
+        {{ i.faturasEstimadas }} fatura(s) com valor estimado (sem assinatura cadastrada) entram nesta conta.
+      </div>
+    }
     @if (i.faturasPodemEstarCortadas) {
       <div class="badge badge-warning block w-full whitespace-normal rounded-xl p-3 text-sm">
         O CRM carrega no máximo 500 faturas; a receita de 12 meses pode estar abaixo da real.
@@ -57,6 +62,7 @@
     <!-- Próxima faixa -->
     <section class="card p-6">
       <h2 class="section-title">Próxima faixa</h2>
+      <p class="mt-1 text-xs text-ink-muted">Considera só as mensalidades faturadas no CRM; implantação e venda de equipamento também contam para a faixa do Simples.</p>
       @if (proximaFaixa(); as pf) {
         <p class="mt-2 text-sm text-ink-soft">
           Faltam <strong class="text-ink">{{ cents(pf.falta) }}</strong> de receita em 12 meses para a faixa {{ s.faixa + 1 }};
@@ -68,6 +74,7 @@
     </section>
 
     <!-- Por tributo -->
+    @if (!s.acimaDeUmPontoOitoMi) {
     <section class="card overflow-hidden">
       <div class="p-6 pb-2"><h2 class="section-title">Por tributo</h2></div>
       <div class="overflow-x-auto p-3">
@@ -99,6 +106,7 @@
       </div>
       <p class="px-6 pb-5 text-xs text-ink-muted">No Simples o total não muda com a Reforma.</p>
     </section>
+    }
 
     <!-- Por cliente -->
     <section class="card overflow-hidden">

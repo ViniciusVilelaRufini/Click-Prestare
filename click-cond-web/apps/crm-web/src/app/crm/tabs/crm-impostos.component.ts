@@ -5,7 +5,6 @@ import { CrmStore } from '../crm.store';
 import { EmptyStateComponent } from '../../shared/ui/empty-state.component';
 import { SkeletonComponent } from '../../shared/ui/skeleton.component';
 import { KpiCardComponent } from '../../shared/ui/kpi-card.component';
-import { moeda } from '../crm-format';
 import { ModoAnexo, TAXA_IMPLANTACAO, calcularSimples, precoMensalPorUnidades } from '../impostos/simples-nacional';
 
 /**
@@ -20,7 +19,6 @@ import { ModoAnexo, TAXA_IMPLANTACAO, calcularSimples, precoMensalPorUnidades } 
 })
 export class CrmImpostosComponent {
   readonly store = inject(CrmStore);
-  readonly moeda = moeda;
   readonly TAXA_IMPLANTACAO = TAXA_IMPLANTACAO;
 
   readonly ICONES = {
@@ -33,7 +31,7 @@ export class CrmImpostosComponent {
   readonly imp = this.store.impostoMes;
 
   /** Sem faturas e sem MRR para estimar: mostra o estado vazio. */
-  readonly semDados = computed(() => this.imp().apuracao.semDados && !this.imp().receitaMesPeloMrr);
+  readonly semDados = computed(() => this.imp().semDados);
 
   /** Próxima faixa: quanto falta e a alíquota efetiva logo acima do limite. */
   readonly proximaFaixa = computed(() => {

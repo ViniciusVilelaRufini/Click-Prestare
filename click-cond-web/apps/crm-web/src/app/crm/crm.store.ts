@@ -59,6 +59,8 @@ export class CrmStore {
 
   // ── Faturamento ──
   readonly faturas = signal<Fatura[]>([]);
+  /** Quantidade de faturas devolvidas pela API, antes de tirar as canceladas (limite de 500). */
+  readonly faturasCarregadasBrutas = signal(0);
   readonly faturasLoading = signal(false);
   readonly ultimaFaturaPaga = signal<string | null>(null);
   readonly manualPaymentsMetadata = signal<Record<string, BaixaManualMetadata>>({});
@@ -102,7 +104,7 @@ export class CrmStore {
   readonly impostoMes = computed(() =>
     calcularImpostoMes({
       faturas: this.faturas(),
-      totalFaturasCarregadas: this.faturas().length,
+      totalFaturasCarregadas: this.faturasCarregadasBrutas(),
       clientes: this.clientes(),
       mrrTotal: this.overview()?.mrrTotal ?? 0,
       config: this.configImposto(),
@@ -321,6 +323,7 @@ export class CrmStore {
             baixaMotivo: r.baixaMotivo,
             estimada: r.estimada,
           }));
+        this.faturasCarregadasBrutas.set(rows.length);
         this.faturas.set(lista);
         this.faturasLoading.set(false);
       },

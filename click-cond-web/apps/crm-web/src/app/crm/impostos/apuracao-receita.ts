@@ -3,7 +3,7 @@
  * (LC 123/2006, art. 18, §§ 1º e 2º). Funções puras, sem dependência de Angular.
  */
 
-export interface FaturaReceita { referencia: string; valor: number } // referencia 'MM/AAAA'
+export interface FaturaReceita { referencia: string; valor: number; estimada?: boolean } // referencia 'MM/AAAA'
 
 export interface ApuracaoReceita {
   mesApuracao: string;       // 'MM/AAAA'
@@ -17,7 +17,7 @@ export interface ApuracaoReceita {
 const REFERENCIA = /^(0[1-9]|1[0-2])\/(\d{4})$/;
 
 /** Converte 'MM/AAAA' em índice ano*12 + (mês-1); null se malformada. */
-function indiceMes(referencia: string | null | undefined): number | null {
+export function indiceMes(referencia: string | null | undefined): number | null {
   const m = typeof referencia === 'string' ? REFERENCIA.exec(referencia) : null;
   return m ? Number(m[2]) * 12 + (Number(m[1]) - 1) : null;
 }

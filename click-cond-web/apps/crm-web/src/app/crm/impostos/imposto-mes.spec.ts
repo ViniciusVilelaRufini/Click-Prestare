@@ -30,6 +30,23 @@ describe('calcularImpostoMes', () => {
     expect(r.porTributo.map((t) => t.tributo)).toEqual(['CPP (INSS patronal)', 'ISS', 'PIS', 'Cofins', 'IRPJ', 'CSLL']);
     expect(r.porTributo[1].reforma).toBe('vira IBS (2029–2033)');
   });
+  it('sem faturas e MRR 0: semDados true e não usa MRR', () => {
+    const r = calcularImpostoMes(base);
+    expect(r.semDados).toBe(true); expect(r.receitaMesPeloMrr).toBe(false);
+  });
+  it('sem faturas e MRR 773: semDados false e usa MRR', () => {
+    const r = calcularImpostoMes({ ...base, mrrTotal: 773 });
+    expect(r.semDados).toBe(false); expect(r.receitaMesPeloMrr).toBe(true);
+  });
+  it('conta faturas estimadas na janela e no mês', () => {
+    const r = calcularImpostoMes({ ...base, faturas: [
+      { referencia: '11/2026', valor: 100, estimada: true },
+      { referencia: '05/2026', valor: 100, estimada: true },
+      { referencia: '05/2026', valor: 100 },
+      { referencia: '09/2025', valor: 100, estimada: true },
+    ] });
+    expect(r.faturasEstimadas).toBe(2);
+  });
   it('fatorR é null sem RBT12', () => {
     expect(calcularImpostoMes(base).fatorR).toBeNull();
   });
