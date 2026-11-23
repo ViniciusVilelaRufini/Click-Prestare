@@ -1,4 +1,5 @@
 import { EstagioCrm } from './crm.service';
+import type { ModoAnexo } from './impostos/simples-nacional';
 
 /** Fatura no formato de exibição do CRM (derivada de CrmFatura do backend). */
 export interface Fatura {
@@ -124,4 +125,11 @@ export interface BaixaManualMetadata {
   dataPagamento: string;
   valorPago: number;
   obs: string;
+}
+
+/** Configuração do cálculo de impostos (Simples Nacional), guardada em /crm/config. */
+export interface ConfigImposto {
+  modoAnexo: ModoAnexo;
+  folhaMensal: number;
+  inicioAtividade: string | null; // 'MM/AAAA'
 }

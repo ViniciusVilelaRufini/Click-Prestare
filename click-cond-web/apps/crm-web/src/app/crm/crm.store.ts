@@ -14,6 +14,7 @@ import { ToastService } from '../shared/toast.service';
 import {
   BaixaManualMetadata,
   ConfigAutomacoes,
+  ConfigImposto,
   ConfigPlano,
   DisparoView,
   Fatura,
@@ -21,6 +22,8 @@ import {
   LogWebhook,
 } from './crm.models';
 import { moeda } from './crm-format';
+import { mesAtualBrasilia } from './impostos/apuracao-receita';
+import { calcularImpostoMes, lerConfigImposto } from './impostos/imposto-mes';
 
 /** Rótulos de mês usados na série de faturamento (referência MM/AAAA). */
 const MESES_CURTOS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -94,6 +97,19 @@ export class CrmStore {
     { plano: 'Elite', sistema: 'Com Controle de Acesso', valorBase: 497, valorPorUH: 3.8 },
   ]);
 
+  // ── Impostos (Simples Nacional) ──
+  readonly configImposto = signal<ConfigImposto>(lerConfigImposto({}));
+  readonly impostoMes = computed(() =>
+    calcularImpostoMes({
+      faturas: this.faturas(),
+      totalFaturasCarregadas: this.faturas().length,
+      clientes: this.clientes(),
+      mrrTotal: this.overview()?.mrrTotal ?? 0,
+      config: this.configImposto(),
+      mesApuracao: mesAtualBrasilia(),
+    }),
+  );
+
   /** O backend só informa SE cada integração está configurada; credenciais nunca chegam ao navegador. */
   readonly gatewaysStatus = signal<GatewaysStatus | null>(null);
 
@@ -108,6 +124,7 @@ export class CrmStore {
   readonly salvandoRegua = signal(false);
   readonly salvandoConfigPlanos = signal(false);
   readonly salvandoGateways = signal(false);
+  readonly salvandoConfigImposto = signal(false);
 
   /**
    * Série mensal de faturamento, derivada das faturas reais (Crm_Faturas),
@@ -367,6 +384,7 @@ export class CrmStore {
             this.configPlanos.set(JSON.parse(cfg['planos']));
           } catch { /* idem */ }
         }
+        this.configImposto.set(lerConfigImposto(cfg));
       },
       error: () => { /* sem config salva ainda — defaults */ },
     });
@@ -512,6 +530,25 @@ export class CrmStore {
       error: (err) => {
         this.salvandoConfigPlanos.set(false);
         this.toast.trigger(err?.error?.message ?? 'Erro ao salvar a tabela de preços.', 'error');
+      },
+    });
+  }
+
+  salvarConfigImposto(c: ConfigImposto): void {
+    this.salvandoConfigImposto.set(true);
+    this.api.setConfig({
+      imposto_anexo: c.modoAnexo,
+      imposto_folha_mensal: String(c.folhaMensal),
+      imposto_inicio_atividade: c.inicioAtividade ?? '',
+    }).subscribe({
+      next: () => {
+        this.configImposto.set(c);
+        this.salvandoConfigImposto.set(false);
+        this.toast.trigger('Configuração de impostos salva.', 'success');
+      },
+      error: (err) => {
+        this.salvandoConfigImposto.set(false);
+        this.toast.trigger(err?.error?.message ?? 'Erro ao salvar a configuração de impostos.', 'error');
       },
     });
   }
