@@ -3,12 +3,16 @@
     <app-skeleton variante="kpi" />
     <app-skeleton variante="card" />
   </div>
-} @else if (semDados()) {
-  <app-empty-state titulo="Ainda não há faturas para calcular o imposto." descricao="Assim que houver faturas emitidas, a estimativa do Simples Nacional aparece aqui." />
 } @else {
   @let i = imp();
   @let s = i.simples;
   <div class="animate-fade-in space-y-5">
+    @if (semDados()) {
+      <!-- Sem faturas: só o aviso; simulador e configuração continuam disponíveis abaixo. -->
+      <section class="card p-2">
+        <app-empty-state titulo="Ainda não há faturas para calcular o imposto." descricao="Assim que houver faturas emitidas, a estimativa do mês aparece aqui. Enquanto isso, use o simulador abaixo." />
+      </section>
+    } @else {
     <!-- KPIs -->
     <div class="stagger-children grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
       <app-kpi-card label="Receita 12 meses" [valor]="s.rbt12" formato="moeda" tom="green" [icone]="ICONES.receita"
@@ -147,27 +151,60 @@
         <p class="px-6 pb-5 text-xs text-ink-muted">Valores por cliente arredondados; a soma pode diferir do DAS em centavos.</p>
       }
     </section>
+    }
 
     <!-- Simulador -->
+    @let r = sim();
     <section class="card p-6">
-      <h2 class="section-title">Simulador de nova venda</h2>
-      <p class="mt-0.5 text-xs text-ink-muted">Com a alíquota efetiva atual ({{ pct(s.aliquotaEfetiva) }}).</p>
-      <div class="mt-4 max-w-xs">
-        <label class="eyebrow block" for="sim-unidades">Unidades do condomínio</label>
-        <input id="sim-unidades" type="number" min="0" class="input mt-1" [ngModel]="unidades()" (ngModelChange)="unidades.set($event)" />
+      <h2 class="section-title">Simulador de imposto</h2>
+      <p class="mt-0.5 text-xs text-ink-muted">
+        @if (semDados()) {
+          Sem faturas ainda: a faixa do Simples sai só da receita simulada.
+        } @else {
+          A receita simulada é somada à receita real de 12 meses para achar a faixa.
+        }
+        Usa o anexo e a folha digitados na configuração abaixo, mesmo antes de salvar.
+      </p>
+      <div class="mt-4 grid max-w-md grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label class="eyebrow block" for="sim-condominios">Condomínios</label>
+          <input id="sim-condominios" type="number" min="0" step="1" class="input mt-1" [ngModel]="simCondominios()" (ngModelChange)="simCondominios.set($event)" />
+        </div>
+        <div>
+          <label class="eyebrow block" for="sim-unidades">Unidades por condomínio</label>
+          <input id="sim-unidades" type="number" min="0" step="1" class="input mt-1" [ngModel]="simUnidades()" (ngModelChange)="simUnidades.set($event)" />
+        </div>
       </div>
-      <dl class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <p class="mt-4 text-sm text-ink-soft">
+        Receita de 12 meses considerada <strong class="text-ink">{{ cents(r.rbt12) }}</strong> ·
+        faixa {{ r.simples.faixa }} · Anexo {{ r.simples.anexo }} ·
+        alíquota efetiva <strong class="text-ink">{{ pct(r.simples.aliquotaEfetiva) }}</strong>
+      </p>
+      @if (cfgModo() === 'fator_r' && semFolhaDigitada() && r.simples.anexo === 'V') {
+        <p class="mt-1 text-xs text-ink-muted">Sem folha + pró-labore, o Fator R dá Anexo V. Digite a folha na configuração para ver o Anexo III.</p>
+      }
+      @if (r.simples.acimaDeUmPontoOitoMi) {
+        <p class="mt-1 text-xs text-ink-muted">Acima de R$ 1,8 milhão em 12 meses há regras extras do Simples. Confira com o contador.</p>
+      }
+      <dl class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
         <div class="rounded-xl bg-surface-sunken p-4">
-          <dt class="text-sm font-medium text-ink-soft">Mensalidade</dt>
+          <dt class="text-sm font-medium text-ink-soft">Por condomínio, por mês</dt>
           <dd class="mt-1 text-sm text-ink-soft">
-            Bruta <strong class="text-ink">{{ cents(sim().mensalidade) }}</strong> · imposto {{ cents(sim().imposto) }} ·
-            líquida <strong class="text-ink">{{ cents(sim().liquido) }}</strong>
+            Bruta <strong class="text-ink">{{ cents(r.mensalidade) }}</strong> · imposto {{ cents(r.impostoPorCondominio) }} ·
+            líquida <strong class="text-ink">{{ cents(r.liquidoPorCondominio) }}</strong>
           </dd>
         </div>
         <div class="rounded-xl bg-surface-sunken p-4">
-          <dt class="text-sm font-medium text-ink-soft">Implantação ({{ cents(TAXA_IMPLANTACAO) }})</dt>
+          <dt class="text-sm font-medium text-ink-soft">Todos os condomínios, por mês</dt>
           <dd class="mt-1 text-sm text-ink-soft">
-            Imposto {{ cents(sim().impImpl) }} · líquida <strong class="text-ink">{{ cents(sim().liqImpl) }}</strong>
+            Receita <strong class="text-ink">{{ cents(r.receitaMensal) }}</strong> · DAS {{ cents(r.dasMensal) }} ·
+            líquida <strong class="text-ink">{{ cents(r.receitaMensal - r.dasMensal) }}</strong>
+          </dd>
+        </div>
+        <div class="rounded-xl bg-surface-sunken p-4">
+          <dt class="text-sm font-medium text-ink-soft">Implantação ({{ cents(TAXA_IMPLANTACAO) }} cada)</dt>
+          <dd class="mt-1 text-sm text-ink-soft">
+            Imposto {{ cents(r.impostoImplantacao) }} · líquida <strong class="text-ink">{{ cents(r.liquidoImplantacao) }}</strong>
           </dd>
         </div>
       </dl>

@@ -5,7 +5,8 @@ import { CrmStore } from '../crm.store';
 import { EmptyStateComponent } from '../../shared/ui/empty-state.component';
 import { SkeletonComponent } from '../../shared/ui/skeleton.component';
 import { KpiCardComponent } from '../../shared/ui/kpi-card.component';
-import { ModoAnexo, TAXA_IMPLANTACAO, calcularSimples, precoMensalPorUnidades } from '../impostos/simples-nacional';
+import { ModoAnexo, TAXA_IMPLANTACAO, calcularSimples } from '../impostos/simples-nacional';
+import { simularVenda } from '../impostos/simulador';
 
 /**
  * Aba Impostos: estimativa do DAS (Simples Nacional) do mês, por tributo e por
@@ -52,20 +53,28 @@ export class CrmImpostosComponent {
     };
   });
 
-  // Simulador
-  readonly unidades = signal<number | null>(80);
-  readonly sim = computed(() => {
-    const aliq = this.imp().simples.aliquotaEfetiva;
-    const mensalidade = precoMensalPorUnidades(Number(this.unidades()) || 0);
-    const imposto = mensalidade * aliq;
-    const impImpl = TAXA_IMPLANTACAO * aliq;
-    return { mensalidade, imposto, liquido: mensalidade - imposto, impImpl, liqImpl: TAXA_IMPLANTACAO - impImpl };
-  });
+  // Simulador: funciona mesmo sem faturas. A faixa sai da receita real de 12
+  // meses somada à receita simulada, com o anexo e a folha digitados na
+  // configuração (antes de salvar), para testar cenários sem gravar nada.
+  readonly simCondominios = signal<number | null>(1);
+  readonly simUnidades = signal<number | null>(80);
+  readonly sim = computed(() =>
+    simularVenda({
+      condominios: Number(this.simCondominios()),
+      unidades: Number(this.simUnidades()),
+      rbt12Atual: this.imp().apuracao.rbt12,
+      modoAnexo: this.cfgModo(),
+      folhaMensal: Number(this.cfgFolha()),
+    }),
+  );
 
   // Configuração (campos locais, re-sincronizados quando a config do store muda)
   readonly cfgModo = signal<ModoAnexo>('fator_r');
   readonly cfgFolha = signal<number | null>(0);
   readonly cfgInicio = signal('');
+
+  /** Folha digitada vazia, zero ou inválida (o simulador avisa que o Fator R dá Anexo V). */
+  readonly semFolhaDigitada = computed(() => !(Number(this.cfgFolha()) > 0));
 
   constructor() {
     effect(() => {
