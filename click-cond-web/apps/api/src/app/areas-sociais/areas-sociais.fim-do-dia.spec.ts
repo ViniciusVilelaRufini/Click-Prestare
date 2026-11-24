@@ -48,7 +48,8 @@ function build(opts: { manutencoes?: any[]; agendamentos?: any[]; reserva?: any 
     apartamentos: { findUnique: jest.fn(async () => ({ id_condominio: 2 })) },
     apartamentos_Users: { findFirst: jest.fn(async () => ({ id_user: 5 })), findMany: jest.fn(async () => []) },
     facial_Devices: { count: jest.fn(async () => 0) },
-    $queryRaw: jest.fn(async () => []),
+    // GET_LOCK do lock `area:<id>:<dia>` (D2) sempre concedido; o resto devolve vazio.
+    $queryRaw: jest.fn(async (sql: any) => (String(sql?.join?.('') ?? sql).includes('GET_LOCK') ? [{ ok: 1 }] : [])),
     $transaction: jest.fn(async (fn: any) => fn(prisma)),
   };
   const notifications: any = { sendPushNotification: jest.fn() };
