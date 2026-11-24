@@ -410,7 +410,9 @@ export class SuperlogicaSyncService implements OnModuleInit {
       //
       // Quando o ERP confirma o pagamento, aí sim 'pago' vence: a auditoria
       // perdeu o objeto.
-      if (dados.status === 'pendente' && existente?.status === '2') {
+      // Vale também para cobrança que voltou com fl_status_recb desconhecido
+      // (mapeada fora da dívida): o comprovante em análise não some por isso.
+      if (!dados.pago && existente?.status === '2') {
         dados.status = '2';
       }
 
@@ -477,7 +479,8 @@ export class SuperlogicaSyncService implements OnModuleInit {
    *   o filtro dtInicio/dtFim do ERP é por vencimento, o mesmo critério usado
    *   aqui para decidir o que "deveria ter vindo".
    *
-   * Só mexe em pendente (pago=0) de vencimento dentro da janela. Não apaga
+   * Só mexe em pendente (pago=0, fora do '2' de comprovante em análise) de
+   * vencimento dentro da janela, e só com SUPERLOGICA_APOSENTAR_SUMIDAS=true. Não apaga
    * nada: muda o status, e se a cobrança voltar ao ERP o upsert a regrava.
    */
   private async aposentarSumidas(
@@ -493,6 +496,14 @@ export class SuperlogicaSyncService implements OnModuleInit {
       pago: number;
     }[],
   ): Promise<number> {
+    // Desligada por padrão. Concluir pela ausência só é seguro se o filtro
+    // dtInicio/dtFim do cobranca/index for por VENCIMENTO, e isso ainda não foi
+    // conferido contra o ERP. Ligar (SUPERLOGICA_APOSENTAR_SUMIDAS=true) só
+    // depois de cancelar uma cobrança no condomínio "teste Api prestare" e
+    // confirmar o que a listagem devolve e qual data o filtro usa. Lida a cada
+    // chamada, como as outras flags do projeto.
+    if (process.env['SUPERLOGICA_APOSENTAR_SUMIDAS'] !== 'true') return 0;
+
     if (!completa) {
       this.logger.warn(`Condomínio ${idCondominioClique}: leitura do ERP incompleta — nenhuma cobrança aposentada.`);
       return 0;
@@ -522,6 +533,9 @@ export class SuperlogicaSyncService implements OnModuleInit {
           !lidas.has(f.id_externo) &&
           f.pago === 0 &&
           f.status !== STATUS_LOCAL_FORA_DA_DIVIDA &&
+          // Comprovante em análise ('2') nunca é aposentado: o síndico tem um
+          // pagamento para conferir, e esse sinal não pode sumir sozinho.
+          f.status !== '2' &&
           dentro(SuperlogicaSyncService.diaDaColuna(f.data_vencimento)),
       )
       .map((f) => f.id_externo as string);
@@ -533,6 +547,9 @@ export class SuperlogicaSyncService implements OnModuleInit {
         origem: 'superlogica',
         id_externo: { in: sumidas },
         pago: 0,
+        // Repete as exclusões no banco: o morador pode anexar comprovante
+        // entre a leitura acima e este update.
+        status: { notIn: ['2', STATUS_LOCAL_FORA_DA_DIVIDA] },
       },
       data: { status: STATUS_LOCAL_FORA_DA_DIVIDA },
     });

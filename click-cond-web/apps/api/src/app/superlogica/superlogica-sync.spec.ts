@@ -450,6 +450,33 @@ describe('SuperlogicaSyncService — sincronização de cobranças', () => {
     const apto = [{ id_superlogica_uni: 837, apto: '408', bloco: '4' }];
     const sumida = gravada('91516', { data_vencimento: new Date(Date.UTC(2026, 7, 20)) });
 
+    // A aposentadoria fica atrás da flag; estes testes rodam com ela ligada.
+    beforeEach(() => {
+      process.env['SUPERLOGICA_APOSENTAR_SUMIDAS'] = 'true';
+    });
+    afterEach(() => {
+      delete process.env['SUPERLOGICA_APOSENTAR_SUMIDAS'];
+    });
+
+    it('flag desligada (padrão): não aposenta nada, mesmo com leitura completa', async () => {
+      delete process.env['SUPERLOGICA_APOSENTAR_SUMIDAS'];
+      const { service, updateMany } = montar([cobranca('91515', '837')], apto, [gravada('91515'), sumida]);
+
+      const r = await service.sincronizarCondominio(7, HOJE);
+
+      expect(updateMany).not.toHaveBeenCalled();
+      expect(r.aposentadas).toBe(0);
+    });
+
+    it('flag com valor diferente de "true" também não aposenta', async () => {
+      process.env['SUPERLOGICA_APOSENTAR_SUMIDAS'] = '1';
+      const { service, updateMany } = montar([cobranca('91515', '837')], apto, [gravada('91515'), sumida]);
+
+      await service.sincronizarCondominio(7, HOJE);
+
+      expect(updateMany).not.toHaveBeenCalled();
+    });
+
     it('aposenta a pendente da janela que não voltou numa leitura completa', async () => {
       const { service, updateMany } = montar([cobranca('91515', '837')], apto, [gravada('91515'), sumida]);
 
@@ -462,6 +489,7 @@ describe('SuperlogicaSyncService — sincronização de cobranças', () => {
         origem: 'superlogica',
         id_externo: { in: ['91516'] },
         pago: 0,
+        status: { notIn: ['2', '3'] },
       });
       // '3' é o status que inadimplência, notificação, lembretes e a tela do
       // morador já excluem (NAO_RENEGOCIADO).
@@ -513,6 +541,7 @@ describe('SuperlogicaSyncService — sincronização de cobranças', () => {
         gravada('91515'),
         gravada('80001', { pago: 1, status: 'pago' }),
         gravada('80002', { status: '3' }),
+        gravada('80005', { status: '2' }), // comprovante em análise nunca é aposentado
         gravada('80003', { data_vencimento: new Date(Date.UTC(2026, 5, 30)) }), // 30/06, antes da janela
         gravada('80004', { data_vencimento: new Date(Date.UTC(2026, 9, 1)) }), // 01/10, depois da janela
       ]);
@@ -545,6 +574,16 @@ describe('SuperlogicaSyncService — sincronização de cobranças', () => {
       expect(arg.create.pago).toBe(0);
       expect(raspar).not.toHaveBeenCalled();
       raspar.mockRestore();
+    });
+
+    it('comprovante em análise (\'2\') sobrevive a fl_status_recb desconhecido', async () => {
+      const { service, upsert } = montar([{ ...cobranca('91515', '837'), fl_status_recb: '1' }], apto, [
+        gravada('91515', { status: '2' }),
+      ]);
+
+      await service.sincronizarCondominio(7, HOJE);
+
+      expect((upsert.mock.calls[0][0] as any).update.status).toBe('2');
     });
 
     it('janela no calendário de Brasília e enviada ao ERP com os dias certos', async () => {
