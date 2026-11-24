@@ -165,3 +165,64 @@ describe('D2 — aprovação de reserva sob o mesmo lock', () => {
     expect(nomesDoLock).toEqual([]);
   });
 });
+
+describe('Sync facial de cancelamentos em massa (fix round 1)', () => {
+  /** Facial falso que mede quantos syncs correm ao mesmo tempo. */
+  function facialMedido() {
+    let emCurso = 0;
+    let pico = 0;
+    const facial: any = {
+      syncReservaArea: jest.fn(async () => {
+        emCurso++;
+        pico = Math.max(pico, emCurso);
+        await cede();
+        emCurso--;
+        return {};
+      }),
+    };
+    return { facial, pico: () => pico };
+  }
+  const atingida = (i: number, apto = 100 + i) => ({
+    id: i + 1,
+    id_area_social: 30,
+    id_apartamento: apto,
+    data: new Date('2026-06-10T00:00:00.000Z'),
+    hora_de: new Date(1970, 0, 1, 18, 0, 0),
+    hora_ate: new Date(1970, 0, 1, 22, 0, 0),
+    user: null,
+  });
+  const esperaTerminar = async (fn: () => boolean) => {
+    for (let i = 0; i < 500 && !fn(); i++) await cede();
+  };
+
+  it('manutenção com 30 reservas atingidas: um sync por vez, um por (área, apto), e todos rodam', async () => {
+    const { svc } = build();
+    const { facial, pico } = facialMedido();
+    (svc as any).facial = facial;
+    // 30 reservas; a 30ª é do mesmo apto da 1ª (dedupe).
+    const conflitantes = [...Array.from({ length: 29 }, (_, i) => atingida(i)), atingida(29, 100)];
+    await (svc as any).notificarCancelamentosPorManutencao(conflitantes, 'Salão');
+    await esperaTerminar(() => facial.syncReservaArea.mock.calls.length === 29 && pico() >= 1);
+    await cede();
+    expect(facial.syncReservaArea).toHaveBeenCalledTimes(29);
+    expect(pico()).toBe(1);
+  });
+
+  it('falta de confirmação: syncs em sequência e deduplicados por (área, apto)', async () => {
+    const { svc, prisma } = build();
+    const { facial, pico } = facialMedido();
+    (svc as any).facial = facial;
+    const candidatos = [
+      ...Array.from({ length: 5 }, (_, i) => ({ ...atingida(i), area: { nome: 'Salão' } })),
+      { ...atingida(5, 100), area: { nome: 'Salão' } },
+    ];
+    prisma.areas_Sociais_Agendamentos.findMany = jest.fn(async () => candidatos);
+    prisma.areas_Sociais_Agendamentos.update = jest.fn(async () => ({}));
+    await (svc as any).cancelarReservasNaoConfirmadas(new Date('2026-06-11T12:00:00.000Z'));
+    await esperaTerminar(() => facial.syncReservaArea.mock.calls.length === 5);
+    await cede();
+    expect(prisma.areas_Sociais_Agendamentos.update).toHaveBeenCalledTimes(6);
+    expect(facial.syncReservaArea).toHaveBeenCalledTimes(5);
+    expect(pico()).toBe(1);
+  });
+});

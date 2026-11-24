@@ -1327,6 +1327,7 @@ export class AreasSociaisService {
       },
     });
 
+    const cancelados: typeof candidatos = [];
     for (const ag of candidatos) {
       if (!ag.data) continue;
       const inicio = this.combineDateTime(ag.data, ag.hora_de);
@@ -1339,10 +1340,9 @@ export class AreasSociaisService {
 
       // Facial e push são efeitos externos best-effort, fora do caminho que
       // já gravou o cancelamento — mesmo padrão de
-      // `notificarCancelamentosPorManutencao`.
-      this.facial
-        .syncReservaArea(Number(ag.id))
-        .catch((err) => this.logger.warn(`syncReservaArea (não-confirmação) ag ${ag.id}: ${err?.message ?? err}`));
+      // `notificarCancelamentosPorManutencao`. O facial sai depois do laço,
+      // em sequência (sincronizarFacialEmSequencia).
+      cancelados.push(ag);
 
       const token = ag.user?.fcm_token;
       if (token) {
@@ -1358,6 +1358,7 @@ export class AreasSociaisService {
         }
       }
     }
+    this.sincronizarFacialEmSequencia(cancelados, 'não-confirmação');
   }
 
   async getAllAgendamentos(idCondominio: number, user?: JwtPayload) {
@@ -1726,11 +1727,35 @@ export class AreasSociaisService {
    * que não podem fazer um rollback de banco por causa de push fora do ar.
    * Só roda depois que a transação de escrita já confirmou.
    */
+  /**
+   * Sync facial de várias reservas perdidas de uma vez (manutenção, falta de
+   * confirmação): em segundo plano, UM POR VEZ e um por (área, apto) — o sync
+   * já recalcula o apto inteiro. Disparar todos juntos abria uma transação de
+   * lock por reserva e esgotava o pool de conexões.
+   */
+  private sincronizarFacialEmSequencia(
+    ags: Array<{ id: number; id_area_social: number; id_apartamento: number }>,
+    rotulo: string,
+  ): void {
+    const vistos = new Set<string>();
+    const fila = ags.filter((ag) => {
+      const chave = `${ag.id_area_social}:${ag.id_apartamento}`;
+      if (vistos.has(chave)) return false;
+      vistos.add(chave);
+      return true;
+    });
+    void (async () => {
+      for (const ag of fila) {
+        await this.facial
+          .syncReservaArea(Number(ag.id))
+          .catch((err) => this.logger.warn(`syncReservaArea (${rotulo}) ag ${ag.id}: ${err?.message ?? err}`));
+      }
+    })();
+  }
+
   private async notificarCancelamentosPorManutencao(conflitantes: any[], nomeArea: string) {
+    this.sincronizarFacialEmSequencia(conflitantes, 'manutenção');
     for (const ag of conflitantes) {
-      this.facial
-        .syncReservaArea(Number(ag.id))
-        .catch((err) => this.logger.warn(`syncReservaArea (manutenção) ag ${ag.id}: ${err?.message ?? err}`));
 
       const token = ag.user?.fcm_token;
       if (token) {

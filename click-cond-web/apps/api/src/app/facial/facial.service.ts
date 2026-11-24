@@ -112,6 +112,52 @@ const DURACAO_LOCK_AREA_APTO_MS = 5 * 60 * 1000;
  * do apto, não da reserva). Validade longa: reserva cancelada para daqui a
  * semanas também precisa sair do aparelho.
  */
+/**
+ * Teto de syncs de área com lock aberto ao mesmo tempo neste processo: cada
+ * um segura uma conexão do pool (a transação do GET_LOCK) pelo sync inteiro.
+ * Sem teto, uma manutenção de duas semanas (dezenas de reservas atingidas, um
+ * sync por reserva) esgotava o pool (connection_limit=25) e derrubava as rotas
+ * HTTP. Quem não acha vaga espera dentro do mesmo prazo do GET_LOCK; sem vaga,
+ * cai no caminho de falha (marca de pendente para o tick refazer).
+ */
+const LOCKS_AREA_MAX = Math.max(1, Number(process.env.FACIAL_LOCKS_AREA_MAX) || 4);
+let locksAreaAbertos = 0;
+const filaLocksArea: Array<(ok: boolean) => void> = [];
+
+/** Pega uma vaga do teto (true) ou desiste depois de `esperaMs` (false). */
+function pegarVagaLockArea(esperaMs: number): Promise<boolean> {
+  // Teste e incremento sem await no meio: duas chamadas não pegam a mesma vaga.
+  if (locksAreaAbertos < LOCKS_AREA_MAX) {
+    locksAreaAbertos++;
+    return Promise.resolve(true);
+  }
+  return new Promise<boolean>((resolve) => {
+    const naFila = (ok: boolean) => {
+      clearTimeout(timer);
+      resolve(ok);
+    };
+    const timer = setTimeout(() => {
+      const i = filaLocksArea.indexOf(naFila);
+      if (i >= 0) filaLocksArea.splice(i, 1);
+      resolve(false);
+    }, esperaMs);
+    (timer as any).unref?.();
+    filaLocksArea.push(naFila);
+  });
+}
+
+/** Devolve a vaga; se há alguém na fila, a vaga passa direto para ele. */
+function soltarVagaLockArea(): void {
+  const proximo = filaLocksArea.shift();
+  if (proximo) proximo(true); // a vaga muda de dono sem baixar o contador
+  else locksAreaAbertos--;
+}
+
+/** Só para testes: quantos syncs de área estão com vaga agora. */
+export function locksAreaEmUso(): number {
+  return locksAreaAbertos;
+}
+
 const PREFIXO_AREA_PENDENTE = 'facial:area-pendente:';
 const AREA_PENDENTE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 /** Resultado do sync de um (área, apto) no terminal da área — ver syncReservaAreaApto. */
@@ -3051,19 +3097,28 @@ export class FacialService {
     }
 
     let r: ResultadoLock<ResultadoSyncAreaApto>;
-    try {
-      r = await comLock(
-        this.prisma as any,
-        `area:${idArea}:apto:${idApto}`,
-        () => this.aplicarReservaAreaApto(idArea, idApto, area.id_condominio, devices, opts),
-        { esperaSegundos: ESPERA_LOCK_AREA_APTO_S, duracaoMaximaMs: DURACAO_LOCK_AREA_APTO_MS },
-      );
-    } catch (e) {
-      await this.marcarAreaPendente(idArea, idApto);
-      throw e;
+    // Vaga no teto do processo e GET_LOCK dividem o mesmo prazo de espera.
+    const inicioEspera = Date.now();
+    if (!(await pegarVagaLockArea(ESPERA_LOCK_AREA_APTO_S * 1000))) {
+      r = { obtido: false };
+    } else {
+      try {
+        const restanteS = Math.max(0, Math.floor(ESPERA_LOCK_AREA_APTO_S - (Date.now() - inicioEspera) / 1000));
+        r = await comLock(
+          this.prisma as any,
+          `area:${idArea}:apto:${idApto}`,
+          () => this.aplicarReservaAreaApto(idArea, idApto, area.id_condominio, devices, opts),
+          { esperaSegundos: restanteS, duracaoMaximaMs: DURACAO_LOCK_AREA_APTO_MS },
+        );
+      } catch (e) {
+        await this.marcarAreaPendente(idArea, idApto);
+        throw e;
+      } finally {
+        soltarVagaLockArea();
+      }
     }
     if (!r.obtido) {
-      this.logger.warn(`syncReservaArea ${opts.rotulo}: lock da área ${idArea} apto ${idApto} ocupado; fica para o tick`);
+      this.logger.warn(`syncReservaArea ${opts.rotulo}: sem vaga/lock da área ${idArea} apto ${idApto}; fica para o tick`);
       await this.marcarAreaPendente(idArea, idApto);
       return { skipped: true, reason: 'lock_ocupado' };
     }

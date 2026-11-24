@@ -391,3 +391,95 @@ describe('FacialService — F6: tag/QR no terminal da área exige reserva vigent
     expect(prisma.areas_Sociais.findUnique).not.toHaveBeenCalled();
   });
 });
+
+describe('FacialService — teto de locks de área no processo (fix round 1)', () => {
+  let Svc: any;
+  let locksAreaEmUso: () => number;
+  beforeAll(() => {
+    jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+    jest.setSystemTime(new Date('2026-07-20T12:00:00.000Z'));
+    process.env.FACIAL_INTEGRATION_ENABLED = 'true';
+    delete process.env.FACIAL_LOCKS_AREA_MAX; // padrão 4
+    jest.isolateModules(() => {
+      const mod = require('./facial.service');
+      Svc = mod.FacialService;
+      locksAreaEmUso = mod.locksAreaEmUso;
+    });
+  });
+  afterAll(() => jest.useRealTimers());
+
+  /** 30 reservas de 30 aptos diferentes, canceladas (manutenção de duas semanas). */
+  function build(opts: { enrollTrava?: Promise<void> } = {}) {
+    const reservas = Array.from({ length: 30 }, (_, i) =>
+      reserva(1000 + i, '14:00', '18:00', { id_apartamento: 500 + i, status: 'cancelado' }),
+    );
+    let abertas = 0;
+    let picoAbertas = 0;
+    const client = {
+      enrollPerson: jest.fn(async () => ({ faceId: 'x' })),
+      removePerson: jest.fn(async () => {
+        if (opts.enrollTrava) await opts.enrollTrava;
+        await new Promise((r) => setImmediate(r));
+        return true;
+      }),
+    };
+    const prisma: any = {
+      isConnected: true,
+      areas_Sociais: { findUnique: jest.fn(async () => ({ id: 3, id_condominio: 1, controle_acesso_facial: 1 })) },
+      areas_Sociais_Agendamentos: {
+        findUnique: jest.fn(async ({ where }: any) => reservas.find((r) => r.id === where.id) ?? null),
+        findMany: jest.fn(async () => []),
+      },
+      facial_Devices: { findMany: jest.fn(async () => [DEVICE]) },
+      apartamentos_Users: { findMany: jest.fn(async () => [{ id_user: 111 }]) },
+      moradores: { findMany: jest.fn(async () => [ANA]) },
+      // Cada transação é uma conexão do pool segurando o GET_LOCK.
+      $transaction: jest.fn(async (fn: any) => {
+        abertas++;
+        picoAbertas = Math.max(picoAbertas, abertas);
+        try {
+          return await fn({ $queryRaw: async () => [{ ok: 1 }] });
+        } finally {
+          abertas--;
+        }
+      }),
+    };
+    const consentimentos = { autorizouBiometria: jest.fn(async () => true) };
+    const svc = new Svc(prisma, client as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, consentimentos as any, {} as any);
+    jest.spyOn(svc as any, 'toConfig').mockImplementation((d: any) => d);
+    return { svc, prisma, client, reservas, pico: () => picoAbertas, abertas: () => abertas };
+  }
+
+  it('30 syncs disparados juntos: no máximo 4 transações de lock abertas e todos terminam', async () => {
+    const { svc, client, reservas, pico, abertas } = build();
+    const resultados = await Promise.all(reservas.map((r) => svc.syncReservaArea(r.id)));
+    expect(pico()).toBeLessThanOrEqual(4);
+    expect(pico()).toBeGreaterThan(1); // o teto não serializa tudo
+    expect(abertas()).toBe(0);
+    expect(locksAreaEmUso()).toBe(0);
+    expect(resultados.every((x: any) => x.ok === true && x.falhas === 0)).toBe(true);
+    expect(client.removePerson).toHaveBeenCalledTimes(30);
+  });
+
+  it('sem vaga dentro do prazo: não abre transação e grava a marca de pendente para o tick', async () => {
+    let soltar!: () => void;
+    const trava = new Promise<void>((r) => (soltar = r));
+    const { svc, prisma, reservas } = build({ enrollTrava: trava });
+    // 4 syncs presos no terminal ocupam o teto.
+    const presos = reservas.slice(0, 4).map((r) => svc.syncReservaArea(r.id));
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+    expect(locksAreaEmUso()).toBe(4);
+
+    const quinto = svc.syncReservaArea(reservas[4].id);
+    await jest.advanceTimersByTimeAsync(61_000);
+    await expect(quinto).resolves.toEqual({ skipped: true, reason: 'lock_ocupado' });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(4);
+    const marcas = await (svc as any).estado.listarPorPrefixo('facial:area-pendente:');
+    expect(marcas.map((m: any) => m.chave)).toEqual(['facial:area-pendente:3:504']);
+
+    soltar();
+    await Promise.all(presos);
+    expect(locksAreaEmUso()).toBe(0);
+  });
+});
