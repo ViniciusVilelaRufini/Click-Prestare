@@ -67,6 +67,7 @@ import { agentesSemRedeInterna, urlExternaSegura } from '../common/url-segura.ut
 import { validarIpDispositivo, validarPortaDispositivo } from './device-endereco.util';
 import { StorageService } from '../common/storage/storage.service';
 import { executarComLock, OpcoesLock } from '../common/lock-distribuido';
+import { limitarConcorrencia } from '../common/limitar-concorrencia';
 import { hojeBrasilia, horaBrasilia, intervaloHojeBrasilia } from '../common/hora-brasilia.util';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
 import { fimEmMinutos } from '../areas-sociais/fim-reserva.util';
@@ -338,6 +339,19 @@ export interface WebhookEventDto {
 // não precisa de flag manual para "começar a funcionar". FACIAL_INTEGRATION_ENABLED
 // vira um kill-switch explícito: só desliga tudo quando setado para "false".
 const FACIAL_DISABLED = process.env.FACIAL_INTEGRATION_ENABLED === 'false';
+
+/**
+ * Ticks que disparam muita gente (virada do dia, expiração, pré-enrolamento):
+ * quantos syncs correm AO MESMO TEMPO por condomínio. O agente executa um
+ * comando por vez em cada aparelho e descarta o que espera mais que o prazo
+ * (~20 s): disparar 40 pessoas de uma vez deixava a maior parte expirar na
+ * fila (cadastro não entrava, remoção de prestador fora do dia não saía e a
+ * pessoa seguia abrindo até o retry de 30 min). Com 3, cada aparelho tem no
+ * máximo 3 comandos do tick na fila.
+ */
+const SYNCS_DE_TICK_POR_CONDOMINIO = 3;
+/** Quanto um sync do tick pode esperar a vez (o lock do tick dura até 60 min). */
+const ESPERA_MAXIMA_SYNC_DE_TICK_MS = 30 * 60 * 1000;
 
 // URL pública (GitHub Release) do executável do Agente Local. Fica como padrão
 // para os botões/instalador funcionarem sem depender de env; pode ser
@@ -1900,7 +1914,7 @@ export class FacialService {
         const ehFuncionario = (m.tipo ?? '').toLowerCase() === 'funcionario';
         if (ehFuncionario || reservadoSet.has(m.id)) continue;
         try {
-          await this.client.removePerson(this.toConfig(device), m.face_id ?? `morador_${m.id}`);
+          await this.client.removePerson(this.toConfig(device), m.face_id ?? `morador_${m.id}`, `morador_${m.id}`);
         } catch (e: any) {
           this.logger.warn(`reconcile remove morador ${m.id} device ${device.id}: ${e?.message ?? e}`);
         }
@@ -2555,11 +2569,13 @@ export class FacialService {
           await this.client.removePerson(
             this.toConfig(device),
             faceId ?? externalId,
+            externalId,
           );
           continue;
         }
         if (faceId) {
           await this.client.updatePerson(this.toConfig(device), faceId, {
+            externalId,
             nome: morador.nome,
             fotoBase64,
           });
@@ -2827,7 +2843,7 @@ export class FacialService {
         try {
           if (semBiometria.has(m.id)) {
             // Remove também com a reserva aprovada: um rosto de reserva anterior ainda pode estar lá.
-            await this.client.removePerson(this.toConfig(device), m.face_id ?? externalId);
+            await this.client.removePerson(this.toConfig(device), m.face_id ?? externalId, externalId);
             continue;
           }
           if (aprovado || reservaRemanescente) {
@@ -2839,7 +2855,7 @@ export class FacialService {
             const fotoBase64 = m.foto_pessoa ? await this.fetchPhotoAsBase64(m.foto_pessoa) : null;
             if (!fotoBase64) {
               if (aprovado) continue;
-              await this.client.removePerson(this.toConfig(device), m.face_id ?? externalId);
+              await this.client.removePerson(this.toConfig(device), m.face_id ?? externalId, externalId);
               continue;
             }
             await this.client.enrollPerson(this.toConfig(device), {
@@ -2854,6 +2870,7 @@ export class FacialService {
             await this.client.removePerson(
               this.toConfig(device),
               m.face_id ?? externalId,
+              externalId,
             );
           }
         } catch (err: any) {
@@ -3128,6 +3145,7 @@ export class FacialService {
           await this.client.removePerson(
             this.toConfig(device),
             faceId ?? externalId,
+            externalId,
           );
           continue;
         }
@@ -3145,6 +3163,7 @@ export class FacialService {
           await this.client.removePerson(
             this.toConfig(device),
             faceId ?? externalId,
+            externalId,
           );
           continue;
         }
@@ -3164,6 +3183,7 @@ export class FacialService {
 
         if (faceId) {
           await this.client.updatePerson(this.toConfig(device), faceId, {
+            externalId,
             nome: visitante.nome,
             fotoBase64,
             validFrom,
@@ -3250,7 +3270,7 @@ export class FacialService {
     let allOk = true;
     for (const device of devices) {
       try {
-        await this.client.removePerson(this.toConfig(device), faceId);
+        await this.client.removePerson(this.toConfig(device), faceId, `morador_${idMorador}`);
       } catch (err: any) {
         allOk = false;
         this.logger.warn(
@@ -3288,7 +3308,7 @@ export class FacialService {
     let allOk = true;
     for (const device of devices) {
       try {
-        await this.client.removePerson(this.toConfig(device), faceId);
+        await this.client.removePerson(this.toConfig(device), faceId, `visitante_${idVisitante}`);
       } catch (err: any) {
         allOk = false;
         this.logger.warn(
@@ -3320,7 +3340,7 @@ export class FacialService {
     let allOk = true;
     for (const device of devices) {
       try {
-        await this.client.removePerson(this.toConfig(device), faceId);
+        await this.client.removePerson(this.toConfig(device), faceId, `pessoa_${idPessoa}`);
       } catch (err: any) {
         allOk = false;
         this.logger.warn(
@@ -3601,7 +3621,7 @@ export class FacialService {
         // rosto, sem consultar a nuvem no momento da passagem.
         const permitidas = await this.categoriasPermitidasNoDispositivo(device);
         if (!this.categoriaAutorizada(permitidas, categoria)) {
-          await this.client.removePerson(this.toConfig(device), faceId ?? externalId);
+          await this.client.removePerson(this.toConfig(device), faceId ?? externalId, externalId);
           continue;
         }
 
@@ -3619,7 +3639,7 @@ export class FacialService {
           liberadoGeral || (dentroDoCondominio && sentidoSaiPorEle);
 
         if (!podeEstarNoDispositivo) {
-          await this.client.removePerson(this.toConfig(device), faceId ?? externalId);
+          await this.client.removePerson(this.toConfig(device), faceId ?? externalId, externalId);
           continue;
         }
 
@@ -3647,6 +3667,7 @@ export class FacialService {
 
         if (faceId) {
           await this.client.updatePerson(this.toConfig(device), faceId, {
+            externalId,
             nome: pessoa.nome,
             fotoBase64,
             validFrom,
@@ -3819,6 +3840,7 @@ export class FacialService {
           await this.client.removePerson(
             this.toConfig(device),
             faceId ?? externalId,
+            externalId,
           );
           continue;
         }
@@ -3829,6 +3851,7 @@ export class FacialService {
         const validTo = this.fimDoDiaBRT();
         if (faceId) {
           await this.client.updatePerson(this.toConfig(device), faceId, {
+            externalId,
             nome: prest.nome,
             fotoBase64,
             validTo,
@@ -3902,7 +3925,7 @@ export class FacialService {
     let allOk = true;
     for (const device of devices) {
       try {
-        await this.client.removePerson(this.toConfig(device), faceId);
+        await this.client.removePerson(this.toConfig(device), faceId, `prestador_servico_${idPrestador}`);
       } catch (err: any) {
         allOk = false;
         this.logger.warn(
@@ -4410,20 +4433,38 @@ export class FacialService {
   }
 
   /**
+   * Executor com a concorrência limitada do condomínio para os ticks (ver
+   * SYNCS_DE_TICK_POR_CONDOMINIO). O mesmo condomínio divide o limite entre
+   * todos os ticks — eles vão para os mesmos aparelhos.
+   */
+  private limiteDoTick(idCondominio: number | null | undefined) {
+    return limitarConcorrencia(`facial:tick:cond:${idCondominio ?? 0}`, SYNCS_DE_TICK_POR_CONDOMINIO, {
+      filaMaxima: 100_000,
+      esperaMaximaMs: ESPERA_MAXIMA_SYNC_DE_TICK_MS,
+    });
+  }
+
+  /**
    * Parte "Pessoas" dos ticks de autorização (só com a flag ligada): dispara
    * `syncPessoa` — que recalcula pela janela/dia das visitas e envia ou
    * remove o rosto — e loga ok/skip/falha no mesmo formato dos blocos de
    * visitantes. `{ ok: false }` (ex.: remoção pendente no aparelho) conta
-   * como falha: o rosto que devia sair continua lá.
+   * como falha: o rosto que devia sair continua lá. Concorrência limitada por
+   * condomínio; resolve quando todos terminaram (o tick segura o lock até lá).
    */
-  private sincronizarPessoasDoTick(tick: string, ids: number[], rotuloOk: string) {
-    const unicos = [...new Set(ids)];
-    if (unicos.length === 0) return;
+  private async sincronizarPessoasDoTick(
+    tick: string,
+    pessoas: { id: number; id_condominio?: number | null }[],
+    rotuloOk: string,
+  ) {
+    const porId = new Map<number, number | null | undefined>();
+    for (const p of pessoas) if (!porId.has(p.id)) porId.set(p.id, p.id_condominio);
+    if (porId.size === 0) return;
     let ok = 0;
     let skipped = 0;
     let falhou = 0;
-    const syncs = unicos.map((id) =>
-      this.syncPessoa(id)
+    const syncs = [...porId].map(([id, idCondominio]) =>
+      this.limiteDoTick(idCondominio)(() => this.syncPessoa(id))
         .then((r: any) => {
           // 'inactive' = nada foi enviado ao aparelho: não é sincronizado.
           if (r?.skipped || r?.syncState === 'inactive') skipped++;
@@ -4435,11 +4476,10 @@ export class FacialService {
           this.logger.warn(`${tick} pessoa ${id}: ${e?.message ?? e}`);
         }),
     );
-    void Promise.allSettled(syncs).then(() => {
-      this.logger.log(
-        `${tick} pessoas: ${ok} ${rotuloOk}, ${skipped} ignorado(s) (skip), ${falhou} falha(s) de ${unicos.length}`,
-      );
-    });
+    await Promise.allSettled(syncs);
+    this.logger.log(
+      `${tick} pessoas: ${ok} ${rotuloOk}, ${skipped} ignorado(s) (skip), ${falhou} falha(s) de ${porId.size}`,
+    );
   }
 
   /**
@@ -4458,7 +4498,7 @@ export class FacialService {
           dias_semana: { not: null },
           OR: [{ foto_pessoa: { not: null } }, { face_id: { not: null } }],
         },
-        select: { id: true },
+        select: { id: true, id_condominio: true },
       });
       // Important 4 (Lote B): `syncVisitante`, com a flag ligada, resolve
       // contra `Visitas` (não `Visitantes`) e devolve `{ skipped: true }` em
@@ -4471,7 +4511,7 @@ export class FacialService {
       const syncsVisitantes: Promise<void>[] = [];
       for (const v of comDias) {
         syncsVisitantes.push(
-          this.syncVisitante(v.id)
+          this.limiteDoTick(v.id_condominio)(() => this.syncVisitante(v.id))
             .then((r: any) => {
               if (r?.skipped) visSkipped++;
               else visOk++;
@@ -4483,11 +4523,10 @@ export class FacialService {
         );
       }
       if (comDias.length > 0) {
-        void Promise.allSettled(syncsVisitantes).then(() => {
-          this.logger.log(
-            `tickDiasSemanaSync visitantes: ${visOk} sincronizado(s), ${visSkipped} ignorado(s) (skip), ${visFalhou} falha(s) de ${comDias.length}`,
-          );
-        });
+        await Promise.allSettled(syncsVisitantes);
+        this.logger.log(
+          `tickDiasSemanaSync visitantes: ${visOk} sincronizado(s), ${visSkipped} ignorado(s) (skip), ${visFalhou} falha(s) de ${comDias.length}`,
+        );
       }
 
       // Modelagem nova: a restrição mora em `Visitas.dias_semana`. Reavaliar na
@@ -4509,13 +4548,9 @@ export class FacialService {
                 },
               },
             },
-            select: { id: true },
+            select: { id: true, id_condominio: true },
           });
-          this.sincronizarPessoasDoTick(
-            'tickDiasSemanaSync',
-            pessoasComDias.map((p: any) => p.id),
-            'sincronizado(s)',
-          );
+          await this.sincronizarPessoasDoTick('tickDiasSemanaSync', pessoasComDias, 'sincronizado(s)');
         } catch (e: any) {
           this.logger.warn(`tickDiasSemanaSync pessoas erro: ${e?.message ?? e}`);
         }
@@ -4527,13 +4562,15 @@ export class FacialService {
         where: {
           OR: [{ foto_pessoa: { not: null } }, { face_id: { not: null } }],
         },
-        select: { id: true },
+        select: { id: true, id_condominio: true },
       });
-      for (const p of prestadores) {
-        this.syncPrestadorServico(p.id).catch((e: any) =>
-          this.logger.warn(`tickDiasSemana prestador ${p.id}: ${e?.message ?? e}`),
-        );
-      }
+      await Promise.allSettled(
+        prestadores.map((p) =>
+          this.limiteDoTick(p.id_condominio)(() => this.syncPrestadorServico(p.id)).catch((e: any) =>
+            this.logger.warn(`tickDiasSemana prestador ${p.id}: ${e?.message ?? e}`),
+          ),
+        ),
+      );
     } catch (e: any) {
       this.logger.warn(`tickDiasSemanaSync erro: ${e?.message ?? e}`);
     }
@@ -4556,7 +4593,7 @@ export class FacialService {
             { liberado: 1 }
           ]
         },
-        select: { id: true, liberado: true },
+        select: { id: true, liberado: true, id_condominio: true },
       });
       // Important 4 (Lote B): mesma ressalva de `tickDiasSemanaSync` — com a
       // flag ligada `syncVisitante` devolve `{ skipped: true }` em vez de
@@ -4575,7 +4612,7 @@ export class FacialService {
           });
         }
         syncsExpirados.push(
-          this.syncVisitante(v.id)
+          this.limiteDoTick(v.id_condominio)(() => this.syncVisitante(v.id))
             .then((r: any) => {
               if (r?.skipped) skipped++;
               else ok++;
@@ -4587,11 +4624,10 @@ export class FacialService {
         );
       }
       if (expirados.length > 0) {
-        void Promise.allSettled(syncsExpirados).then(() => {
-          this.logger.log(
-            `tickExpiracaoAutomatica: ${expirados.length} expirado(s) — ${ok} sincronizado(s), ${skipped} ignorado(s) (skip), ${falhou} falha(s)`,
-          );
-        });
+        await Promise.allSettled(syncsExpirados);
+        this.logger.log(
+          `tickExpiracaoAutomatica: ${expirados.length} expirado(s) — ${ok} sincronizado(s), ${skipped} ignorado(s) (skip), ${falhou} falha(s)`,
+        );
       }
 
       // Modelagem nova: `syncPessoa` olha TODAS as visitas da pessoa e só
@@ -4643,13 +4679,9 @@ export class FacialService {
               },
             ],
           },
-          select: { id: true },
+          select: { id: true, id_condominio: true },
         });
-        this.sincronizarPessoasDoTick(
-          'tickExpiracaoAutomatica',
-          pessoasExpiradas.map((p: any) => p.id),
-          'sincronizado(s)',
-        );
+        await this.sincronizarPessoasDoTick('tickExpiracaoAutomatica', pessoasExpiradas, 'sincronizado(s)');
       }
     } catch (e: any) {
       this.logger.warn(`tickExpiracaoAutomatica erro: ${e?.message ?? e}`);
@@ -4676,7 +4708,7 @@ export class FacialService {
             lte: em30min,
           },
         },
-        select: { id: true },
+        select: { id: true, id_condominio: true },
       });
       // Important 4 (Lote B): mesma ressalva das duas ticks acima —
       // `syncVisitante` com a flag ligada devolve `{ skipped: true }` em vez
@@ -4689,7 +4721,7 @@ export class FacialService {
       const syncsPrestes: Promise<void>[] = [];
       for (const v of prestes) {
         syncsPrestes.push(
-          this.syncVisitante(v.id)
+          this.limiteDoTick(v.id_condominio)(() => this.syncVisitante(v.id))
             .then((r: any) => {
               if (r?.skipped) skipped++;
               else ok++;
@@ -4701,11 +4733,10 @@ export class FacialService {
         );
       }
       if (prestes.length > 0) {
-        void Promise.allSettled(syncsPrestes).then(() => {
-          this.logger.log(
-            `tickPreEnrolamento: ${ok} pré-enrolado(s), ${skipped} ignorado(s) (skip), ${falhou} falha(s) de ${prestes.length}`,
-          );
-        });
+        await Promise.allSettled(syncsPrestes);
+        this.logger.log(
+          `tickPreEnrolamento: ${ok} pré-enrolado(s), ${skipped} ignorado(s) (skip), ${falhou} falha(s) de ${prestes.length}`,
+        );
       }
 
       if (pessoasMigrationEnabled(this.prisma)) {
@@ -4719,13 +4750,9 @@ export class FacialService {
               some: { liberado: 1, data_hora_inicio: { gte: agora, lte: em30min } },
             },
           },
-          select: { id: true },
+          select: { id: true, id_condominio: true },
         });
-        this.sincronizarPessoasDoTick(
-          'tickPreEnrolamento',
-          pessoasPrestes.map((p: any) => p.id),
-          'pré-enrolado(s)',
-        );
+        await this.sincronizarPessoasDoTick('tickPreEnrolamento', pessoasPrestes, 'pré-enrolado(s)');
       }
     } catch (e: any) {
       this.logger.warn(`tickPreEnrolamento erro: ${e?.message ?? e}`);

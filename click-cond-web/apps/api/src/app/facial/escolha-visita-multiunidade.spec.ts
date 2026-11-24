@@ -242,7 +242,7 @@ describe('FacialService — várias visitas vivas: desempate determinístico', (
       const termino = where.AND[2].OR[0].visitas.some.data_hora_termino;
       expect(prestador.data_hora_termino.getTime()).toBeGreaterThanOrEqual(termino.gte.getTime());
       expect(prestador.data_hora_termino.getTime()).toBeLessThan(termino.lt.getTime());
-      expect(sincronizar).toHaveBeenCalledWith('tickExpiracaoAutomatica', [ID_PESSOA], expect.any(String));
+      expect(sincronizar).toHaveBeenCalledWith('tickExpiracaoAutomatica', [{ id: ID_PESSOA }], expect.any(String));
 
       const categoria = jest.spyOn(svc as any, 'categoriaAutorizada');
       await svc.syncPessoa(ID_PESSOA);

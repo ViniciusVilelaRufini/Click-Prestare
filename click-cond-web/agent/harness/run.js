@@ -531,6 +531,13 @@ async function main() {
     );
     checar('cid: rosto gravado', estado.cid.rostos.has(idInterno));
 
+    // Q4: o face_id salvo pode ser o id interno de OUTRO Control iD — o
+    // update acha a pessoa pela matrícula (registration) neste aparelho.
+    const cCidUpd = enfileirar(20, { type: 'update', faceId: '99999', externalId: 'morador_77', nome: 'Carla Nova' });
+    const rCidUpd = await esperarResultado(cCidUpd);
+    checar('cid: update pela matrícula OK', rCidUpd?.ok === true && String(rCidUpd?.faceId) === idInterno, JSON.stringify(rCidUpd));
+    checar('cid: update mudou o nome da pessoa certa', estado.cid.usuarios.get(idInterno)?.name === 'Carla Nova');
+
     const cCidList = enfileirar(20, { type: 'list_users' });
     const rCidList = await esperarResultado(cCidList);
     checar('cid: list_users OK', rCidList?.ok === true, JSON.stringify(rCidList));

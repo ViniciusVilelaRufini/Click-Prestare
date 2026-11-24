@@ -593,6 +593,9 @@ export class FacialDeviceClientService {
       const r = await this.agent.enqueue(device.id, {
         type: 'update',
         faceId,
+        // Control iD: o face_id é o id interno de UM aparelho; o agente acha a
+        // pessoa em cada aparelho pela matrícula (externalId).
+        ...(payload.externalId ? { externalId: payload.externalId } : {}),
         nome: payload.nome,
         fotoBase64: payload.fotoBase64,
         validFrom: payload.validFrom,
@@ -643,9 +646,15 @@ export class FacialDeviceClientService {
   async removePerson(
     device: FacialDeviceConfig,
     faceId: string,
+    /** Matrícula da pessoa (ex.: morador_42): no Control iD o agente remove por ela em cada aparelho. */
+    externalId?: string,
   ): Promise<void> {
     if (this.agent.isOnline(device.id)) {
-      const r = await this.agent.enqueue(device.id, { type: 'remove', faceId });
+      const r = await this.agent.enqueue(device.id, {
+        type: 'remove',
+        faceId,
+        ...(externalId ? { externalId } : {}),
+      });
       if (!r.ok && r.statusCode !== 404) {
         throw new Error(r.error ?? 'Falha ao remover pessoa via agente');
       }

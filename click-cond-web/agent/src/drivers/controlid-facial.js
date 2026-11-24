@@ -33,6 +33,7 @@ const {
   sleep,
 } = require('../lib/http');
 const { deviceBaselines, setBaseline } = require('../core/estado');
+const { prazoParaAbrir } = require('../core/despacho');
 const { NOSSO_EXTERNAL_ID, removerUsuariosPorLoop } = require('./comum/fantasmas');
 const { criarAvisoDeQueda } = require('./comum/queda');
 const { idDoCadastro } = require('./comum/cadastro');
@@ -80,7 +81,7 @@ async function executar(device, cmd) {
     case 'ping':
       return testar(device);
     case 'open_door':
-      return abrirPorta(device);
+      return abrirPorta(device, cmd);
     case 'enroll':
     case 'update':
       return cmd.type === 'update' ? controlIdUpdate(device, cmd) : controlIdCreate(device, cmd);
@@ -99,14 +100,20 @@ async function executar(device, cmd) {
   }
 }
 
-/** VALIDADO: usa /execute_actions.fcgi com action "door". */
-async function abrirPorta(device) {
+/**
+ * VALIDADO: usa /execute_actions.fcgi com action "door". O login pode levar
+ * segundos: o prazo do comando é conferido DEPOIS dele, logo antes de acionar
+ * a porta (ver `prazoParaAbrir` em core/despacho.js).
+ */
+async function abrirPorta(device, cmd) {
   const session = await controlIdLogin(device);
+  const { expirado, timeout } = prazoParaAbrir(cmd, lanTimeoutMs);
+  if (expirado) return expirado;
   const res = await lanRequest(
     device,
     'POST',
     `/execute_actions.fcgi?session=${session}`,
-    { json: { actions: [{ action: 'door', parameters: 'door=1' }] } },
+    { json: { actions: [{ action: 'door', parameters: 'door=1' }] }, timeout },
   );
   return okFrom(res);
 }
@@ -147,11 +154,67 @@ async function controlIdCreate(device, cmd) {
   return { ok: true, faceId: String(userId) };
 }
 
-/** Atualiza nome/foto pelo user_id interno (= faceId salvo). */
+/**
+ * Matrícula (`registration`) que identifica a pessoa em QUALQUER aparelho:
+ * o `externalId` que a nuvem manda junto, ou o próprio `faceId` quando ele já
+ * tem o nosso formato ("morador_42" — face_id gravado por um Dahua/Hikvision
+ * do mesmo condomínio). `null` = só temos o id interno (nuvem antiga).
+ *
+ * O face_id salvo no banco é UM só por pessoa: no Control iD é o id interno
+ * do aparelho que cadastrou primeiro. Num segundo Control iD esse número é de
+ * OUTRA pessoa (ou de ninguém) — usá-lo como filtro trocava nome e rosto
+ * entre pessoas ou apagava a pessoa errada. A matrícula é a mesma em todos.
+ */
+const FORMATO_MATRICULA = /^(morador|visitante|pessoa|prestador_servico)_\d+$/;
+function matriculaDoComando(cmd) {
+  const ext = cmd && cmd.externalId;
+  if (typeof ext === 'string' && ext.trim()) return ext.trim();
+  const face = cmd && cmd.faceId;
+  if (typeof face === 'string' && FORMATO_MATRICULA.test(face.trim())) return face.trim();
+  return null;
+}
+
+/**
+ * Ids internos, NESTE aparelho, dos usuários com a matrícula pedida. Filtra
+ * de novo do lado de cá: firmware que ignore o `where` devolveria todos os
+ * usuários. Lança se o aparelho recusar a leitura (não dá para decidir nada).
+ */
+async function idsPorMatricula(device, session, registration) {
+  const resp = await lanRequest(
+    device,
+    'POST',
+    `/load_objects.fcgi?session=${session}`,
+    { json: { object: 'users', where: { users: { registration } } } },
+  );
+  if (!(resp.status >= 200 && resp.status < 300)) {
+    const e = new Error(`Control iD: load_objects recusado pelo aparelho (HTTP ${resp.status})`);
+    e.statusCode = resp.status;
+    throw e;
+  }
+  const users = (resp.data && resp.data.users) || [];
+  return users
+    .filter((u) => String(u.registration ?? '') === registration)
+    .map((u) => idInterno(u.id))
+    .filter((id) => id !== null);
+}
+
+/**
+ * Atualiza nome/foto. Com matrícula, o usuário é procurado por ela NESTE
+ * aparelho; se ele não tiver a pessoa (cadastrada por outro aparelho), ela é
+ * criada aqui. Sem matrícula (nuvem antiga), segue pelo id interno salvo.
+ */
 async function controlIdUpdate(device, cmd) {
-  const userId = idInterno(cmd.faceId);
-  if (userId === null) return recusaFaceId(cmd.faceId);
+  const registration = matriculaDoComando(cmd);
+  if (registration === null) return atualizarPorId(device, cmd, idInterno(cmd.faceId));
   const session = await controlIdLogin(device);
+  const ids = await idsPorMatricula(device, session, registration);
+  if (ids.length === 0) return controlIdCreate(device, { ...cmd, externalId: registration });
+  return atualizarPorId(device, cmd, ids[0], session);
+}
+
+async function atualizarPorId(device, cmd, userId, sessao) {
+  if (userId === null) return recusaFaceId(cmd.faceId);
+  const session = sessao || (await controlIdLogin(device));
   if (cmd.nome) {
     const modificado = await lanRequest(
       device,
@@ -175,17 +238,39 @@ async function controlIdUpdate(device, cmd) {
   return { ok: true, faceId: String(userId) };
 }
 
+/**
+ * Remove a pessoa. Com matrícula, apaga NESTE aparelho os usuários dela
+ * (procurados por ela); sem nenhum, não há o que remover. Sem matrícula
+ * (nuvem antiga, ou a varredura de fantasmas, que já manda os ids internos
+ * DESTE aparelho), segue pelo id interno.
+ */
 async function removerUsuario(device, cmd) {
-  const userId = idInterno(cmd.faceId);
-  if (userId === null) return recusaFaceId(cmd.faceId);
+  const registration = matriculaDoComando(cmd);
+  if (registration === null) return removerPorId(device, cmd.faceId);
   const session = await controlIdLogin(device);
-  const res = await lanRequest(
+  const ids = await idsPorMatricula(device, session, registration);
+  let ultimo = { ok: true };
+  for (const userId of ids) {
+    ultimo = okFrom(await destruirPorId(device, session, userId));
+    if (!ultimo.ok) return ultimo;
+  }
+  return ultimo;
+}
+
+async function removerPorId(device, faceId) {
+  const userId = idInterno(faceId);
+  if (userId === null) return recusaFaceId(faceId);
+  const session = await controlIdLogin(device);
+  return okFrom(await destruirPorId(device, session, userId));
+}
+
+function destruirPorId(device, session, userId) {
+  return lanRequest(
     device,
     'POST',
     `/destroy_objects.fcgi?session=${session}`,
     { json: { object: 'users', where: { users: { id: userId } } } },
   );
-  return okFrom(res);
 }
 
 function enviarFoto(device, session, userId, fotoBase64) {
@@ -265,7 +350,8 @@ async function listarUsuarios(device) {
 /** Sem lote equivalente ao RPC2 da Dahua: cai para remoção individual (ver
  *  `removerUsuariosPorLoop` em comum/fantasmas.js). */
 async function removerUsuarios(device, cmd) {
-  return removerUsuariosPorLoop(cmd, (faceId) => removerUsuario(device, { faceId }));
+  // Os ids vêm do list_users DESTE aparelho: remoção direta pelo id interno.
+  return removerUsuariosPorLoop(cmd, (faceId) => removerPorId(device, faceId));
 }
 
 // ---------- Log de acessos (access_logs) ----------

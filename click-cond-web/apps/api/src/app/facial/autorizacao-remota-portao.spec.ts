@@ -255,7 +255,7 @@ describe('FacialService — autorização remota vale 10 min no portão', () => 
         { ...DEVICE_FACIAL, id: 901, sentido: 'saida' },
       ]);
       await svc.syncPessoa(visita.id_pessoa);
-      expect(client.removePerson).toHaveBeenCalledWith(expect.objectContaining({}), 'face_remota');
+      expect(client.removePerson).toHaveBeenCalledWith(expect.objectContaining({}), 'face_remota', 'pessoa_2000100');
       expect(client.removePerson).toHaveBeenCalledTimes(1); // o de entrada
       expect(client.updatePerson).toHaveBeenCalledTimes(1); // o de saída
       expect(client.updatePerson.mock.calls[0][2]).toEqual(expect.objectContaining({ validTo: undefined, userTimes: 1 }));
@@ -356,7 +356,7 @@ describe('FacialService — autorização remota vale 10 min no portão', () => 
             validTo: (m.svc as any).formatDahuaTime(new Date(dentro.data_entrada.getTime() + 24 * 60 * MIN)),
           }),
         );
-        expect(m.client.removePerson).toHaveBeenCalledWith(expect.objectContaining({ id: 911 }), 'face_remota');
+        expect(m.client.removePerson).toHaveBeenCalledWith(expect.objectContaining({ id: 911 }), 'face_remota', 'pessoa_2000100');
       });
 
       it(`${tipo}: a leitura seguinte no auto vira SAÍDA (não uma 2ª entrada), liberado vai a 0 e o rosto sai de todos`, async () => {
