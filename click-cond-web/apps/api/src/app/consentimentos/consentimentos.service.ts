@@ -58,6 +58,12 @@ export async function lerBiometriaAutorizada(
 @Injectable()
 export class ConsentimentosService {
   private readonly logger = new Logger(ConsentimentosService.name);
+  /**
+   * Quanto a requisição de revogação espera a remoção dos rostos antes de responder
+   * 'pending_removal' e deixar o resto em segundo plano (ver revogarBiometria). Folga para os 60 s
+   * do ALB. Campo de instância para os testes.
+   */
+  esperaRespostaRevogacaoMs = 20_000;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -217,6 +223,8 @@ export class ConsentimentosService {
    * 3. Chama `facial.unsyncMorador` para cada morador com face_id.
    * 4. Se todos os aparelhos removeram com sucesso: face_id = null, face_sync_status = 'revoked'.
    * 5. Se algum aparelho falhou (offline): face_sync_status = 'pending_removal' (preserva face_id para retry).
+   * 6. Os passos 3–5 que passarem de `esperaRespostaRevogacaoMs` terminam em segundo plano e a resposta
+   *    sai com status 'pending_removal' (a recusa e a marca do operador já estão gravadas).
    *
    * Com `idCondominio` (operador): age só nos moradores desse condomínio, não grava a recusa (1), só
    * limpa a foto em Users se a conta não é de outro condomínio e só apaga do storage a foto que mais
@@ -291,63 +299,90 @@ export class ConsentimentosService {
       }
       return true;
     };
+    // A marca vai ANTES da remoção (Q1): um sync em voo da mesma pessoa relê a linha antes de
+    // enfileirar o update e, vendo a marca, segue para a remoção em vez de devolver o rosto. Gravada
+    // aqui, na requisição, junto com a recusa: o que vem depois pode terminar em segundo plano.
     for (const m of moradores) {
       if (m.foto_pessoa) fotos.add(m.foto_pessoa);
-      // A marca vai ANTES da remoção (Q1): um sync em voo da mesma pessoa relê a linha antes de
-      // enfileirar o update e, vendo a marca, segue para a remoção em vez de devolver o rosto.
       if (marcaOperador && (m.face_id || m.foto_pessoa)) {
         await this.prisma.moradores.update({ where: { id: m.id }, data: { face_sync_error: marcaOperador } });
       }
-      if (typeof this.facial.comLockDoMorador !== 'function') {
-        if (!(await revogarLinha(m))) allRemoved = false;
-        continue;
-      }
-      // Com o lock do morador (Q1): um 1º enroll em voo só grava o face_id no fim do sync; relida
-      // dentro do lock, a linha já traz o rosto que ele mandou, e a remoção o tira.
-      const r = await this.facial.comLockDoMorador(m.id, async () => {
-        const atual = await this.prisma.moradores.findUnique({ where: { id: m.id } });
-        return atual ? revogarLinha(atual) : true;
-      });
-      if (!r.obtido) {
-        // Sync da mesma pessoa segurou o lock além da espera: não dá para confirmar a remoção. Fica
-        // pendente (com a marca/recusa já gravada, o sync em voo e o tickSyncRetry removem).
-        await this.marcarRemocaoPendente(m.id, marcaOperador);
-        allRemoved = false;
-      } else if (!r.valor) {
-        allRemoved = false;
-      }
     }
 
-    // O banco só guardava o LINK: o objeto (public-read) seguia no storage para quem já tinha a URL.
-    // Users.photo/profile_image recebem a mesma URL no cadastro; apagado o objeto, apontariam para nada.
-    if (fotos.size > 0) {
-      const urls = [...fotos];
-      // Revogação só deste condomínio: Users é global — se a conta também é de outro condomínio, a foto
-      // dela fica como está; se é só daqui, sai como na revogação do titular.
-      const limparConta =
-        escopo == null || !(await usuarioTemVinculoEmOutroCondominio(this.prisma as any, idUser, escopo));
-      if (limparConta) {
-        await this.prisma.users.updateMany({ where: { id: idUser, photo: { in: urls } }, data: { photo: null } });
-        await this.prisma.users.updateMany({ where: { id: idUser, profile_image: { in: urls } }, data: { profile_image: null } });
-      }
-      for (const url of urls) {
-        if (escopo != null) {
-          // A mesma URL pode seguir na conta ou no cadastro de outro condomínio: aí fica no storage.
-          // Os cadastros daqui já foram zerados acima.
-          const [naConta, emOutroCadastro] = await Promise.all([
-            this.prisma.users.count({ where: { id: idUser, OR: [{ photo: url }, { profile_image: url }] } }),
-            this.prisma.moradores.count({ where: { foto_pessoa: url } }),
-          ]);
-          if (naConta + emOutroCadastro > 0) continue;
+    // Remoção sob o lock de cada morador + limpeza das fotos. Cada linha pode esperar até 30 s pela
+    // vaga do lock e, em sequência, 2–3 linhas passavam dos 60 s do ALB (504). A requisição espera só
+    // `esperaRespostaRevogacaoMs`; passou disso, responde 'pending_removal' e o resto termina em
+    // segundo plano (a recusa/marca já gravadas e o 'pending_removal' das linhas cobrem a falha).
+    const processar = async (): Promise<boolean> => {
+      for (const m of moradores) {
+        if (typeof this.facial.comLockDoMorador !== 'function') {
+          if (!(await revogarLinha(m))) allRemoved = false;
+          continue;
         }
-        await this.storage?.deleteUrl(url, PREFIXOS_FOTO_MORADOR).catch(() => false);
+        // Com o lock do morador (Q1): um 1º enroll em voo só grava o face_id no fim do sync; relida
+        // dentro do lock, a linha já traz o rosto que ele mandou, e a remoção o tira.
+        const r = await this.facial.comLockDoMorador(m.id, async () => {
+          const atual = await this.prisma.moradores.findUnique({ where: { id: m.id } });
+          return atual ? revogarLinha(atual) : true;
+        });
+        if (!r.obtido) {
+          // Sync da mesma pessoa segurou o lock além da espera: não dá para confirmar a remoção. Fica
+          // pendente (com a marca/recusa já gravada, o sync em voo e o tickSyncRetry removem).
+          await this.marcarRemocaoPendente(m.id, marcaOperador);
+          allRemoved = false;
+        } else if (!r.valor) {
+          allRemoved = false;
+        }
       }
+
+      // O banco só guardava o LINK: o objeto (public-read) seguia no storage para quem já tinha a URL.
+      // Users.photo/profile_image recebem a mesma URL no cadastro; apagado o objeto, apontariam para nada.
+      if (fotos.size > 0) {
+        const urls = [...fotos];
+        // Revogação só deste condomínio: Users é global — se a conta também é de outro condomínio, a foto
+        // dela fica como está; se é só daqui, sai como na revogação do titular.
+        const limparConta =
+          escopo == null || !(await usuarioTemVinculoEmOutroCondominio(this.prisma as any, idUser, escopo));
+        if (limparConta) {
+          await this.prisma.users.updateMany({ where: { id: idUser, photo: { in: urls } }, data: { photo: null } });
+          await this.prisma.users.updateMany({ where: { id: idUser, profile_image: { in: urls } }, data: { profile_image: null } });
+        }
+        for (const url of urls) {
+          if (escopo != null) {
+            // A mesma URL pode seguir na conta ou no cadastro de outro condomínio: aí fica no storage.
+            // Os cadastros daqui já foram zerados acima.
+            const [naConta, emOutroCadastro] = await Promise.all([
+              this.prisma.users.count({ where: { id: idUser, OR: [{ photo: url }, { profile_image: url }] } }),
+              this.prisma.moradores.count({ where: { foto_pessoa: url } }),
+            ]);
+            if (naConta + emOutroCadastro > 0) continue;
+          }
+          await this.storage?.deleteUrl(url, PREFIXOS_FOTO_MORADOR).catch(() => false);
+        }
+      }
+
+      return allRemoved;
+    };
+    const emAndamento = processar();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const prazo = new Promise<'prazo'>((ok) => {
+      timer = setTimeout(() => ok('prazo'), this.esperaRespostaRevogacaoMs);
+      (timer as any)?.unref?.();
+    });
+    const terminou = await Promise.race([emAndamento, prazo]).finally(() => clearTimeout(timer));
+    if (terminou === 'prazo') {
+      emAndamento.catch((e: any) =>
+        this.logger.warn(`Revogação de biometria do usuário ${idUser} (segundo plano) falhou: ${e?.message ?? e}`),
+      );
+      this.logger.warn(
+        `Revogação de biometria do usuário ${idUser}: remoção segue em segundo plano (passou de ${this.esperaRespostaRevogacaoMs} ms)`,
+      );
     }
 
     return {
       ok: true,
       revogado: true,
-      status: allRemoved ? 'revoked' : 'pending_removal',
+      status: terminou === true ? 'revoked' : 'pending_removal',
     };
   }
 

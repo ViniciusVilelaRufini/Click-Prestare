@@ -156,4 +156,41 @@ describe('Revogação de biometria pelo operador — só no condomínio dele', (
     await ctrl.revogarBiometriaMorador(1, 1, { sub: 3, nome: 'Porteiro', id_condominio: 1 } as any);
     expect(service.revogarBiometria).toHaveBeenCalledWith(7, 'Porteiro', 1);
   });
+
+  // Cada linha pode esperar até 30 s pelo lock do morador; em sequência, 2–3 linhas passavam dos 60 s do
+  // ALB (504). A requisição espera só esperaRespostaRevogacaoMs e o resto termina em segundo plano.
+  describe('lock do morador demorado (várias linhas)', () => {
+    const dormir = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+    const tres = (): Row[] => [1, 2, 3].map((id) => ({ id, id_user: 7, id_condominio: 1, face_id: `f${id}`, foto_pessoa: null }));
+
+    function comLockLento(rows: Row[], esperaMs: number) {
+      const b = build({ rows });
+      b.prisma.moradores.findUnique = jest.fn(async ({ where }: any) => ({ ...rows.find((r) => r.id === where.id) }));
+      b.facial.comLockDoMorador = jest.fn(async (_id: number, fn: () => Promise<any>) => {
+        await dormir(esperaMs); // a vaga do lock demora
+        return { obtido: true, valor: await fn() };
+      });
+      b.svc.esperaRespostaRevogacaoMs = 80;
+      return b;
+    }
+
+    it('passou do prazo: responde pending_removal sem esperar todas as linhas, com a marca já gravada; o resto termina depois', async () => {
+      const { svc, rows, facial } = comLockLento(tres(), 100);
+      const inicio = Date.now();
+      const r = await svc.revogarBiometria(7, 'Portaria', 1);
+      expect(Date.now() - inicio).toBeLessThan(250);
+      expect(r).toMatchObject({ ok: true, revogado: true, status: 'pending_removal' });
+      // A marca do operador (que barra o recadastro e o sync em voo) já está em todas as linhas.
+      expect(rows.every((m: any) => m.face_sync_error === REVOGADO_PELO_OPERADOR)).toBe(true);
+
+      await dormir(400);
+      expect(facial.unsyncMorador).toHaveBeenCalledTimes(3);
+      expect(rows.every((m: any) => m.face_sync_status === 'revoked' && m.face_id === null)).toBe(true);
+    });
+
+    it('dentro do prazo: responde o resultado de verdade (revoked)', async () => {
+      const { svc } = comLockLento(tres(), 5);
+      await expect(svc.revogarBiometria(7, 'Portaria', 1)).resolves.toMatchObject({ status: 'revoked' });
+    });
+  });
 });
