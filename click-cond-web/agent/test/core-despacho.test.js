@@ -565,3 +565,71 @@ test('C1: colapso não mistura aparelhos nem outros tipos (dois enroll seguidos 
   ]);
   assert.deepEqual(executados.sort(), ['1:e1', '1:e2', '1:p1', '2:p2']);
 });
+
+// ---------- Q6: o driver de open_door recebe o que sobra do prazo ----------
+
+const { prazoParaAbrir, ERRO_PRAZO_ABRIR } = require('../src/core/despacho');
+
+test('Q6: open_door chega ao driver com _prazoRestanteMs, que acompanha o relógio e zera no fim do prazo', async () => {
+  const relogio = { t: 0 };
+  let visto = null;
+  const d = criarDespachante({
+    executar: async (device, cmd) => {
+      visto = cmd._prazoRestanteMs;
+      return { ok: true };
+    },
+    postarResultado: async () => {},
+    log: logMudo,
+    agora: () => relogio.t,
+  });
+  relogio.t = 0;
+  const p = d.despachar([{ device: PORTA, commands: [{ id: 'od', type: 'open_door', ttl_ms: 6000 }] }]);
+  relogio.t = 1000;
+  await p;
+  assert.equal(typeof visto, 'function');
+  relogio.t = 2500;
+  assert.equal(visto(), 3500);
+  relogio.t = 6000;
+  assert.equal(visto(), 0);
+  relogio.t = 9000;
+  assert.equal(visto(), 0, 'nunca negativo');
+});
+
+test('Q6: no colapso vale o prazo do clique MAIS NOVO (quem clicou por último ainda espera a porta)', async () => {
+  const relogio = { t: 0 };
+  const segura = adiado();
+  const abertos = [];
+  const d = criarDespachante({
+    executar: (device, cmd) => {
+      if (cmd.type === 'enroll') return segura.promessa;
+      abertos.push(cmd);
+      return { ok: true };
+    },
+    postarResultado: async () => {},
+    log: logMudo,
+    agora: () => relogio.t,
+  });
+  const fim = Promise.all([
+    d.despachar([{ device: PORTA, commands: [{ id: 'cad', type: 'enroll' }] }]),
+    d.despachar([{ device: PORTA, commands: [{ id: 'od1', type: 'open_door' }] }]),
+    (relogio.t = 4000, d.despachar([{ device: PORTA, commands: [{ id: 'od2', type: 'open_door' }] }])),
+  ]);
+  relogio.t = 5000;
+  segura.resolver({ ok: true });
+  await fim;
+  assert.deepEqual(abertos.map((c) => c.id), ['od1'], 'uma abertura física só');
+  // od1 chegou em 0 (prazo até 10000), od2 em 4000 (prazo até 14000).
+  relogio.t = 12000;
+  assert.equal(abertos[0]._prazoRestanteMs(), 2000);
+});
+
+test('Q6: prazoParaAbrir() — sem prazo conhecido usa o timeout padrão; prazo acabado recusa; timeout nunca passa do que resta', () => {
+  assert.deepEqual(prazoParaAbrir({ type: 'open_door' }, 8000), { expirado: null, timeout: 8000 });
+  assert.deepEqual(prazoParaAbrir({ type: 'open_door', _prazoRestanteMs: () => 0 }, 8000), {
+    expirado: { ok: false, error: ERRO_PRAZO_ABRIR },
+    timeout: 0,
+  });
+  assert.deepEqual(prazoParaAbrir({ _prazoRestanteMs: () => 2500.2 }, 8000), { expirado: null, timeout: 2501 });
+  assert.deepEqual(prazoParaAbrir({ _prazoRestanteMs: () => 60000 }, 8000), { expirado: null, timeout: 8000 });
+  assert.match(ERRO_PRAZO_ABRIR, /nada foi enviado/);
+});

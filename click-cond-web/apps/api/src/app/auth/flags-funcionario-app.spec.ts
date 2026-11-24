@@ -35,7 +35,7 @@ describe('App — flags do funcionário', () => {
       assertEntidade: jest.fn(async () => undefined),
       assertPermissaoFuncionario: jest.fn((id: number, flag: any, p: any) => real.assertPermissaoFuncionario(id, flag, p)),
     };
-    const facial: any = { unsyncMorador: jest.fn(async () => true) };
+    const facial: any = { unsyncMorador: jest.fn(async () => true), unsyncMoradorExcluido: jest.fn(async () => true) };
     // saveApto delega ao ApartamentosService (a flag é cobrada lá).
     const apartamentos = new ApartamentosService(prisma, tenant, {} as any);
     const svc = new MobileAuthService(

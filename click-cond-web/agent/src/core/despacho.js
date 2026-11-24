@@ -57,6 +57,7 @@ const TETO_OPEN_DOOR_MS = PRAZO_CURTO_MS;
 // O relé do Módulo Guarita abre portão do mesmo jeito: mesmo teto.
 const TIPOS_COM_TETO = new Set(['open_door', 'guarita_rele']);
 const ERRO_EXPIRADO = 'expirado na fila do agente';
+const ERRO_PRAZO_ABRIR = 'prazo do comando acabou antes de acionar a porta (nada foi enviado ao aparelho)';
 const ERRO_FORA_DA_LISTA = 'aparelho não está mais na lista da nuvem';
 
 /**
@@ -132,6 +133,16 @@ function criarDespachante({ executar, postarResultado, log = console, agora = ()
       while (fila.itens.length > 0 && fila.itens[0].cmd.type === 'open_door') {
         colapsados.push(fila.itens.shift());
       }
+      // O driver confere o que sobra do prazo logo antes da chamada que aciona
+      // o relé (depois do login/handshake, que podem levar segundos) e não
+      // abre se já acabou: a nuvem já respondeu "não respondeu" e o próximo
+      // clique abriria a porta de novo. Vale o prazo do clique MAIS NOVO do
+      // colapso — quem clicou por último ainda está esperando a porta.
+      let fimDoPrazo = item.chegouEm + prazo;
+      for (const outro of colapsados) {
+        fimDoPrazo = Math.max(fimDoPrazo, outro.chegouEm + prazoDoComando(outro.cmd));
+      }
+      cmd._prazoRestanteMs = () => Math.max(0, fimDoPrazo - agora());
     }
     let result;
     try {
@@ -282,10 +293,32 @@ function criarCicloDePing({ pingar, timeoutMs = PING_TIMEOUT_MS, classificar = c
   return { rodar };
 }
 
+/**
+ * Para o driver de `open_door`: quanto ainda resta do prazo do comando (ms),
+ * ou `null` quando o comando não veio do despachante (sem prazo conhecido).
+ */
+function restanteDoPrazo(cmd) {
+  return cmd && typeof cmd._prazoRestanteMs === 'function' ? cmd._prazoRestanteMs() : null;
+}
+
+/**
+ * Resultado de um `open_door` cujo prazo acabou ANTES de o driver acionar a
+ * porta (nada foi enviado ao relé), ou `null` se ainda dá tempo. Junto vai o
+ * timeout que a chamada de abrir pode usar: nunca além do prazo.
+ */
+function prazoParaAbrir(cmd, timeoutPadraoMs) {
+  const restante = restanteDoPrazo(cmd);
+  if (restante === null) return { expirado: null, timeout: timeoutPadraoMs };
+  if (restante <= 0) return { expirado: { ok: false, error: ERRO_PRAZO_ABRIR }, timeout: 0 };
+  return { expirado: null, timeout: Math.max(1, Math.min(timeoutPadraoMs, Math.ceil(restante))) };
+}
+
 module.exports = {
   criarDespachante,
+  prazoParaAbrir,
   criarCicloDePing,
   prazoDoComando,
   PING_TIMEOUT_MS,
   ERRO_EXPIRADO,
+  ERRO_PRAZO_ABRIR,
 };

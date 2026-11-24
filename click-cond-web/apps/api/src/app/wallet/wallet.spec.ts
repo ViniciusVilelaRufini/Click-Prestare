@@ -620,7 +620,9 @@ describe('WalletService', () => {
       };
       const wallet = { revogarDoMorador: jest.fn(async () => undefined) };
       const { MoradoresService } = await import('../moradores/moradores.service');
-      const svc = new MoradoresService(prisma, {} as any, {} as any, {} as any, { registrar: jest.fn() } as any, {} as any, wallet as any);
+      // Rosto sai dos terminais também sem face_id (F5): o facial é chamado sempre.
+      const facial = { unsyncMoradorExcluido: jest.fn(async () => true) };
+      const svc = new MoradoresService(prisma, {} as any, {} as any, facial as any, { registrar: jest.fn() } as any, {} as any, wallet as any);
       await svc.remove(11, SINDICO);
       expect(prisma.moradores.delete).toHaveBeenCalled();
       expect(wallet.revogarDoMorador).toHaveBeenCalledWith(11, 1);

@@ -278,10 +278,9 @@ async function conferirGravacao(sessao, { tipo, frameHex } = {}) {
       ? { ok: true, codigo: null, lido, mensagem: MSG_CONFIRMADO }
       : { ok: false, codigo: null, lido, mensagem: MSG_NAO_GRAVADO };
   }
-  // cadastrar: mesma unidade, mesmo bloco e, no RF, o mesmo contador.
-  const eRf = frame[0] >> 4 === 1;
-  const mesmoContador = !eRf || (r.frame[4] === frame[4] && r.frame[5] === frame[5]);
-  if (lido.unidade === unidadeDe(frame) && lido.bloco === frame[8] && mesmoContador) {
+  // cadastrar: mesma unidade e mesmo bloco. O contador do RF NÃO entra (G2): ele
+  // anda a cada acionamento, e o controle da mesma unidade não é conflito.
+  if (lido.unidade === unidadeDe(frame) && lido.bloco === frame[8]) {
     return { ok: true, codigo: null, ja_estava: true, lido, mensagem: MSG_CONFIRMADO };
   }
   return {
@@ -378,12 +377,13 @@ async function cadastrar(sessao, frame) {
   // Já aprendido (agente reiniciou, resposta perdida, nuvem reentregou):
   // confere pelo Ler se o objetivo já está atendido.
   const lido = await lerDispositivo(sessao, frame);
-  if (!lido) return base;
+  // G2: sem o Ler de conferência não há como saber de quem é o dispositivo lá —
+  // incerto (a nuvem pede conferência), nunca conflito (que só sai do Prestare).
+  if (!lido) return { ok: false, codigo, incerto: true, mensagem: MSG_INCERTO };
   const atual = lidoDe(lido);
-  // ja_estava só com a mesma unidade, o mesmo bloco e, no RF, o mesmo contador.
-  const eRf = frame[0] >> 4 === 1;
-  const mesmoContador = !eRf || (lido[4] === frame[4] && lido[5] === frame[5]);
-  if (atual.unidade === unidadeDe(frame) && atual.bloco === frame[8] && mesmoContador) {
+  // ja_estava com a mesma unidade e o mesmo bloco. O contador do RF NÃO entra
+  // (G2): ele anda a cada acionamento, e o controle da mesma unidade não é conflito.
+  if (atual.unidade === unidadeDe(frame) && atual.bloco === frame[8]) {
     return { ok: true, codigo, ja_estava: true, lido: atual, mensagem: 'Este dispositivo já estava cadastrado no Guarita.' };
   }
   return {

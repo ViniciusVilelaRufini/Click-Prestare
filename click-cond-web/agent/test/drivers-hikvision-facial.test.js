@@ -67,3 +67,22 @@ test('escutar(): parar() FECHA a conexão do stream aberto (trocar a senha no po
     await new Promise((r) => server.close(r));
   }
 });
+
+test('Q6 open_door: prazo do comando já acabou → não chama o aparelho', async () => {
+  let chamadas = 0;
+  const server = http.createServer((req, res) => {
+    chamadas++;
+    res.writeHead(200);
+    res.end('OK');
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  try {
+    const device = { id: 9700, nome: 'Falso', fabricante: 'hikvision', ip: '127.0.0.1', porta: server.address().port };
+    const r = await hikvision.executar(device, { type: 'open_door', _prazoRestanteMs: () => 0 });
+    assert.equal(r.ok, false);
+    assert.match(r.error, /prazo/);
+    assert.equal(chamadas, 0);
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});

@@ -504,8 +504,9 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
         'Código incorreto ou expirado. Confira o código ou solicite um novo.',
       );
 
-      expect(prisma.redefinicoes_Senha.update).toHaveBeenCalledWith({
-        where: { id: 302 },
+      // A tentativa é reservada (condicional ao limite) antes do bcrypt.
+      expect(prisma.redefinicoes_Senha.updateMany).toHaveBeenCalledWith({
+        where: { id: 302, usado_em: null, tentativas: { lt: 5 }, expira_em: { gt: expect.any(Date) } },
         data: { tentativas: { increment: 1 } },
       });
     });
@@ -518,14 +519,12 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
         tentativas: 0,
         codigo_hash: hash,
       });
-      prisma.redefinicoes_Senha.update.mockResolvedValue({ id: 303 });
-
       const res = await service.validarCodigoRedefinicao('ticket-correto', '889900');
 
       expect(res.success).toBe(true);
       expect(res.reset_token).toBeDefined();
-      expect(prisma.redefinicoes_Senha.update).toHaveBeenCalledWith({
-        where: { id: 303 },
+      expect(prisma.redefinicoes_Senha.updateMany).toHaveBeenCalledWith({
+        where: { id: 303, usado_em: null },
         data: expect.objectContaining({
           verificado_em: expect.any(Date),
           reset_token_hash: expect.any(String),

@@ -34,6 +34,7 @@ const { agoraDaNuvem } = require('../core/nuvem');
 const { NOSSO_EXTERNAL_ID, removerUsuariosPorLoop } = require('./comum/fantasmas');
 const { criarAvisoDeQueda } = require('./comum/queda');
 const { idDoCadastro } = require('./comum/cadastro');
+const { prazoParaAbrir } = require('../core/despacho');
 
 // lib/http.js não conhece o timeout da LAN — é config injetada por quem monta
 // o agente (index.js lê LAN_TIMEOUT_MS do .env e chama configurar() cedo no
@@ -61,7 +62,7 @@ async function executar(device, cmd) {
     case 'ping':
       return testar(device);
     case 'open_door':
-      return abrirPorta(device);
+      return abrirPorta(device, cmd);
     case 'enroll':
     case 'update':
       return hikvisionEnroll(device, cmd);
@@ -78,13 +79,19 @@ async function executar(device, cmd) {
   }
 }
 
-/** VALIDADO (ISAPI). Requer Digest auth — tratado automaticamente em request(). */
-async function abrirPorta(device) {
+/**
+ * VALIDADO (ISAPI). Requer Digest auth — tratado automaticamente em request().
+ * Não aciona se o prazo do comando já acabou, e a chamada não espera além
+ * dele (ver `prazoParaAbrir` em core/despacho.js).
+ */
+async function abrirPorta(device, cmd) {
+  const { expirado, timeout } = prazoParaAbrir(cmd, lanTimeoutMs);
+  if (expirado) return expirado;
   const res = await lanRequest(
     device,
     'PUT',
     '/ISAPI/AccessControl/RemoteControl/door/1',
-    { xml: '<RemoteControlDoor><cmd>open</cmd></RemoteControlDoor>' },
+    { xml: '<RemoteControlDoor><cmd>open</cmd></RemoteControlDoor>', timeout },
   );
   return okFrom(res);
 }

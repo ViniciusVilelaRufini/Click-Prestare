@@ -55,8 +55,10 @@ describe('FacialService — cadastro de dispositivo', () => {
     };
     const auditoria: any = { registrar: jest.fn(async () => undefined) };
     const agent: any = { isOnline: jest.fn(() => opts.online ?? true) };
+    // T1: desativar/trocar o tipo de um facial ativo apaga os rostos antes.
+    const client: any = { listUserIds: jest.fn(async () => []), removeUsers: jest.fn(async () => undefined) };
     const svc = new FacialService(
-      prisma, null as any, null as any, null as any, auditoria,
+      prisma, client, null as any, null as any, auditoria,
       null as any, agent, null as any, null as any, null as any,
     );
     const carga = jest

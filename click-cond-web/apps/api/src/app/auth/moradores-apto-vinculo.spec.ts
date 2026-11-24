@@ -14,7 +14,7 @@ describe('Moradores do apartamento — exclusão e lista', () => {
   function montar(prismaExtra: any) {
     const prisma: any = { isConnected: true, ...prismaExtra };
     prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
-    const facial: any = { unsyncMorador: jest.fn(async () => true) };
+    const facial: any = { unsyncMoradorExcluido: jest.fn(async () => true) };
     const tenant: any = { assertEntidade: jest.fn(async () => undefined) };
     const svc = new MobileAuthService(prisma, {} as any, {} as any, {} as any, facial, tenant, {} as any, {} as any, {} as any, {} as any);
     jest.spyOn(svc as any, 'assertAptoDoMorador').mockResolvedValue(undefined);
@@ -35,7 +35,20 @@ describe('Moradores do apartamento — exclusão e lista', () => {
       where: { id_user: 12, id_apto: { in: [11, 12] } },
     });
     expect(prisma.moradores.delete).toHaveBeenCalledWith({ where: { id: 11 } });
-    expect(facial.unsyncMorador).toHaveBeenCalledWith(11, 'f-11', 1);
+    expect(facial.unsyncMoradorExcluido).toHaveBeenCalledWith(11, 'f-11', 1);
+  });
+
+  it('morador sem face_id também sai dos terminais de área (F5)', async () => {
+    const { svc, facial } = montar({
+      moradores: {
+        findUnique: jest.fn(async () => ({ id: 11, id_user: 12, id_condominio: 1, face_id: null, nome: 'Ana' })),
+        delete: jest.fn(async () => ({})),
+      },
+      apartamentos: { findMany: jest.fn(async () => [{ id: 11 }]) },
+      apartamentos_Users: { deleteMany: jest.fn(async () => ({ count: 1 })) },
+    });
+    await svc.removeMorador(11, sindico);
+    expect(facial.unsyncMoradorExcluido).toHaveBeenCalledWith(11, null, 1);
   });
 
   it('lista do apto nunca usa o Users.id como id de Morador', async () => {

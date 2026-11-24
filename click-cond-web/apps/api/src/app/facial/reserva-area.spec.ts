@@ -13,6 +13,8 @@ let FacialService: any;
 describe('FacialService — syncReservaArea (áreas sociais)', () => {
   beforeAll(() => {
     jest.useFakeTimers(); // neutraliza os setInterval do construtor
+    // Antes de todas as reservas da suíte: nenhuma "já terminou".
+    jest.setSystemTime(new Date('2026-06-01T12:00:00.000Z'));
     process.env.FACIAL_INTEGRATION_ENABLED = 'true';
     jest.isolateModules(() => {
       FacialService = require('./facial.service').FacialService;
@@ -49,22 +51,27 @@ describe('FacialService — syncReservaArea (áreas sociais)', () => {
       isConnected: true,
       areas_Sociais_Agendamentos: {
         findUnique: jest.fn(async () => ag),
-        // "Outra reserva aprovada vigente do apto": agora o service busca o
-        // REGISTRO (precisa da janela dela), não um contador.
-        findFirst: jest.fn(async () =>
-          opts.outraReservaRegistro ??
-          (opts.outraReserva
-            ? {
-                id: 200,
-                id_area_social: 3,
-                id_apartamento: 50,
-                data: new Date('2026-07-25T00:00:00.000Z'),
-                hora_de: new Date('1970-01-01T09:00:00.000Z'),
-                hora_ate: new Date('1970-01-01T12:00:00.000Z'),
-                status: 'aprovado',
-              }
-            : null),
-        ),
+        // Reservas APROVADAS do apto nesta área, na ordem do banco (data, hora):
+        // a própria (se aprovada) e a "outra" do apto. O service escolhe a
+        // primeira que ainda não terminou (reservaVigenteOuProxima).
+        findMany: jest.fn(async () => {
+          const outra =
+            opts.outraReservaRegistro ??
+            (opts.outraReserva
+              ? {
+                  id: 200,
+                  id_area_social: 3,
+                  id_apartamento: 50,
+                  data: new Date('2026-07-25T00:00:00.000Z'),
+                  hora_de: new Date('1970-01-01T09:00:00.000Z'),
+                  hora_ate: new Date('1970-01-01T12:00:00.000Z'),
+                  status: 'aprovado',
+                }
+              : null);
+          return [...(ag.status === 'aprovado' ? [ag] : []), ...(outra ? [outra] : [])].sort(
+            (x, y) => x.data.getTime() - y.data.getTime(),
+          );
+        }),
       },
       facial_Devices: { findMany: jest.fn(async () => [DEVICE]) },
       apartamentos_Users: {
@@ -153,7 +160,7 @@ describe('FacialService — syncReservaArea (áreas sociais)', () => {
   it('recusado (sem outra reserva) → remove os moradores do terminal', async () => {
     const { svc, client } = build({ status: 'recusado' }, { outraReserva: 0 });
     await svc.syncReservaArea(100);
-    expect(client.removePerson).toHaveBeenCalledWith(DEVICE, 'morador_11');
+    expect(client.removePerson).toHaveBeenCalledWith(DEVICE, 'morador_11', 'morador_11');
     expect(client.enrollPerson).not.toHaveBeenCalled();
   });
 
@@ -161,7 +168,7 @@ describe('FacialService — syncReservaArea (áreas sociais)', () => {
     const { svc, client } = build({ status: 'recusado' }, { outraReserva: 1 });
     await svc.syncReservaArea(100);
     // Ana (com foto) mantém o acesso — não é removida.
-    expect(client.removePerson).not.toHaveBeenCalledWith(DEVICE, 'morador_11');
+    expect(client.removePerson).not.toHaveBeenCalledWith(DEVICE, 'morador_11', 'morador_11');
     // Não basta "deixar como está": o aparelho guarda UMA janela por pessoa e
     // ela ainda seria a da reserva perdida (14:00–18:00 de 20/07).
     expect(client.enrollPerson).toHaveBeenCalledWith(
@@ -228,7 +235,7 @@ describe('FacialService — syncReservaArea (áreas sociais)', () => {
       await svc.syncReservaArea(100);
 
       expect(client.enrollPerson).not.toHaveBeenCalled();
-      expect(client.removePerson).toHaveBeenCalledWith(DEVICE, 'morador_11');
+      expect(client.removePerson).toHaveBeenCalledWith(DEVICE, 'morador_11', 'morador_11');
     });
   });
 
@@ -249,21 +256,21 @@ describe('FacialService — syncReservaArea (áreas sociais)', () => {
       const { svc, client } = build({}, { moradores: [ANA_REVOGADA] });
       await svc.syncReservaArea(100);
       expect(client.enrollPerson).not.toHaveBeenCalled();
-      expect(client.removePerson).toHaveBeenCalledWith(DEVICE, 'morador_11');
+      expect(client.removePerson).toHaveBeenCalledWith(DEVICE, 'morador_11', 'morador_11');
     });
 
     it('recusa global do titular + reserva aprovada → não enrola no terminal da área', async () => {
       const { svc, client } = build({}, { moradores: [{ ...MORADORES[0], id_user: 111 }], autorizou: false });
       await svc.syncReservaArea(100);
       expect(client.enrollPerson).not.toHaveBeenCalled();
-      expect(client.removePerson).toHaveBeenCalledWith(DEVICE, 'morador_11');
+      expect(client.removePerson).toHaveBeenCalledWith(DEVICE, 'morador_11', 'morador_11');
     });
 
     it('reserva perdida com outra aprovada: o revogado não é reenrolado com a janela da outra', async () => {
       const { svc, client } = build({ status: 'recusado' }, { outraReserva: 1, moradores: [ANA_REVOGADA] });
       await svc.syncReservaArea(100);
       expect(client.enrollPerson).not.toHaveBeenCalled();
-      expect(client.removePerson).toHaveBeenCalledWith(DEVICE, 'morador_11');
+      expect(client.removePerson).toHaveBeenCalledWith(DEVICE, 'morador_11', 'morador_11');
     });
   });
 

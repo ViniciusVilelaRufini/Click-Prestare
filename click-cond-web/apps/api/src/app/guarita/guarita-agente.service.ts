@@ -233,7 +233,14 @@ export class GuaritaAgenteService {
       // editar/apagar levam o que o Prestare acredita estar no Guarita; sem
       // isso não há como o agente conferir, e a operação não sai.
       let esperado: { unidade: number; bloco: number } | undefined;
-      if (op.tipo === 'cadastrar' && op.criado_por === CRIADO_POR_RECADASTRO_INCERTO && this.operacoes) {
+      // G3: o frame lido agora é o que a reivindicação confere — uma edição que
+      // trocou o frame entre a leitura e o UPDATE faz a reivindicação falhar (o
+      // lote para e o próximo pedido leva o frame novo). O que sai para o agente
+      // é gravado na mesma reivindicação: a conclusão confirma o frame ENTREGUE.
+      const frameNoBanco = op.frame_hex ?? null;
+      // Recadastro sai com o frame recalculado só na primeira entrega: na
+      // reentrega o agente pode já ter o primeiro (ignora id repetido).
+      if (op.tipo === 'cadastrar' && op.criado_por === CRIADO_POR_RECADASTRO_INCERTO && op.estado === ESTADO_OP.pendente && this.operacoes) {
         op.frame_hex = await this.operacoes.atualizarFrameDoRecadastro(op);
       }
       if ((op.tipo === 'editar' || op.tipo === 'apagar') && this.operacoes) {
@@ -244,12 +251,13 @@ export class GuaritaAgenteService {
       const r = await this.prisma.guarita_Operacoes.updateMany({
         where: {
           id: op.id,
+          frame_hex: frameNoBanco,
           OR: [
             { estado: ESTADO_OP.pendente },
             { estado: ESTADO_OP.enviada, enviada_em: { lt: limiteReentrega } },
           ],
         },
-        data: { estado: ESTADO_OP.enviada, enviada_em: agora },
+        data: { estado: ESTADO_OP.enviada, enviada_em: agora, frame_hex: op.frame_hex ?? null },
       });
       if (r.count !== 1) break;
       // apagar com o frame da unidade a conferir: para o agente, só tipo + serial.

@@ -513,6 +513,18 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     if (linhas.length) await this.encerrarLinhas(linhas);
   }
 
+  /**
+   * O aparelho (token FCM) passou a outro usuário sem o logout chegar ao
+   * servidor: encerra os cards abertos deste token que pertencem a OUTRO dono.
+   */
+  async encerrarDoToken(fcmToken: string, idUserAtual: number): Promise<void> {
+    if (!fcmToken) return;
+    const linhas = (await this.prisma.cards_Ao_Vivo.findMany({
+      where: { fcm_token: fcmToken, encerrado_em: null, id_user: { not: idUserAtual } },
+    })) as Linha[];
+    if (linhas.length) await this.encerrarLinhas(linhas);
+  }
+
   /** A cada 30 s: reserva atrasada, AGUARDANDO vencido, LIBERADO sem entrada, limpeza. */
   async tick(): Promise<void> {
     const agora = this.agora();

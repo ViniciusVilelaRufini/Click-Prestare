@@ -501,6 +501,19 @@ describe('CardAoVivoService — fases', () => {
     expect(prisma.cards_Ao_Vivo.rows.find((r: any) => r.id_user === 2).encerrado_em).toBeNull();
   });
 
+  it('aparelho que trocou de dono: encerra só os cards abertos do dono anterior naquele token', async () => {
+    const { svc, apns, prisma } = await abertoEConfirmado();
+    const tokenFcm = prisma.cards_Ao_Vivo.rows.find((r: any) => r.id_user === 1).fcm_token;
+    // o usuário 2 assumiu o aparelho do usuário 1
+    await svc.encerrarDoToken(tokenFcm, 2);
+    expect(prisma.cards_Ao_Vivo.rows.find((r: any) => r.id_user === 1).encerrado_em).toBeInstanceOf(Date);
+    expect(prisma.cards_Ao_Vivo.rows.find((r: any) => r.id_user === 2).encerrado_em).toBeNull();
+    expect(enviadoPara(apns, 'aaaa9999aaaa9999')[0].event).toBe('end');
+    // o dono atual do token não perde o próprio card
+    await svc.encerrarDoToken(prisma.cards_Ao_Vivo.rows.find((r: any) => r.id_user === 2).fcm_token, 2);
+    expect(prisma.cards_Ao_Vivo.rows.find((r: any) => r.id_user === 2).encerrado_em).toBeNull();
+  });
+
   it('visitante apagado: fase encerra o card em vez de mostrar dados vazios', async () => {
     const k = montarCard({ aparelhos, usuarios, visitante: null });
     await k.svc.abrir(pedido, [1]);

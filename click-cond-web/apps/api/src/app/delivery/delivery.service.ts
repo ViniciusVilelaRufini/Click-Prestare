@@ -1080,10 +1080,14 @@ export class DeliveryService {
     if (this.cardAoVivo) {
       try {
         const atendimento = await this.atendimentoParaCard(registro.id);
-        // Pedido do portão: o card foi aberto em todos os vínculos atuais (com ou sem dono).
-        const destinos =
-          dono && !registro.id_pedido_portao ? dono : await this.vinculosDaUnidade(registro.id_apartamento);
-        if (statusNovo === 'CHEGOU') {
+        // Só vínculos ATUAIS (o dono que se mudou não recebe o card). Com dono,
+        // o card vai só a ele, também no pedido do portão: os cards dos outros
+        // foram fechados quando ele respondeu e não reabrem.
+        const vinculos = await this.vinculosDaUnidade(registro.id_apartamento);
+        const destinos: number | number[] | null = dono ? (vinculos.includes(dono) ? dono : null) : vinculos.length ? vinculos : null;
+        if (destinos === null) {
+          // sem destino: nada a abrir; o aviso comum (que também confere o vínculo) segue abaixo
+        } else if (statusNovo === 'CHEGOU') {
           await this.cardAoVivo.abrirDelivery(atendimento, destinos);
           viaCard = true;
         } else {

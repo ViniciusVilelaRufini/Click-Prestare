@@ -44,7 +44,7 @@ describe('C1 — cadastro que volta "já cadastrado em outra unidade"', () => {
   it('vira conflito; editar a placa não gera editar; excluir a tag gera apagar conferido pela unidade pedida (F2)', async () => {
     const m = montar();
     const id = await cadastroEntregue(m);
-    await m.agente.registrarResultado(DEV, id, { ok: false, codigo: 2, erro: 'Este dispositivo já está cadastrado no Guarita em outra unidade.' });
+    await m.agente.registrarResultado(DEV, id, { ok: false, codigo: 2, conflito: true, lido: { unidade: 202, bloco: 1 }, erro: 'Este dispositivo já está cadastrado no Guarita em outra unidade.' });
     expect(tag(m.db)).toMatchObject({ guarita_estado: 'conflito' });
     expect(tag(m.db).guarita_erro).toMatch(/outra unidade/);
 

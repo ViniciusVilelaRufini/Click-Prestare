@@ -78,3 +78,16 @@ export async function usuariosComVinculoEmOutroCondominio(
   ]);
   return new Set([...s, ...f, ...m, ...a].map((r) => r.id_user).filter((v): v is number => v != null));
 }
+
+/**
+ * P2002 da chave única uq_au_apto_user (id_apto, id_user): o usuário já tem vínculo com esta unidade
+ * (prisma/sql/2026-11-24-apartamentos-users-unico.sql). A conferência antes do create não pega a
+ * corrida de duas gravações ao mesmo tempo; a chave pega e quem chama devolve a recusa de "já vinculado".
+ * meta.target vem como o nome do índice (MySQL) ou como a lista de campos.
+ */
+export function ehVinculoUnidadeRepetido(err: any): boolean {
+  if (err?.code !== 'P2002') return false;
+  const alvo = err?.meta?.target;
+  if (Array.isArray(alvo)) return alvo.includes('id_apto') && alvo.includes('id_user');
+  return String(alvo ?? '').includes('uq_au_apto_user');
+}

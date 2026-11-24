@@ -1,6 +1,6 @@
 import { Injectable, ForbiddenException, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { executarComLock } from '../common/lock-distribuido';
+import { comLock, executarComLock } from '../common/lock-distribuido';
 import { hojeBrasilia, intervaloHojeBrasilia } from '../common/hora-brasilia.util';
 import type { Prisma } from '../prisma/generated';
 
@@ -16,6 +16,11 @@ import { assertOperador, assertStaff, isOperador } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { fimEmMinutos } from './fim-reserva.util';
+
+/** Lock `area:<id>:<dia>` da criação e da aprovação de reserva (D2). */
+const ESPERA_LOCK_DIA_AREA_S = 10;
+const DURACAO_LOCK_DIA_AREA_MS = 30_000;
+const MSG_DIA_AREA_OCUPADO = 'Outra reserva deste espaço está sendo gravada para o mesmo dia. Tente de novo.';
 
 const DEFAULT_AREA_IMAGE = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600';
 
@@ -932,134 +937,148 @@ export class AreasSociaisService {
     const horaDeObj = new Date(1970, 0, 1, hDe, mDe, 0);
     const horaAteObj = new Date(1970, 0, 1, hAte, mAte, 0);
 
-    // Buscar agendamentos do dia para comparar em memória, evitando problemas de timezone no banco
-    const agendamentosDia = await this.prisma.areas_Sociais_Agendamentos.findMany({
-      where: {
-        id_area_social: Number(agendamento.id_area_social),
-        data: dataObj,
-        status: { in: ['pendente', 'aprovado'] },
+    // Conferir conflito e gravar sob um lock por área e dia (D2): conferido em
+    // memória, dois pedidos juntos no mesmo horário viam o dia livre e os dois
+    // gravavam. A aprovação usa o mesmo lock (updateStatusAgendamento).
+    const diaDoLock = `${parts[2]}-${String(parts[1]).padStart(2, '0')}-${String(parts[0]).padStart(2, '0')}`;
+    const gravado = await comLock(
+      this.prisma as any,
+      `area:${Number(agendamento.id_area_social)}:${diaDoLock}`,
+      async () => {
+        // Buscar agendamentos do dia para comparar em memória, evitando problemas de timezone no banco
+        const agendamentosDia = await this.prisma.areas_Sociais_Agendamentos.findMany({
+          where: {
+            id_area_social: Number(agendamento.id_area_social),
+            data: dataObj,
+            status: { in: ['pendente', 'aprovado'] },
+          },
+        });
+
+        const requestedDe = hDe * 60 + mDe;
+        const requestedAte = hAte * 60 + mAte;
+        // 00:00 no término é o fim do dia (1440); fora isso o fim vem depois do início.
+        if (fimEmMinutos(requestedAte) <= requestedDe) {
+          throw new BadRequestException('O término da reserva precisa ser depois do início.');
+        }
+
+        // Reserva no passado não faz sentido (e some da fila, que só lista de ontem
+        // em diante). Compara no fuso do condomínio, não no do servidor (UTC).
+        const agoraBr = agoraEmBrasilia();
+        const diaPedido = `${parts[2]}-${String(parts[1]).padStart(2, '0')}-${String(parts[0]).padStart(2, '0')}`;
+        if (diaPedido < agoraBr.dia || (diaPedido === agoraBr.dia && fimEmMinutos(requestedAte) <= agoraBr.minutos)) {
+          throw new BadRequestException('Não é possível reservar uma data ou horário que já passou.');
+        }
+
+        const conflito = this.conflitoDeHorario(agendamentosDia, requestedDe, requestedAte);
+
+        if (conflito) {
+          throw new BadRequestException('Este espaço já possui um agendamento ativo que conflita com o horário solicitado.');
+        }
+
+        // Recusa reserva que caia em manutenção — tirar da lista de horarios_livres
+        // não basta porque a rota aceita POST direto, sem passar pela tela.
+        const manutencoesDb = await this.prisma.areas_Sociais_Manutencoes.findMany({
+          where: { id_area_social: Number(agendamento.id_area_social) },
+        });
+        // Mesma regra do get: manutenção sem data de início/término não bloqueia
+        // nada (com o epoch, uma linha meia-boca recusava toda reserva da área).
+        const janelasManutencao = manutencoesDb
+          .filter(m => m.data_inicio != null && m.data_termino != null)
+          .map(m => this.janelaDaManutencao(m));
+        const inicioBlocoSolicitado = this.combineDateTime(dataObj, horaDeObj);
+        const fimBlocoSolicitado = this.fimDaReserva(dataObj, horaAteObj);
+        if (this.colideComJanela(inicioBlocoSolicitado, fimBlocoSolicitado, janelasManutencao)) {
+          throw new BadRequestException('Esta área está em manutenção no horário solicitado.');
+        }
+
+        // Limite mensal por apartamento (null/0 = sem limite, comportamento de
+        // sempre). Reserva feita pelo síndico não conta nem é bloqueada — é a
+        // administração resolvendo, não o morador tentando monopolizar a área.
+        // O mês é o da DATA SOLICITADA (não o de "agora"): reservar em janeiro
+        // para março conta contra março. `dataObj` já foi montado a partir dos
+        // componentes DD/MM/YYYY do próprio pedido, então ler ano/mês dele com
+        // getFullYear()/getMonth() (sem passar por Intl/UTC) preserva o mesmo
+        // calendário que o morador digitou — nada de decidir a virada de mês
+        // pelo relógio do servidor.
+        if (!isentoDoLimite && areaAlvo.limite_mensal_apto && areaAlvo.limite_mensal_apto > 0) {
+          const anoAlvo = dataObj.getFullYear();
+          const mesAlvo = dataObj.getMonth();
+          const primeiroDiaMes = new Date(anoAlvo, mesAlvo, 1);
+          const primeiroDiaProxMes = new Date(anoAlvo, mesAlvo + 1, 1);
+
+          const agendamentosNoMes = await this.prisma.areas_Sociais_Agendamentos.findMany({
+            where: {
+              id_area_social: Number(agendamento.id_area_social),
+              id_apartamento: Number(agendamento.id_apartamento),
+              status: { in: ['pendente', 'aprovado'] },
+              data: { gte: primeiroDiaMes, lt: primeiroDiaProxMes },
+            },
+          });
+
+          // Pedido pendente cujo horário já terminou não vai mais acontecer
+          // (ninguém decidiu a tempo): não come a cota do mês. Aprovada que já
+          // passou continua contando — o apartamento usou a área.
+          const agoraBr = this.agoraNoFusoDoCondominio();
+          const queContam = agendamentosNoMes.filter(
+            (a) => a.status !== 'pendente' || !a.data || this.fimDaReserva(a.data, a.hora_ate) > agoraBr,
+          );
+
+          if (queContam.length >= areaAlvo.limite_mensal_apto) {
+            const nomeMes = primeiroDiaMes.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+            throw new BadRequestException(
+              `Este apartamento já atingiu o limite de ${areaAlvo.limite_mensal_apto} reserva(s) por mês nesta área em ${nomeMes}.`,
+            );
+          }
+        }
+
+        // Convidados é opcional (app antigo não manda o campo — null continua
+        // válido e não é checado). Só quando um valor é de fato enviado é que
+        // validamos: precisa ser inteiro positivo e, se a área tem capacidade
+        // configurada (>0), não pode ultrapassá-la. Capacidade 0/nula = "não
+        // configurada" — sem limite nenhum.
+        let convidados: number | null = null;
+        if (agendamento.convidados !== undefined && agendamento.convidados !== null && agendamento.convidados !== '') {
+          const convidadosNum = Number(agendamento.convidados);
+          if (!Number.isInteger(convidadosNum) || convidadosNum <= 0) {
+            throw new BadRequestException('Número de convidados inválido.');
+          }
+          if (areaAlvo.capacidade && areaAlvo.capacidade > 0 && convidadosNum > areaAlvo.capacidade) {
+            throw new BadRequestException(`Esta área comporta no máximo ${areaAlvo.capacidade} pessoas (incluindo os moradores).`);
+          }
+          convidados = convidadosNum;
+        }
+
+        // Definir status inicial baseado na regra da área.
+        // Reserva criada pelo síndico/porteiro já entra aprovada (a própria
+        // criação pela administração equivale à aprovação).
+        const area = areaAlvo;
+
+        const statusInicial = peloSindico
+          ? 'aprovado'
+          : area?.precisa_autorizacao === 1 ? 'pendente' : 'aprovado';
+
+        const novo = await this.prisma.areas_Sociais_Agendamentos.create({
+          data: {
+            id_area_social: Number(agendamento.id_area_social),
+            id_user: donoReservaId,
+            id_apartamento: Number(agendamento.id_apartamento),
+            data: dataObj,
+            hora_de: horaDeObj,
+            hora_ate: horaAteObj,
+            status: statusInicial,
+            convidados,
+            // Quem agendou fica em criado_por_nome; aprovado_por_nome é só de quem
+            // aprovou (updateStatusAgendamento). A reserva da administração nasce
+            // aprovada sem "aprovador".
+            criado_por_nome: nomeDeQuemAgendou(user),
+          },
+        });
+        return { criado: novo, statusInicial };
       },
-    });
-
-    const requestedDe = hDe * 60 + mDe;
-    const requestedAte = hAte * 60 + mAte;
-    // 00:00 no término é o fim do dia (1440); fora isso o fim vem depois do início.
-    if (fimEmMinutos(requestedAte) <= requestedDe) {
-      throw new BadRequestException('O término da reserva precisa ser depois do início.');
-    }
-
-    // Reserva no passado não faz sentido (e some da fila, que só lista de ontem
-    // em diante). Compara no fuso do condomínio, não no do servidor (UTC).
-    const agoraBr = agoraEmBrasilia();
-    const diaPedido = `${parts[2]}-${String(parts[1]).padStart(2, '0')}-${String(parts[0]).padStart(2, '0')}`;
-    if (diaPedido < agoraBr.dia || (diaPedido === agoraBr.dia && fimEmMinutos(requestedAte) <= agoraBr.minutos)) {
-      throw new BadRequestException('Não é possível reservar uma data ou horário que já passou.');
-    }
-
-    const conflito = this.conflitoDeHorario(agendamentosDia, requestedDe, requestedAte);
-
-    if (conflito) {
-      throw new BadRequestException('Este espaço já possui um agendamento ativo que conflita com o horário solicitado.');
-    }
-
-    // Recusa reserva que caia em manutenção — tirar da lista de horarios_livres
-    // não basta porque a rota aceita POST direto, sem passar pela tela.
-    const manutencoesDb = await this.prisma.areas_Sociais_Manutencoes.findMany({
-      where: { id_area_social: Number(agendamento.id_area_social) },
-    });
-    // Mesma regra do get: manutenção sem data de início/término não bloqueia
-    // nada (com o epoch, uma linha meia-boca recusava toda reserva da área).
-    const janelasManutencao = manutencoesDb
-      .filter(m => m.data_inicio != null && m.data_termino != null)
-      .map(m => this.janelaDaManutencao(m));
-    const inicioBlocoSolicitado = this.combineDateTime(dataObj, horaDeObj);
-    const fimBlocoSolicitado = this.fimDaReserva(dataObj, horaAteObj);
-    if (this.colideComJanela(inicioBlocoSolicitado, fimBlocoSolicitado, janelasManutencao)) {
-      throw new BadRequestException('Esta área está em manutenção no horário solicitado.');
-    }
-
-    // Limite mensal por apartamento (null/0 = sem limite, comportamento de
-    // sempre). Reserva feita pelo síndico não conta nem é bloqueada — é a
-    // administração resolvendo, não o morador tentando monopolizar a área.
-    // O mês é o da DATA SOLICITADA (não o de "agora"): reservar em janeiro
-    // para março conta contra março. `dataObj` já foi montado a partir dos
-    // componentes DD/MM/YYYY do próprio pedido, então ler ano/mês dele com
-    // getFullYear()/getMonth() (sem passar por Intl/UTC) preserva o mesmo
-    // calendário que o morador digitou — nada de decidir a virada de mês
-    // pelo relógio do servidor.
-    if (!isentoDoLimite && areaAlvo.limite_mensal_apto && areaAlvo.limite_mensal_apto > 0) {
-      const anoAlvo = dataObj.getFullYear();
-      const mesAlvo = dataObj.getMonth();
-      const primeiroDiaMes = new Date(anoAlvo, mesAlvo, 1);
-      const primeiroDiaProxMes = new Date(anoAlvo, mesAlvo + 1, 1);
-
-      const agendamentosNoMes = await this.prisma.areas_Sociais_Agendamentos.findMany({
-        where: {
-          id_area_social: Number(agendamento.id_area_social),
-          id_apartamento: Number(agendamento.id_apartamento),
-          status: { in: ['pendente', 'aprovado'] },
-          data: { gte: primeiroDiaMes, lt: primeiroDiaProxMes },
-        },
-      });
-
-      // Pedido pendente cujo horário já terminou não vai mais acontecer
-      // (ninguém decidiu a tempo): não come a cota do mês. Aprovada que já
-      // passou continua contando — o apartamento usou a área.
-      const agoraBr = this.agoraNoFusoDoCondominio();
-      const queContam = agendamentosNoMes.filter(
-        (a) => a.status !== 'pendente' || !a.data || this.fimDaReserva(a.data, a.hora_ate) > agoraBr,
-      );
-
-      if (queContam.length >= areaAlvo.limite_mensal_apto) {
-        const nomeMes = primeiroDiaMes.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-        throw new BadRequestException(
-          `Este apartamento já atingiu o limite de ${areaAlvo.limite_mensal_apto} reserva(s) por mês nesta área em ${nomeMes}.`,
-        );
-      }
-    }
-
-    // Convidados é opcional (app antigo não manda o campo — null continua
-    // válido e não é checado). Só quando um valor é de fato enviado é que
-    // validamos: precisa ser inteiro positivo e, se a área tem capacidade
-    // configurada (>0), não pode ultrapassá-la. Capacidade 0/nula = "não
-    // configurada" — sem limite nenhum.
-    let convidados: number | null = null;
-    if (agendamento.convidados !== undefined && agendamento.convidados !== null && agendamento.convidados !== '') {
-      const convidadosNum = Number(agendamento.convidados);
-      if (!Number.isInteger(convidadosNum) || convidadosNum <= 0) {
-        throw new BadRequestException('Número de convidados inválido.');
-      }
-      if (areaAlvo.capacidade && areaAlvo.capacidade > 0 && convidadosNum > areaAlvo.capacidade) {
-        throw new BadRequestException(`Esta área comporta no máximo ${areaAlvo.capacidade} pessoas (incluindo os moradores).`);
-      }
-      convidados = convidadosNum;
-    }
-
-    // Definir status inicial baseado na regra da área.
-    // Reserva criada pelo síndico/porteiro já entra aprovada (a própria
-    // criação pela administração equivale à aprovação).
-    const area = areaAlvo;
-
-    const statusInicial = peloSindico
-      ? 'aprovado'
-      : area?.precisa_autorizacao === 1 ? 'pendente' : 'aprovado';
-
-    const criado = await this.prisma.areas_Sociais_Agendamentos.create({
-      data: {
-        id_area_social: Number(agendamento.id_area_social),
-        id_user: donoReservaId,
-        id_apartamento: Number(agendamento.id_apartamento),
-        data: dataObj,
-        hora_de: horaDeObj,
-        hora_ate: horaAteObj,
-        status: statusInicial,
-        convidados,
-        // Quem agendou fica em criado_por_nome; aprovado_por_nome é só de quem
-        // aprovou (updateStatusAgendamento). A reserva da administração nasce
-        // aprovada sem "aprovador".
-        criado_por_nome: nomeDeQuemAgendou(user),
-      },
-    });
+      { esperaSegundos: ESPERA_LOCK_DIA_AREA_S, duracaoMaximaMs: DURACAO_LOCK_DIA_AREA_MS },
+    );
+    if (!gravado.obtido) throw new ConflictException(MSG_DIA_AREA_OCUPADO);
+    const { criado, statusInicial } = gravado.valor;
 
     // Já nasceu aprovada → enrola os moradores do apto no facial da área.
     if (statusInicial === 'aprovado') {
@@ -1308,6 +1327,7 @@ export class AreasSociaisService {
       },
     });
 
+    const cancelados: typeof candidatos = [];
     for (const ag of candidatos) {
       if (!ag.data) continue;
       const inicio = this.combineDateTime(ag.data, ag.hora_de);
@@ -1320,10 +1340,9 @@ export class AreasSociaisService {
 
       // Facial e push são efeitos externos best-effort, fora do caminho que
       // já gravou o cancelamento — mesmo padrão de
-      // `notificarCancelamentosPorManutencao`.
-      this.facial
-        .syncReservaArea(Number(ag.id))
-        .catch((err) => this.logger.warn(`syncReservaArea (não-confirmação) ag ${ag.id}: ${err?.message ?? err}`));
+      // `notificarCancelamentosPorManutencao`. O facial sai depois do laço,
+      // em sequência (sincronizarFacialEmSequencia).
+      cancelados.push(ag);
 
       const token = ag.user?.fcm_token;
       if (token) {
@@ -1339,6 +1358,7 @@ export class AreasSociaisService {
         }
       }
     }
+    this.sincronizarFacialEmSequencia(cancelados, 'não-confirmação');
   }
 
   async getAllAgendamentos(idCondominio: number, user?: JwtPayload) {
@@ -1506,46 +1526,62 @@ export class AreasSociaisService {
       throw new ConflictException('Esta reserva já aconteceu.');
     }
 
-    // Mesma checagem de horário da criação: outra reserva já aprovada no
-    // horário (ex.: o horário vagou com um cancelamento e outro apartamento
-    // reservou) impede aprovar esta.
-    if (novoStatus === 'aprovado' && agAlvo.data && agAlvo.hora_de && agAlvo.hora_ate) {
-      const aprovadasNoDia = await this.prisma.areas_Sociais_Agendamentos.findMany({
-        where: {
-          id_area_social: agAlvo.id_area_social,
-          data: agAlvo.data,
-          status: 'aprovado',
-          NOT: { id: agAlvo.id },
+    // Aprovar confere o horário e grava sob o mesmo lock `area:<id>:<dia>` da
+    // criação (D2): duas aprovações juntas no mesmo horário viam o dia livre e
+    // as duas gravavam. As outras transições só liberam horário — sem lock.
+    const gravarTransicao = async () => {
+      // Mesma checagem de horário da criação: outra reserva já aprovada no
+      // horário (ex.: o horário vagou com um cancelamento e outro apartamento
+      // reservou) impede aprovar esta.
+      if (novoStatus === 'aprovado' && agAlvo.data && agAlvo.hora_de && agAlvo.hora_ate) {
+        const aprovadasNoDia = await this.prisma.areas_Sociais_Agendamentos.findMany({
+          where: {
+            id_area_social: agAlvo.id_area_social,
+            data: agAlvo.data,
+            status: 'aprovado',
+            NOT: { id: agAlvo.id },
+          },
+        });
+        const de = agAlvo.hora_de.getHours() * 60 + agAlvo.hora_de.getMinutes();
+        const ate = agAlvo.hora_ate.getHours() * 60 + agAlvo.hora_ate.getMinutes();
+        if (this.conflitoDeHorario(aprovadasNoDia, de, ate)) {
+          throw new ConflictException('Já existe outra reserva aprovada neste horário.');
+        }
+      }
+
+      let aprovadorNome: string | null = null;
+      if (novoStatus === 'aprovado' || novoStatus === 'recusado') {
+        aprovadorNome = (user as any)?.name ?? user?.nome ?? (user as any)?.user?.name ?? (typeAccess === 'sindico' ? 'Síndico' : 'Administração');
+      } else if (novoStatus === 'cancelado') {
+        aprovadorNome = typeAccess === 'Morador' ? 'Cancelado pelo Morador' : ((user as any)?.name ?? user?.nome ?? 'Cancelado pelo Síndico');
+      }
+
+      // Condicional ao status lido acima: se outra aba/aparelho mudou a reserva
+      // entre a leitura e a gravação, nada é gravado e quem chamou recebe 409.
+      const { count } = await this.prisma.areas_Sociais_Agendamentos.updateMany({
+        where: { id: Number(id), status: agAlvo.status },
+        data: {
+          status: novoStatus,
+          aprovado_por_nome: aprovadorNome,
+          aprovado_em: new Date(),
+          motivo_recusa: motivo ? String(motivo) : null,
         },
       });
-      const de = agAlvo.hora_de.getHours() * 60 + agAlvo.hora_de.getMinutes();
-      const ate = agAlvo.hora_ate.getHours() * 60 + agAlvo.hora_ate.getMinutes();
-      if (this.conflitoDeHorario(aprovadasNoDia, de, ate)) {
-        throw new ConflictException('Já existe outra reserva aprovada neste horário.');
+      if (count === 0) {
+        const atual = await this.prisma.areas_Sociais_Agendamentos.findUnique({ where: { id: Number(id) } });
+        throw new ConflictException(mensagemReservaJaMudou(atual?.status));
       }
-    }
-
-    let aprovadorNome: string | null = null;
-    if (novoStatus === 'aprovado' || novoStatus === 'recusado') {
-      aprovadorNome = (user as any)?.name ?? user?.nome ?? (user as any)?.user?.name ?? (typeAccess === 'sindico' ? 'Síndico' : 'Administração');
-    } else if (novoStatus === 'cancelado') {
-      aprovadorNome = typeAccess === 'Morador' ? 'Cancelado pelo Morador' : ((user as any)?.name ?? user?.nome ?? 'Cancelado pelo Síndico');
-    }
-
-    // Condicional ao status lido acima: se outra aba/aparelho mudou a reserva
-    // entre a leitura e a gravação, nada é gravado e quem chamou recebe 409.
-    const { count } = await this.prisma.areas_Sociais_Agendamentos.updateMany({
-      where: { id: Number(id), status: agAlvo.status },
-      data: {
-        status: novoStatus,
-        aprovado_por_nome: aprovadorNome,
-        aprovado_em: new Date(),
-        motivo_recusa: motivo ? String(motivo) : null,
-      },
-    });
-    if (count === 0) {
-      const atual = await this.prisma.areas_Sociais_Agendamentos.findUnique({ where: { id: Number(id) } });
-      throw new ConflictException(mensagemReservaJaMudou(atual?.status));
+    };
+    if (novoStatus === 'aprovado' && agAlvo.data) {
+      const r = await comLock(
+        this.prisma as any,
+        `area:${agAlvo.id_area_social}:${agAlvo.data.toISOString().slice(0, 10)}`,
+        gravarTransicao,
+        { esperaSegundos: ESPERA_LOCK_DIA_AREA_S, duracaoMaximaMs: DURACAO_LOCK_DIA_AREA_MS },
+      );
+      if (!r.obtido) throw new ConflictException(MSG_DIA_AREA_OCUPADO);
+    } else {
+      await gravarTransicao();
     }
 
     const agendamento = await this.prisma.areas_Sociais_Agendamentos.findUnique({
@@ -1691,11 +1727,35 @@ export class AreasSociaisService {
    * que não podem fazer um rollback de banco por causa de push fora do ar.
    * Só roda depois que a transação de escrita já confirmou.
    */
+  /**
+   * Sync facial de várias reservas perdidas de uma vez (manutenção, falta de
+   * confirmação): em segundo plano, UM POR VEZ e um por (área, apto) — o sync
+   * já recalcula o apto inteiro. Disparar todos juntos abria uma transação de
+   * lock por reserva e esgotava o pool de conexões.
+   */
+  private sincronizarFacialEmSequencia(
+    ags: Array<{ id: number; id_area_social: number; id_apartamento: number }>,
+    rotulo: string,
+  ): void {
+    const vistos = new Set<string>();
+    const fila = ags.filter((ag) => {
+      const chave = `${ag.id_area_social}:${ag.id_apartamento}`;
+      if (vistos.has(chave)) return false;
+      vistos.add(chave);
+      return true;
+    });
+    void (async () => {
+      for (const ag of fila) {
+        await this.facial
+          .syncReservaArea(Number(ag.id))
+          .catch((err) => this.logger.warn(`syncReservaArea (${rotulo}) ag ${ag.id}: ${err?.message ?? err}`));
+      }
+    })();
+  }
+
   private async notificarCancelamentosPorManutencao(conflitantes: any[], nomeArea: string) {
+    this.sincronizarFacialEmSequencia(conflitantes, 'manutenção');
     for (const ag of conflitantes) {
-      this.facial
-        .syncReservaArea(Number(ag.id))
-        .catch((err) => this.logger.warn(`syncReservaArea (manutenção) ag ${ag.id}: ${err?.message ?? err}`));
 
       const token = ag.user?.fcm_token;
       if (token) {

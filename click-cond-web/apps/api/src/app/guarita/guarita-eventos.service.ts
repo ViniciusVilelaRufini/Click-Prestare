@@ -1,8 +1,16 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
-import { SIGLA_TIPO } from './guarita.constantes';
-import { EventoGuarita, chaveDedupEvento, dataDoEvento, decodificarEvento } from './guarita-frame.util';
+import { ESTADO_TAG, SIGLA_TIPO } from './guarita.constantes';
+import {
+  EventoGuarita,
+  byteParaBloco,
+  chaveDedupEvento,
+  dataDoEvento,
+  decodificarDispositivo,
+  decodificarEvento,
+} from './guarita-frame.util';
+import { unidadeGuaritaDoTexto } from './guarita-comum.util';
 import type { GuaritaDoAgente } from './guarita-agente.service';
 
 /** Máximo de eventos por POST (o agente manda em lotes; o Guarita guarda 8.192). */
@@ -163,16 +171,30 @@ export class GuaritaEventosService {
   }
 
   private async registrarAcesso(device: GuaritaDoAgente, e: EventoGuarita, ocorrido: Date): Promise<number | null> {
+    // G6: a passagem só é do dono registrado quando a tag está no Guarita pelo
+    // Prestare (`gravado`/`ativo`) E a unidade do evento é a do dono — a do
+    // morador ou a do frame confirmado. Tag em conflito/ausente/removendo, ou
+    // evento de outra unidade (o mesmo serial gravado para outra pessoa):
+    // "Não identificado · unidade X".
     const tag = await this.prisma.tags.findFirst({
-      where: { id_device: device.id, guarita_tipo: e.receptorTipo, guarita_serial: e.serialHex },
-      select: { id: true },
+      where: {
+        id_device: device.id,
+        guarita_tipo: e.receptorTipo,
+        guarita_serial: e.serialHex,
+        guarita_estado: { in: [ESTADO_TAG.gravado, ESTADO_TAG.ativo] },
+      },
+      select: { id: true, id_condominio: true, guarita_frame: true },
     });
     const veiculo = tag
       ? await this.prisma.veiculos.findFirst({ where: { id_tag: tag.id, ativo: 1 }, select: { id_morador: true } })
       : null;
-    const morador = veiculo
-      ? await this.prisma.moradores.findUnique({ where: { id: veiculo.id_morador }, select: { id: true, nome: true } })
+    const dono = veiculo
+      ? await this.prisma.moradores.findUnique({
+          where: { id: veiculo.id_morador },
+          select: { id: true, nome: true, bloco: true, apartamento: true },
+        })
       : null;
+    const morador = dono && tag && (await this.mesmaUnidadeDoDono(tag, dono, e)) ? dono : null;
     // Receptor no evento: nibble 0..7; no portão (e no console): CAN 1..8.
     const can = e.receptorNum + 1;
     const portoes = await this.prisma.guarita_Portoes.findMany({
@@ -209,6 +231,28 @@ export class GuaritaEventosService {
       },
     });
     return criado?.id ?? null;
+  }
+
+  /** A unidade/bloco do evento é a do morador dono ou a do frame confirmado da tag? */
+  private async mesmaUnidadeDoDono(
+    tag: { id_condominio: number; guarita_frame: string | null },
+    dono: { bloco: string | null; apartamento: string | null },
+    e: EventoGuarita,
+  ): Promise<boolean> {
+    // Comparação pelo texto do bloco (o mesmo byteParaBloco dos dois lados).
+    const iguais = (unidade: number, bloco: string) => unidade === e.unidade && bloco === e.bloco;
+    if (tag.guarita_frame) {
+      try {
+        const d = decodificarDispositivo(tag.guarita_frame);
+        if (iguais(d.unidade, d.bloco)) return true;
+      } catch {
+        /* frame ilegível: confere só pelo morador */
+      }
+    }
+    const aptos = await this.prisma.apartamentos.findMany({ where: { id_condominio: tag.id_condominio }, select: { bloco: true } });
+    const semBlocos = aptos.every((a: any) => !String(a.bloco ?? '').trim());
+    const u = unidadeGuaritaDoTexto(dono.bloco, dono.apartamento, semBlocos);
+    return u.ok && iguais(u.unidade, byteParaBloco(u.bloco));
   }
 
   private async criarAlerta(

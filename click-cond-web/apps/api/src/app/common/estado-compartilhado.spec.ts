@@ -6,6 +6,7 @@ function delegateFalso() {
   const casa = (l: any, where: any) => {
     if (where.chave !== undefined && typeof where.chave === 'string' && l.chave !== where.chave) return false;
     if (typeof where.chave === 'object' && where.chave?.startsWith !== undefined && !l.chave.startsWith(where.chave.startsWith)) return false;
+    if (typeof where.valor === 'string' && l.valor !== where.valor) return false;
     if (where.consumido_em === null && l.consumido_em !== null) return false;
     if (where.expira_em?.lte && !(l.expira_em <= where.expira_em.lte)) return false;
     if (where.expira_em?.gt && !(l.expira_em > where.expira_em.gt)) return false;
@@ -59,6 +60,22 @@ describe.each([
     await e.liberar('acao:1');
     expect(await e.reivindicar('acao:1', { x: 2 })).toBe(true);
     expect((await e.obter<any>('acao:1'))?.valor).toEqual({ x: 2 });
+  });
+
+  it('incrementarSeAbaixo: rajada simultânea nunca passa do teto', async () => {
+    const e = criar();
+    const r = await Promise.all(Array.from({ length: 12 }, () => e.incrementarSeAbaixo('cota:x', 5, 60_000)));
+    expect(r.filter(Boolean)).toHaveLength(5);
+    expect((await e.obter<number>('cota:x'))?.valor).toBe(5);
+    expect(await e.incrementarSeAbaixo('cota:x', 5, 60_000)).toBe(false);
+  });
+
+  it('decrementar devolve 1 e não passa de zero', async () => {
+    const e = criar();
+    await e.incrementarSeAbaixo('cota:y', 5, 60_000);
+    await e.decrementar('cota:y');
+    await e.decrementar('cota:y');
+    expect((await e.obter<number>('cota:y'))?.valor).toBe(0);
   });
 
   it('removerPorPrefixo: apaga só as chaves do prefixo', async () => {

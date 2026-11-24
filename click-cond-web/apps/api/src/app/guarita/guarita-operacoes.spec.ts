@@ -249,7 +249,7 @@ describe('Guarita — nunca apaga o que o Prestare não conhece', () => {
 
 describe('Guarita — exclusão do morador (MoradoresService.remove)', () => {
   function moradoresService(db: any, ops: GuaritaOperacoesService) {
-    const facial: any = { unsyncMorador: jest.fn(async () => true) };
+    const facial: any = { unsyncMoradorExcluido: jest.fn(async () => true) };
     const auditoria: any = { registrar: jest.fn(async () => undefined) };
     const svc = new MoradoresService(db, {} as any, {} as any, facial, auditoria, {} as any, undefined, undefined, ops);
     (svc as any).carregarContextoMorador = jest.fn(async () => null);
@@ -287,6 +287,8 @@ describe('Guarita — exclusão do morador (MoradoresService.remove)', () => {
     const svc = moradoresService(db, ops);
     await expect(svc.remove(50, OPERADOR)).resolves.toBeUndefined();
     expect(db.linhas('guarita_Operacoes')).toHaveLength(0);
+    // Sem face_id o morador ainda sai dos terminais de área com reserva (F5).
+    expect((svc as any).facial.unsyncMoradorExcluido).toHaveBeenCalledWith(50, undefined, 7);
   });
 });
 

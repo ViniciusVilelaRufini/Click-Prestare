@@ -14,7 +14,7 @@ import {
 } from './guarita.constantes';
 import { GuaritaAgenteService, NaoCadastradoGuardado } from './guarita-agente.service';
 import { GuaritaOperacoesService } from './guarita-operacoes.service';
-import { buscarGuaritaDoCondominio } from './guarita-comum.util';
+import { buscarGuaritaDoCondominio, violouChaveDoGuarita } from './guarita-comum.util';
 import { wiegandParaSerial } from './guarita-frame.util';
 
 /** Folga para a última consulta da tela, que chega logo depois dos 60 s. */
@@ -204,8 +204,12 @@ export class GuaritaCapturaService {
     if (repetida) throw new BadRequestException('Este dispositivo já está cadastrado neste Guarita.');
     const veiculo = await this.veiculoLivre(device.id_condominio, idVeiculo);
     if (veiculo.substituir) {
-      // A tag que estava esperando (aprovação, recusada ou em conflito) sai do Prestare; nada vai ao Guarita.
-      await this.operacoes.desfazerNoPrestare(veiculo.substituir);
+      // A tag que estava esperando (aprovação, recusada ou em conflito) sai do
+      // Prestare; nada vai ao Guarita — salvo a em conflito cuja gravação o
+      // Prestare já entregou (G2/F2): ela recebe apagar conferido e some quando
+      // o Guarita confirmar.
+      const removendo = await this.operacoes.removerConferidoSeEntregue(veiculo.substituir, autor);
+      if (!removendo) await this.operacoes.desfazerNoPrestare(veiculo.substituir);
       await this.prisma.veiculos.update({ where: { id: veiculo.id }, data: { id_tag: null } });
     }
     const base = `G${tipo}-${serial}`;
@@ -227,6 +231,8 @@ export class GuaritaCapturaService {
         });
         break;
       } catch (err: any) {
+        // G7: duas confirmações ao mesmo tempo — a chave única barra a segunda.
+        if (violouChaveDoGuarita(err)) throw new BadRequestException('Este dispositivo já está cadastrado neste Guarita.');
         if (err?.code !== 'P2002') throw err;
       }
     }

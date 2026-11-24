@@ -4,9 +4,10 @@ import type { EstadoCompartilhado } from './estado-compartilhado';
 /**
  * Cota diária das chamadas pagas à IA (chat do assistente e leitura de
  * etiqueta). O estado mora no EstadoCompartilhado, então vale entre as
- * instâncias da API. O contador é ler-somar-gravar (não há incremento
- * atômico): numa rajada simultânea pode passar um pouco do teto, o que é
- * aceitável para uma cota de custo.
+ * instâncias da API. O consumo é um incremento atômico condicional ao teto
+ * (UPDATE só se o valor ainda for o lido, conferindo as linhas afetadas):
+ * uma rajada simultânea não passa do limite. `verificarCotaDiaria` continua
+ * só lendo (porta de entrada barata, sem consumir).
  */
 
 /** Perguntas por usuário por dia no chat. Sobrescreve: CHAT_IA_COTA_USUARIO_DIA. */
@@ -59,10 +60,20 @@ export async function verificarCotaDiaria(estado: EstadoCompartilhado, itens: It
 }
 
 /**
- * Confere todos os itens e só então consome 1 de cada. Se qualquer um já
- * estourou, lança 429 sem consumir nenhum (negar por um não gasta o outro).
+ * Consome 1 de cada item, de forma atômica por item. Se qualquer um já
+ * estourou, lança 429 sem consumir nenhum (negar por um não gasta o outro):
+ * o que já foi somado é devolvido.
  */
 export async function consumirCotaDiaria(estado: EstadoCompartilhado, itens: ItemCota[]): Promise<void> {
-  const { lidos, ttlMs } = await lerCotas(estado, itens);
-  for (const { chave, usado } of lidos) await estado.definir(chave, usado + 1, ttlMs);
+  const { data, ttlMs } = diaAtual();
+  const consumidas: string[] = [];
+  for (const item of itens) {
+    const chave = `${item.prefixo}:${data}`;
+    if (await estado.incrementarSeAbaixo(chave, item.limite, ttlMs)) {
+      consumidas.push(chave);
+      continue;
+    }
+    for (const c of consumidas) await estado.decrementar(c).catch(() => undefined);
+    throw new HttpException(MSG_COTA_IA, HttpStatus.TOO_MANY_REQUESTS);
+  }
 }

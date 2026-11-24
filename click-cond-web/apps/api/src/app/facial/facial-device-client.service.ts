@@ -5,7 +5,7 @@ import * as https from 'https';
 import * as crypto from 'crypto';
 import { AgentBridgeService } from './agent-bridge.service';
 import { agentesSemRedeInterna, lookupSeguro, urlExternaSegura } from '../common/url-segura.util';
-import { FABRICANTE_GENERICO, protocoloSemHttp } from './fabricantes';
+import { FABRICANTE_GENERICO, normalizarFabricante, protocoloSemHttp } from './fabricantes';
 
 export interface FacialDeviceConfig {
   id: number;
@@ -124,6 +124,11 @@ const NOSSO_EXTERNAL_ID = /^(morador|visitante|prestador_servico|pessoa)_\d+$/;
  * O Agente Local tem cópia equivalente (deploy independente, ver agent/).
  * Mantenha os dois em sincronia ao ajustar um fabricante.
  */
+/** O aparelho é Control iD (qualquer grafia aceita do fabricante)? */
+function ehControlId(device: FacialDeviceConfig): boolean {
+  return normalizarFabricante(device.fabricante) === 'control_id';
+}
+
 @Injectable()
 export class FacialDeviceClientService {
   private readonly logger = new Logger(FacialDeviceClientService.name);
@@ -593,6 +598,12 @@ export class FacialDeviceClientService {
       const r = await this.agent.enqueue(device.id, {
         type: 'update',
         faceId,
+        // Control iD: o face_id é o id interno de UM aparelho; o agente acha a
+        // pessoa em cada aparelho pela matrícula (externalId). SÓ nele: no
+        // Dahua/Hikvision o update prefere o externalId e o remove usa o
+        // faceId — com face_id '77' (vindo de um Control iD) o update gravaria
+        // 'morador_42' e o remove apagaria '77', deixando o rosto com acesso.
+        ...(payload.externalId && ehControlId(device) ? { externalId: payload.externalId } : {}),
         nome: payload.nome,
         fotoBase64: payload.fotoBase64,
         validFrom: payload.validFrom,
@@ -643,9 +654,16 @@ export class FacialDeviceClientService {
   async removePerson(
     device: FacialDeviceConfig,
     faceId: string,
+    /** Matrícula da pessoa (ex.: morador_42): no Control iD o agente remove por ela em cada aparelho. */
+    externalId?: string,
   ): Promise<void> {
     if (this.agent.isOnline(device.id)) {
-      const r = await this.agent.enqueue(device.id, { type: 'remove', faceId });
+      const r = await this.agent.enqueue(device.id, {
+        type: 'remove',
+        faceId,
+        // Mesma regra do update: matrícula só para o Control iD.
+        ...(externalId && ehControlId(device) ? { externalId } : {}),
+      });
       if (!r.ok && r.statusCode !== 404) {
         throw new Error(r.error ?? 'Falha ao remover pessoa via agente');
       }

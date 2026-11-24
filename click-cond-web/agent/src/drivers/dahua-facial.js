@@ -51,6 +51,7 @@ const { deviceBaselines, setBaseline, lerJson, gravarJsonAtomico } = require('..
 const { agoraDaNuvem } = require('../core/nuvem');
 const { criarAvisoDeQueda } = require('./comum/queda');
 const { idDoCadastro } = require('./comum/cadastro');
+const { prazoParaAbrir } = require('../core/despacho');
 
 // lib/http.js não conhece o timeout da LAN — é config injetada por quem monta
 // o agente (index.js lê LAN_TIMEOUT_MS do .env). Guardamos aqui um valor com
@@ -149,7 +150,7 @@ async function executar(device, cmd) {
     case 'ping':
       return testar(device);
     case 'open_door':
-      return abrirPorta(device);
+      return abrirPorta(device, cmd);
     case 'enroll':
     case 'update':
       return dahuaEnroll(device, cmd);
@@ -166,12 +167,19 @@ async function executar(device, cmd) {
   }
 }
 
-/** VALIDADO ao vivo (SS 3530 MF FACE W): abre o relé via cgi com Digest. */
-async function abrirPorta(device) {
+/**
+ * VALIDADO ao vivo (SS 3530 MF FACE W): abre o relé via cgi com Digest. Não
+ * aciona se o prazo do comando já acabou, e a chamada não espera além dele
+ * (ver `prazoParaAbrir` em core/despacho.js).
+ */
+async function abrirPorta(device, cmd) {
+  const { expirado, timeout } = prazoParaAbrir(cmd, lanTimeoutMs);
+  if (expirado) return expirado;
   const res = await lanRequest(
     device,
     'GET',
     '/cgi-bin/accessControl.cgi?action=openDoor&channel=1',
+    { timeout },
   );
   return okFrom(res);
 }

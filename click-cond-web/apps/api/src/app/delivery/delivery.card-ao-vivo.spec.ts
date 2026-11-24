@@ -5,12 +5,13 @@ describe('DeliveryService — card ao vivo', () => {
   const morador = { sub: 10, typeAccess: 'Morador' } as any;
   const porteiro = { sub: 20, id_condominio: 1, nome: 'Portaria' } as any;
 
-  function montar(opts: { status: string; idEntregador?: number | null; card?: any } = { status: 'AGENDADA' }) {
+  function montar(opts: { status: string; idEntregador?: number | null; card?: any; vinculos?: number[]; pedidoPortao?: boolean } = { status: 'AGENDADA' }) {
     const atendimento: any = {
       id: 9,
       id_condominio: 1,
       id_apartamento: 101,
       id_morador_user: 10,
+      id_pedido_portao: opts.pedidoPortao ? 5 : null,
       id_entregador: opts.idEntregador === undefined ? 7 : opts.idEntregador,
       status: opts.status,
       estabelecimento: 'Burger King',
@@ -33,8 +34,12 @@ describe('DeliveryService — card ao vivo', () => {
         }),
       },
       deliveryEntregadores: { findUnique: jest.fn(async () => entregador) },
+      deliveryPedidosPortao: { findUnique: jest.fn(async () => ({ id: 5, status: 'pendente', expira_em: new Date('2099-01-01') })) },
       deliveryEventos: { create: jest.fn(async () => ({})) },
-      apartamentos_Users: { findFirst: jest.fn(async () => ({ id: 1, user: { fcm_token: 'fcm-iphone' } })) },
+      apartamentos_Users: {
+        findFirst: jest.fn(async () => ({ id: 1, user: { fcm_token: 'fcm-iphone' } })),
+        findMany: jest.fn(async () => (opts.vinculos ?? [10]).map((id_user) => ({ id_user }))),
+      },
     };
     prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
     const notifications: any = { sendPushNotification: jest.fn(async () => undefined) };
@@ -68,6 +73,18 @@ describe('DeliveryService — card ao vivo', () => {
       10,
     );
     expect(notifications.sendPushNotification).not.toHaveBeenCalled();
+  });
+
+  it('[K3] dono que se mudou (sem vínculo atual) não recebe o card', async () => {
+    const { service, card } = montar({ status: 'AGENDADA', vinculos: [11] });
+    await service.atualizarStatus(9, { status: 'CHEGOU' } as any, porteiro);
+    expect(card!.abrirDelivery).not.toHaveBeenCalled();
+  });
+
+  it('[K4] pedido do portão com dono: o card vai só ao dono, não a todos os vínculos', async () => {
+    const { service, card } = montar({ status: 'CHEGOU', pedidoPortao: true, vinculos: [10, 11, 12] });
+    await service.atualizarStatus(9, { status: 'AGUARDANDO_AUTORIZACAO' } as any, porteiro);
+    expect(card!.atualizarDelivery).toHaveBeenCalledWith(expect.anything(), 10, expect.anything());
   });
 
   it('AGUARDANDO_AUTORIZACAO com card confirmado no aparelho do morador: só o card', async () => {

@@ -221,7 +221,7 @@ describe('FacialService: Sincronização por Pessoa', () => {
       expect(mockDeviceClient.updatePerson).toHaveBeenCalledWith(
         expect.objectContaining({ id: 900 }),
         'face_existente',
-        expect.objectContaining({ nome: 'Já Enrolada', fotoBase64: 'base64foto' }),
+        expect.objectContaining({ externalId: 'pessoa_31', nome: 'Já Enrolada', fotoBase64: 'base64foto' }),
       );
     });
 
@@ -289,6 +289,7 @@ describe('FacialService: Sincronização por Pessoa', () => {
       expect(mockDeviceClient.removePerson).toHaveBeenCalledWith(
         expect.objectContaining({ id: 900 }),
         'face_pre_existente',
+        'pessoa_41',
       );
       expect(mockDeviceClient.enrollPerson).not.toHaveBeenCalled();
       expect(mockDeviceClient.updatePerson).not.toHaveBeenCalled();
@@ -408,6 +409,7 @@ describe('FacialService: Sincronização por Pessoa', () => {
       expect(mockDeviceClient.removePerson).toHaveBeenCalledWith(
         expect.objectContaining({ id: 901 }),
         expect.any(String),
+        'pessoa_44',
       );
       expect(mockDeviceClient.enrollPerson).not.toHaveBeenCalledWith(
         expect.objectContaining({ id: 901 }),

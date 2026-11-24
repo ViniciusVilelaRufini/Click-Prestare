@@ -91,6 +91,10 @@ describe('validarCodigoRedefinicao — falhas indistinguíveis', () => {
       redefinicoes_Senha: {
         findFirst: jest.fn(async () => registro),
         update: jest.fn(async () => ({})),
+        // Reserva condicional: só há vaga com menos de 5 tentativas.
+        updateMany: jest.fn(async (a: any) => ({
+          count: a?.where?.tentativas?.lt != null && registro && registro.tentativas >= a.where.tentativas.lt ? 0 : 1,
+        })),
       },
     };
     const svc = new MobileAuthService(prisma, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
@@ -128,7 +132,10 @@ describe('validarCodigoRedefinicao — falhas indistinguíveis', () => {
     const hash = bcrypt.hashSync('123456', 4);
     const { svc, prisma } = montar({ id: 1, codigo_hash: hash, tentativas: 2 });
     await capturar(svc.validarCodigoRedefinicao('t', '000000'));
-    expect(prisma.redefinicoes_Senha.update).toHaveBeenCalledWith({ where: { id: 1 }, data: { tentativas: { increment: 1 } } });
+    expect(prisma.redefinicoes_Senha.updateMany).toHaveBeenCalledWith({
+      where: { id: 1, usado_em: null, tentativas: { lt: 5 }, expira_em: { gt: expect.any(Date) } },
+      data: { tentativas: { increment: 1 } },
+    });
     const esgotado = montar({ id: 1, codigo_hash: hash, tentativas: 5 });
     await capturar(esgotado.svc.validarCodigoRedefinicao('t', '000000'));
     expect(esgotado.prisma.redefinicoes_Senha.update).toHaveBeenCalledWith({ where: { id: 1 }, data: { usado_em: expect.any(Date) } });

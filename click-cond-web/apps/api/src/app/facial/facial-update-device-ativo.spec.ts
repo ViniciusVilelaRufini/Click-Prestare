@@ -9,7 +9,7 @@ describe('FacialService.updateDevice — desativar/reativar terminal', () => {
   function build(ativo: number) {
     const device: any = {
       id: 1, id_condominio: 10, nome: 'facial principal', tipo: 'facial', ativo,
-      ip: '192.168.3.175', porta: 80, api_password: null, id_area_social: null,
+      ip: '192.168.3.175', porta: 80, api_password: null, id_area_social: null, fabricante: 'intelbras',
     };
     const prisma: any = {
       facial_Devices: {
@@ -20,9 +20,12 @@ describe('FacialService.updateDevice — desativar/reativar terminal', () => {
       },
     };
     const auditoria: any = { registrar: jest.fn(async () => undefined) };
+    // T1: desativar um facial ativo apaga os rostos antes (agente online).
+    const client: any = { listUserIds: jest.fn(async () => []), removeUsers: jest.fn(async () => undefined) };
+    const agent: any = { isOnline: jest.fn(() => true) };
     const svc = new FacialService(
-      prisma, null as any, null as any, null as any, auditoria,
-      null as any, null as any, null as any, null as any, null as any,
+      prisma, client, null as any, null as any, auditoria,
+      null as any, agent, null as any, null as any, null as any,
     );
     return { svc, prisma, auditoria };
   }

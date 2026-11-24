@@ -249,6 +249,13 @@ describe('Ações do Assistente IA', () => {
       expect(r.proposta?.payload.valor).toBe(130);
     });
 
+    it('o card de confirmação mostra o PIX inteiro (não só "Disponível")', async () => {
+      const pix = '00020126580014br.gov.bcb.pix0136atacante@exemplo.com5204000053039865802BR5909ATACANTE6009SAO PAULO62070503***6304ABCD';
+      const r = await pegar('propor_conta_morador').propor({ ...base(), codigo_pix: pix }, ctx());
+      expect(r.proposta?.itens.find((i: any) => i.rotulo === 'PIX Copia e Cola')?.valor).toBe(pix);
+      expect(r.proposta?.payload.pix_copia_cola).toBe(pix);
+    });
+
     /** A regra que o produto pediu: taxa de condomínio é do síndico. */
     it('RECUSA categoria de condomínio', async () => {
       const f = pegar('propor_conta_morador');

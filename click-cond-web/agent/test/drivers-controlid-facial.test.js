@@ -154,7 +154,7 @@ test('update: caminho feliz continua ok:true com o mesmo faceId e o filtro where
 test('update/remove: faceId NÃO numérico é recusado com ok:false SEM chamar o aparelho (NaN viraria `id: null` no where)', async () => {
   const ap = await aparelho();
   try {
-    for (const faceId of ['morador_42', 'abc', '', '  ', undefined, null, '12abc', '1.5', '-3', NaN, {}]) {
+    for (const faceId of ['abc', '', '  ', undefined, null, '12abc', '1.5', '-3', NaN, {}]) {
       for (const type of ['update', 'remove']) {
         const r = await controlid.executar(ap.device, { type, faceId, nome: 'X', fotoBase64: FOTO });
         assert.equal(r.ok, false, `${type} faceId=${String(faceId)}`);
@@ -187,6 +187,133 @@ test('remove_users: id não numérico no lote conta como falha daquele item, sem
     assert.match(r.error, /1\/2/);
     const destroys = ap.chamadas.filter((c) => c.caminho === '/destroy_objects.fcgi');
     assert.deepEqual(destroys.map((c) => c.corpo.where.users.id), [77]);
+  } finally {
+    await ap.fechar();
+  }
+});
+
+// ---------- Q4: com 2+ Control iD, o face_id salvo é o id interno de UM aparelho ----------
+
+/** Usuários do aparelho falso: 77 é OUTRA pessoa (o id que o 1º aparelho deu ao morador_42). */
+const USUARIOS = {
+  '/load_objects.fcgi': {
+    status: 200,
+    json: {
+      users: [
+        { id: 5, name: 'Fulano', registration: 'morador_42' },
+        { id: 77, name: 'Outra pessoa', registration: 'morador_9' },
+      ],
+    },
+  },
+};
+
+test('Q4 update: com externalId, resolve o usuário pela matrícula NESTE aparelho (nunca pelo id do outro aparelho)', async () => {
+  const ap = await aparelho(USUARIOS);
+  try {
+    const r = await controlid.executar(ap.device, {
+      type: 'update', faceId: '77', externalId: 'morador_42', nome: 'Fulano Novo', fotoBase64: FOTO,
+    });
+    assert.deepEqual(r, { ok: true, faceId: '5' });
+    const load = ap.chamadas.find((c) => c.caminho === '/load_objects.fcgi');
+    assert.deepEqual(load.corpo.where, { users: { registration: 'morador_42' } });
+    const modify = ap.chamadas.find((c) => c.caminho === '/modify_objects.fcgi');
+    assert.deepEqual(modify.corpo.where, { users: { id: 5 } });
+    const foto = ap.chamadas.find((c) => c.caminho === '/user_set_image.fcgi');
+    assert.match(foto.url, /user_id=5&/);
+    assert.ok(!ap.chamadas.some((c) => JSON.stringify(c.corpo ?? '').includes('"id":77') || /user_id=77/.test(c.url)), 'o 77 (outra pessoa) não é tocado');
+  } finally {
+    await ap.fechar();
+  }
+});
+
+test('Q4 update: pessoa ainda não está NESTE aparelho → é criada aqui com a matrícula (não modifica o id de outro)', async () => {
+  const ap = await aparelho({ '/load_objects.fcgi': { status: 200, json: { users: [{ id: 77, registration: 'morador_9' }] } } });
+  try {
+    const r = await controlid.executar(ap.device, {
+      type: 'update', faceId: '77', externalId: 'morador_42', nome: 'Fulano', fotoBase64: FOTO,
+    });
+    assert.deepEqual(r, { ok: true, faceId: '77' }, 'o create do aparelho falso devolve o id 77');
+    assert.ok(!ap.chamadas.some((c) => c.caminho === '/modify_objects.fcgi'));
+    const create = ap.chamadas.find((c) => c.caminho === '/create_objects.fcgi');
+    assert.deepEqual(create.corpo.values, [{ name: 'Fulano', registration: 'morador_42' }]);
+  } finally {
+    await ap.fechar();
+  }
+});
+
+test('Q4 update/remove: faceId no nosso formato (gravado por um Dahua do mesmo condomínio) também resolve pela matrícula', async () => {
+  const ap = await aparelho(USUARIOS);
+  try {
+    assert.deepEqual(await controlid.executar(ap.device, { type: 'update', faceId: 'morador_42', nome: 'F' }), { ok: true, faceId: '5' });
+    assert.deepEqual(await controlid.executar(ap.device, { type: 'remove', faceId: 'morador_42' }), { ok: true, statusCode: 200 });
+    const destroys = ap.chamadas.filter((c) => c.caminho === '/destroy_objects.fcgi');
+    assert.deepEqual(destroys.map((c) => c.corpo.where), [{ users: { id: 5 } }]);
+  } finally {
+    await ap.fechar();
+  }
+});
+
+test('Q4 remove: com externalId, apaga só quem tem a matrícula NESTE aparelho; ninguém com ela → ok sem apagar nada', async () => {
+  const ap = await aparelho(USUARIOS);
+  try {
+    assert.deepEqual(
+      await controlid.executar(ap.device, { type: 'remove', faceId: '77', externalId: 'morador_42' }),
+      { ok: true, statusCode: 200 },
+    );
+    assert.deepEqual(
+      await controlid.executar(ap.device, { type: 'remove', faceId: '5', externalId: 'visitante_3' }),
+      { ok: true },
+    );
+    const destroys = ap.chamadas.filter((c) => c.caminho === '/destroy_objects.fcgi');
+    assert.deepEqual(destroys.map((c) => c.corpo.where), [{ users: { id: 5 } }], 'nem o 77 nem o 5 da 2ª chamada');
+  } finally {
+    await ap.fechar();
+  }
+});
+
+test('Q4: leitura dos usuários recusada → falha sem modificar nem apagar ninguém', async () => {
+  const ap = await aparelho({ '/load_objects.fcgi': { status: 500, json: {} } });
+  try {
+    for (const type of ['update', 'remove']) {
+      await assert.rejects(
+        controlid.executar(ap.device, { type, faceId: '77', externalId: 'morador_42', nome: 'X' }),
+        /load_objects.*HTTP 500/,
+      );
+    }
+    assert.ok(!ap.chamadas.some((c) => ['/modify_objects.fcgi', '/destroy_objects.fcgi', '/create_objects.fcgi'].includes(c.caminho)));
+  } finally {
+    await ap.fechar();
+  }
+});
+
+// ---------- Q6: abrir porta não sai depois do prazo do comando ----------
+
+test('Q6 open_door: prazo acabou durante o login → não aciona a porta', async () => {
+  const ap = await aparelho();
+  try {
+    let restante = 2000;
+    const cmd = { type: 'open_door', _prazoRestanteMs: () => restante };
+    // O login "leva" o resto do prazo.
+    const original = ap.chamadas.push.bind(ap.chamadas);
+    ap.chamadas.push = (c) => {
+      if (c.caminho === '/login.fcgi') restante = 0;
+      return original(c);
+    };
+    const r = await controlid.executar(ap.device, cmd);
+    assert.equal(r.ok, false);
+    assert.match(r.error, /prazo/);
+    assert.deepEqual(ap.chamadas.map((c) => c.caminho), ['/login.fcgi']);
+  } finally {
+    await ap.fechar();
+  }
+});
+
+test('Q6 open_door: com prazo sobrando (ou sem prazo conhecido) abre normalmente', async () => {
+  const ap = await aparelho({ '/execute_actions.fcgi': { status: 200, json: {} } });
+  try {
+    assert.equal((await controlid.executar(ap.device, { type: 'open_door', _prazoRestanteMs: () => 5000 })).ok, true);
+    assert.equal((await controlid.executar(ap.device, { type: 'open_door' })).ok, true);
+    assert.equal(ap.chamadas.filter((c) => c.caminho === '/execute_actions.fcgi').length, 2);
   } finally {
     await ap.fechar();
   }

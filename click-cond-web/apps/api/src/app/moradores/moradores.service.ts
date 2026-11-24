@@ -14,7 +14,7 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador } from '../auth/tenant.util';
 import { momentoTrocaSenha } from '../auth/senha-alterada.util';
 import * as bcrypt from 'bcrypt';
-import { MSG_CONTA_DE_OUTRO_CONDOMINIO, usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio, usuariosComVinculoEmOutroCondominio } from '../common/vinculos-usuario.util';
+import { MSG_CONTA_DE_OUTRO_CONDOMINIO, ehVinculoUnidadeRepetido, usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio, usuariosComVinculoEmOutroCondominio } from '../common/vinculos-usuario.util';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { contaOrfaAutocriada, contaTemVinculoEmOutroCondominioValido, invalidarPosseDaConta } from '../common/adocao-conta.util';
 import { randomBytes } from 'crypto';
@@ -447,25 +447,33 @@ export class MoradoresService {
     const venc = new Date();
     venc.setDate(venc.getDate() + 45);
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.apartamentos_Users.create({
-        data: { id_apto: apto.id, id_user: idUser, tipo, vencimento: venc },
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.apartamentos_Users.create({
+          data: { id_apto: apto.id, id_user: idUser, tipo, vencimento: venc },
+        });
+        await tx.moradores.create({
+          data: {
+            nome: user.name ?? 'Síndico',
+            documento: user.cpf ?? null,
+            email: user.email ?? null,
+            telefone: user.phone ?? null,
+            tipo,
+            id_user: idUser,
+            id_condominio: apto.id_condominio,
+            bloco: apto.bloco || null,
+            apartamento: apto.apto || null,
+          },
+        });
+        await tx.users.update({ where: { id: idUser }, data: { is_morador: 1 } });
       });
-      await tx.moradores.create({
-        data: {
-          nome: user.name ?? 'Síndico',
-          documento: user.cpf ?? null,
-          email: user.email ?? null,
-          telefone: user.phone ?? null,
-          tipo,
-          id_user: idUser,
-          id_condominio: apto.id_condominio,
-          bloco: apto.bloco || null,
-          apartamento: apto.apto || null,
-        },
-      });
-      await tx.users.update({ where: { id: idUser }, data: { is_morador: 1 } });
-    });
+    } catch (err: any) {
+      // Duas gravações ao mesmo tempo passam pela conferência acima; a chave única barra a segunda.
+      if (ehVinculoUnidadeRepetido(err)) {
+        throw new BadRequestException(`${user.name ?? 'Este usuário'} já está vinculado a este apartamento.`);
+      }
+      throw err;
+    }
 
     return { success: true, id_condominio: apto.id_condominio, apto_id: apto.id, apto_tipo: tipo };
   }
@@ -1315,6 +1323,11 @@ export class MoradoresService {
       await apagarEnviadas();
       // Recusas da própria API (conta de outro condomínio, login da portaria) saem com a mensagem.
       if (err instanceof HttpException) throw err;
+      // Conta existente (achada pelo e-mail) que já tem vínculo com esta unidade: sem a chave única
+      // uq_au_apto_user, gravava o vínculo e o Moradores duas vezes.
+      if (ehVinculoUnidadeRepetido(err)) {
+        throw new ConflictException('Este morador já está cadastrado nesta unidade.');
+      }
       if (err?.code === 'P2002') {
         // meta.target pode ser o nome do índice (user_login, uni_cpf) ou a lista de campos.
         const alvo = String(err?.meta?.target ?? '').toLowerCase();
@@ -1680,6 +1693,12 @@ export class MoradoresService {
       // Recusa nossa (unidade de outro condomínio, unidade divergente, já cadastrado na unidade):
       // sai com a mensagem. Só o erro do banco vira a mensagem genérica.
       if (err instanceof HttpException) throw err;
+      // Vínculo com a unidade nova gravado ao mesmo tempo por outra chamada (chave uq_au_apto_user).
+      if (ehVinculoUnidadeRepetido(err)) {
+        throw new BadRequestException(
+          'Este morador já está cadastrado nessa unidade. Edite o cadastro dele nela ou remova este.',
+        );
+      }
       this.logger.error(
         `[moradores.update] Falha ao atualizar morador ${id}: ${err?.message ?? err}`,
         err?.stack,
@@ -1804,9 +1823,10 @@ export class MoradoresService {
     if (morador?.id_condominio && this.wallet) {
       void this.wallet.revogarDoMorador(id, morador.id_condominio);
     }
-    if (morador?.face_id) {
+    // Também sem face_id: o terminal de área com reserva matricula sem gravar face_id (F5).
+    if (morador) {
       this.facial
-        .unsyncMorador(id, morador.face_id, morador.id_condominio)
+        .unsyncMoradorExcluido(id, morador.face_id, morador.id_condominio)
         .catch((err) => this.logger.warn(`Unsync facial morador ${id} falhou: ${err?.message ?? err}`));
     }
     // Módulo Guarita: controle/tag de ex-morador abrindo o portão é o risco

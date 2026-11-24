@@ -19,7 +19,7 @@ import {
   decodificarDispositivo,
   marcaParaByte,
 } from './guarita-frame.util';
-import { buscarGuaritaDoCondominio, unidadeGuaritaDoTexto } from './guarita-comum.util';
+import { buscarGuaritaDoCondominio, unidadeGuaritaDoTexto, violouChaveDoGuarita } from './guarita-comum.util';
 import { MSG_CODIGO_IMPRESSO_INVALIDO } from './guarita.constantes';
 import { wiegandParaSerial } from './guarita-frame.util';
 
@@ -292,17 +292,15 @@ export class GuaritaOperacoesService {
    * R5: o cadastro reenfileirado depois de um incerto sai com o frame ATUAL da
    * tag (dados de hoje do veículo/morador), não com o de quando foi pedido.
    * Não monta (unidade inválida, sem veículo...): fica o frame guardado.
+   * Só calcula: quem grava o frame na operação é a reivindicação da entrega
+   * (G3), junto com o estado `enviada`.
    */
   async atualizarFrameDoRecadastro(op: { id: number; id_tag: number | null; frame_hex: string | null }): Promise<string | null> {
     if (op.id_tag == null) return op.frame_hex;
     const tag = await this.prisma.tags.findUnique({ where: { id: op.id_tag } });
     if (!tag) return op.frame_hex;
     try {
-      const frame = await this.montarFrame(tag, null);
-      if (frame !== op.frame_hex) {
-        await this.prisma.guarita_Operacoes.updateMany({ where: { id: op.id, estado: ESTADO_OP.pendente }, data: { frame_hex: frame } });
-      }
-      return frame;
+      return await this.montarFrame(tag, null);
     } catch {
       return op.frame_hex;
     }
@@ -484,10 +482,44 @@ export class GuaritaOperacoesService {
   }
 
   /**
-   * `POST …/dispositivos/:idTag/desfazer`: tag em `conflito` (ou `ausente`)
-   * sai do Prestare — a linha some, nenhuma operação vai para o Guarita.
+   * G2 (regra F2, `gravacaoEntregue`): desfazer ou trocar uma tag cujo
+   * cadastro/edição JÁ FOI entregue ao agente — o Prestare pode ter escrito o
+   * controle no Guarita. Apagar só no Prestare deixaria um controle órfão que
+   * nada remove depois; então sai `apagar` conferido pela unidade de cada
+   * pedido (o agente só apaga se a unidade lida bater; conflito em todas →
+   * alerta `remocao_pendente`). Devolve false — e não enfileira nada — quando
+   * nenhuma gravação foi entregue, ou quando um `apagar` desta tag já foi
+   * tentado e terminou (o alerta já foi aberto: aí o síndico decide e a tag
+   * sai só do Prestare, sem laço).
    */
-  async desfazer(idCondominio: number, deviceId: number, idTag: number) {
+  async removerConferidoSeEntregue(tag: any, autor: string): Promise<boolean> {
+    if (tag.id_device == null || tag.guarita_tipo == null || !tag.guarita_serial) return false;
+    if (!(await this.gravacaoEntregue(tag))) return false;
+    const apagarTentado = await this.prisma.guarita_Operacoes.count({
+      where: { id_tag: tag.id, tipo: 'apagar', estado: { in: [ESTADO_OP.falhou, ESTADO_OP.ok] } },
+    });
+    if (apagarTentado > 0) return false;
+    const apagarAberto = await this.prisma.guarita_Operacoes.count({
+      where: { id_tag: tag.id, tipo: 'apagar', estado: { in: [...ABERTAS, ESTADO_OP.processando] } },
+    });
+    if (apagarAberto > 0) return true;
+    await this.prisma.guarita_Operacoes.updateMany({
+      where: { id_tag: tag.id, tipo: { in: ['cadastrar', 'editar'] }, estado: ESTADO_OP.pendente },
+      data: { estado: ESTADO_OP.cancelada, concluida_em: new Date() },
+    });
+    const frame = await this.frameDoApagar(tag);
+    await this.criarGravacao(tag, 'apagar', frame, autor, ESTADO_TAG.removendo);
+    return true;
+  }
+
+  /**
+   * `POST …/dispositivos/:idTag/desfazer`: tag em `conflito` (ou `ausente`)
+   * sai do Prestare — a linha some, nenhuma operação vai para o Guarita. G2:
+   * se o Prestare já entregou uma gravação dela, sai antes um `apagar`
+   * conferido (ver removerConferidoSeEntregue); o veículo perde a tag já e a
+   * linha some quando o Guarita confirmar.
+   */
+  async desfazer(idCondominio: number, deviceId: number, idTag: number, autor = 'Portaria') {
     const device = await buscarGuaritaDoCondominio(this.prisma, idCondominio, deviceId);
     const tag = await this.prisma.tags.findFirst({
       where: { id: Number(idTag), id_device: device.id, id_condominio: device.id_condominio },
@@ -495,6 +527,10 @@ export class GuaritaOperacoesService {
     if (!tag) throw new NotFoundException('Dispositivo não encontrado neste Guarita.');
     if (tag.guarita_estado !== ESTADO_TAG.conflito && tag.guarita_estado !== ESTADO_TAG.ausente) {
       throw new BadRequestException('Só dá para desfazer o vínculo de um dispositivo em conflito ou que não está mais no Guarita.');
+    }
+    if (await this.removerConferidoSeEntregue(tag, autor)) {
+      await this.prisma.veiculos.updateMany({ where: { id_tag: tag.id }, data: { id_tag: null } });
+      return { id_tag: tag.id, desfeito: false, removendo: true };
     }
     await this.prisma.guarita_Operacoes.updateMany({
       where: { id_tag: tag.id, estado: ESTADO_OP.pendente },
@@ -630,7 +666,24 @@ export class GuaritaOperacoesService {
       data: { guarita_estado: estado, guarita_erro: null },
     });
     await this.garantirAtualizarReceptores(tag.id_condominio, tag.id_device);
+    if (tipo === 'apagar') await this.alertarSeGuaritaInativo(tag);
     return { id_operacao: op.id };
+  }
+
+  /**
+   * G5: o agente só busca a fila de Guarita ativo — um `apagar` enfileirado com
+   * o aparelho desativado no Prestare fica congelado e o controle continua
+   * abrindo o portão. A remoção fica na fila (sai quando reativar) e a
+   * portaria recebe o alerta `remocao_pendente` (no máximo um a cada 12 h por tag).
+   */
+  private async alertarSeGuaritaInativo(tag: any) {
+    const device = await this.prisma.facial_Devices.findUnique({
+      where: { id: tag.id_device },
+      select: { ativo: true, tipo: true },
+    });
+    if (device && device.ativo === 1 && device.tipo === TIPO_DEVICE_GUARITA) return;
+    const motivo = 'O Guarita está desativado no Prestare: a remoção só sai quando ele for reativado.';
+    await this.alertarRemocaoPendente(tag, motivo, motivo);
   }
 
   /**
@@ -793,10 +846,16 @@ export class GuaritaOperacoesService {
       select: { id: true },
     });
     if (repetida) throw new BadRequestException('Este dispositivo já está cadastrado neste Guarita.');
-    await this.prisma.tags.update({
-      where: { id: tag.id },
-      data: { id_device: device.id, guarita_tipo: tipo, guarita_serial: serial, guarita_contador: null },
-    });
+    try {
+      await this.prisma.tags.update({
+        where: { id: tag.id },
+        data: { id_device: device.id, guarita_tipo: tipo, guarita_serial: serial, guarita_contador: null },
+      });
+    } catch (err: any) {
+      // G7: o mesmo controle entrou por outro caminho entre a conferência e aqui.
+      if (violouChaveDoGuarita(err)) throw new BadRequestException('Este dispositivo já está cadastrado neste Guarita.');
+      throw err;
+    }
     const { id_operacao } = await this.enfileirarCadastro(tag.id, autor);
     return { id_tag: tag.id, estado: ESTADO_TAG.pendente, id_operacao };
   }
@@ -868,24 +927,29 @@ export class GuaritaOperacoesService {
         r = { ok: true, codigo: 0 };
       }
     }
-    // Conflito: o agente leu o dispositivo em outra unidade e não escreveu; ou
-    // o cadastro voltou 0x02 sem ser "já estava" (o serial é de outra pessoa).
-    const conflito =
-      r.conflito === true || (op.tipo === 'cadastrar' && !r.ok && r.codigo === 0x02 && r.ja_estava !== true);
-    if (conflito) {
+    // Conflito: só quando o agente LEU o dispositivo em outra unidade (e não
+    // escreveu). G2: o 0x02 do cadastro sem essa leitura (o Ler de conferência
+    // falhou, ou agente antigo) não diz de quem é o dispositivo lá — é incerto,
+    // nunca conflito (o conflito tira a tag de tudo e o "desfazer" a apaga só
+    // no Prestare, deixando o controle órfão no Guarita).
+    if (r.conflito === true) {
       await this.marcarConflito(op, r);
       return;
     }
-    // Desfecho desconhecido: só quando o agente diz (`incerto`). "Não foi
-    // gravado" que o agente conferiu (ok:false sem incerto) é falha (R4).
-    const incerto = r.incerto === true;
+    const zeroDoisSemLeitura = op.tipo === 'cadastrar' && !r.ok && r.codigo === 0x02 && r.ja_estava !== true;
+    // Desfecho desconhecido: quando o agente diz (`incerto`) ou no 0x02 sem
+    // leitura. "Não foi gravado" que o agente conferiu (ok:false sem incerto) é falha (R4).
+    const incerto = r.incerto === true || zeroDoisSemLeitura;
     if (incerto && TIPOS_GRAVACAO.includes(op.tipo)) {
       await this.marcarIncerto(op);
       return;
     }
     // "Já estava" num cadastro só vale com o frame LIDO do Guarita e o mesmo
-    // dispositivo (tipo + serial, + contador no RF) na MESMA unidade/bloco; o
-    // frame confirmado passa a ser o lido. Sem o frame lido: incerto.
+    // dispositivo (tipo + serial) na MESMA unidade/bloco; o frame confirmado
+    // passa a ser o lido. Sem o frame lido: incerto. O contador do RF não entra
+    // (G2): ele anda a cada acionamento; o lido traz o atual.
+    // G3: `op.frame_hex` é o frame ENTREGUE — a reivindicação o grava e confere,
+    // e a edição/regravação só troca o frame de operação ainda `pendente`.
     let frameConfirmado: string | null = op.frame_hex ?? null;
     if (op.tipo === 'cadastrar' && r.ok && r.ja_estava === true) {
       const lido = r.lido?.frame_hex ?? null;
@@ -894,8 +958,7 @@ export class GuaritaOperacoesService {
         await this.marcarIncerto(op);
         return;
       }
-      const ehRf = pedido.startsWith('1');
-      const mesmoDispositivo = lido.slice(0, 8) === pedido.slice(0, 8) && (!ehRf || lido.slice(8, 12) === pedido.slice(8, 12));
+      const mesmoDispositivo = lido.slice(0, 8) === pedido.slice(0, 8);
       const mesmaUnidade = lido.slice(12, 18) === pedido.slice(12, 18);
       if (!mesmaUnidade) {
         await this.marcarConflito(op, {
@@ -1130,7 +1193,7 @@ export class GuaritaOperacoesService {
   }
 
   /** Alerta "ainda abre o portão" para a portaria (no máximo um a cada 12 h por tag). */
-  private async alertarRemocaoPendente(tag: any, motivo: string) {
+  private async alertarRemocaoPendente(tag: any, motivo: string, detalhe?: string) {
     if (!(await this.estado.criarSeAusente(`guarita:alerta-remocao:${tag.id}`, true, 12 * 60 * 60 * 1000))) return;
     let quem = `serial ${tag.guarita_serial ?? '?'}`;
     try {
@@ -1144,7 +1207,7 @@ export class GuaritaOperacoesService {
         id_condominio: tag.id_condominio,
         id_device: tag.id_device,
         tipo: 'remocao_pendente',
-        descricao: `Não foi possível remover do Guarita o dispositivo de ${quem}: ele ainda abre o portão.`.slice(0, 255),
+        descricao: `Não foi possível remover do Guarita o dispositivo de ${quem}: ele ainda abre o portão.${detalhe ? ` ${detalhe}` : ''}`.slice(0, 255),
         dados: JSON.stringify({ id_tag: tag.id, serial: tag.guarita_serial, tipo: tag.guarita_tipo, motivo }),
       },
     });

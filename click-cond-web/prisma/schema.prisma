@@ -454,7 +454,7 @@ model Tags {
 
   @@unique([id_condominio, codigo], map: "un_tag_cond_codigo")
   @@index([id_condominio], map: "idx_tag_cond")
-  @@index([id_device, guarita_tipo, guarita_serial], map: "idx_tag_guarita")
+  @@unique([id_device, guarita_tipo, guarita_serial], map: "un_tag_guarita")
   @@index([id_apto], map: "fk_tag_guarita_apto")
 }
 
@@ -498,8 +498,10 @@ model Vagas {
   condominio              Condominios  @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_vaga_cond")
   apartamento             Apartamentos @relation(fields: [id_apartamento], references: [id], onDelete: Cascade, map: "fk_vaga_apto")
   titular                 Moradores    @relation("VagaTitular", fields: [id_morador_titular], references: [id], onDelete: Cascade, map: "fk_vaga_titular")
-  beneficiario            Moradores?   @relation("VagaBeneficiario", fields: [id_morador_beneficiario], references: [id], map: "fk_vaga_benef")
-  veiculo                 Veiculos?    @relation(fields: [id_veiculo], references: [id], map: "fk_vaga_veiculo")
+  // SET NULL (prisma/sql/2026-11-24-vagas-fk-set-null.sql): vaga revogada só fica ativo=0, então com
+  // RESTRICT quem já recebeu vaga não podia ser removido nem excluir a conta, e o veículo não saía.
+  beneficiario            Moradores?   @relation("VagaBeneficiario", fields: [id_morador_beneficiario], references: [id], onDelete: SetNull, map: "fk_vaga_benef")
+  veiculo                 Veiculos?    @relation(fields: [id_veiculo], references: [id], onDelete: SetNull, map: "fk_vaga_veiculo")
   visitante               Visitantes?  @relation(fields: [id_visitante], references: [id], map: "fk_vaga_visitante")
   id_visita               Int?
   visita                  Visitas?     @relation(fields: [id_visita], references: [id], map: "fk_vaga_visita")
@@ -526,6 +528,8 @@ model Apartamentos_Users {
 
   @@index([id_apto])
   @@index([id_user])
+  // Um vínculo por (unidade, usuário): prisma/sql/2026-11-24-apartamentos-users-unico.sql.
+  @@unique([id_apto, id_user], map: "uq_au_apto_user")
 }
 
 model Funcionarios {
@@ -613,7 +617,11 @@ model Areas_Sociais {
 model Areas_Sociais_Agendamentos {
   id             Int           @id @default(autoincrement())
   id_area_social Int
-  id_user        Int
+  // Dono da reserva. Anulável com fk_asa_user ON DELETE SET NULL (D6): a reserva
+  // "pela unidade" grava o morador mais antigo como dono e, em CASCADE, a conta
+  // dele excluída levava as reservas futuras da unidade junto. A reserva é do
+  // apartamento (id_apartamento); NULL = dono que excluiu a conta.
+  id_user        Int?
   id_apartamento Int
   data           DateTime?     @db.Date
   hora_de        DateTime?     @db.Time(0)
@@ -640,7 +648,7 @@ model Areas_Sociais_Agendamentos {
   updated_at     DateTime      @default(now()) @updatedAt @db.DateTime(0)
   apartamento    Apartamentos  @relation(fields: [id_apartamento], references: [id], onDelete: Cascade, map: "fk_asa_apto")
   area           Areas_Sociais @relation(fields: [id_area_social], references: [id], onDelete: Cascade, map: "fk_asa_area")
-  user           Users         @relation(fields: [id_user], references: [id], onDelete: Cascade, map: "fk_asa_user")
+  user           Users?        @relation(fields: [id_user], references: [id], onDelete: SetNull, map: "fk_asa_user")
 
   @@index([id_apartamento], map: "fk_asa_apto")
   @@index([id_area_social], map: "fk_asa_area")
@@ -894,6 +902,11 @@ model Visitantes {
   // Acelera GROUP BY doc no listarPessoas e buscarPessoa (agrupamento de
   // múltiplos registros da mesma pessoa).
   @@index([id_condominio, doc_identificacao], map: "idx_vis_cond_doc")
+  // PIN único (gerarPinUnicoVisita busca sem condomínio) e janelas dos ticks do facial:
+  // prisma/sql/2026-11-24-indices-pin-janelas.sql.
+  @@index([codigo_acesso, data_saida], map: "idx_vis_pin_saida")
+  @@index([data_hora_inicio], map: "idx_vis_inicio")
+  @@index([data_hora_termino], map: "idx_vis_termino")
 }
 
 model Prestadores_servico {
@@ -986,6 +999,10 @@ model Visitas {
   @@index([id_condominio, data_entrada], map: "idx_visita_cond_entrada")
   @@index([id_apartamento], map: "idx_visita_apto")
   @@index([id_condominio, codigo_acesso], map: "idx_visita_cond_pin")
+  // PIN único sem condomínio e janelas dos ticks: prisma/sql/2026-11-24-indices-pin-janelas.sql.
+  @@index([codigo_acesso, data_saida], map: "idx_visita_pin_saida")
+  @@index([data_hora_inicio], map: "idx_visita_inicio")
+  @@index([data_hora_termino], map: "idx_visita_termino")
   @@map("visitas")
 }
 
@@ -1852,7 +1869,9 @@ model Convites_Visita {
 /// O estado atual é a linha mais recente por (id_user, tipo).
 model Consentimentos {
   id            Int      @id @default(autoincrement())
-  id_user       Int
+  /// Nulo depois que a conta é excluída: a prova do aceite fica (política de
+  /// retenção), sem o vínculo com a pessoa (prisma/sql/2026-11-24-consentimentos-set-null.sql).
+  id_user       Int?
   /// 'privacidade' (obrigatório para usar o app) | 'biometria' (opcional,
   /// dado sensível pelo Art. 11 — consentimento específico e destacado).
   tipo          String   @db.VarChar(20)
@@ -1863,7 +1882,7 @@ model Consentimentos {
   aceito        Int      @db.TinyInt
   registrado_em DateTime @default(now()) @db.DateTime(0)
 
-  user Users @relation("ConsentimentoUser", fields: [id_user], references: [id], onDelete: Cascade, map: "fk_consent_user")
+  user Users? @relation("ConsentimentoUser", fields: [id_user], references: [id], onDelete: SetNull, map: "fk_consent_user")
 
   @@index([id_user, tipo, registrado_em], map: "idx_consent_user_tipo")
 }

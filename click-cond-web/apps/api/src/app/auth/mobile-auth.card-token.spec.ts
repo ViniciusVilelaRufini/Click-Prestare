@@ -14,7 +14,7 @@ describe('MobileAuthService — card ao vivo', () => {
         update: jest.fn(async () => ({})),
       },
     };
-    const card = { encerrarDoUsuario: jest.fn(async () => undefined) };
+    const card = { encerrarDoUsuario: jest.fn(async () => undefined), encerrarDoToken: jest.fn(async () => undefined) };
     const svc = new MobileAuthService(
       prisma,
       {} as any,
@@ -88,6 +88,22 @@ describe('MobileAuthService — card ao vivo', () => {
       expect('card_versao' in args.update).toBe(false);
       expect('card_versao' in args.create).toBe(false);
     }
+  });
+
+  it('troca de dono do token encerra os cards do dono anterior antes do upsert', async () => {
+    const { svc, prisma, card } = build();
+    await svc.updateFcmToken(7, 'fcm-x', 'iOS');
+    expect(card.encerrarDoToken).toHaveBeenCalledWith('fcm-x', 7);
+    expect(card.encerrarDoToken.mock.invocationCallOrder[0]).toBeLessThan(
+      prisma.users_Devices.upsert.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('falha ao encerrar o card não impede o registro do token', async () => {
+    const { svc, prisma, card } = build();
+    card.encerrarDoToken.mockRejectedValueOnce(new Error('apns fora'));
+    await svc.updateFcmToken(7, 'fcm-x', 'iOS');
+    expect(prisma.users_Devices.upsert).toHaveBeenCalled();
   });
 
   it('logout encerra os cards do usuário antes de apagar os tokens', async () => {
