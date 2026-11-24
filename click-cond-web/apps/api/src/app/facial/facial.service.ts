@@ -1401,7 +1401,7 @@ export class FacialService {
     });
     if (abertas > 0 || emCurso > 0) {
       throw new ConflictException(
-        'Este Guarita tem operações na fila ou dispositivos sendo gravados/removidos. Espere a fila terminar (ou desative o aparelho) antes de excluí-lo.',
+        'Este Guarita tem operações na fila ou dispositivos sendo gravados/removidos. Espere a fila terminar antes de excluí-lo.',
       );
     }
     await this.prisma.tags.updateMany({
@@ -1424,6 +1424,21 @@ export class FacialService {
    * a saída do morador e a captura são por Guarita; dois aparelhos com o mesmo
    * controle deixariam o ex-morador entrando pelo segundo).
    */
+  /** G5: desativar o Guarita com remoção na fila ou tag saindo → 409. */
+  private async assertGuaritaSemRemocoesPendentes(idDevice: number) {
+    const apagar = await this.prisma.guarita_Operacoes.count({
+      where: { id_device: idDevice, tipo: 'apagar', estado: { in: ['pendente', 'enviada', 'processando'] } },
+    });
+    const saindo = await this.prisma.tags.count({
+      where: { id_device: idDevice, guarita_estado: { in: ['removendo', 'remocao_falhou'] } },
+    });
+    if (apagar > 0 || saindo > 0) {
+      throw new ConflictException(
+        'Este Guarita tem dispositivos de ex-moradores sendo removidos: desativado, a remoção para e eles continuam abrindo o portão. Espere a fila terminar (ou resolva as remoções pendentes) antes de desativá-lo.',
+      );
+    }
+  }
+
   private async assertUmGuaritaPorCondominio(idCondominio: number, ignorarId?: number) {
     const outros = await this.prisma.facial_Devices.count({
       where: {
@@ -1705,6 +1720,12 @@ export class FacialService {
     const reativou = antes.ativo !== 1 && ativoFinal === 1;
     if (tipoFinal === TIPO_GUARITA && ativoFinal === 1 && (antes.tipo !== TIPO_GUARITA || reativou)) {
       await this.assertUmGuaritaPorCondominio(antes.id_condominio, id);
+    }
+    // G5: Guarita que deixa de valer (desativado ou trocado de tipo) congela a
+    // fila — o agente só busca a de Guarita ativo — e as remoções de
+    // ex-moradores param com o controle ainda abrindo o portão.
+    if (antes.tipo === TIPO_GUARITA && antes.ativo === 1 && (ativoFinal !== 1 || tipoFinal !== TIPO_GUARITA)) {
+      await this.assertGuaritaSemRemocoesPendentes(id);
     }
     const mudouEndereco = ipFinal !== antes.ip || portaFinal !== antes.porta;
     const mudouTipo = tipoFinal !== antes.tipo;
