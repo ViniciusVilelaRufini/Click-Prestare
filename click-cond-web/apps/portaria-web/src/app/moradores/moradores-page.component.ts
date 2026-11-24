@@ -439,7 +439,7 @@ export class MoradoresPageComponent implements OnInit {
     const nome = this.novo.nome?.trim() || 'este morador';
     const ok = await this.confirm.ask({
       title: 'Cancelar passe da carteira',
-      message: `Cancelar o passe da carteira de ${nome}? O passe e o QR do app deixam de abrir na hora. O rosto continua funcionando.`,
+      message: `Cancelar o passe da carteira de ${nome}? O passe e o QR do app deixam de abrir na hora e a sessão do app é encerrada em todos os aparelhos, também a de síndico ou funcionário que use a mesma conta (basta entrar de novo com a senha). O rosto continua funcionando.`,
       confirmLabel: 'Cancelar passe',
       cancelLabel: 'Voltar',
       variant: 'danger',

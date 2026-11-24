@@ -100,7 +100,7 @@ describe('MoradoresPageComponent — Cancelar passe da carteira', () => {
 
     expect(confirm.ask).toHaveBeenCalledTimes(1);
     expect((confirm.ask.mock.calls[0] as any[])[0].message).toBe(
-      'Cancelar o passe da carteira de Bia Souza? O passe e o QR do app deixam de abrir na hora. O rosto continua funcionando.',
+      'Cancelar o passe da carteira de Bia Souza? O passe e o QR do app deixam de abrir na hora e a sessão do app é encerrada em todos os aparelhos, também a de síndico ou funcionário que use a mesma conta (basta entrar de novo com a senha). O rosto continua funcionando.',
     );
     expect(cancelar).toHaveBeenCalledWith(5);
     expect(toast.success).toHaveBeenCalledWith('Passe e QR do app cancelados.');

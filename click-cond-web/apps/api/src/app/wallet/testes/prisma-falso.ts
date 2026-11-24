@@ -226,6 +226,11 @@ export function criarPrismaFalso(inicial: Partial<EstadoFalso> = {}, opcoes: { l
       findUnique: jest.fn(async ({ where, select }: any) =>
         selecionar(estado.users.find((u) => u.id === where.id) ?? null, select),
       ),
+      updateMany: jest.fn(async ({ where, data }: any) => {
+        const alvos = estado.users.filter((u) => casa(u, where));
+        alvos.forEach((u) => aplicar(u, data));
+        return { count: alvos.length };
+      }),
     },
     credenciais_Leituras: {
       create: jest.fn(async ({ data }: any) => ({ id: 1, ...data })),

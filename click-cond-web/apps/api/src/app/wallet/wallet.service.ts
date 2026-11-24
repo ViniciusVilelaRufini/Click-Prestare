@@ -27,6 +27,7 @@ import { carregarImagensDoPasse, DadosDoPasse, montarPasseApple } from './apple-
 import { WalletChavesService } from './wallet-chaves.service';
 import { ApplePassPushClient, RespostaApns, tokenMorto } from './apple-push.client';
 import { WALLET_WEB_SERVICE_URL } from './wallet.constantes';
+import { momentoTrocaSenha } from '../auth/senha-alterada.util';
 import {
   credencialAnteriorATrocaDeSenha,
   motivoCredencialMoradorInvalida,
@@ -268,6 +269,13 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
     // O QR do app também: o segredo guardado no aparelho perdido gera o código sem internet. O app do
     // morador emite um novo na próxima abertura com sessão válida.
     const qrApp = await revogarCredenciaisDeMoradores(p, linhas, agora);
+    // E as sessões da conta: com o JWT (365 dias) o aparelho perdido emitiria QR e passe novos na próxima
+    // abertura com internet. senha_alterada_em derruba todo token anterior (JwtStrategy), inclusive o de
+    // síndico ou funcionário que use a mesma conta; o morador entra de novo com a mesma senha.
+    const sessoesEncerradas = !!morador.id_user;
+    if (morador.id_user) {
+      await p.users.updateMany({ where: { id: morador.id_user }, data: { senha_alterada_em: momentoTrocaSenha(agora.getTime()) } });
+    }
     await this.auditoria.registrar({
       id_condominio: morador.id_condominio,
       usuario_nome: operador?.nome ?? 'Portaria',
@@ -275,8 +283,10 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
       acao: 'UPDATE',
       modulo: 'wallet',
       entidade_id: morador.id,
-      descricao: `Cancelou o passe da carteira e o QR do app de ${morador.nome}`,
-      detalhes: { cancelados, qr_app_cancelados: qrApp },
+      descricao: sessoesEncerradas
+        ? `Cancelou o passe da carteira e o QR do app de ${morador.nome} e encerrou as sessões do app da conta`
+        : `Cancelou o passe da carteira e o QR do app de ${morador.nome}`,
+      detalhes: { cancelados, qr_app_cancelados: qrApp, sessoes_encerradas: sessoesEncerradas },
     });
     return { ok: true, cancelados, qr_app_cancelados: qrApp };
   }

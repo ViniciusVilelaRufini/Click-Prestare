@@ -237,11 +237,12 @@ describe('WalletService', () => {
     });
 
     it('pelo operador: exige operador, exige o condomínio do morador, registra auditoria com o nome do morador', async () => {
-      const { svc, estado, auditoria, credenciais } = build();
+      const { svc, estado, auditoria, credenciais, prisma } = build();
       await svc.emitirApple(MORADOR, { id_condominio: 1 }, AGORA);
       // "Perdeu o celular": o segredo do QR do app guardado no aparelho também cai (W3).
       const app: any = await credenciais.minha(MORADOR, { id_condominio: 1 }, AGORA);
       const credApp = estado.creds.find((c) => c.id === app.id);
+      estado.users.push({ id: 7, senha_alterada_em: null }, { id: 8, senha_alterada_em: null });
 
       await expect(svc.cancelarPeloOperador(11, MORADOR)).rejects.toThrow(ForbiddenException);
       await expect(svc.cancelarPeloOperador(11, PORTEIRO_OUTRO_COND)).rejects.toThrow(ForbiddenException);
@@ -262,9 +263,16 @@ describe('WalletService', () => {
         acao: 'UPDATE',
         modulo: 'wallet',
         entidade_id: 11,
-        descricao: 'Cancelou o passe da carteira e o QR do app de Ana Souza',
-        detalhes: { cancelados: 1, qr_app_cancelados: 1 },
+        descricao: 'Cancelou o passe da carteira e o QR do app de Ana Souza e encerrou as sessões do app da conta',
+        detalhes: { cancelados: 1, qr_app_cancelados: 1, sessoes_encerradas: true },
       });
+      // Sessões da conta derrubadas (o aparelho perdido não emite QR nem passe novos); outra conta intacta.
+      expect(prisma.users.updateMany).toHaveBeenCalledWith({
+        where: { id: 7 },
+        data: { senha_alterada_em: new Date('2026-11-14T12:00:10.000Z') },
+      });
+      expect(estado.users.find((u) => u.id === 7).senha_alterada_em).toEqual(new Date('2026-11-14T12:00:10.000Z'));
+      expect(estado.users.find((u) => u.id === 8).senha_alterada_em).toBeNull();
 
       expect(await svc.cancelarPeloOperador(11, SINDICO, AGORA)).toEqual({ ok: true, cancelados: 0, qr_app_cancelados: 0 });
     });
@@ -290,7 +298,7 @@ describe('WalletService', () => {
     });
 
     it('pelo operador: não toca nos passes de outro usuário nem nos do mesmo usuário em outro condomínio; linha sem id_user só a dela', async () => {
-      const { svc, estado } = build();
+      const { svc, estado, prisma } = build();
       estado.moradores.push({ id: 15, id_user: null, id_condominio: 1, nome: 'Sem conta', bloco: null, apartamento: '9' });
       const ativa = (id: number, idPessoa: number, idCondominio = 1) => ({
         id, id_condominio: idCondominio, tipo_pessoa: 'morador', id_pessoa: idPessoa, origem: 'wallet_apple', segredo: 'x', revogada_em: null,
@@ -309,6 +317,8 @@ describe('WalletService', () => {
       expect(porId(93).revogada_em).toBeNull(); // linha sem id_user
 
       expect(await svc.cancelarPeloOperador(15, PORTEIRO, AGORA)).toEqual({ ok: true, cancelados: 1, qr_app_cancelados: 0 });
+      // Linha sem conta: não há sessão a encerrar.
+      expect(prisma.users.updateMany).toHaveBeenLastCalledWith(expect.objectContaining({ where: { id: 7 } }));
       expect(porId(93).revogada_em).toEqual(AGORA);
       expect(porId(92).revogada_em).toBeNull();
     });
