@@ -108,4 +108,42 @@ describe('FinanceiroService — notifyInadimplente', () => {
     expect(r.emailsEnviados).toBe(1);
     expect(mail.sendBillingReminder).toHaveBeenCalled();
   });
+  it('soma só as faturas VENCIDAS e cita a mais antiga delas no e-mail', async () => {
+    // Antes entrava também a fatura em aberto ainda no prazo: o morador em dia
+    // recebia "2 faturas pendentes" e o total incluía o boleto que nem venceu.
+    const { svc, mail, notifications } = montar({
+      faturas: [
+        { id: 3, nome: 'Apto 1 Bloco a - Ref. 01/2099', valor: 500, data_vencimento: new Date(Date.UTC(2099, 0, 10)), pago: 0, status: '0' },
+        { id: 2, nome: 'Apto 1 Bloco a - Ref. 03/2020', valor: 30, data_vencimento: new Date(Date.UTC(2020, 2, 10)), pago: 0, status: '0' },
+        { id: 1, nome: 'Apto 1 Bloco a - Ref. 01/2020', valor: 20, data_vencimento: new Date(Date.UTC(2020, 0, 10)), pago: 0, status: '0' },
+      ],
+      usuarios: [{ id: 10, name: 'Fulano', email: 'f@x.com', fcm_token: 'tok' }],
+    });
+
+    const r = await svc.notifyInadimplente(7, '1', 'a');
+
+    expect(r.success).toBe(true);
+    expect(r.totalFaturas).toBe(2);
+    expect(r.totalDivida).toBe(50);
+    // A "mais antiga" é a de janeiro/2020, embora o banco a tenha devolvido por último.
+    const args = (mail.sendBillingReminder as jest.Mock).mock.calls[0] as any[];
+    expect(args[3]).toBe(new Date(Date.UTC(2020, 0, 10)).toLocaleDateString('pt-BR'));
+    expect((notifications.sendPushNotification as jest.Mock).mock.calls[0][2]).toContain('2 fatura(s)');
+  });
+
+  it('RECUSA quando o apartamento só tem fatura em aberto ainda no prazo', async () => {
+    const { svc, mail, notifications } = montar({
+      faturas: [
+        { id: 3, nome: 'Apto 1 Bloco a - Ref. 01/2099', valor: 500, data_vencimento: new Date(Date.UTC(2099, 0, 10)), pago: 0, status: '0' },
+      ],
+      usuarios: [{ id: 10, name: 'Fulano', email: 'f@x.com', fcm_token: 'tok' }],
+    });
+
+    const r = await svc.notifyInadimplente(7, '1', 'a');
+
+    expect(r.success).toBe(false);
+    expect(r.message).toContain('Nenhuma fatura em atraso');
+    expect(mail.sendBillingReminder).not.toHaveBeenCalled();
+    expect(notifications.sendPushNotification).not.toHaveBeenCalled();
+  });
 });

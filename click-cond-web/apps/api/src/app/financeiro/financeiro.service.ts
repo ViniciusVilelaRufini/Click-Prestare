@@ -1536,9 +1536,15 @@ export class FinanceiroService implements OnModuleInit {
       },
     });
 
-    const minhas = candidatas.filter((f) =>
-      this.nomeFaturaDeApto(f.nome, apto, bloco)
-    );
+    // Da mais antiga para a mais nova (sem vencimento por último): é a ordem
+    // em que a notificação de inadimplência cita a fatura "mais antiga".
+    const minhas = candidatas
+      .filter((f) => this.nomeFaturaDeApto(f.nome, apto, bloco))
+      .sort((a, b) => {
+        const va = a.data_vencimento ? new Date(a.data_vencimento).getTime() : Number.POSITIVE_INFINITY;
+        const vb = b.data_vencimento ? new Date(b.data_vencimento).getTime() : Number.POSITIVE_INFINITY;
+        return va === vb ? 0 : va < vb ? -1 : 1;
+      });
 
     const mesesNomes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
@@ -1590,7 +1596,13 @@ export class FinanceiroService implements OnModuleInit {
       return { success: true, message: 'Simulado com sucesso (modo offline).' };
     }
 
-    const pendingFaturas = await this.getInadimplenteDetail(idCondominio, apto, bloco);
+    // Só o que já venceu é inadimplência. O detalhe traz também as faturas em
+    // aberto ainda no prazo (o boleto do mês que vence semana que vem), e somá-
+    // las cobrava do morador em dia uma "dívida" que ele ainda nem devia — e
+    // a fatura citada como "mais antiga" podia ser a que nem venceu.
+    const pendingFaturas = (await this.getInadimplenteDetail(idCondominio, apto, bloco)).filter(
+      (f: any) => f.atrasado === true,
+    );
 
     if (pendingFaturas.length === 0) {
       return { success: false, message: 'Nenhuma fatura em atraso encontrada.' };
