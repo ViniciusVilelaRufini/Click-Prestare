@@ -1095,7 +1095,7 @@ export class AreasSociaisService {
 
     const agTenantCheck = await this.prisma.areas_Sociais_Agendamentos.findUnique({
       where: { id: Number(id) },
-      include: { area: { select: { id_condominio: true } } },
+      include: { area: { select: { id_condominio: true, controle_acesso_facial: true } } },
     });
     if (!agTenantCheck) throw new NotFoundException('Agendamento não encontrado.');
     await this.tenant.assertEntidade(agTenantCheck.area?.id_condominio, user, `agendamento #${id}`);
@@ -1136,8 +1136,10 @@ export class AreasSociaisService {
         const atual = await this.prisma.areas_Sociais_Agendamentos.findUnique({ where: { id: Number(id) } });
         throw new ConflictException(mensagemReservaJaMudou(atual?.status));
       }
+      // Sem esperar, como no insert: o sync pode aguardar o lock da área e passar dos 60 s do ALB;
+      // falha (ou lock que não vem) deixa a marca de pendente para o tickReservasAreas.
       if (agAntes.status === 'aprovado') {
-        await this.facial
+        this.facial
           .syncReservaArea(Number(id))
           .catch((err) => this.logger.warn(`syncReservaArea (remove) ag ${id}: ${err?.message ?? err}`));
       }
@@ -1152,8 +1154,11 @@ export class AreasSociaisService {
         where: { id: Number(id) },
         data: { status: 'cancelado' },
       });
-      await this.facial
-        .syncReservaArea(Number(id))
+      // Sem esperar (como no insert e no cancelamento do morador). A linha é apagada logo abaixo, então
+      // o sync recebe a reserva já lida (status 'cancelado') em vez de procurá-la pelo id; dentro do
+      // lock ele relê só o (área, apto). Falha deixa a marca de pendente para o tickReservasAreas.
+      this.facial
+        .syncReservaArea(Number(id), { ...agAntes, status: 'cancelado' })
         .catch((err) => this.logger.warn(`syncReservaArea (remove) ag ${id}: ${err?.message ?? err}`));
     }
 

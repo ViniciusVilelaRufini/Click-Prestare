@@ -11,6 +11,7 @@
  * `$transaction`) para provar que a releitura da autorização antes do enqueue fecha a corrida sozinha.
  */
 import { ConsentimentosService, POLITICA_VERSAO, REVOGADO_PELO_OPERADOR } from '../consentimentos/consentimentos.service';
+import { nomeDoLockMysql } from '../common/lock-distribuido';
 
 let FacialService: any;
 
@@ -417,7 +418,7 @@ describe('Q1 — sync em voo × revogação da mesma pessoa', () => {
       await dormir(atrasoFotoMs);
       return 'Zm90bw==';
     });
-    return { facial, pessoas, conexoes };
+    return { facial, pessoas, conexoes, comandos };
   }
 
   it('30 syncs em paralelo (tick): nunca mais que 6 locks/conexões ao mesmo tempo e todos terminam synced', async () => {
@@ -443,5 +444,70 @@ describe('Q1 — sync em voo × revogação da mesma pessoa', () => {
     expect(rs.every((r: any) => r.status === 'synced' || r.status === 'pending')).toBe(true);
     expect(rs.some((r: any) => r.status === 'pending')).toBe(true);
     for (const p of pessoas.values()) expect(['synced', 'pending']).toContain(p.face_sync_status);
+  });
+
+  it('ticks ocupando o teto deles: o sync interativo ainda acha vaga (2 vagas reservadas)', async () => {
+    const { facial, conexoes } = cenarioMuitasPessoas(13, 300);
+    (facial as any).esperaLockPessoaMs = 100;
+    // 12 syncs de tick em 4 condomínios (3 por condomínio = 12 em paralelo sem o teto global).
+    const doTick = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, id_condominio: (i % 4) + 1 }));
+    const tick = (facial as any).sincronizarPessoasDoTick('teste', doTick, 'sincronizado(s)');
+    await dormir(30);
+
+    // Cadastro na portaria no meio do tick: não pode esperar o tick inteiro nem virar 'pending'.
+    const interativo = await facial.syncPessoa(13);
+    expect(interativo.status).toBe('synced');
+
+    await tick;
+    expect(conexoes.max).toBeLessThanOrEqual(6);
+    expect(conexoes.emUso).toBe(0);
+  });
+
+  // ---------------------------------------------------------------- remoção após exclusão
+
+  function cenarioRemocao() {
+    const trava = travaEmMemoria();
+    const prisma: any = {
+      isConnected: true,
+      $transaction: trava.$transaction,
+      facial_Devices: { findMany: jest.fn(async () => DEVICES.map((d) => ({ ...d }))) },
+    };
+    const comandos: Comando[] = [];
+    const facial = novoFacial(prisma, cliente(comandos), null);
+    (facial as any).esperaLockPessoaMs = 60;
+    return { facial, trava, comandos };
+  }
+
+  it('controle: remoção comum com o lock da pessoa ocupado devolve false e não sai para os terminais', async () => {
+    const { facial, trava, comandos } = cenarioRemocao();
+    trava.donos.add(nomeDoLockMysql('facial:pessoa:morador:5')); // sync da mesma pessoa em voo, segurando o lock
+    expect(await facial.unsyncMorador(5, 'f5', 1)).toBe(false);
+    expect(comandos).toEqual([]);
+  });
+
+  it.each([
+    ['morador excluído', 'morador', (f: any) => f.unsyncMoradorExcluido(5, 'f5', 1)],
+    ['visitante excluído', 'visitante', (f: any) => f.unsyncVisitante(5, 'f5', 1, { aposExclusao: true })],
+    ['pessoa excluída', 'pessoa', (f: any) => f.unsyncPessoa(5, 'f5', 1, { aposExclusao: true })],
+    ['prestador excluído', 'prestador_servico', (f: any) => f.unsyncPrestadorServico(5, 'f5', 1, { aposExclusao: true })],
+  ])('%s: com o lock da pessoa ocupado a remoção sai mesmo assim para todos os terminais', async (_n, tipo, remover) => {
+    const { facial, trava, comandos } = cenarioRemocao();
+    trava.donos.add(nomeDoLockMysql(`facial:pessoa:${tipo}:5`));
+    expect(await remover(facial)).toBe(true);
+    expect(ultimoPorTerminal(comandos)).toEqual({ 101: 'remove', 102: 'remove' });
+    expect(trava.donos.size).toBe(1); // nem tentou pegar o lock
+  });
+
+  it('morador excluído com o teto de locks tomado por outros syncs: a remoção não espera vaga', async () => {
+    const { facial, comandos } = cenarioMuitasPessoas(6, 400);
+    (facial as any).esperaLockPessoaMs = 60;
+    // 6 syncs interativos seguram as 6 vagas do teto (cada um ~400 ms).
+    const ocupando = Promise.all([1, 2, 3, 4, 5, 6].map((id) => facial.syncPessoa(id)));
+    await dormir(30);
+    const inicio = Date.now();
+    expect(await facial.unsyncMoradorExcluido(99, 'f99', 1)).toBe(true);
+    expect(Date.now() - inicio).toBeLessThan(300);
+    expect(comandos.some((c) => c.tipo === 'remove')).toBe(true);
+    await ocupando;
   });
 });

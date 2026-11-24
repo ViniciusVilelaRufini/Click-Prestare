@@ -180,6 +180,29 @@ describe('AreasSociaisService — excluir espaço e reserva sem apagar o que imp
       expect(prisma.areas_Sociais_Agendamentos.delete).toHaveBeenCalled();
     });
 
+    // O sync da área pode esperar o lock por muito tempo (60 s do ALB): o HTTP não o aguarda.
+    it('morador cancela reserva aprovada: responde sem esperar o sync da área', async () => {
+      const { svc, facial } = build({
+        reserva: { ...base, status: 'aprovado', data: dia('2026-06-20'), hora_de: hora(18), hora_ate: hora(22) },
+      });
+      facial.syncReservaArea.mockReturnValueOnce(new Promise(() => undefined)); // nunca termina
+      await expect(svc.removeAgendamento(500, 5, 'Morador', morador)).resolves.toEqual({ success: true, status: 'cancelado' });
+      expect(facial.syncReservaArea).toHaveBeenCalledWith(500);
+    });
+
+    it('síndico cancela reserva aprovada: apaga sem esperar o sync e entrega ao sync a reserva já lida', async () => {
+      const { svc, prisma, facial } = build({
+        reserva: { ...base, id_apartamento: 100, status: 'aprovado', data: dia('2026-06-20'), hora_de: hora(18), hora_ate: hora(22) },
+      });
+      facial.syncReservaArea.mockReturnValueOnce(new Promise(() => undefined)); // nunca termina
+      await expect(svc.removeAgendamento(500, 1, 'Sindico', sindico)).resolves.toEqual({ success: true });
+      expect(prisma.areas_Sociais_Agendamentos.delete).toHaveBeenCalledWith({ where: { id: 500 } });
+      expect(facial.syncReservaArea).toHaveBeenCalledWith(
+        500,
+        expect.objectContaining({ id_area_social: 30, id_apartamento: 100, status: 'cancelado' }),
+      );
+    });
+
     it('status mudou entre a leitura e a gravação: 409', async () => {
       const { svc, prisma } = build({
         reserva: { ...base, status: 'aprovado', data: dia('2026-06-20'), hora_de: hora(18), hora_ate: hora(22) },

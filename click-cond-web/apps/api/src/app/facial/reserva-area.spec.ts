@@ -164,6 +164,14 @@ describe('FacialService — syncReservaArea (áreas sociais)', () => {
     expect(client.enrollPerson).not.toHaveBeenCalled();
   });
 
+  it('cancelada e já apagada (síndico): com a reserva já lida, remove sem procurá-la pelo id', async () => {
+    const { svc, client, prisma, ag } = build({ status: 'cancelado' }, { outraReserva: 0 });
+    prisma.areas_Sociais_Agendamentos.findUnique.mockResolvedValue(null); // a linha já foi apagada
+    await svc.syncReservaArea(100, { ...ag });
+    expect(prisma.areas_Sociais_Agendamentos.findUnique).not.toHaveBeenCalled();
+    expect(client.removePerson).toHaveBeenCalledWith(DEVICE, 'morador_11', 'morador_11');
+  });
+
   it('recusado MAS com outra reserva vigente → não remove; reenrola com a janela DA OUTRA reserva', async () => {
     const { svc, client } = build({ status: 'recusado' }, { outraReserva: 1 });
     await svc.syncReservaArea(100);

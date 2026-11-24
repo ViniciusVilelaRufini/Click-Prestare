@@ -486,6 +486,15 @@ const FACIAL_DISABLED = process.env.FACIAL_INTEGRATION_ENABLED === 'false';
  * máximo 3 comandos do tick na fila.
  */
 const SYNCS_DE_TICK_POR_CONDOMINIO = 3;
+/**
+ * Teto GLOBAL (todos os condomínios somados) dos syncs que os ticks e as cargas em massa
+ * (syncAllForCondominio) correm ao mesmo tempo: LOCKS_PESSOA_MAX - 2. Cada um segura uma vaga do teto
+ * de locks de pessoa e, com terminal mudo, a segura por minutos; sem este teto os ticks (3 por
+ * condomínio) e as cargas (uma por condomínio, em paralelo) ocupavam todas as vagas e todo sync
+ * interativo (cadastro de visitante na portaria, foto nova) esperava 30 s e virava 'pending'. As 2
+ * vagas que sobram ficam reservadas ao interativo.
+ */
+const SYNCS_DE_TICK_GLOBAL = Math.max(1, LOCKS_PESSOA_MAX - 2);
 /** Quanto um sync do tick pode esperar a vez (o lock do tick dura até 60 min). */
 const ESPERA_MAXIMA_SYNC_DE_TICK_MS = 30 * 60 * 1000;
 
@@ -2772,16 +2781,36 @@ export class FacialService {
     return { ok: false, status: 'pending' as const, reason: 'sync_em_andamento' };
   }
 
-  /** Remoção com o lock da pessoa. Sem o lock a tempo: false (quem chamou grava pendente). */
-  private async removerComLockDaPessoa(tipo: string, id: number, fn: () => Promise<boolean>): Promise<boolean> {
+  /**
+   * Remoção com o lock da pessoa. Sem o lock a tempo: false (quem chamou grava pendente).
+   * `aposExclusao`: ver removerAposExclusao.
+   */
+  private async removerComLockDaPessoa(
+    tipo: string,
+    id: number,
+    fn: () => Promise<boolean>,
+    aposExclusao = false,
+  ): Promise<boolean> {
     // Sem id (exclusão em lote só pelo face_id): não há sync com quem serializar.
     if (!id) return fn();
+    if (aposExclusao) return this.removerAposExclusao(fn);
     const r = await this.comLockDaPessoa(tipo, id, fn);
     if (r.obtido) return r.valor;
     this.logger.warn(
       `Remoção facial ${tipo} ${id} adiada: sync da mesma pessoa em andamento — fica pendente para o tickSyncRetry`,
     );
     return false;
+  }
+
+  /**
+   * Remoção de quem teve o cadastro APAGADO (ou vai ter, logo em seguida): sai SEM o lock da pessoa e
+   * SEM o teto de locks. Ninguém grava pendente para uma linha que não existe mais, então o "false por
+   * falta de vaga em 30 s" de removerComLockDaPessoa perdia a remoção e o rosto ficava no terminal. Sem
+   * o lock não há corrida a temer: o sync em voo relê a linha antes de cada enqueue, não a acha e cai
+   * na remoção ele mesmo. Só os caminhos de exclusão usam (opção `aposExclusao` dos unsyncX).
+   */
+  private async removerAposExclusao(fn: () => Promise<boolean>): Promise<boolean> {
+    return fn();
   }
 
   /**
@@ -3278,14 +3307,28 @@ export class FacialService {
    * `reservaVigenteOuProxima` — se o apto não tem nenhuma, remove.
    * Fire-and-forget nos chamadores.
    */
-  async syncReservaArea(idAgendamento: number) {
+  async syncReservaArea(
+    idAgendamento: number,
+    /**
+     * Reserva já lida por quem chama — para quando a linha é apagada logo em seguida (cancelamento
+     * pelo síndico) e o sync roda sem ser aguardado: procurada pelo id, já não existiria.
+     */
+    jaLida?: {
+      id_area_social: number;
+      id_apartamento: number;
+      status: string | null;
+      area: { id_condominio: number; controle_acesso_facial: number | null } | null;
+    },
+  ) {
     if (FACIAL_DISABLED) return { skipped: true, reason: 'integration_disabled' };
     if (!this.prisma.isConnected) return { skipped: true, reason: 'no_db' };
 
-    const ag = await this.prisma.areas_Sociais_Agendamentos.findUnique({
-      where: { id: Number(idAgendamento) },
-      include: { area: { select: { id_condominio: true, controle_acesso_facial: true } } },
-    });
+    const ag =
+      jaLida ??
+      (await this.prisma.areas_Sociais_Agendamentos.findUnique({
+        where: { id: Number(idAgendamento) },
+        include: { area: { select: { id_condominio: true, controle_acesso_facial: true } } },
+      }));
     if (!ag || !ag.area) return { skipped: true, reason: 'not_found' };
     return this.syncReservaAreaApto(ag.id_area_social, ag.id_apartamento, ag.area, {
       // Reserva perdida: sem foto utilizável, a saída segura é remover.
@@ -3896,7 +3939,7 @@ export class FacialService {
     idMorador: number,
     faceId: string | null,
     idCondominio: number | null,
-    opts: { deviceIds?: number[] } = {},
+    opts: { deviceIds?: number[]; aposExclusao?: boolean } = {},
   ): Promise<boolean> {
     if (FACIAL_DISABLED || !faceId || !idCondominio) return true;
     return this.removerComLockDaPessoa('morador', idMorador, async () => {
@@ -3921,7 +3964,7 @@ export class FacialService {
         }
       }
       return allOk;
-    });
+    }, !!opts.aposExclusao);
   }
 
   /**
@@ -3937,7 +3980,8 @@ export class FacialService {
     idCondominio: number | null,
   ): Promise<boolean> {
     if (FACIAL_DISABLED || !idCondominio) return true;
-    if (faceId) return this.unsyncMorador(idMorador, faceId, idCondominio);
+    // Só a exclusão chama: a remoção não espera lock nem vaga (ver removerAposExclusao).
+    if (faceId) return this.unsyncMorador(idMorador, faceId, idCondominio, { aposExclusao: true });
     const devices = await this.prisma.facial_Devices.findMany({
       where: { id_condominio: idCondominio, ativo: 1, tipo: 'facial', id_area_social: { not: null } },
     });
@@ -3966,7 +4010,7 @@ export class FacialService {
     idVisitante: number,
     faceId: string | null,
     idCondominio: number,
-    opts: { deviceIds?: number[] } = {},
+    opts: { deviceIds?: number[]; aposExclusao?: boolean } = {},
   ): Promise<boolean> {
     if (FACIAL_DISABLED || !faceId) return true;
     return this.removerComLockDaPessoa('visitante', idVisitante, async () => {
@@ -3991,7 +4035,7 @@ export class FacialService {
         }
       }
       return allOk;
-    });
+    }, !!opts.aposExclusao);
   }
 
   /**
@@ -4001,7 +4045,7 @@ export class FacialService {
     idPessoa: number,
     faceId: string | null,
     idCondominio: number,
-    opts: { deviceIds?: number[] } = {},
+    opts: { deviceIds?: number[]; aposExclusao?: boolean } = {},
   ): Promise<boolean> {
     if (FACIAL_DISABLED || !faceId) return true;
     return this.removerComLockDaPessoa('pessoa', idPessoa, async () => {
@@ -4025,7 +4069,7 @@ export class FacialService {
         }
       }
       return allOk;
-    });
+    }, !!opts.aposExclusao);
   }
 
   /**
@@ -4684,7 +4728,7 @@ export class FacialService {
     idPrestador: number,
     faceId: string | null,
     idCondominio: number | null,
-    opts: { deviceIds?: number[] } = {},
+    opts: { deviceIds?: number[]; aposExclusao?: boolean } = {},
   ): Promise<boolean> {
     if (FACIAL_DISABLED || !faceId || !idCondominio) return true;
     return this.removerComLockDaPessoa('prestador_servico', idPrestador, async () => {
@@ -4708,7 +4752,7 @@ export class FacialService {
         }
       }
       return allOk;
-    });
+    }, !!opts.aposExclusao);
   }
 
   // ---------- Sincronização em massa (back-fill) ----------
@@ -4909,9 +4953,12 @@ export class FacialService {
         const deviceIds = opts.deviceIds;
         // Na carga restrita, falha não rebaixa quem já está 'synced' (6c).
         const optsPessoa = cargaRestrita ? { deviceIds, cargaRestrita: true } : { deviceIds };
+        // Mesmo teto global dos ticks: as cargas de vários condomínios em paralelo não ocupam as vagas
+        // de lock de pessoa reservadas ao sync interativo.
+        const limite = this.limiteGlobalDoTick();
         for (const m of moradores) {
           try {
-            contar(await this.syncMorador(m.id, optsPessoa));
+            contar(await limite(() => this.syncMorador(m.id, optsPessoa)));
           } catch (e: any) {
             falhou++;
             this.logger.warn(`Bulk sync morador ${m.id}: ${e?.message ?? e}`);
@@ -4919,7 +4966,7 @@ export class FacialService {
         }
         for (const v of visitantes) {
           try {
-            contar(await this.syncVisitante(v.id, optsPessoa));
+            contar(await limite(() => this.syncVisitante(v.id, optsPessoa)));
           } catch (e: any) {
             falhou++;
             this.logger.warn(`Bulk sync visitante ${v.id}: ${e?.message ?? e}`);
@@ -4927,7 +4974,7 @@ export class FacialService {
         }
         for (const p of prestadores) {
           try {
-            contar(await this.syncPrestadorServico(p.id, optsPessoa));
+            contar(await limite(() => this.syncPrestadorServico(p.id, optsPessoa)));
           } catch (e: any) {
             falhou++;
             this.logger.warn(`Bulk sync prestador ${p.id}: ${e?.message ?? e}`);
@@ -4935,7 +4982,7 @@ export class FacialService {
         }
         for (const pes of pessoas) {
           try {
-            contar(await this.syncPessoa(pes.id, optsPessoa));
+            contar(await limite(() => this.syncPessoa(pes.id, optsPessoa)));
           } catch (e: any) {
             falhou++;
             this.logger.warn(`Bulk sync pessoa ${pes.id}: ${e?.message ?? e}`);
@@ -5213,7 +5260,20 @@ export class FacialService {
    * todos os ticks — eles vão para os mesmos aparelhos.
    */
   private limiteDoTick(idCondominio: number | null | undefined) {
-    return limitarConcorrencia(`facial:tick:cond:${idCondominio ?? 0}`, SYNCS_DE_TICK_POR_CONDOMINIO, {
+    const doCondominio = limitarConcorrencia(`facial:tick:cond:${idCondominio ?? 0}`, SYNCS_DE_TICK_POR_CONDOMINIO, {
+      filaMaxima: 100_000,
+      esperaMaximaMs: ESPERA_MAXIMA_SYNC_DE_TICK_MS,
+    });
+    // Primeiro a vez no condomínio, depois a vaga global: quem espera a do condomínio não ocupa a global.
+    return <T>(fn: () => Promise<T>) => doCondominio(() => this.limiteGlobalDoTick()(fn));
+  }
+
+  /**
+   * Executor com o teto GLOBAL dos ticks e das cargas em massa (ver SYNCS_DE_TICK_GLOBAL): deixa
+   * vagas do teto de locks de pessoa para o sync interativo.
+   */
+  private limiteGlobalDoTick() {
+    return limitarConcorrencia('facial:tick:global', SYNCS_DE_TICK_GLOBAL, {
       filaMaxima: 100_000,
       esperaMaximaMs: ESPERA_MAXIMA_SYNC_DE_TICK_MS,
     });

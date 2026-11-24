@@ -238,7 +238,7 @@ describe('FacialService — terminal de área com reserva obrigatória (F1, Q3, 
       const { svc } = build({ reservas: [] });
       const unsync = jest.spyOn(svc, 'unsyncMorador').mockResolvedValue(true);
       await svc.unsyncMoradorExcluido(11, 'f-11', 1);
-      expect(unsync).toHaveBeenCalledWith(11, 'f-11', 1);
+      expect(unsync).toHaveBeenCalledWith(11, 'f-11', 1, { aposExclusao: true });
     });
 
     it('falha no terminal devolve false', async () => {

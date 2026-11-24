@@ -243,7 +243,7 @@ describe('VisitantesService — superfície de escrita Pessoas/Visitas (Task 4)'
       // Visitas, que teria achado a Visita de Pessoa B.
       expect(visitasFindUnique).not.toHaveBeenCalled();
       expect(pessoasDelete).toHaveBeenCalledWith({ where: { id: 5 } });
-      expect(facial.unsyncPessoa).toHaveBeenCalledWith(5, 'face-A', 1);
+      expect(facial.unsyncPessoa).toHaveBeenCalledWith(5, 'face-A', 1, { aposExclusao: true });
       // Pessoa B nunca é tocada: nem apagada, nem tem o rosto desinscrito.
       expect(facial.unsyncPessoa).not.toHaveBeenCalledWith(
         expect.anything(),

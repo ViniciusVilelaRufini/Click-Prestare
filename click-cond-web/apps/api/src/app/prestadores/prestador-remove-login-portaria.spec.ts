@@ -52,7 +52,7 @@ describe('Prestador × login de portaria — cadastro e remoção', () => {
     };
     const storage: any = { isDataUrl: () => false, uploadDataUrl: jest.fn(), exigirArquivoDoRegistro: jest.fn(async () => undefined) };
     const facial: any = { syncPrestadorServico: jest.fn(async () => ({})), unsyncPrestadorServico: jest.fn(async () => ({})) };
-    return { svc: new PrestadoresService(prisma, storage, facial, tenant), prisma };
+    return { svc: new PrestadoresService(prisma, storage, facial, tenant), prisma, facial };
   }
 
   describe('PrestadoresController.create (console)', () => {
@@ -84,6 +84,18 @@ describe('Prestador × login de portaria — cadastro e remoção', () => {
     await svc.remove(1, 1, porteiroConsole);
     expect(prisma.funcionarios_Portaria.deleteMany).not.toHaveBeenCalled();
     expect(prisma.prestadores_servico.delete).toHaveBeenCalled();
+  });
+
+  // Remover o rosto ANTES de apagar, com o lock da pessoa, perdia a remoção quando o lock/vaga não vinha
+  // em 30 s (false, sem linha para guardar o pendente). Agora: depois do DELETE e sem lock (aposExclusao).
+  it('remove tira o rosto dos terminais DEPOIS de apagar o cadastro, sem esperar o lock da pessoa', async () => {
+    const { svc, prisma, facial } = build(null);
+    prisma.prestadores_servico.findUnique.mockResolvedValue({ id: 1, id_condominio: 1, id_apartamento: null, face_id: 'f1', email: null, nome: 'Eletricista' });
+    await svc.remove(1, 1, sindicoConsole);
+    expect(facial.unsyncPrestadorServico).toHaveBeenCalledWith(1, 'f1', 1, { aposExclusao: true });
+    expect(prisma.prestadores_servico.delete.mock.invocationCallOrder[0]).toBeLessThan(
+      facial.unsyncPrestadorServico.mock.invocationCallOrder[0],
+    );
   });
 
   it('remove apaga só o login que o próprio prestador recebeu, pelo id', async () => {

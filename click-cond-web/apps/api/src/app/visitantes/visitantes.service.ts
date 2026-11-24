@@ -3359,7 +3359,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // aqui — não há mais visitas para reavaliar.
     if (pessoa.face_id) {
       this.facial
-        .unsyncPessoa(pessoa.id, pessoa.face_id, pessoa.id_condominio)
+        .unsyncPessoa(pessoa.id, pessoa.face_id, pessoa.id_condominio, { aposExclusao: true })
         .catch((err: any) =>
           this.logger.warn(`Unsync facial pessoa removida (${pessoa.face_id}): ${err?.message ?? err}`),
         );
@@ -4767,7 +4767,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     }
     if (v?.face_id) {
       this.facial
-        .unsyncVisitante(id, v.face_id, v.id_condominio)
+        .unsyncVisitante(id, v.face_id, v.id_condominio, { aposExclusao: true })
         .catch((err) => this.logger.warn(`Unsync facial visitante ${id} falhou: ${err?.message ?? err}`));
     }
     // Visitante apagado leva o card ao vivo junto.

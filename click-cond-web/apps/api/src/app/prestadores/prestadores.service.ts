@@ -1067,23 +1067,24 @@ export class PrestadoresService {
       await this.revogarLoginDoPrestador(loginProprio, Number(id), { guardarPermissoes: false });
     }
 
-    // Remove o rosto dos terminais faciais antes de apagar o cadastro, senão
-    // ficaria um rosto órfão abrindo a porta sem dono no banco.
+    try {
+      await this.prisma.prestadores_servico.delete({ where: { id: Number(id) } });
+    } catch {
+      throw new NotFoundException(`Prestador ${id} não encontrado`);
+    }
+    // Remove o rosto dos terminais faciais (senão ficaria um rosto órfão abrindo
+    // a porta sem dono no banco). DEPOIS de apagar e sem esperar o lock da pessoa
+    // (aposExclusao): um sync em voo relê a linha, não a acha e remove também;
+    // antes, sem vaga de lock em 30 s a remoção voltava false e se perdia.
     if (atual.face_id) {
       await this.facial
-        .unsyncPrestadorServico(Number(id), atual.face_id, atual.id_condominio)
+        .unsyncPrestadorServico(Number(id), atual.face_id, atual.id_condominio, { aposExclusao: true })
         .catch((err) =>
           this.logger.warn(
             `Unsync facial prestador ${id} falhou: ${err?.message ?? err}`,
           ),
         );
     }
-
-    try {
-      await this.prisma.prestadores_servico.delete({ where: { id: Number(id) } });
-      return { success: true };
-    } catch {
-      throw new NotFoundException(`Prestador ${id} não encontrado`);
-    }
+    return { success: true };
   }
 }
