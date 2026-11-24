@@ -585,13 +585,18 @@ describe('Credenciais', () => {
       const { svc, creds } = build();
       const token = tokenDe((await svc.linkVisita(300, MORADOR)).url);
 
-      const texto = JSON.stringify(await svc.lerPassePublico(token, AGORA));
+      const resposta: any = await svc.lerPassePublico(token, AGORA);
+      const texto = JSON.stringify(resposta);
+      // O código do QR é derivado de um segredo aleatório: por acaso pode conter "ana"/"morador" (o teste
+      // falhava de vez em quando). Os nomes são conferidos no resto da resposta.
+      const { codigo: _codigo, ...semCodigo } = resposta;
+      const textoSemCodigo = JSON.stringify(semCodigo);
 
       expect(texto).not.toContain(decryptSecret(creds[0].segredo) as string);
       expect(texto).not.toContain(creds[0].segredo);
       expect(texto).not.toContain('482913');
-      expect(texto).not.toMatch(/Souza|Lima/);
-      expect(texto).not.toMatch(/Ana|id_pessoa|morador/i);
+      expect(textoSemCodigo).not.toMatch(/Souza|Lima/);
+      expect(textoSemCodigo).not.toMatch(/Ana|id_pessoa|morador/i);
     });
   });
 

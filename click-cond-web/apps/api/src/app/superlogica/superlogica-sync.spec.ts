@@ -184,6 +184,16 @@ describe('SuperlogicaSyncService — importação de unidades', () => {
 });
 
 describe('SuperlogicaSyncService — sincronização de cobranças', () => {
+  // A linha digitável é raspada da 2ª via com um fetch DE VERDADE (prazo de 5 s). Sem este mock, todo
+  // teste com boleto pendente ia à rede: sozinho levava ~0,5 s; com a suíte inteira em paralelo passava
+  // dos 5 s do jest (intermitente). Quem quer outro retorno sobrescreve com mockResolvedValue.
+  beforeEach(() => {
+    jest.spyOn(SuperlogicaService, 'extrairLinhaDigitavel').mockResolvedValue(null);
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   const cobranca = (id: string, idUnidade: string) => ({
     id_recebimento_recb: id,
     id_condominio_cond: '24',
