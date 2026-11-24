@@ -115,6 +115,10 @@ class CredencialAcesso {
       if (_valeAinda(idCondominio, marca)) await _apagar(idCondominio);
       return (situacao: _situacaoIndisponivel(resposta['motivo']), credencial: null);
     }
+    if (resposta['sem_vinculo'] == true) {
+      if (_valeAinda(idCondominio, marca)) await _apagar(idCondominio);
+      return (situacao: SituacaoCredencial.semMorador, credencial: null);
+    }
     if (resposta['erro'] != null || resposta['disponivel'] != true) {
       final semRede = resposta['sem_conexao'] == true;
       return (
@@ -154,6 +158,13 @@ class CredencialAcesso {
       if (resposta['disponivel'] == false) {
         await _apagar(idCondominio);
         aoAtualizar?.call(_situacaoIndisponivel(resposta['motivo']), null);
+        return;
+      }
+      // 403: a conta não pertence mais ao condomínio (unidade tirada ou apagada) e o servidor já revogou a
+      // credencial. O segredo guardado não abre mais: mostrar o QR só confundiria no portão.
+      if (resposta['sem_vinculo'] == true) {
+        await _apagar(idCondominio);
+        aoAtualizar?.call(SituacaoCredencial.semMorador, null);
         return;
       }
       // Sem rede ou erro do servidor: segue com o que está guardado.

@@ -18,7 +18,8 @@ const _semConexao = 'Sem conexão com a internet.';
 /// condomínio. Resposta da API:
 /// `{disponivel: true, id, segredo?, intervalo_s, agora_servidor}` ou
 /// `{disponivel: false, motivo: 'opcao_desligada' | 'sem_morador'}`.
-/// Sem rede: `{erro, sem_conexao: true}`.
+/// Sem rede: `{erro, sem_conexao: true}`. 403 (a conta não pertence mais ao
+/// condomínio: unidade tirada ou apagada): `{erro, sem_vinculo: true}`.
 Future<Map<String, dynamic>> apiCredencialMinha(int idCondominio, {bool renovar = false}) async {
   final url = ApiConfig.buildUri('/credenciais/minha');
   try {
@@ -28,7 +29,9 @@ Future<Map<String, dynamic>> apiCredencialMinha(int idCondominio, {bool renovar 
     );
     logDebug('[apiCredencialMinha] status ${response.statusCode}');
     if (response.statusCode == 200) return _mapa(response, 'Resposta inválida do servidor.');
-    return _mensagemDeErro(response, 'Não foi possível preparar o QR de acesso.');
+    final erro = _mensagemDeErro(response, 'Não foi possível preparar o QR de acesso.');
+    if (response.statusCode == 403) erro['sem_vinculo'] = true;
+    return erro;
   } catch (e) {
     return _falhaDeRede(e, 'apiCredencialMinha');
   }

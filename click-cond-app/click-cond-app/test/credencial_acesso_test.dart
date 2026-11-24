@@ -210,6 +210,38 @@ void main() {
     expect(avisos, [SituacaoCredencial.indisponivelNoCondominio]);
   });
 
+  test('servidor recusa com 403 (conta sem unidade no condomínio): apaga a guardada', () async {
+    seguro.dados['cred_acesso_10'] = jsonEncode({'id': 7, 'segredo': _hexA, 'delta_ms': 0});
+    seguro.dados['cred_acesso_20'] = jsonEncode({'id': 8, 'segredo': _hexB, 'delta_ms': 0});
+    respostas.add({'erro': 'Acesso negado: você não pertence a este condomínio.', 'sem_vinculo': true});
+    final avisos = <(SituacaoCredencial, CredencialLocal?)>[];
+
+    await CredencialAcesso.preparar(10, aoAtualizar: (s, c) => avisos.add((s, c)));
+    await CredencialAcesso.atualizacaoEmCurso;
+
+    expect(seguro.dados.containsKey('cred_acesso_10'), isFalse);
+    expect(seguro.dados.containsKey('cred_acesso_20'), isTrue);
+    expect(avisos, [(SituacaoCredencial.semMorador, null)]);
+  });
+
+  test('erro do servidor sem ser 403: segue com a guardada', () async {
+    seguro.dados['cred_acesso_10'] = jsonEncode({'id': 7, 'segredo': _hexA, 'delta_ms': 0});
+    respostas.add({'erro': 'Não foi possível preparar o QR de acesso.'});
+    final avisos = <SituacaoCredencial>[];
+
+    await CredencialAcesso.preparar(10, aoAtualizar: (s, c) => avisos.add(s));
+    await CredencialAcesso.atualizacaoEmCurso;
+
+    expect(guardado(10)['id'], 7);
+    expect(avisos, isEmpty);
+  });
+
+  test('primeira vez com 403: semMorador e nada guardado', () async {
+    respostas.add({'erro': 'Acesso negado.', 'sem_vinculo': true});
+    expect((await CredencialAcesso.preparar(10)).situacao, SituacaoCredencial.semMorador);
+    expect(seguro.dados, isEmpty);
+  });
+
   test('primeira vez com disponivel false: devolve o motivo e não guarda', () async {
     respostas.add({'disponivel': false, 'motivo': 'sem_morador'});
     expect((await CredencialAcesso.preparar(10)).situacao, SituacaoCredencial.semMorador);
