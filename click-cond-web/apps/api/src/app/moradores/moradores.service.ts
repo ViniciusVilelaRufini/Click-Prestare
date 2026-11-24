@@ -2022,7 +2022,6 @@ export class MoradoresService {
         userId = newUser.id;
         ligarCadastro = true;
       }
-      if (ligarCadastro) await this.prisma.moradores.update({ where: { id }, data: { id_user: userId! } });
       const senhaHash = await bcrypt.hash(senhaInicial, 10);
       // Conta órfã: a posse anterior não volta se o e-mail falhar (senha_alterada_em fica).
       userIdSenha = contaOrfa ? null : userId!;
@@ -2032,9 +2031,11 @@ export class MoradoresService {
         ...(!m.id_user && { login: m.email }),
         ...(loginNovo && { login: loginNovo, ...(!conta?.email && { email: loginNovo }) }),
       };
-      if (contaOrfa) {
-        await invalidarPosseDaConta(this.prisma as any, userId!, senhaHash, dadosConta);
-      } else {
+      // Conta órfã: a posse anterior é invalidada ANTES de ligar o cadastro — se a invalidação falhar,
+      // o cadastro não fica ligado a uma conta que o dono antigo ainda acessa.
+      if (contaOrfa) await invalidarPosseDaConta(this.prisma as any, userId!, senhaHash, dadosConta);
+      if (ligarCadastro) await this.prisma.moradores.update({ where: { id }, data: { id_user: userId! } });
+      if (!contaOrfa) {
         await this.prisma.users.update({
           where: { id: userId! },
           data: {

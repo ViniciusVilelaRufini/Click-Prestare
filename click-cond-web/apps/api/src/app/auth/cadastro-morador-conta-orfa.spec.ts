@@ -85,6 +85,15 @@ describe('saveMorador — conta órfã do signup não é adotada sem prova de po
     expect(prisma.apartamentos_Users.create).toHaveBeenCalledWith({ data: expect.objectContaining({ id_apto: 11, id_user: 70 }) });
   });
 
+  it('conta órfã e invalidação da posse que falha: nada é ligado (nem unidade nem cadastro)', async () => {
+    const { svc, prisma, mail } = montar(orfa());
+    prisma.credenciais_Acesso.updateMany.mockRejectedValue(new Error('banco caiu'));
+    await expect(svc.saveMorador(corpo(), false, sindico)).rejects.toThrow('banco caiu');
+    expect(prisma.apartamentos_Users.create).not.toHaveBeenCalled();
+    expect(prisma.moradores.create).not.toHaveBeenCalled();
+    expect(mail.sendWelcomeMorador).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['cadastro sem e-mail (familiar menor/sem e-mail)', { email: undefined }],
     ['cadastro com outro e-mail', { email: 'atacante@x.com' }],

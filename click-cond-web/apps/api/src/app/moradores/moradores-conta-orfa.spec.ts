@@ -222,6 +222,15 @@ describe('MoradoresService — conta órfã do signup não é adotada sem prova 
       for (const [a] of prisma.users.update.mock.calls) expect(a.data.senha_alterada_em).not.toBeNull();
     });
 
+    it('conta órfã e invalidação da posse que falha: o cadastro NÃO fica ligado à conta', async () => {
+      const { svc, prisma } = comConta('nenhum');
+      prisma.credenciais_Acesso.updateMany.mockRejectedValue(new Error('banco caiu'));
+      await expect(svc.sendCredentials(5)).rejects.toThrow('banco caiu');
+      expect(prisma.moradores.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ id_user: 70 }) }),
+      );
+    });
+
     it('conta com vínculo neste condomínio: segue o link, senha mantida (comportamento de antes)', async () => {
       const { svc, prisma, mobileAuth } = comConta('aqui');
       (prisma as any).redefinicoes_Senha = { count: jest.fn(async () => 0) };
