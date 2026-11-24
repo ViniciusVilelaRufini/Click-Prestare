@@ -1,5 +1,6 @@
 import 'package:click/utils/log.dart';
 import 'dart:convert';
+import 'package:click/controllers/controller_vagas.dart' show unidadeAberta;
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/api_config.dart';
 import 'package:click/utils/api_client.dart';
@@ -15,6 +16,7 @@ Map<String, String> _headers({bool withContentType = false}) {
 apiGetAllVeiculos() async {
   final url = ApiConfig.buildUri('/veiculos/get-all', {
     'id_condominio': Singleton.instance.id_condominio.toString(),
+    ...unidadeAberta(),
   });
   try {
     final response = await ApiClient.get(url, headers: _headers())
@@ -43,6 +45,7 @@ Future<({String erro, String corpo})> apiSalvarVeiculo(
   final url = ApiConfig.buildUri('/veiculos/${isEdit ? 'update' : 'insert'}');
   final body = jsonEncode({
     'id_condominio': Singleton.instance.id_condominio.toString(),
+    ...unidadeAberta(),
     'veiculo': obj,
   });
   try {
@@ -72,6 +75,7 @@ apiRemoverVeiculo(int id) async {
   final body = jsonEncode({
     'id': id,
     'id_condominio': Singleton.instance.id_condominio.toString(),
+    ...unidadeAberta(),
   });
   try {
     final response = await ApiClient.post(url,
