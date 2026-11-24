@@ -64,7 +64,14 @@ describe('SuperlogicaWriteService — montagem do payload', () => {
 
   it('usa a data de entrada no formato do ERP', () => {
     // 27/08/2026 precisa virar 08/27/2026 — o ERP é americano.
-    const payload = SuperlogicaWriteService.montarPayload(43, 1901, [], { nome: 'X' }, new Date(2026, 7, 27));
+    const payload = SuperlogicaWriteService.montarPayload(43, 1901, [], { nome: 'X' }, new Date('2026-08-27T15:00:00Z'));
+
+    expect(payload['contatos[0][DT_ENTRADA_RES]']).toBe('08/27/2026');
+  });
+
+  it('data de entrada é o dia de Brasília mesmo à noite (servidor em UTC)', () => {
+    // 27/08 às 22:00 em Brasília já é 28/08 em UTC.
+    const payload = SuperlogicaWriteService.montarPayload(43, 1901, [], { nome: 'X' }, new Date('2026-08-28T01:00:00Z'));
 
     expect(payload['contatos[0][DT_ENTRADA_RES]']).toBe('08/27/2026');
   });
