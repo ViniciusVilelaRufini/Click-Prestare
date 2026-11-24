@@ -16,8 +16,13 @@ describe('CrmCondominiosService.vincularSindico — conta órfã do signup', () 
   });
   const orfa = () => ({ id: 40, name: 'Ana', is_sindico: 1, email: 'ana@x.com', login: 'ana@x.com', password: hashDoAtacante });
 
-  function build(existente: any, vinculo: 'nenhum' | 'aqui' = 'nenhum') {
+  // 'pendente' = Sindicos_Condominios só no condomínio de autocadastro (ativo = 0, aprovado_em nulo), que o
+  // mesmo token do signup cria por POST /mobile-auth/register; 'aqui' = vínculo em condomínio aprovado.
+  function build(existente: any, vinculo: 'nenhum' | 'aqui' | 'pendente' = 'nenhum') {
     const contar = jest.fn(async () => (vinculo === 'aqui' ? 1 : 0));
+    const contarSindico = jest.fn(async ({ where }: any) =>
+      vinculo === 'aqui' ? 1 : vinculo === 'pendente' && !where.condominio?.NOT ? 1 : 0,
+    );
     const tx: any = {
       users: { create: jest.fn(), update: jest.fn(async () => ({})) },
       sindicos: { create: jest.fn(), findFirst: jest.fn(async () => ({ id: 3 })) },
@@ -29,7 +34,7 @@ describe('CrmCondominiosService.vincularSindico — conta órfã do signup', () 
       condominios: { findUnique: jest.fn(async () => ({ id: 9, nome: 'Cond' })) },
       users: { findFirst: jest.fn(async () => existente) },
       funcionarios_Portaria: { count: jest.fn(async () => 0) },
-      sindicos_Condominios: { findFirst: jest.fn(async () => null), count: contar },
+      sindicos_Condominios: { findFirst: jest.fn(async () => null), count: contarSindico },
       funcionarios: { count: contar },
       moradores: { count: contar },
       apartamentos_Users: { count: contar },
@@ -61,6 +66,18 @@ describe('CrmCondominiosService.vincularSindico — conta órfã do signup', () 
     // O operador não vê a senha da conta.
     expect(r.senhaSindico).toBeUndefined();
     expect(r).toMatchObject({ id_user: 40, contaExistente: true, credenciais_enviadas: true });
+  });
+
+  it('signup + condomínio pendente: tratada como órfã (senha nova só no e-mail da conta, sessões e credenciais caem)', async () => {
+    const { svc, tx, mail } = build(orfa(), 'pendente');
+    const r: any = await svc.vincularSindico(9, { nome: 'Ana', email: 'ana@x.com' }, operador);
+    const escrita = tx.users.update.mock.calls.find(([a]: any) => a.where.id === 40 && a.data.password);
+    expect(escrita).toBeDefined();
+    expect(await bcrypt.compare(SENHA_DO_ATACANTE, escrita[0].data.password)).toBe(false);
+    expect(escrita[0].data.senha_alterada_em).toBeInstanceOf(Date);
+    expect(tx.credenciais_Acesso.updateMany).toHaveBeenCalled();
+    expect(mail.sendForgotPassword).toHaveBeenCalledWith('ana@x.com', expect.any(String), 'Síndico');
+    expect(r.senhaSindico).toBeUndefined();
   });
 
   it('conta órfã sem is_sindico: a flag entra na mesma escrita da senha nova', async () => {

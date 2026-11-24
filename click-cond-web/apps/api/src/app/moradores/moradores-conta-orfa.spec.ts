@@ -16,12 +16,23 @@ describe('MoradoresService — conta órfã do signup não é adotada sem prova 
   });
   const conta = () => ({ id: 70, email: 'vitima@x.com', login: 'vitima@x.com', password: hashDoAtacante, photo: null, senha_alterada_em: null });
 
-  /** vinculo: onde a conta tem vínculo ('aqui' = este condomínio, 1; 'nenhum' = conta órfã). */
-  function build(vinculo: 'nenhum' | 'aqui' = 'nenhum') {
+  /**
+   * vinculo: onde a conta tem vínculo ('aqui' = este condomínio, 1; 'nenhum' = conta órfã;
+   * 'pendente' = síndico do condomínio de autocadastro 99, ativo = 0 e aprovado_em nulo, via
+   * POST /mobile-auth/register; 'outro-ativo' = síndico do condomínio 99 já aprovado).
+   */
+  function build(vinculo: 'nenhum' | 'aqui' | 'pendente' | 'outro-ativo' = 'nenhum') {
     const contar = jest.fn(async ({ where }: any) => {
       if (vinculo !== 'aqui') return 0;
       const c = where.id_condominio ?? where.apartamento?.id_condominio;
       return c?.not !== undefined ? 0 : 1; // só neste condomínio
+    });
+    // Sindicos_Condominios no condomínio 99 (fora deste): o filtro "condomínio não pendente" exclui o pendente.
+    const contarSindico = jest.fn(async ({ where }: any) => {
+      if (vinculo === 'aqui') return contar({ where });
+      if (vinculo === 'nenhum') return 0;
+      if (where.id_condominio !== undefined && where.id_condominio?.not === undefined) return 0; // pergunta por este
+      return vinculo === 'pendente' && where.condominio?.NOT ? 0 : 1;
     });
     const prisma: any = {
       isConnected: true,
@@ -43,7 +54,7 @@ describe('MoradoresService — conta órfã do signup não é adotada sem prova 
         findFirst: jest.fn(async () => null),
       },
       apartamentos_Users: { create: jest.fn(async () => ({})), count: contar },
-      sindicos_Condominios: { count: contar },
+      sindicos_Condominios: { count: contarSindico },
       funcionarios: { count: contar },
       funcionarios_Portaria: { count: jest.fn(async () => 0) },
       credenciais_Acesso: { updateMany: jest.fn(async () => ({ count: 1 })) },
@@ -120,6 +131,47 @@ describe('MoradoresService — conta órfã do signup não é adotada sem prova 
       expect(prisma.users.update).not.toHaveBeenCalled();
       expect(prisma.credenciais_Acesso.updateMany).not.toHaveBeenCalled();
       expect(mail.sendWelcomeMorador).not.toHaveBeenCalled();
+    });
+  });
+
+  // Achado da revisão: o mesmo token do signup chama POST /mobile-auth/register, que cria um condomínio
+  // pendente e grava Sindicos_Condominios. A conta deixava de ser órfã e virava "de outro condomínio".
+  describe('signup + condomínio de autocadastro pendente', () => {
+    it('criar morador do CRM (permitirContaDeOutroCondominio): adotada como órfã, não ligada com a senha antiga', async () => {
+      const { svc, prisma, mail } = build('pendente');
+      const admin: any = { sub: 1, role: 'crm_admin', typeAccess: 'CrmAdmin' };
+      await svc.create(dto({ sendCredentials: false }) as any, admin, { permitirContaDeOutroCondominio: true });
+      const hash = await possePerdida(prisma);
+      await senhaNoEmailDaConta(mail, hash);
+    });
+
+    it('console: a conta é adotada como órfã (não mais 400 de "outro condomínio")', async () => {
+      const { svc, prisma, mail } = build('pendente');
+      await svc.create(dto({ sendCredentials: false }) as any);
+      const hash = await possePerdida(prisma);
+      await senhaNoEmailDaConta(mail, hash);
+      expect(prisma.moradores.create).toHaveBeenCalledWith({ data: expect.objectContaining({ id_user: 70 }) });
+    });
+
+    it('importação (importBulk): também adotada como órfã', async () => {
+      const { svc, prisma, mail } = build('pendente');
+      const r: any = await svc.importBulk(1, [{ nome: 'Vítima', email: 'vitima@x.com', data_nascimento: '01/01/1990' }]);
+      expect(r.erros).toEqual([]);
+      const hash = await possePerdida(prisma);
+      await senhaNoEmailDaConta(mail, hash);
+    });
+
+    it('controle: síndico de OUTRO condomínio aprovado continua como antes (CRM liga sem tocar a conta; console recusa)', async () => {
+      const crm = build('outro-ativo');
+      const admin: any = { sub: 1, role: 'crm_admin', typeAccess: 'CrmAdmin' };
+      await crm.svc.create(dto({ sendCredentials: true }) as any, admin, { permitirContaDeOutroCondominio: true });
+      expect(crm.prisma.users.update).not.toHaveBeenCalled();
+      expect(crm.prisma.credenciais_Acesso.updateMany).not.toHaveBeenCalled();
+      expect(crm.mail.sendWelcomeMorador).not.toHaveBeenCalled();
+
+      const doConsole = build('outro-ativo');
+      await expect(doConsole.svc.create(dto() as any)).rejects.toThrow('Fale com o suporte para vincular a unidade.');
+      expect(doConsole.prisma.users.update).not.toHaveBeenCalled();
     });
   });
 

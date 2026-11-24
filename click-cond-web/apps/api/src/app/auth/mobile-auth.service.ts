@@ -23,7 +23,7 @@ import { ehLoginDoPrestador, nomeNormalizado } from '../prestadores/login-do-pre
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { lerPermissoesSalvas } from '../prestadores/permissoes-salvas.util';
 import { idUsuarioDoToken } from './usuario-do-token.util';
-import { MSG_CONTA_SO_POR_CPF, contaCasaComEmail, contaOrfaAutocriada, invalidarPosseDaConta } from '../common/adocao-conta.util';
+import { MSG_CONTA_SO_POR_CPF, contaCasaComEmail, contaOrfaAutocriada, contaTemVinculoEmOutroCondominioValido, invalidarPosseDaConta } from '../common/adocao-conta.util';
 import { momentoTrocaSenha } from './senha-alterada.util';
 import { assertEmailNaoReservado } from '../common/email-reservado.util';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -5061,7 +5061,9 @@ export class MobileAuthService {
         // login, e-mail, CPF, senha, telefone, nome e foto dela não são gravados aqui (vinculos-usuario.util).
         // Antes, quem cadastrava achava a conta pelo CPF, gravava o PRÓPRIO e-mail como login
         // e uma senha que conhecia, e entrava como a pessoa — com os vínculos dela no outro prédio.
-        const contaDeOutroCondominio = await usuarioTemVinculoEmOutroCondominio(this.prisma as any, existing.id, idCondominio);
+        // Vínculo só com condomínio de autocadastro pendente não conta (adocao-conta.util): a conta do signup
+        // com ele cai na regra da conta órfã abaixo.
+        const contaDeOutroCondominio = await contaTemVinculoEmOutroCondominioValido(this.prisma as any, existing.id, idCondominio);
         // Ligar aqui uma conta que já é de OUTRO condomínio, achada só por e-mail/CPF, entregava a este
         // condomínio o perfil dela (e-mail, telefone, CPF, foto). Quem liga é o titular; exceção: a conta
         // é a do próprio solicitante (a sessão prova a posse).

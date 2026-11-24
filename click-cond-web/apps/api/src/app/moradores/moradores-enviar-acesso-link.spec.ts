@@ -43,7 +43,7 @@ describe('MoradoresService.sendCredentials — link para quem já tem senha', ()
       sindicos_Condominios: { count: jest.fn().mockResolvedValue(0) },
       funcionarios: { count: jest.fn().mockResolvedValue(0) },
       apartamentos_Users: {
-        count: jest.fn(async ({ where }: any) => (opts.vinculoAqui && where?.apartamento === undefined ? 1 : 0)),
+        count: jest.fn(async ({ where }: any) => (opts.vinculoAqui && where?.apartamento?.id_condominio?.not === undefined ? 1 : 0)),
       },
     };
     const mail: any = { sendWelcomeMorador: jest.fn().mockResolvedValue({}), sendWelcomeMoradorExisting: jest.fn() };

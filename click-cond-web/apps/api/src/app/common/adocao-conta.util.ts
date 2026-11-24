@@ -1,3 +1,4 @@
+import type { Prisma } from '../prisma/generated';
 import { momentoTrocaSenha } from '../auth/senha-alterada.util';
 
 /**
@@ -40,9 +41,19 @@ type PrismaVinculos = {
 };
 
 /**
+ * Condomínio de autocadastro ainda em análise (ativo = 0 e aprovado_em nulo; ativo = 0 com aprovado_em é
+ * condomínio desativado). O mesmo token do /sindico/signup chama POST /mobile-auth/register, que cria um
+ * desses e grava Sindicos_Condominios: vínculo com ele não prova nada sobre a posse da conta, então não conta
+ * como vínculo nem para a conta órfã nem para a recusa de "outro condomínio" nos pontos de adoção.
+ */
+const CONDOMINIO_PENDENTE = { ativo: 0, aprovado_em: null } satisfies Prisma.CondominiosWhereInput;
+const EM_CONDOMINIO_VALIDO = { condominio: { NOT: CONDOMINIO_PENDENTE } } satisfies Prisma.Sindicos_CondominiosWhereInput;
+
+/**
  * Conta com senha, sem vínculo nenhum (síndico de condomínio, equipe, morador ou unidade) em condomínio
- * nenhum e que não é a do solicitante: o perfil que o /sindico/signup deixa. A senha vem primeiro para não
- * consultar vínculos de conta que nunca autenticou (dependente, cadastro sem acesso ao app).
+ * nenhum que não seja pendente, e que não é a do solicitante: o perfil que o /sindico/signup deixa (com ou
+ * sem o condomínio de autocadastro). A senha vem primeiro para não consultar vínculos de conta que nunca
+ * autenticou (dependente, cadastro sem acesso ao app).
  */
 export async function contaOrfaAutocriada(
   prisma: PrismaVinculos,
@@ -51,14 +62,42 @@ export async function contaOrfaAutocriada(
 ): Promise<boolean> {
   if (!conta.password) return false;
   if (idSolicitante != null && conta.id === idSolicitante) return false;
-  const where = { id_user: conta.id };
+  const id_user = conta.id;
   const [s, f, m, a] = await Promise.all([
-    prisma.sindicos_Condominios.count({ where }),
-    prisma.funcionarios.count({ where }),
-    prisma.moradores.count({ where }),
-    prisma.apartamentos_Users.count({ where }),
+    prisma.sindicos_Condominios.count({ where: { id_user, ...EM_CONDOMINIO_VALIDO } }),
+    prisma.funcionarios.count({ where: { id_user, ...EM_CONDOMINIO_VALIDO } satisfies Prisma.FuncionariosWhereInput }),
+    // Moradores.id_condominio é opcional: cadastro sem condomínio continua contando como vínculo.
+    prisma.moradores.count({
+      where: { id_user, OR: [{ id_condominio: null }, EM_CONDOMINIO_VALIDO] } satisfies Prisma.MoradoresWhereInput,
+    }),
+    prisma.apartamentos_Users.count({
+      where: { id_user, apartamento: EM_CONDOMINIO_VALIDO } satisfies Prisma.Apartamentos_UsersWhereInput,
+    }),
   ]);
   return s + f + m + a === 0;
+}
+
+/**
+ * `usuarioTemVinculoEmOutroCondominio` (vinculos-usuario.util) para os pontos de adoção de conta: vínculo
+ * só com condomínio pendente não conta (ver CONDOMINIO_PENDENTE). Senão a conta do signup com o condomínio
+ * de autocadastro escapava da regra da conta órfã e era ligada como "de outro condomínio", com a senha de
+ * quem a criou (CRM criar morador, importação da Superlógica, Vincular síndico).
+ */
+export async function contaTemVinculoEmOutroCondominioValido(
+  prisma: PrismaVinculos,
+  idUser: number,
+  idCondominio: number,
+): Promise<boolean> {
+  const id_condominio = { not: Number(idCondominio) };
+  const [s, f, m, a] = await Promise.all([
+    prisma.sindicos_Condominios.count({ where: { id_user: idUser, id_condominio, ...EM_CONDOMINIO_VALIDO } }),
+    prisma.funcionarios.count({ where: { id_user: idUser, id_condominio, ...EM_CONDOMINIO_VALIDO } }),
+    prisma.moradores.count({ where: { id_user: idUser, id_condominio, ...EM_CONDOMINIO_VALIDO } }),
+    prisma.apartamentos_Users.count({
+      where: { id_user: idUser, apartamento: { id_condominio, ...EM_CONDOMINIO_VALIDO } } satisfies Prisma.Apartamentos_UsersWhereInput,
+    }),
+  ]);
+  return s + f + m + a > 0;
 }
 
 type PrismaInvalidacao = {

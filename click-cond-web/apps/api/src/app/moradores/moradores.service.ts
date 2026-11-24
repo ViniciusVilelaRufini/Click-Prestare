@@ -15,7 +15,7 @@ import { momentoTrocaSenha } from '../auth/senha-alterada.util';
 import * as bcrypt from 'bcrypt';
 import { MSG_CONTA_DE_OUTRO_CONDOMINIO, usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio, usuariosComVinculoEmOutroCondominio } from '../common/vinculos-usuario.util';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
-import { contaOrfaAutocriada, invalidarPosseDaConta } from '../common/adocao-conta.util';
+import { contaOrfaAutocriada, contaTemVinculoEmOutroCondominioValido, invalidarPosseDaConta } from '../common/adocao-conta.util';
 import { randomBytes } from 'crypto';
 import { calcularIdade, temTermoResponsavel, validarBiometria, validarMaioridade } from '../common/idade.util';
 
@@ -1195,7 +1195,9 @@ export class MoradoresService {
             userId = existing.id;
             // Users é global: conta com vínculo em OUTRO condomínio só é ligada a este cadastro.
             // Login, senha e foto dela não são tocados (vinculos-usuario.util; mesma regra do sendCredentials).
-            const contaDeOutroCondominio = await usuarioTemVinculoEmOutroCondominio(this.prisma as any, existing.id, dto.id_condominio);
+            // Vínculo só com condomínio de autocadastro pendente não conta (adocao-conta.util): a conta do signup
+            // com ele cai na regra da conta órfã, não no "de outro condomínio" que a ligava com a senha antiga.
+            const contaDeOutroCondominio = await contaTemVinculoEmOutroCondominioValido(this.prisma as any, existing.id, dto.id_condominio);
             if (contaDeOutroCondominio && existing.id !== idUsuarioDoToken(operador) && !opts?.permitirContaDeOutroCondominio) {
               throw new BadRequestException(MSG_CONTA_DE_OUTRO_CONDOMINIO);
             }
@@ -1890,7 +1892,7 @@ export class MoradoresService {
           await this.assertLoginLivreDaPortaria(m.email);
         }
         if (existingUser) {
-          if (m.id_condominio != null && (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, existingUser.id!, m.id_condominio))) {
+          if (m.id_condominio != null && (await contaTemVinculoEmOutroCondominioValido(this.prisma as any, existingUser.id!, m.id_condominio))) {
             throw new BadRequestException('Esta pessoa também tem conta em outro condomínio. Peça que use "Esqueci a senha" no app.');
           }
           userId = existingUser.id!;
@@ -1899,7 +1901,14 @@ export class MoradoresService {
         }
       }
       const outroCondominio =
-        !!userId && m.id_condominio != null && (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, userId, m.id_condominio));
+        !!userId &&
+        m.id_condominio != null &&
+        // Adoção (cadastro ainda sem conta): a régua da adocao-conta.util, em que condomínio pendente não conta.
+        (await (ligarCadastro ? contaTemVinculoEmOutroCondominioValido : usuarioTemVinculoEmOutroCondominio)(
+          this.prisma as any,
+          userId,
+          m.id_condominio,
+        ));
 
       // Login de uma linha de portaria = conta de porteiro (sincronizarContaDoPorteiro casa pelo login).
       // Erro de banco sobe (não decide "senha" às cegas); o `?.` só cobre doubles de teste sem o delegate.

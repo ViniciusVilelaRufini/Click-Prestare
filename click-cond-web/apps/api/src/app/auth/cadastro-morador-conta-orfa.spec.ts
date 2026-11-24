@@ -19,11 +19,18 @@ describe('saveMorador — conta órfã do signup não é adotada sem prova de po
   const sindico = { sub: 1, nome: 'Síndico A', typeAccess: 'Sindico' } as any;
   const orfa = () => ({ id: 70, cpf: CPF, email: 'vitima@x.com', login: 'vitima@x.com', password: hashDoAtacante, name: 'Vítima', phone: null });
 
-  function montar(conta: any, vinculo: 'nenhum' | 'aqui' = 'nenhum') {
+  // 'pendente' = síndico do condomínio de autocadastro 99 (ativo = 0, aprovado_em nulo); 'outro-ativo' = já aprovado.
+  function montar(conta: any, vinculo: 'nenhum' | 'aqui' | 'pendente' | 'outro-ativo' = 'nenhum') {
     const contar = jest.fn(async ({ where }: any) => {
       if (vinculo !== 'aqui') return 0;
       const c = where.id_condominio ?? where.apartamento?.id_condominio;
       return c?.not !== undefined ? 0 : 1;
+    });
+    const contarSindico = jest.fn(async ({ where }: any) => {
+      if (vinculo === 'aqui') return contar({ where });
+      if (vinculo === 'nenhum') return 0;
+      if (where.id_condominio !== undefined && where.id_condominio?.not === undefined) return 0;
+      return vinculo === 'pendente' && where.condominio?.NOT ? 0 : 1;
     });
     const prisma: any = {
       isConnected: true,
@@ -40,7 +47,7 @@ describe('saveMorador — conta órfã do signup não é adotada sem prova de po
         update: jest.fn(async () => ({})),
       },
       apartamentos_Users: { findFirst: jest.fn(async () => null), create: jest.fn(async () => ({})), count: contar },
-      sindicos_Condominios: { count: contar },
+      sindicos_Condominios: { count: contarSindico },
       funcionarios: { count: contar },
       funcionarios_Portaria: { findFirst: jest.fn(async () => null) },
       credenciais_Acesso: { updateMany: jest.fn(async () => ({ count: 1 })) },
@@ -93,6 +100,25 @@ describe('saveMorador — conta órfã do signup não é adotada sem prova de po
   it('conta só com CPF (sem e-mail) achada pelo CPF de cadastro com e-mail → 400 (não grava o e-mail de quem cadastra)', async () => {
     const { svc, prisma } = montar({ ...orfa(), email: null, login: null, password: null });
     await expect(svc.saveMorador(corpo({ email: 'atacante@x.com' }), false, sindico)).rejects.toThrow(MSG_CPF);
+    expect(prisma.users.update).not.toHaveBeenCalled();
+  });
+
+  // Achado da revisão: signup + POST /mobile-auth/register (condomínio pendente) tirava a conta da regra da órfã.
+  it('signup + condomínio pendente: adotada como órfã (não mais 400 de "outro condomínio")', async () => {
+    const { svc, prisma, mail } = montar(orfa(), 'pendente');
+    await svc.saveMorador(corpo(), false, sindico);
+    const escrita = prisma.users.update.mock.calls.find(([a]: any) => a.where.id === 70 && a.data.password);
+    expect(escrita).toBeDefined();
+    expect(await bcrypt.compare(SENHA_DO_ATACANTE, escrita[0].data.password)).toBe(false);
+    expect(escrita[0].data.senha_alterada_em).toBeInstanceOf(Date);
+    expect(prisma.credenciais_Acesso.updateMany).toHaveBeenCalled();
+    expect(mail.sendWelcomeMorador).toHaveBeenCalledWith('vitima@x.com', 'Vítima', expect.any(String));
+    expect(prisma.apartamentos_Users.create).toHaveBeenCalledWith({ data: expect.objectContaining({ id_user: 70 }) });
+  });
+
+  it('controle: síndico de outro condomínio aprovado continua recusado', async () => {
+    const { svc, prisma } = montar(orfa(), 'outro-ativo');
+    await expect(svc.saveMorador(corpo(), false, sindico)).rejects.toThrow('Fale com o suporte para vincular a unidade.');
     expect(prisma.users.update).not.toHaveBeenCalled();
   });
 
