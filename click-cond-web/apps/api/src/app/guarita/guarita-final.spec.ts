@@ -237,7 +237,7 @@ describe('R6/F2 — conflito de cadastro quando o morador sai', () => {
     m.guarita.set('0F086E', fr(202, 'B', 'BRUNO'));
     const { id_operacao } = await m.ops.enfileirarCadastro(1, 'x');
     await m.agente.buscarOperacoes(DEV);
-    await m.agente.registrarResultado(DEV, id_operacao, { ok: false, codigo: 2, erro: 'outra unidade' });
+    await m.agente.registrarResultado(DEV, id_operacao, { ok: false, codigo: 2, conflito: true, lido: { unidade: 202, bloco: 1, frame_hex: fr(202, 'B', 'BRUNO') }, erro: 'outra unidade' });
     expect(tag(m.db).guarita_estado).toBe('conflito');
     expect(await m.ops.enfileirarRemocao(1, 'x')).toBe(true);
     for (const o of m.db.linhas('guarita_Operacoes')) if (o.estado === 'enviada') o.estado = 'ok';
