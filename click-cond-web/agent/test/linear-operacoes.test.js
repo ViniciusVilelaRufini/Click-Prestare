@@ -219,7 +219,7 @@ test('gravar: cada código do 67 vira a mensagem certa', async () => {
   await cenario({}, async ({ sim, sessao }) => {
     const casos = [
       [0x01, 'Memória do Guarita cheia.'],
-      [0x02, 'Este dispositivo já está cadastrado no Guarita.'],
+      // 0x02 no cadastrar é conferido pelo Ler (ja_estava / conflito / incerto — testes G2 e I1).
       [0x03, 'Dispositivo não encontrado no Guarita.'],
       [0xfe, 'O Guarita recusou os dados do dispositivo.'],
       [0x77, 'O Guarita respondeu um código desconhecido (0x77).'],
@@ -231,6 +231,7 @@ test('gravar: cada código do 67 vira a mensagem certa', async () => {
     }
     assert.equal(sim.memoria.dispositivos.length, 0);
     assert.deepEqual(ops.MENSAGENS_67[0x00], 'ok');
+    assert.deepEqual(ops.MENSAGENS_67[0x02], 'Este dispositivo já está cadastrado no Guarita.');
   });
 });
 
@@ -537,7 +538,7 @@ test('item 1: Ler sem resposta → a sessão cai e NADA é escrito', async () =>
   );
 });
 
-test('final item 2: cadastrar RF com 0x02 só é ja_estava com o MESMO contador; contador diferente → conflito (com lido.frame_hex)', async () => {
+test('G2: cadastrar RF com 0x02 na mesma unidade é ja_estava mesmo com o contador andado (o contador não é conflito)', async () => {
   const rf = dispositivo(12, 1);
   rf[0] = 0x11; // serial de 7 dígitos
   rf[4] = 0x12;
@@ -550,10 +551,27 @@ test('final item 2: cadastrar RF com 0x02 só é ja_estava com o MESMO contador;
     const outroContador = Buffer.from(rf);
     outroContador[5] = 0x35;
     const r = await ops.gravar(sessao, { tipo: 'cadastrar', frameHex: hex(outroContador) });
-    assert.equal(r.ok, false);
-    assert.equal(r.conflito, true);
-    assert.equal(r.ja_estava, undefined);
+    assert.equal(r.ok, true);
+    assert.equal(r.ja_estava, true);
+    assert.equal(r.conflito, undefined);
     assert.deepEqual(r.lido, { unidade: 12, bloco: 0, frame_hex: hex(rf) });
+    // Outra unidade continua conflito.
+    const outraUnidade = Buffer.from(rf);
+    outraUnidade[7] = 13;
+    const c = await ops.gravar(sessao, { tipo: 'cadastrar', frameHex: hex(outraUnidade) });
+    assert.equal(c.conflito, true);
+    // Conferência depois da queda: mesma regra.
+    const conferido = await ops.conferirGravacao(sessao, { tipo: 'cadastrar', frameHex: hex(outroContador) });
+    assert.equal(conferido.ok, true);
+    assert.equal(conferido.ja_estava, true);
+  });
+});
+
+test('G2: cadastrar com 0x02 e o Ler de conferência sem o dispositivo → incerto, nunca conflito', async () => {
+  await cenario({}, async ({ sim, sessao }) => {
+    sim.falhas.respostaDo67(0x02); // 0x02 sem gravar; o Ler seguinte não acha nada
+    const r = await ops.gravar(sessao, { tipo: 'cadastrar', frameHex: hex(dispositivo(8, 3)) });
+    assert.deepEqual(r, { ok: false, codigo: 2, incerto: true, mensagem: ops.MSG_INCERTO });
   });
 });
 
