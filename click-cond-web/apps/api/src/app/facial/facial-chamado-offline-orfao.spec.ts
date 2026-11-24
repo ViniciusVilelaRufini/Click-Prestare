@@ -14,7 +14,7 @@ describe('FacialService — chamado de aparelho offline órfão ao renomear/excl
   function build() {
     const device: any = {
       id: 9, id_condominio: 1, nome: 'Portaria Principal', tipo: 'facial', ativo: 1,
-      ip: '10.0.0.9', porta: 80, api_password: null, id_area_social: null, fabricante: null,
+      ip: '10.0.0.9', porta: 80, api_password: null, id_area_social: null, fabricante: 'intelbras',
     };
     const prisma: any = {
       facial_Devices: {
@@ -30,9 +30,12 @@ describe('FacialService — chamado de aparelho offline órfão ao renomear/excl
       ocorrencias: { updateMany: jest.fn(async () => ({ count: 1 })) },
     };
     const auditoria: any = { registrar: jest.fn(async () => undefined) };
+    // T1: excluir/trocar o tipo de um facial ativo apaga os rostos antes (agente online).
+    const client: any = { listUserIds: jest.fn(async () => []), removeUsers: jest.fn(async () => undefined) };
+    const agent: any = { isOnline: jest.fn(() => true) };
     const svc = new FacialService(
-      prisma, null as any, null as any, null as any, auditoria,
-      null as any, null as any, null as any, null as any, null as any,
+      prisma, client, null as any, null as any, auditoria,
+      null as any, agent, null as any, null as any, null as any,
     );
     return { svc, prisma };
   }

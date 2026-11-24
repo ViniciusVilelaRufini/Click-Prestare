@@ -84,6 +84,9 @@ import { ehCodigoDinamico, rotuloDeCredencial } from '../credenciais/codigo-dina
  */
 const JANELA_RUIDO_QR_MS = 10 * 1000;
 const MSG_DEVICE_COM_ENTREGAS = 'Este aparelho tem histórico de entregas; desative-o em vez de excluir.';
+/** T1: o terminal só sai de operação depois de apagados os rostos, e isso passa pelo agente. */
+const MSG_TERMINAL_COM_ROSTOS_AGENTE_OFFLINE =
+  'O terminal ainda tem rostos gravados e o Agente Local está offline: fora de operação ele não seria mais limpo e quem perdeu o acesso continuaria entrando. Ligue o agente e tente de novo.';
 const MOTIVOS_RUIDO_QR: ReadonlySet<string> = new Set(['desconhecida', 'assinatura']);
 
 /** Validade da marca de bulk sync em andamento (instância que morreu no meio não trava o condomínio para sempre). */
@@ -1453,6 +1456,87 @@ export class FacialService {
     }
   }
 
+  /**
+   * T1: terminal facial que sai de operação (desativado, trocado de tipo ou
+   * excluído) some de toda a manutenção — syncs, revogações e a varredura de
+   * fantasmas só enxergam `ativo: 1, tipo: 'facial'` — e os eventos dele são
+   * recusados. Se seguir ligado à fechadura com os rostos gravados, morador
+   * removido e visitante vencido continuam entrando, sem registro.
+   *
+   * Por isso os rostos saem ANTES de gravar a mudança, com o aparelho ainda no
+   * estado anterior (o agente só fala com terminal ativo). Agente offline, ou
+   * alguma remoção que falhou → 409 e nada é gravado.
+   *
+   * Não usa `unsyncAllForCondominio`: aquele roda em segundo plano (não dá para
+   * recusar a operação se falhar) e zera o face_id da pessoa no banco, o que
+   * vale para TODOS os terminais — aqui só este aparelho sai.
+   *
+   * Devolve quantos rostos foram apagados (para a auditoria).
+   */
+  private async limparRostosDoTerminalQueSai(device: {
+    id: number;
+    id_condominio: number;
+    nome: string;
+    ip: string;
+    porta: number;
+    api_user: string | null;
+    api_password: string | null;
+    fabricante: string;
+  }): Promise<number> {
+    if (FACIAL_DISABLED) return 0;
+    // Simulador interno (só fora de produção): nenhum aparelho físico a limpar.
+    if (device.ip === 'sim' || device.ip === 'simulador') return 0;
+    if (!this.agent?.isOnline?.(device.id)) {
+      throw new ConflictException(MSG_TERMINAL_COM_ROSTOS_AGENTE_OFFLINE);
+    }
+    const config = this.toConfig(device);
+    try {
+      // Marca que lista o que tem gravado: apaga tudo o que está NO APARELHO
+      // (inclusive fantasma que o banco já esqueceu) — mesmo par da varredura.
+      if (FABRICANTES_COM_LISTAGEM.includes(config.fabricante)) {
+        const ids = await this.client.listUserIds(config);
+        await this.client.removeUsers(config, ids);
+        return ids.length;
+      }
+      // Sem listagem: remove, uma a uma, todas as pessoas com rosto no
+      // condomínio (as mesmas quatro fontes da varredura de fantasmas).
+      const where = { id_condominio: device.id_condominio, face_id: { not: null } };
+      const select = { id: true, face_id: true };
+      const [moradores, visitantes, prestadores, pessoas] = await Promise.all([
+        this.prisma.moradores.findMany({ where, select }),
+        this.prisma.visitantes.findMany({ where, select }),
+        this.prisma.prestadores_servico.findMany({ where, select }),
+        pessoasMigrationEnabled(this.prisma)
+          ? this.prisma.pessoas.findMany({ where, select })
+          : Promise.resolve([] as { id: number; face_id: string | null }[]),
+      ]);
+      const alvos = [
+        ...moradores.map((p) => ({ faceId: p.face_id!, externalId: `morador_${p.id}` })),
+        ...visitantes.map((p) => ({ faceId: p.face_id!, externalId: `visitante_${p.id}` })),
+        ...prestadores.map((p) => ({ faceId: p.face_id!, externalId: `prestador_servico_${p.id}` })),
+        ...(pessoas ?? []).map((p) => ({ faceId: p.face_id!, externalId: `pessoa_${p.id}` })),
+      ];
+      const falhas: string[] = [];
+      for (const a of alvos) {
+        try {
+          await this.client.removePerson(config, a.faceId, a.externalId);
+        } catch (e: any) {
+          falhas.push(a.externalId);
+          this.logger.warn(`Limpeza do terminal ${device.id}: ${a.externalId}: ${e?.message ?? e}`);
+        }
+      }
+      if (falhas.length > 0) {
+        throw new Error(`${falhas.length} de ${alvos.length} rosto(s) não saíram (${falhas.slice(0, 5).join(', ')})`);
+      }
+      return alvos.length;
+    } catch (e: any) {
+      throw new ConflictException(
+        `Não foi possível apagar os rostos do terminal "${device.nome}": ${e?.message ?? e}. ` +
+          'Fora de operação, ele deixaria de ser limpo e quem perdeu o acesso continuaria entrando. Confira o agente e o terminal e tente de novo.',
+      );
+    }
+  }
+
   private async assertUmGuaritaPorCondominio(idCondominio: number, ignorarId?: number) {
     const outros = await this.prisma.facial_Devices.count({
       where: {
@@ -1753,6 +1837,12 @@ export class FacialService {
         ignorarId: id,
       });
     }
+    // T1: terminal facial ativo que deixa de valer (desativado ou trocado de
+    // tipo) sai sem rostos — ANTES do update, enquanto o agente ainda fala com ele.
+    let rostosRemovidos: number | undefined;
+    if (antes.tipo === 'facial' && antes.ativo === 1 && (ativoFinal !== 1 || tipoFinal !== 'facial')) {
+      rostosRemovidos = await this.limparRostosDoTerminalQueSai(antes);
+    }
 
     const atual = await this.prisma.facial_Devices.update({
       where: { id },
@@ -1786,10 +1876,12 @@ export class FacialService {
       'sentido',
       'confianca_minima',
       'fabricante',
+      'modelo',
       'ip',
       'porta',
       'api_user',
       'ativo',
+      'id_area_social',
     ] as const) {
       if (dto[k] !== undefined && (antes as any)[k] !== (atual as any)[k]) {
         diff[k] = { de: (antes as any)[k], para: (atual as any)[k] };
@@ -1797,6 +1889,13 @@ export class FacialService {
     }
     if (trocaSenha)
       diff['api_password'] = { de: '***', para: '***' };
+    // T2: o controle por reserva mora na área, mas é ligado/desligado por aqui.
+    if (dto.controle_acesso_facial !== undefined && atual.id_area_social != null) {
+      const novo = dto.controle_acesso_facial ? 1 : 0;
+      if (antes.controle_acesso_facial !== novo) {
+        diff['controle_acesso_facial'] = { de: antes.controle_acesso_facial, para: novo };
+      }
+    }
     await this.auditoria.registrar({
       id_condominio: atual.id_condominio,
       usuario_nome: operador?.nome ?? 'sistema',
@@ -1804,7 +1903,7 @@ export class FacialService {
       modulo: 'facial',
       entidade_id: id,
       descricao: `Alterou dispositivo "${atual.nome}"`,
-      detalhes: { changes: diff },
+      detalhes: { changes: diff, ...(rostosRemovidos !== undefined && { rostos_removidos: rostosRemovidos }) },
     });
 
     // Nome ou tipo mudou: o chamado de offline com a descrição antiga não
@@ -1832,8 +1931,12 @@ export class FacialService {
     // Terminal facial reativado, que passou a ser OUTRO aparelho (endereço ou
     // fabricante trocado), ou que VIROU facial agora (tipo trocado): precisa
     // receber todo mundo de novo.
+    // T2: terminal que DEIXOU de ser de área também — a regra de reserva tirou
+    // dele os moradores sem reserva, e a reconciliação acima só roda com área.
+    const saiuDaArea = antes.id_area_social != null && atual.id_area_social == null;
     if (
       reativou ||
+      saiuDaArea ||
       (mudouTipo && atual.tipo === 'facial') ||
       atual.ip !== antes.ip ||
       atual.porta !== antes.porta ||
@@ -1844,7 +1947,11 @@ export class FacialService {
     ) {
       this.agendarCargaDoTerminal(
         atual,
-        reativou ? 'terminal reativado' : 'endereço/fabricante/tipo alterado',
+        reativou
+          ? 'terminal reativado'
+          : saiuDaArea
+            ? 'terminal desvinculado da área'
+            : 'endereço/fabricante/tipo alterado',
       );
     }
 
@@ -1979,6 +2086,10 @@ export class FacialService {
     if (totalPedidosPortao > 0) throw new ConflictException(MSG_DEVICE_COM_ENTREGAS);
 
     if (device.tipo === TIPO_GUARITA) await this.prepararExclusaoDoGuarita(id);
+    // T1: terminal facial ativo sai sem rostos — antes do delete, enquanto o
+    // agente ainda fala com ele (excluído, nenhuma manutenção o alcança mais).
+    const rostosRemovidos =
+      device.tipo === 'facial' && device.ativo === 1 ? await this.limparRostosDoTerminalQueSai(device) : undefined;
 
     try {
       await this.prisma.facial_Devices.delete({ where: { id } });
@@ -1996,7 +2107,11 @@ export class FacialService {
       modulo: 'facial',
       entidade_id: id,
       descricao: `Removeu dispositivo "${device.nome}"`,
-      detalhes: { tipo: device.tipo, ip: device.ip },
+      detalhes: {
+        tipo: device.tipo,
+        ip: device.ip,
+        ...(rostosRemovidos !== undefined && { rostos_removidos: rostosRemovidos }),
+      },
     });
     await this.fecharChamadosOffline(device, 'Encerrado automaticamente: o dispositivo foi excluído.');
     return { ok: true };
@@ -2116,6 +2231,10 @@ export class FacialService {
       throw new BadRequestException(
         'Apenas dispositivos do tipo Botoeira ou Catraca podem ser acionados remotamente.',
       );
+    }
+    // T3: desativado está fora de operação — também para a abertura manual.
+    if (device.ativo !== 1) {
+      throw new BadRequestException('Este dispositivo está desativado. Reative-o antes de acioná-lo.');
     }
     const result = await this.client.triggerRelay(this.toConfig(device));
 
