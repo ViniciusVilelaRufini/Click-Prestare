@@ -6,7 +6,18 @@ class Singleton {
   static Singleton get instance => _singleton;
 
   var id_condominio;
-  var id_apartamento;
+
+  // A unidade guarda o condomínio que estava aberto quando ela foi gravada
+  // (as telas gravam o condomínio e depois a unidade). Vagas e veículos só
+  // mandam a unidade se ela for do condomínio aberto: uma unidade que ficou
+  // de outro condomínio faria a API responder 403.
+  dynamic _idApartamento;
+  dynamic _condominioDaUnidade;
+  dynamic get id_apartamento => _idApartamento;
+  set id_apartamento(dynamic v) {
+    _idApartamento = v;
+    _condominioDaUnidade = id_condominio;
+  }
   // Nunca nulos: quatro telas (visitante, prestador, reserva, mudança) jogam
   // estes valores direto em TextEditingController.text, que não aceita null.
   // Eles só são preenchidos ao ABRIR um condomínio, então quem chegava nessas
@@ -39,6 +50,13 @@ class Singleton {
     }else{
       return id_apartamento.toString();
     }
+  }
+
+  /// [getIdApartamento], mas vazio se a unidade foi gravada com outro
+  /// condomínio aberto (ver `_condominioDaUnidade`).
+  String unidadeDoCondominioAberto() {
+    if ('${_condominioDaUnidade ?? ''}' != '${id_condominio ?? ''}') return '';
+    return getIdApartamento().toString();
   }
 
   checkCurrentMoeda(String text){    

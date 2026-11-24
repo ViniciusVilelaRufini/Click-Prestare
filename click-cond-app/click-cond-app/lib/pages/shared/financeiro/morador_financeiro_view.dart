@@ -30,10 +30,15 @@ enum FinanceiroViewMode { morador, condominio }
 class MoradorFinanceiroView extends StatefulWidget {
   final bool hideAppBar;
   final bool showFab;
+  /// Condomínio do push 'financeiro' tocado (com o app fechado não há
+  /// condomínio aberto e a API dava 403). Não troca o condomínio aberto.
+  /// Null = o condomínio aberto.
+  final int? idCondominio;
   const MoradorFinanceiroView({
     super.key, 
     this.hideAppBar = false,
     this.showFab = true,
+    this.idCondominio,
   });
 
   @override
@@ -102,8 +107,8 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
       if (showLoading) {
         setState(() => _isLoading = true);
       }
-      final dynamic data = await apiGetFinanceiroByUser();
-      final dynamic condoData = await apiGetAllFinanceiro("financeiro", mes ?? "", ano ?? ""); 
+      final dynamic data = await apiGetFinanceiroByUser(idCondominio: widget.idCondominio);
+      final dynamic condoData = await apiGetAllFinanceiro("financeiro", mes ?? "", ano ?? "", idCondominio: widget.idCondominio); 
       // Chegou tarde: outro mes ja foi pedido depois deste.
       if (minhaRequisicao != _requisicaoAtual || !mounted) return;
       
@@ -1460,9 +1465,9 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
 
                           bool success;
                           if (isEditing) {
-                            success = await apiUpdateMoradorFinanceiro(bodyData);
+                            success = await apiUpdateMoradorFinanceiro(bodyData, idCondominio: widget.idCondominio);
                           } else {
-                            success = await apiInsertMoradorFinanceiro(bodyData);
+                            success = await apiInsertMoradorFinanceiro(bodyData, idCondominio: widget.idCondominio);
                           }
 
                           if (success) {

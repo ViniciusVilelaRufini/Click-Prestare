@@ -287,10 +287,9 @@ class FirebaseService {
           );
           break;
         case 'financeiro':
-          condominioParaAbrirFinanceiro(data);
           nav.push(
             MaterialPageRoute(
-              builder: (_) => const MoradorFinanceiroView(),
+              builder: (_) => MoradorFinanceiroView(idCondominio: condominioDoPush(data)),
             ),
           );
           break;

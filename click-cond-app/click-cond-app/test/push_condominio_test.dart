@@ -1,9 +1,11 @@
 import 'dart:convert';
 
+import 'package:click/controllers/controller_financeiro.dart';
 import 'package:click/controllers/controller_visitantes.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/services/push_condominio.dart';
 import 'package:click/utils/api_client.dart';
+import 'package:click/utils/local_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -13,8 +15,14 @@ import 'package:http/testing.dart';
 ///   condomínio aberto (quem tem vínculo em dois via a lista vazia);
 /// - financeiro com o app fechado: sem condomínio aberto a API dava 403.
 void main() {
-  tearDown(() {
+  setUp(() async {
+    await ensureStorageReady();
+    storageMorador({'token': 't', 'user': {'id': 1, 'nome': 'Ana'}});
+  });
+
+  tearDown(() async {
     ApiClient.restaurarPadroes();
+    await storageLogout();
     Singleton.instance.reset();
   });
 
@@ -25,16 +33,31 @@ void main() {
     expect(condominioDoPush({'id_condominio': '0'}), isNull);
   });
 
-  test('financeiro: sem condomínio aberto, abre o do push', () {
-    Singleton.instance.id_condominio = null;
-    condominioParaAbrirFinanceiro({'type': 'financeiro', 'id_condominio': '42'});
-    expect(Singleton.instance.id_condominio, 42);
+  test('financeiro: as requisições saem com o condomínio do push e o Singleton não muda', () async {
+    final pedidas = <Uri>[];
+    ApiClient.client = MockClient((req) async {
+      pedidas.add(req.url);
+      return http.Response(jsonEncode({}), 200);
+    });
+    for (final aberto in [null, 7]) {
+      pedidas.clear();
+      Singleton.instance.id_condominio = aberto;
+      await apiGetFinanceiroByUser(idCondominio: 42);
+      await apiGetAllFinanceiro('financeiro', '11', '2026', idCondominio: 42);
+      expect(pedidas.map((u) => u.queryParameters['id_condominio']), ['42', '42'], reason: 'aberto=$aberto');
+      expect(Singleton.instance.id_condominio, aberto);
+    }
   });
 
-  test('financeiro: com condomínio aberto, o usuário fica nele', () {
+  test('financeiro sem push: o condomínio aberto', () async {
+    late Uri pedida;
+    ApiClient.client = MockClient((req) async {
+      pedida = req.url;
+      return http.Response(jsonEncode({}), 200);
+    });
     Singleton.instance.id_condominio = 7;
-    condominioParaAbrirFinanceiro({'type': 'financeiro', 'id_condominio': '42'});
-    expect(Singleton.instance.id_condominio, 7);
+    await apiGetFinanceiroByUser();
+    expect(pedida.queryParameters['id_condominio'], '7');
   });
 
   group('pendentes de autorização', () {

@@ -70,4 +70,22 @@ void main() {
       }
     }
   });
+
+  // Revisão: unidade que ficou de outro condomínio (o condomínio aberto mudou
+  // sem a unidade acompanhar) faria a API responder 403 em vagas/veículos.
+  test('unidade gravada com outro condomínio aberto não é mandada', () async {
+    Singleton.instance.id_condominio = 22;
+    Singleton.instance.id_apartamento = 77;
+    Singleton.instance.id_condominio = 33; // trocou de condomínio, unidade ficou
+    await apiGetVagas();
+    await apiRemoverVeiculo(5);
+    expect(pedidos[0].url.queryParameters.containsKey('id_apartamento'), isFalse);
+    expect((jsonDecode(pedidos[1].body) as Map).containsKey('id_apartamento'), isFalse);
+
+    // Unidade gravada de novo com o condomínio aberto: volta a ir.
+    pedidos.clear();
+    Singleton.instance.id_apartamento = 88;
+    await apiGetVagas();
+    expect(pedidos.single.url.queryParameters['id_apartamento'], '88');
+  });
 }

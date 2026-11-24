@@ -13,10 +13,11 @@ Map<String, String> _headers({bool withContentType = false}) {
 }
 
 /// Unidade aberta no app, para a API operar ESTA unidade (e não a primeira
-/// da conta, como acontecia com quem tem duas). Síndico sem apto (-1) ou
-/// sem unidade aberta não manda nada — a API usa o vínculo mais antigo.
+/// da conta, como acontecia com quem tem duas). Síndico sem apto (-1), sem
+/// unidade aberta ou unidade de outro condomínio não manda nada — a API usa
+/// o vínculo mais antigo.
 Map<String, String> unidadeAberta() {
-  final id = Singleton.instance.getIdApartamento().toString();
+  final id = Singleton.instance.unidadeDoCondominioAberto();
   return id.isEmpty ? {} : {'id_apartamento': id};
 }
 
