@@ -24,7 +24,7 @@ import {
 import { DispositivoGuarita, blocoParaByte, decodificarDispositivo } from './guarita-frame.util';
 import { GuaritaOperacoesService } from './guarita-operacoes.service';
 import type { GuaritaDoAgente, ResultadoOperacaoDto } from './guarita-agente.service';
-import { buscarGuaritaDoCondominio, unidadeGuaritaDoTexto } from './guarita-comum.util';
+import { buscarGuaritaDoCondominio, unidadeGuaritaDoTexto, violouChaveDoGuarita } from './guarita-comum.util';
 import { hexDeTamanho } from './guarita-validacao.util';
 
 /** Operação como o console a enxerga (`GET …/operacoes/:id`, e a resposta de importar/conferir). */
@@ -603,6 +603,17 @@ export class GuaritaImportacaoService {
         break;
       } catch (err: any) {
         if (err?.code !== 'P2002') throw err;
+        // G7: o controle já tem tag neste Guarita (criada por outro caminho no meio): só atualiza o frame.
+        if (violouChaveDoGuarita(err)) {
+          const mesma = await this.prisma.tags.findFirst({
+            where: { id_device: device.id, guarita_tipo: d.tipo, guarita_serial: d.serialHex },
+            select: { id: true },
+          });
+          if (mesma) {
+            await this.atualizarFrame(mesma.id, d, agora);
+            return { id: mesma.id, vinculada: false };
+          }
+        }
         const existente = await this.prisma.tags.findFirst({
           where: { id_condominio: device.id_condominio, codigo },
           select: { id: true, id_device: true },

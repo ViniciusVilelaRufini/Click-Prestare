@@ -454,7 +454,7 @@ model Tags {
 
   @@unique([id_condominio, codigo], map: "un_tag_cond_codigo")
   @@index([id_condominio], map: "idx_tag_cond")
-  @@index([id_device, guarita_tipo, guarita_serial], map: "idx_tag_guarita")
+  @@unique([id_device, guarita_tipo, guarita_serial], map: "un_tag_guarita")
   @@index([id_apto], map: "fk_tag_guarita_apto")
 }
 

@@ -25,7 +25,7 @@ const TABELAS: Record<string, DefTabela> = {
   facial_Devices: { padroes: { ativo: () => 1, tipo: () => 'facial', created_at: () => new Date() } },
   condominios: {},
   tags: {
-    unicos: [['id_condominio', 'codigo']],
+    unicos: [['id_condominio', 'codigo'], ['id_device', 'guarita_tipo', 'guarita_serial']],
     padroes: { ativo: () => 1, tipo: () => 'rfid', created_at: () => new Date(), updated_at: () => new Date() },
   },
   veiculos: { unicos: [['id_condominio', 'placa']], padroes: { ativo: () => 1, created_at: () => new Date() } },

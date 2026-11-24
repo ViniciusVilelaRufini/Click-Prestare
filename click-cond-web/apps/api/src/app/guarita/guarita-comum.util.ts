@@ -87,3 +87,15 @@ export function unidadeGuaritaDoTexto(
   }
   return falha();
 }
+
+/**
+ * G7: o P2002 veio da chave única un_tag_guarita (id_device, guarita_tipo,
+ * guarita_serial) — o mesmo controle já está em outra tag deste Guarita (a
+ * outra instância criou primeiro). `meta.target` é o nome do índice (MySQL) ou
+ * a lista de campos.
+ */
+export function violouChaveDoGuarita(err: any): boolean {
+  if (err?.code !== 'P2002') return false;
+  const alvo = [err?.meta?.target].flat().filter(Boolean).join(',');
+  return /un_tag_guarita|guarita_serial/.test(alvo);
+}
