@@ -1803,9 +1803,10 @@ export class MoradoresService {
     if (morador?.id_condominio && this.wallet) {
       void this.wallet.revogarDoMorador(id, morador.id_condominio);
     }
-    if (morador?.face_id) {
+    // Também sem face_id: o terminal de área com reserva matricula sem gravar face_id (F5).
+    if (morador) {
       this.facial
-        .unsyncMorador(id, morador.face_id, morador.id_condominio)
+        .unsyncMoradorExcluido(id, morador.face_id, morador.id_condominio)
         .catch((err) => this.logger.warn(`Unsync facial morador ${id} falhou: ${err?.message ?? err}`));
     }
     // Módulo Guarita: controle/tag de ex-morador abrindo o portão é o risco

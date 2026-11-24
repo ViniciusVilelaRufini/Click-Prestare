@@ -13,7 +13,7 @@ describe('Exclusão de morador e de conta — passe da carteira', () => {
   const nuncaTermina = () => new Promise<void>(() => undefined);
 
   function montar(prisma: any, opts: { comWallet?: boolean } = {}) {
-    const facial: any = { unsyncMorador: jest.fn(async () => true) };
+    const facial: any = { unsyncMoradorExcluido: jest.fn(async () => true) };
     const tenant: any = { assertEntidade: jest.fn(async () => undefined) };
     const wallet: any = { revogarDoMorador: jest.fn(nuncaTermina) };
     const svc = new MobileAuthService(

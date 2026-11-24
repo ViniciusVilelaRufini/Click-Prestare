@@ -34,7 +34,7 @@ describe('App — flags do funcionário', () => {
       assertEntidade: jest.fn(async () => undefined),
       assertPermissaoFuncionario: jest.fn((id: number, flag: any, p: any) => real.assertPermissaoFuncionario(id, flag, p)),
     };
-    const facial: any = { unsyncMorador: jest.fn(async () => true) };
+    const facial: any = { unsyncMoradorExcluido: jest.fn(async () => true) };
     const svc = new MobileAuthService(
       prisma, {} as any, {} as any, {} as any, facial, tenant, {} as any, {} as any, {} as any, {} as any,
     );

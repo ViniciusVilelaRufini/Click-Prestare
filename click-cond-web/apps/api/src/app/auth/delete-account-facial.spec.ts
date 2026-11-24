@@ -30,7 +30,7 @@ describe('MobileAuthService.deleteAccount — rosto nos terminais', () => {
       $transaction: jest.fn(async (ops: any[]) => Promise.all(ops)),
     };
     const facial: any = {
-      unsyncMorador: jest.fn(async (id: number) => {
+      unsyncMoradorExcluido: jest.fn(async (id: number) => {
         ordem.push(`unsync:${id}`);
         if (opts.unsyncFalha) throw new Error('agente offline');
         return true;
@@ -49,12 +49,21 @@ describe('MobileAuthService.deleteAccount — rosto nos terminais', () => {
     expect(prisma.moradores.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ id_user: 5 }) }),
     );
-    expect(facial.unsyncMorador).toHaveBeenCalledWith(11, 'morador_11', 1);
-    expect(facial.unsyncMorador).toHaveBeenCalledWith(12, 'morador_12', 2);
+    expect(facial.unsyncMoradorExcluido).toHaveBeenCalledWith(11, 'morador_11', 1);
+    expect(facial.unsyncMoradorExcluido).toHaveBeenCalledWith(12, 'morador_12', 2);
     // As linhas são lidas antes do DELETE (a cascata as leva), o rosto sai depois dele.
     expect(ordem.indexOf('delete')).toBeGreaterThanOrEqual(0);
     expect(ordem.indexOf('unsync:11')).toBeGreaterThan(ordem.indexOf('delete'));
     expect(ordem.indexOf('unsync:12')).toBeGreaterThan(ordem.indexOf('delete'));
+  });
+
+  it('cadastro sem face_id também sai (terminal de área com reserva matricula sem face_id, F5)', async () => {
+    const { svc, prisma, facial } = montar();
+    prisma.moradores.findMany.mockResolvedValueOnce([{ id: 13, face_id: null, id_condominio: 1 }]);
+
+    await expect(svc.deleteAccount(5)).resolves.toEqual({ success: true });
+
+    expect(facial.unsyncMoradorExcluido).toHaveBeenCalledWith(13, null, 1);
   });
 
   it('DELETE recusado: a conta continua e o rosto NÃO sai dos terminais', async () => {
@@ -63,7 +72,7 @@ describe('MobileAuthService.deleteAccount — rosto nos terminais', () => {
     await expect(svc.deleteAccount(5)).rejects.toThrow('Foreign key constraint failed');
     await new Promise((r) => setImmediate(r));
 
-    expect(facial.unsyncMorador).not.toHaveBeenCalled();
+    expect(facial.unsyncMoradorExcluido).not.toHaveBeenCalled();
   });
 
   it('falha no terminal não impede a exclusão da conta', async () => {

@@ -2466,9 +2466,10 @@ export class MobileAuthService {
       this.prisma.$executeRaw`DELETE FROM Users WHERE id = ${idUser}`,
     ]);
     // Só aqui, com a conta apagada: rosto, Guarita e carteira (em segundo plano, nunca lançam).
-    for (const m of linhasMorador.filter((l) => l.face_id)) {
+    // Também sem face_id: o terminal de área com reserva matricula sem gravar face_id (F5).
+    for (const m of linhasMorador) {
       this.facial
-        .unsyncMorador(m.id, m.face_id, m.id_condominio)
+        .unsyncMoradorExcluido(m.id, m.face_id, m.id_condominio)
         .catch((err: any) =>
           this.logger.warn(`Unsync facial morador ${m.id} (exclusão de conta) falhou: ${err?.message ?? err}`),
         );
@@ -5339,11 +5340,10 @@ export class MobileAuthService {
     if (atual.id_condominio && this.wallet) {
       void this.wallet.revogarDoMorador(Number(id), atual.id_condominio);
     }
-    if (atual.face_id) {
-      this.facial
-        .unsyncMorador(Number(id), atual.face_id, atual.id_condominio)
-        .catch((err: any) => this.logger.warn(`Unsync facial morador ${id} falhou: ${err?.message ?? err}`));
-    }
+    // Também sem face_id: o terminal de área com reserva matricula sem gravar face_id (F5).
+    this.facial
+      .unsyncMoradorExcluido(Number(id), atual.face_id, atual.id_condominio)
+      .catch((err: any) => this.logger.warn(`Unsync facial morador ${id} falhou: ${err?.message ?? err}`));
     if (tagsGuarita.length && this.guarita) {
       await this.guarita.enfileirarRemocoes(tagsGuarita, user?.nome ?? 'Síndico (app)');
     }

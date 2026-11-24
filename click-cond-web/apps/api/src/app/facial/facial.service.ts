@@ -66,7 +66,7 @@ import { normalizarMac } from './descoberta.service';
 import { agentesSemRedeInterna, urlExternaSegura } from '../common/url-segura.util';
 import { validarIpDispositivo, validarPortaDispositivo } from './device-endereco.util';
 import { StorageService } from '../common/storage/storage.service';
-import { executarComLock, OpcoesLock } from '../common/lock-distribuido';
+import { comLock, executarComLock, OpcoesLock, ResultadoLock } from '../common/lock-distribuido';
 import { limitarConcorrencia } from '../common/limitar-concorrencia';
 import { hojeBrasilia, horaBrasilia, intervaloHojeBrasilia } from '../common/hora-brasilia.util';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
@@ -93,6 +93,44 @@ const MOTIVOS_RUIDO_QR: ReadonlySet<string> = new Set(['desconhecida', 'assinatu
 const BULK_SYNC_TTL_MS = 2 * 60 * 60 * 1000;
 /** Resultado da varredura de fantasmas (roda de hora em hora) vale até a próxima, com folga. */
 const FANTASMAS_TTL_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * Terminal de área social com reserva obrigatória (syncReservaArea): o sync de
+ * um apartamento numa área roda sob o lock `area:<idArea>:apto:<idApto>` — sem
+ * ele, aprovar e logo recusar disparavam dois syncs juntos e o remove (que não
+ * baixa foto) chegava antes do enroll, deixando o rosto com a janela recusada
+ * (Q3). Espera o sync anterior terminar; o prazo cobre foto + um comando por
+ * morador em cada terminal.
+ */
+const ESPERA_LOCK_AREA_APTO_S = 60;
+const DURACAO_LOCK_AREA_APTO_MS = 5 * 60 * 1000;
+/**
+ * Marca de "terminal da área ficou diferente do banco" por (área, apto): algum
+ * remove/enroll falhou (agente offline, terminal fora) ou o lock não veio. O
+ * tickReservasAreas refaz o sync de cada marca até sair limpo — inclusive de
+ * reserva cancelada pelo síndico, cuja linha já foi apagada (por isso a marca é
+ * do apto, não da reserva). Validade longa: reserva cancelada para daqui a
+ * semanas também precisa sair do aparelho.
+ */
+const PREFIXO_AREA_PENDENTE = 'facial:area-pendente:';
+const AREA_PENDENTE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+/** Resultado do sync de um (área, apto) no terminal da área — ver syncReservaAreaApto. */
+type ResultadoSyncAreaApto = {
+  ok: true;
+  devices: number;
+  moradores: number;
+  reservaNoTerminal: number | null;
+  falhas: number;
+};
+/** Mensagem de negação no terminal de área com reserva obrigatória (F6). */
+const MSG_SEM_RESERVA_AREA = 'Sem reserva para esta área agora';
+
+/** "YYYY-MM-DD HH:MM:SS" no relógio de Brasília — o formato de `janelaReserva`. */
+function relogioBrasilia(d: Date = new Date()): string {
+  return d
+    .toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo', hour12: false })
+    .replace(',', '');
+}
 
 /**
  * Ciclo de negócio do tickDiasSemanaSync (porta: hora 0 de Brasília, mesma do
@@ -1976,7 +2014,9 @@ export class FacialService {
    * Reconcilia o gating de uma área ao ligar/desligar `controle_acesso_facial`.
    * LIGADO: remove do(s) terminal(is) da área todos os moradores SEM reserva
    * vigente e enrola os reservados (janela). DESLIGADO: re-enrola todos os
-   * moradores do condomínio nesses terminais (restaura acesso). Fire-and-forget.
+   * moradores do condomínio nesses terminais (restaura acesso). Os syncs rodam
+   * em sequência (aguardados): remover, enrolar reservados e enrolar a
+   * administração não disputam o mesmo terminal. Fire-and-forget nos chamadores.
    */
   async reconcileAreaGating(idArea: number) {
     if (FACIAL_DISABLED || !this.prisma.isConnected) return;
@@ -1995,7 +2035,7 @@ export class FacialService {
       });
       const deviceIds = devices.map((d) => d.id);
       for (const m of moradores) {
-        this.syncMorador(m.id, { deviceIds }).catch((e) =>
+        await this.syncMorador(m.id, { deviceIds }).catch((e) =>
           this.logger.warn(`reconcile re-enroll morador ${m.id}: ${e?.message ?? e}`),
         );
       }
@@ -2003,9 +2043,10 @@ export class FacialService {
     }
 
     // Ligou → conjunto reservado (aptos com reserva aprovada vigente/futura).
-    const hojeStr = new Date().toISOString().slice(0, 10);
+    // "Hoje" em Brasília: em UTC, depois das 21h locais as reservas da noite
+    // de hoje saíam do conjunto e quem estava na área era removido (F1).
     const reservas = await this.prisma.areas_Sociais_Agendamentos.findMany({
-      where: { id_area_social: Number(idArea), status: 'aprovado', data: { gte: new Date(hojeStr) } },
+      where: { id_area_social: Number(idArea), status: 'aprovado', data: { gte: hojeBrasilia() } },
       select: { id: true, id_apartamento: true },
     });
     const aptosReservados = [...new Set(reservas.map((r) => r.id_apartamento))];
@@ -2041,11 +2082,13 @@ export class FacialService {
         }
       }
     }
-    // Enrola os reservados vigentes (com a janela do horário).
-    for (const r of reservas) {
-      this.syncReservaArea(r.id).catch((e) =>
-        this.logger.warn(`reconcile enroll reserva ${r.id}: ${e?.message ?? e}`),
-      );
+    // Enrola os reservados (com a janela da reserva vigente ou próxima de
+    // cada apto — uma por apto, não uma por reserva).
+    for (const idApto of aptosReservados) {
+      await this.syncReservaAreaApto(Number(idArea), idApto, area, {
+        perdeuReserva: false,
+        rotulo: `reconcile área ${idArea} apto ${idApto}`,
+      }).catch((e) => this.logger.warn(`reconcile enroll área ${idArea} apto ${idApto}: ${e?.message ?? e}`));
     }
 
     // Garante que os FUNCIONÁRIOS (administração) fiquem enrolados no terminal:
@@ -2053,7 +2096,7 @@ export class FacialService {
     const deviceIds = devices.map((d) => d.id);
     for (const m of todos) {
       if ((m.tipo ?? '').toLowerCase() === 'funcionario') {
-        this.syncMorador(m.id, { deviceIds }).catch((e) =>
+        await this.syncMorador(m.id, { deviceIds }).catch((e) =>
           this.logger.warn(`reconcile enroll funcionario-morador ${m.id}: ${e?.message ?? e}`),
         );
       }
@@ -2063,7 +2106,7 @@ export class FacialService {
       select: { id: true },
     });
     for (const p of prestadores) {
-      this.syncPrestadorServico(p.id, { deviceIds }).catch((e) =>
+      await this.syncPrestadorServico(p.id, { deviceIds }).catch((e) =>
         this.logger.warn(`reconcile enroll prestador ${p.id}: ${e?.message ?? e}`),
       );
     }
@@ -2874,46 +2917,90 @@ export class FacialService {
   }
 
   /**
-   * A PRÓXIMA outra reserva aprovada vigente/futura do apartamento nesta área
-   * (ou null). Devolve a reserva inteira, não um booleano, porque quem chama
-   * precisa da JANELA dela para reescrever a validade gravada no aparelho.
+   * A reserva APROVADA do apartamento nesta área que está acontecendo agora ou
+   * é a próxima a acontecer (ou null) — a única cuja janela vai para o
+   * terminal. Aprovação, recusa, cancelamento, tick e reconcile passam todos
+   * por aqui (F1).
    *
-   * Por que a janela importa: o terminal guarda uma única janela por pessoa.
-   * Quando a reserva atual é cancelada (manutenção, por exemplo) mas o apto
-   * ainda tem outra reserva aprovada, apenas "não remover" deixava o aparelho
-   * com a janela da reserva CANCELADA — e o morador entrava na área no meio da
-   * manutenção. Reenrolar com a janela da reserva remanescente fecha o buraco
-   * sem tirar o acesso a que ele ainda tem direito.
+   * Por que uma só: o terminal guarda UMA janela por pessoa. Antes cada
+   * chamada gravava a janela da reserva que a disparou e "a última sincronizada
+   * vencia": apto com quadra 10h–12h e 19h–21h ficava com uma delas negada;
+   * cancelar uma reserva deixava a janela dela no aparelho. "Ainda não
+   * terminou" é no relógio de Brasília, com a mesma janela de `janelaReserva`
+   * (término 00:00 = meia-noite do fim do dia).
    */
-  private async proximaOutraReservaAprovada(
-    idArea: number,
-    idApto: number,
-    excluirAgId: number,
-  ) {
-    // "Hoje" no fuso do condomínio — o servidor roda em UTC e, depois das 21h
-    // locais, `new Date()` já virou o dia seguinte lá: uma reserva de hoje
-    // sairia da janela e o acesso seria revogado cedo demais.
-    const hojeStr = new Date()
-      .toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo', hour12: false })
-      .slice(0, 10);
-    return this.prisma.areas_Sociais_Agendamentos.findFirst({
+  private async reservaVigenteOuProxima(idArea: number, idApto: number, agora: Date = new Date()) {
+    const agoraStr = relogioBrasilia(agora);
+    const aprovadas = await this.prisma.areas_Sociais_Agendamentos.findMany({
       where: {
         id_area_social: idArea,
         id_apartamento: idApto,
         status: 'aprovado',
-        NOT: { id: excluirAgId },
-        data: { gte: new Date(hojeStr) },
+        // "Hoje" em Brasília (meia-noite UTC, a forma do @db.Date).
+        data: { gte: hojeBrasilia(agora) },
       },
-      orderBy: [{ data: 'asc' }, { hora_de: 'asc' }],
+      orderBy: [{ data: 'asc' }, { hora_de: 'asc' }, { id: 'asc' }],
     });
+    return (
+      aprovadas.find((r) => {
+        const { validTo } = this.janelaReserva(r);
+        return !!validTo && validTo > agoraStr;
+      }) ?? null
+    );
+  }
+
+  /**
+   * F6: o morador pode entrar agora no terminal desta área? Área sem reserva
+   * obrigatória → sim. Com reserva obrigatória → só se algum apartamento dele
+   * neste condomínio tem reserva aprovada nesta área com `agora` (relógio de
+   * Brasília) dentro da janela — a mesma de `reservaVigenteOuProxima`.
+   */
+  private async moradorComReservaAgora(
+    idArea: number,
+    idMorador: number,
+    idCondominio: number,
+    agora: Date,
+  ): Promise<boolean> {
+    const area = await this.prisma.areas_Sociais.findUnique({
+      where: { id: idArea },
+      select: { controle_acesso_facial: true },
+    });
+    if (!area || area.controle_acesso_facial !== 1) return true;
+    const morador = await this.prisma.moradores.findUnique({
+      where: { id: idMorador },
+      select: { id_user: true },
+    });
+    if (!morador) return false;
+    const vinculos = await this.prisma.apartamentos_Users.findMany({
+      where: { id_user: morador.id_user, apartamento: { id_condominio: idCondominio } },
+      select: { id_apto: true },
+    });
+    const agoraStr = relogioBrasilia(agora);
+    for (const idApto of [...new Set(vinculos.map((v) => v.id_apto))]) {
+      const reserva = await this.reservaVigenteOuProxima(idArea, idApto, agora);
+      if (!reserva) continue;
+      const { validFrom } = this.janelaReserva(reserva);
+      // A primeira ainda não terminada já começou? Então é a vigente.
+      if (validFrom && validFrom <= agoraStr) return true;
+    }
+    return false;
+  }
+
+  /** Grava a marca de sync pendente do (área, apto) — ver PREFIXO_AREA_PENDENTE. */
+  private async marcarAreaPendente(idArea: number, idApto: number): Promise<void> {
+    await this.estado
+      .definir(`${PREFIXO_AREA_PENDENTE}${idArea}:${idApto}`, { idArea, idApto }, AREA_PENDENTE_TTL_MS)
+      .catch((e: any) =>
+        this.logger.error(`marca de sync pendente área ${idArea} apto ${idApto}: ${e?.message ?? e}`),
+      );
   }
 
   /**
    * Enrola/remove os moradores do apartamento no(s) terminal(is) facial(is) da
-   * área conforme o status da reserva. Aprovado → enrola com a janela do
-   * horário (o aparelho nega sozinho fora dela). Recusado/cancelado → remove;
-   * se o apto ainda tiver OUTRA reserva aprovada, reenrola com a janela dela
-   * (nunca deixa a janela da reserva perdida no aparelho). Fire-and-forget.
+   * área. Quem disparou (aprovação, recusa, cancelamento, manutenção) só diz
+   * QUAL apartamento e área; a janela gravada é sempre a de
+   * `reservaVigenteOuProxima` — se o apto não tem nenhuma, remove.
+   * Fire-and-forget nos chamadores.
    */
   async syncReservaArea(idAgendamento: number) {
     if (FACIAL_DISABLED) return { skipped: true, reason: 'integration_disabled' };
@@ -2924,17 +3011,78 @@ export class FacialService {
       include: { area: { select: { id_condominio: true, controle_acesso_facial: true } } },
     });
     if (!ag || !ag.area) return { skipped: true, reason: 'not_found' };
-    if (ag.area.controle_acesso_facial !== 1) return { skipped: true, reason: 'area_sem_controle' };
-    const idCond = ag.area.id_condominio;
-
-    const devices = await this.prisma.facial_Devices.findMany({
-      where: { id_area_social: ag.id_area_social, ativo: 1, tipo: 'facial' },
+    return this.syncReservaAreaApto(ag.id_area_social, ag.id_apartamento, ag.area, {
+      // Reserva perdida: sem foto utilizável, a saída segura é remover.
+      perdeuReserva: ag.status !== 'aprovado',
+      rotulo: `ag ${idAgendamento}`,
     });
-    if (devices.length === 0) return { skipped: true, reason: 'no_area_device' };
+  }
 
-    // Moradores do apartamento (com foto) que reservou.
+  /**
+   * Sync do (área, apto) sob o lock `area:<idArea>:apto:<idApto>` (Q3). Tudo —
+   * moradores, biometria e a janela — é lido DENTRO do lock: o segundo sync
+   * enxerga o status que o primeiro não via. Regra de ordem dos locks: área →
+   * pessoa, nunca pessoa → área; por isso aqui o client é chamado direto, sem
+   * passar por syncMorador.
+   *
+   * Qualquer falha (comando que não chegou ao terminal, lock que não veio)
+   * deixa a marca de pendente para o tickReservasAreas refazer; um sync limpo
+   * apaga a marca.
+   */
+  private async syncReservaAreaApto(
+    idArea: number,
+    idApto: number,
+    area: { id_condominio: number; controle_acesso_facial: number | null },
+    opts: { perdeuReserva: boolean; rotulo: string },
+  ) {
+    const chavePendente = `${PREFIXO_AREA_PENDENTE}${idArea}:${idApto}`;
+    if (area.controle_acesso_facial !== 1) {
+      // Área sem reserva obrigatória: quem cuida do terminal é o syncMorador
+      // (reconcileAreaGating re-enrola todos ao desligar).
+      await this.estado.remover(chavePendente).catch(() => undefined);
+      return { skipped: true, reason: 'area_sem_controle' };
+    }
+    const devices = await this.prisma.facial_Devices.findMany({
+      where: { id_area_social: idArea, ativo: 1, tipo: 'facial' },
+    });
+    if (devices.length === 0) {
+      await this.estado.remover(chavePendente).catch(() => undefined);
+      return { skipped: true, reason: 'no_area_device' };
+    }
+
+    let r: ResultadoLock<ResultadoSyncAreaApto>;
+    try {
+      r = await comLock(
+        this.prisma as any,
+        `area:${idArea}:apto:${idApto}`,
+        () => this.aplicarReservaAreaApto(idArea, idApto, area.id_condominio, devices, opts),
+        { esperaSegundos: ESPERA_LOCK_AREA_APTO_S, duracaoMaximaMs: DURACAO_LOCK_AREA_APTO_MS },
+      );
+    } catch (e) {
+      await this.marcarAreaPendente(idArea, idApto);
+      throw e;
+    }
+    if (!r.obtido) {
+      this.logger.warn(`syncReservaArea ${opts.rotulo}: lock da área ${idArea} apto ${idApto} ocupado; fica para o tick`);
+      await this.marcarAreaPendente(idArea, idApto);
+      return { skipped: true, reason: 'lock_ocupado' };
+    }
+    if (r.valor.falhas > 0) await this.marcarAreaPendente(idArea, idApto);
+    else await this.estado.remover(chavePendente).catch(() => undefined);
+    return r.valor;
+  }
+
+  /** Corpo do sync do (área, apto); roda com o lock na mão. */
+  private async aplicarReservaAreaApto(
+    idArea: number,
+    idApto: number,
+    idCond: number,
+    devices: Array<NonNullable<Awaited<ReturnType<PrismaService['facial_Devices']['findFirst']>>>>,
+    opts: { perdeuReserva: boolean; rotulo: string },
+  ): Promise<ResultadoSyncAreaApto> {
+    // Moradores do apartamento.
     const vinculos = await this.prisma.apartamentos_Users.findMany({
-      where: { id_apto: ag.id_apartamento },
+      where: { id_apto: idApto },
       select: { id_user: true },
     });
     const userIds = vinculos.map((v) => v.id_user);
@@ -2944,19 +3092,9 @@ export class FacialService {
         })
       : [];
 
-    const aprovado = ag.status === 'aprovado';
-    // Reserva perdida (recusada/cancelada): o apto pode ainda ter OUTRA reserva
-    // aprovada. Nesse caso não basta "não remover" — é preciso REESCREVER a
-    // janela do aparelho para a da reserva remanescente, senão o terminal
-    // continua abrindo no horário da reserva que acabou de ser cancelada
-    // (exatamente o furo de "manutenção com a catraca aberta").
-    const reservaRemanescente = !aprovado
-      ? await this.proximaOutraReservaAprovada(ag.id_area_social, ag.id_apartamento, ag.id)
-      : null;
     // A janela gravada é sempre a da reserva que de fato dá direito de entrar.
-    const { validFrom, validTo } = this.janelaReserva(
-      aprovado ? ag : (reservaRemanescente ?? ag),
-    );
+    const reserva = await this.reservaVigenteOuProxima(idArea, idApto);
+    const { validFrom, validTo } = reserva ? this.janelaReserva(reserva) : {};
 
     // Biometria revogada pelo operador neste condomínio (marca na linha) ou recusada pelo titular: a
     // reserva não dá rosto no terminal da área — mesma regra do syncMorador para os outros terminais.
@@ -2970,6 +3108,7 @@ export class FacialService {
       }
     }
 
+    let falhas = 0;
     for (const device of devices) {
       for (const m of moradores) {
         const externalId = `morador_${m.id}`;
@@ -2979,15 +3118,15 @@ export class FacialService {
             await this.client.removePerson(this.toConfig(device), m.face_id ?? externalId, externalId);
             continue;
           }
-          if (aprovado || reservaRemanescente) {
+          if (reserva) {
             // Sem foto utilizável não dá para (re)enrolar. Quando a reserva
-            // atual foi perdida, cair fora sem fazer nada deixaria a janela
-            // velha no aparelho — então aqui a saída segura é REMOVER (quem
-            // não tem foto não tem acesso facial nenhum de qualquer forma; o
-            // tick de reservas re-enrola assim que houver foto).
+            // que disparou foi perdida, cair fora sem fazer nada deixaria a
+            // janela velha no aparelho — então aqui a saída segura é REMOVER
+            // (quem não tem foto não tem acesso facial nenhum de qualquer
+            // forma; o tick de reservas re-enrola assim que houver foto).
             const fotoBase64 = m.foto_pessoa ? await this.fetchPhotoAsBase64(m.foto_pessoa) : null;
             if (!fotoBase64) {
-              if (aprovado) continue;
+              if (!opts.perdeuReserva) continue;
               await this.client.removePerson(this.toConfig(device), m.face_id ?? externalId, externalId);
               continue;
             }
@@ -3007,8 +3146,9 @@ export class FacialService {
             );
           }
         } catch (err: any) {
+          falhas++;
           this.logger.warn(
-            `syncReservaArea ag ${idAgendamento} morador ${m.id} device ${device.id}: ${err?.message ?? err}`,
+            `syncReservaArea ${opts.rotulo} morador ${m.id} device ${device.id}: ${err?.message ?? err}`,
           );
         }
       }
@@ -3017,24 +3157,25 @@ export class FacialService {
       ok: true,
       devices: devices.length,
       moradores: moradores.length,
-      aprovado,
-      // Reenrolado com a janela de outra reserva aprovada do apto.
-      reenroladoComOutraReserva: !aprovado && !!reservaRemanescente,
+      // Reserva cuja janela ficou no terminal (null = removido).
+      reservaNoTerminal: reserva?.id ?? null,
+      falhas,
     };
   }
 
   /**
    * Reconciliação periódica: re-enrola (idempotente) as reservas APROVADAS de
-   * hoje cujo horário ainda não terminou — cobre pré-enrolamento e re-tentativa
-   * quando o agente estava offline na aprovação. Cleanup pós-horário é feito
-   * pelo próprio aparelho (validTo). Espelha os demais ticks.
+   * hoje cujo horário ainda não terminou — cobre pré-enrolamento, re-tentativa
+   * quando o agente estava offline na aprovação e a troca para a próxima
+   * reserva do dia quando a anterior termina (F1). Depois refaz cada (área,
+   * apto) com sync pendente — remoção de reserva recusada/cancelada que não
+   * chegou ao terminal (Q3). Cleanup pós-horário é feito pelo próprio aparelho
+   * (validTo). Espelha os demais ticks.
    */
   private async tickReservasAreas() {
     if (FACIAL_DISABLED || !this.prisma.isConnected) return;
     try {
-      const agoraStr = new Date()
-        .toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo', hour12: false })
-        .replace(',', '');
+      const agoraStr = relogioBrasilia();
       const ags = await this.prisma.areas_Sociais_Agendamentos.findMany({
         where: {
           status: 'aprovado',
@@ -3046,16 +3187,46 @@ export class FacialService {
             devices: { some: { ativo: 1, tipo: 'facial' } },
           },
         },
-        select: { id: true, data: true, hora_de: true, hora_ate: true },
+        select: { id: true, id_area_social: true, id_apartamento: true, data: true, hora_de: true, hora_ate: true },
+        orderBy: [{ hora_de: 'asc' }, { id: 'asc' }],
       });
       let processados = 0;
+      // O sync é do (área, apto): duas reservas do mesmo apto hoje = um sync só.
+      const feitos = new Set<string>();
       for (const ag of ags) {
         const { validTo } = this.janelaReserva(ag);
         // Já terminou hoje? aparelho já nega sozinho — não gasta ciclo.
         if (validTo && validTo < agoraStr) continue;
+        const chave = `${ag.id_area_social}:${ag.id_apartamento}`;
+        if (feitos.has(chave)) continue;
+        feitos.add(chave);
         await this.syncReservaArea(ag.id).catch((e) =>
           this.logger.warn(`tickReservasAreas ag ${ag.id}: ${e?.message ?? e}`),
         );
+        processados++;
+      }
+      // Sync que ficou pela metade (remove/enroll falhou, lock ocupado).
+      const pendentes = await this.estado.listarPorPrefixo<{ idArea: number; idApto: number }>(PREFIXO_AREA_PENDENTE);
+      for (const p of pendentes) {
+        const { idArea, idApto } = p.valor ?? ({} as any);
+        if (!idArea || !idApto) {
+          await this.estado.remover(p.chave).catch(() => undefined);
+          continue;
+        }
+        if (feitos.has(`${idArea}:${idApto}`)) continue;
+        feitos.add(`${idArea}:${idApto}`);
+        const area = await this.prisma.areas_Sociais.findUnique({
+          where: { id: idArea },
+          select: { id_condominio: true, controle_acesso_facial: true },
+        });
+        if (!area) {
+          await this.estado.remover(p.chave).catch(() => undefined);
+          continue;
+        }
+        await this.syncReservaAreaApto(idArea, idApto, area, {
+          perdeuReserva: true,
+          rotulo: `pendente área ${idArea} apto ${idApto}`,
+        }).catch((e) => this.logger.warn(`tickReservasAreas pendente ${p.chave}: ${e?.message ?? e}`));
         processados++;
       }
       if (processados > 0) {
@@ -3409,6 +3580,36 @@ export class FacialService {
         this.logger.warn(
           `Remoção morador ${idMorador} device ${device.id}: ${err?.message ?? err}`,
         );
+      }
+    }
+    return allOk;
+  }
+
+  /**
+   * Morador excluído (painel, app do síndico, exclusão da conta): tira o rosto
+   * de todos os terminais. Com `face_id` é o `unsyncMorador` de sempre (que já
+   * inclui os terminais de área). Sem `face_id` a pessoa ainda pode estar nos
+   * terminais de ÁREA — syncReservaArea enrola pela matrícula `morador_<id>` e
+   * não grava `face_id` (F5) —, então remove dali pela matrícula.
+   */
+  async unsyncMoradorExcluido(
+    idMorador: number,
+    faceId: string | null,
+    idCondominio: number | null,
+  ): Promise<boolean> {
+    if (FACIAL_DISABLED || !idCondominio) return true;
+    if (faceId) return this.unsyncMorador(idMorador, faceId, idCondominio);
+    const devices = await this.prisma.facial_Devices.findMany({
+      where: { id_condominio: idCondominio, ativo: 1, tipo: 'facial', id_area_social: { not: null } },
+    });
+    const externalId = `morador_${idMorador}`;
+    let allOk = true;
+    for (const device of devices) {
+      try {
+        await this.client.removePerson(this.toConfig(device), externalId, externalId);
+      } catch (err: any) {
+        allOk = false;
+        this.logger.warn(`Remoção morador ${idMorador} (área) device ${device.id}: ${err?.message ?? err}`);
       }
     }
     return allOk;
@@ -6603,6 +6804,36 @@ export class FacialService {
           );
         }
       }
+    }
+
+    // Área social com reserva obrigatória (F6): o terminal da área só deixa o
+    // MORADOR entrar com reserva aprovada do apartamento acontecendo agora. O
+    // rosto já é barrado pela janela gravada no aparelho; tag e QR (e um rosto
+    // que ficou no aparelho) passavam sem reserva. Funcionário e prestador
+    // (administração) seguem pelas regras do terminal; a saída não é barrada
+    // (não prende ninguém dentro da área).
+    if (
+      tipoPessoa === 'morador' &&
+      idPessoa != null &&
+      device.id_area_social != null &&
+      evento !== 'saida' &&
+      !(await this.moradorComReservaAgora(device.id_area_social, idPessoa, device.id_condominio, timestamp))
+    ) {
+      await this.registrarEvento(device, {
+        face_id:
+          faceIdSalvo ||
+          qrCodeLido ||
+          tagRfidLida ||
+          externalId ||
+          'desconhecido',
+        tipo_pessoa: tipoPessoa,
+        id_pessoa: idPessoa,
+        nome_pessoa: `${nomePessoa} (${MSG_SEM_RESERVA_AREA})`,
+        evento: 'negado',
+        confianca,
+        timestamp,
+      });
+      throw new BadRequestException(`Acesso negado: ${MSG_SEM_RESERVA_AREA}.`);
     }
 
     // Validação de Regras de Acesso (Sprint 3 com Horários e Sentidos)
