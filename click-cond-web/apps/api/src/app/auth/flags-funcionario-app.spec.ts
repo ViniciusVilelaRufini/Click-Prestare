@@ -1,6 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { MobileAuthService } from './mobile-auth.service';
 import { TenantAccessService } from './tenant-access.service';
+import { ApartamentosService } from '../apartamentos/apartamentos.service';
 
 /**
  * As flags da tabela `Funcionarios` (`ocorrencias`, `apartamentos`…) são o
@@ -35,8 +36,10 @@ describe('App — flags do funcionário', () => {
       assertPermissaoFuncionario: jest.fn((id: number, flag: any, p: any) => real.assertPermissaoFuncionario(id, flag, p)),
     };
     const facial: any = { unsyncMorador: jest.fn(async () => true) };
+    // saveApto delega ao ApartamentosService (a flag é cobrada lá).
+    const apartamentos = new ApartamentosService(prisma, tenant, {} as any);
     const svc = new MobileAuthService(
-      prisma, {} as any, {} as any, {} as any, facial, tenant, {} as any, {} as any, {} as any, {} as any,
+      prisma, {} as any, {} as any, {} as any, facial, tenant, {} as any, apartamentos, {} as any, {} as any,
     );
     return { svc, prisma, tenant };
   }
@@ -78,7 +81,7 @@ describe('App — flags do funcionário', () => {
     const corpo = (extra: any = {}) => ({ id_condominio: ID_COND, Apartamento: { apto: '101', bloco: 'A', ...extra } });
 
     it('NEGA criar apartamento a funcionário sem a flag apartamentos', async () => {
-      const { svc, prisma } = montar({ apartamentos: 0 }, { apartamentos: { create: jest.fn(async () => ({ id: 1 })) } });
+      const { svc, prisma } = montar({ apartamentos: 0 }, { apartamentos: { findMany: jest.fn(async () => []), create: jest.fn(async () => ({ id: 1 })) } });
       await expect(svc.saveApto(corpo(), false, funcionario)).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.apartamentos.create).not.toHaveBeenCalled();
     });
@@ -95,9 +98,9 @@ describe('App — flags do funcionário', () => {
     });
 
     it('PERMITE funcionário com a flag e o síndico', async () => {
-      const a = montar({ apartamentos: 1 }, { apartamentos: { create: jest.fn(async () => ({ id: 1 })) } });
+      const a = montar({ apartamentos: 1 }, { apartamentos: { findMany: jest.fn(async () => []), create: jest.fn(async () => ({ id: 1 })) } });
       await expect(a.svc.saveApto(corpo(), false, funcionario)).resolves.toEqual({ id: 1 });
-      const b = montar({ apartamentos: 0 }, { apartamentos: { create: jest.fn(async () => ({ id: 2 })) } });
+      const b = montar({ apartamentos: 0 }, { apartamentos: { findMany: jest.fn(async () => []), create: jest.fn(async () => ({ id: 2 })) } });
       await expect(b.svc.saveApto(corpo(), false, sindico)).resolves.toEqual({ id: 2 });
     });
   });

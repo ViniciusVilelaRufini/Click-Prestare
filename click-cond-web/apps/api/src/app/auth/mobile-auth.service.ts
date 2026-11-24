@@ -2149,9 +2149,6 @@ export class MobileAuthService {
     ]);
 
     const quer = (flag: number | undefined | null) => flag !== 0;
-    const condIds = [
-      ...new Set(moras.map((m) => m.id_condominio).filter((v): v is number => v != null)),
-    ];
 
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 30);
@@ -2172,10 +2169,18 @@ export class MobileAuthService {
     // que o resto do sistema resolve esse vínculo.
     const vinculosApto = await this.prisma.apartamentos_Users.findMany({
       where: { id_user: idUser, apartamento: { condominio: { ativo: 1 } } },
-      select: { id_apto: true },
+      select: { id_apto: true, apartamento: { select: { id_condominio: true } } },
     });
     const aptoIds = [
       ...new Set(vinculosApto.map((v) => v.id_apto).filter((id): id is number => id != null)),
+    ];
+    // Condomínios dos comunicados: os das unidades a que a conta está ligada
+    // hoje. Moradores ficava com a linha do ex-morador depois que a unidade
+    // saía, e ele seguia lendo os comunicados no feed.
+    const condIds = [
+      ...new Set(
+        vinculosApto.map((v) => v.apartamento?.id_condominio).filter((v): v is number => v != null),
+      ),
     ];
     if (aptoIds.length) {
       // O id embutido em `solicitacao-${id}` é só decorativo hoje — o app
@@ -5447,6 +5452,14 @@ export class MobileAuthService {
     return result;
   }
 
+  /**
+   * Cadastrar/editar apartamento pelo app.
+   *
+   * Delega para o ApartamentosService, como o removeApto. A cópia daqui não
+   * deduplicava: "A"/"Bloco A", "0101"/"101" e bloco NULL × '' passavam pelo
+   * @@unique e viravam duas linhas da mesma unidade — quórum inflado e, com
+   * proprietário numa e inquilino na outra, dois votos.
+   */
   async saveApto(body: any, isEdit: boolean, user?: JwtPayload) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível.');
@@ -5457,45 +5470,19 @@ export class MobileAuthService {
 
     if (!data.apto) throw new BadRequestException('Apto é obrigatório.');
 
-    try {
-      if (isEdit) {
-        const id = Number(data.id);
-        if (!id) throw new BadRequestException('ID do apartamento é obrigatório para edição.');
-        const atual = await this.prisma.apartamentos.findUnique({ where: { id }, select: { id_condominio: true } });
-        if (!atual) throw new NotFoundException('Apartamento não encontrado.');
-        await this.tenant.assertEntidade(atual.id_condominio, user, `apartamento #${id}`);
-        // Mesma flag que o ApartamentosService do console cobra.
-        await this.exigirFlagFuncionario(atual.id_condominio, 'apartamentos', user);
-        return await this.prisma.apartamentos.update({
-          where: { id },
-          data: {
-            ...(data.bloco !== undefined && { bloco: data.bloco }),
-            ...(data.apto !== undefined && { apto: data.apto }),
-            ...(data.fracao !== undefined && { fracao: data.fracao }),
-            ...(data.qtd_vagas !== undefined && { qtd_vagas: Number(data.qtd_vagas) || 0 }),
-          },
-        });
-      }
-      if (!idCond) throw new BadRequestException('id_condominio é obrigatório.');
-      await this.tenant.assertCondominio(idCond, user);
-      await this.exigirFlagFuncionario(idCond, 'apartamentos', user);
-      return await this.prisma.apartamentos.create({
-        data: {
-          id_condominio: idCond,
-          bloco: data.bloco ?? null,
-          apto: data.apto,
-          fracao: data.fracao ?? null,
-          qtd_vagas: Number(data.qtd_vagas) || 0,
-        },
-      });
-    } catch (e: any) {
-      if (e?.response && e?.status) throw e;
-      // Erros conhecidos do Prisma (unique constraint, etc.)
-      if (e?.code === 'P2002') {
-        throw new BadRequestException('Já existe um apartamento com esse bloco/número neste condomínio.');
-      }
-      throw new BadRequestException(e?.message ?? 'Erro ao salvar apartamento.');
+    const campos = {
+      ...(data.bloco !== undefined && { bloco: data.bloco }),
+      ...(data.apto !== undefined && { apto: data.apto }),
+      ...(data.fracao !== undefined && { fracao: data.fracao }),
+      ...(data.qtd_vagas !== undefined && { qtd_vagas: data.qtd_vagas }),
+    };
+    if (isEdit) {
+      const id = Number(data.id);
+      if (!id) throw new BadRequestException('ID do apartamento é obrigatório para edição.');
+      return this.apartamentos.update(id, campos, user);
     }
+    if (!idCond) throw new BadRequestException('id_condominio é obrigatório.');
+    return this.apartamentos.create({ ...campos, apto: data.apto, id_condominio: idCond }, user);
   }
 
   /**
@@ -5578,11 +5565,15 @@ export class MobileAuthService {
   async listOcorrencias(idUser: number) {
     if (!this.prisma.isConnected) return [];
     
-    // Buscar o morador para descobrir o id_condominio
-    const morador = await this.prisma.moradores.findFirst({
-      where: { id_user: idUser, condominio: { ativo: 1 } },
-      select: { id_condominio: true },
+    // Condomínio das ocorrências públicas: o de uma unidade a que a conta está
+    // ligada hoje (Apartamentos_Users, como o assertCondominio). A linha em
+    // Moradores sobrevive à exclusão da unidade e mantinha o ex-morador lendo
+    // as públicas.
+    const vinculo = await this.prisma.apartamentos_Users.findFirst({
+      where: { id_user: idUser, apartamento: { condominio: { ativo: 1 } } },
+      select: { apartamento: { select: { id_condominio: true } } },
     });
+    const morador = vinculo?.apartamento ? { id_condominio: vinculo.apartamento.id_condominio } : null;
 
     // Condomínio desativado no CRM: nem as ocorrências próprias saem pelo app.
     const where: any = {
