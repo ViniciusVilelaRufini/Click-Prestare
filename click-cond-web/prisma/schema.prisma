@@ -617,7 +617,11 @@ model Areas_Sociais {
 model Areas_Sociais_Agendamentos {
   id             Int           @id @default(autoincrement())
   id_area_social Int
-  id_user        Int
+  // Dono da reserva. Anulável com fk_asa_user ON DELETE SET NULL (D6): a reserva
+  // "pela unidade" grava o morador mais antigo como dono e, em CASCADE, a conta
+  // dele excluída levava as reservas futuras da unidade junto. A reserva é do
+  // apartamento (id_apartamento); NULL = dono que excluiu a conta.
+  id_user        Int?
   id_apartamento Int
   data           DateTime?     @db.Date
   hora_de        DateTime?     @db.Time(0)
@@ -644,7 +648,7 @@ model Areas_Sociais_Agendamentos {
   updated_at     DateTime      @default(now()) @updatedAt @db.DateTime(0)
   apartamento    Apartamentos  @relation(fields: [id_apartamento], references: [id], onDelete: Cascade, map: "fk_asa_apto")
   area           Areas_Sociais @relation(fields: [id_area_social], references: [id], onDelete: Cascade, map: "fk_asa_area")
-  user           Users         @relation(fields: [id_user], references: [id], onDelete: Cascade, map: "fk_asa_user")
+  user           Users?        @relation(fields: [id_user], references: [id], onDelete: SetNull, map: "fk_asa_user")
 
   @@index([id_apartamento], map: "fk_asa_apto")
   @@index([id_area_social], map: "fk_asa_area")
