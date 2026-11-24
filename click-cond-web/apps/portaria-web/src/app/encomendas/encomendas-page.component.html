@@ -819,6 +819,18 @@
     </div>
   }
 
+  <!-- Erro do scanner: fica fora do modal, que fecha junto com isScanning -->
+  @if (scanError && !isScanning) {
+    <div class="ps-scrim on !z-[60]">
+      <div class="ps-modal on !w-[min(384px,calc(100%-32px))]" role="alert">
+        <p class="text-xs text-[var(--signal-danger)] text-center p-2.5 border border-[var(--signal-danger)] w-full" data-testid="erro-scanner">{{ scanError }}</p>
+        <div class="flex justify-end mt-4">
+          <button (click)="fecharErroScan()" class="ps-btn ps-btn-sec">Fechar</button>
+        </div>
+      </div>
+    </div>
+  }
+
   <!-- Modal de Scanner de Código de Barras -->
   @if (isScanning) {
     <div class="ps-scrim on !z-[60]">

@@ -939,6 +939,8 @@ export class EncomendasPageComponent implements OnInit {
       console.error('Scan error:', err);
       this.scanError = err?.message || 'Erro ao inicializar scanner de código.';
       this.isScanning = false;
+      // Zoneless: o erro chega depois de await (CDN, câmera); sem isto a mensagem nunca é desenhada.
+      this.cdr.markForCheck();
     }
   }
 
@@ -947,6 +949,12 @@ export class EncomendasPageComponent implements OnInit {
       this.codeReader.reset();
     }
     this.isScanning = false;
+    // O ZXing chama isto fora de evento do template (callback da leitura): precisa agendar a tela.
+    this.cdr.markForCheck();
+  }
+
+  fecharErroScan() {
+    this.scanError = null;
   }
 
   onBarcodeScanned(code: string) {
@@ -1079,12 +1087,16 @@ export class EncomendasPageComponent implements OnInit {
       console.error('Erro ao acessar webcam:', err);
       alert('Não foi possível acessar a câmera. Verifique as permissões de vídeo.');
       this.isCameraActive = false;
+      this.cameraStream = null;
+      // Veio de um await: sem isto a caixa segue com "Capturar" mesmo sem webcam.
+      this.cdr.markForCheck();
     }
   }
 
   capturePhoto() {
     const video = document.getElementById('webcamVideo') as HTMLVideoElement;
-    if (!video) return;
+    // Sem stream ativo ou sem quadro decodificado o canvas sairia preto: não vira comprovante.
+    if (!video || !this.cameraStream || !video.videoWidth) return;
 
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth || 320;
