@@ -63,8 +63,9 @@ describe('saveMorador (criação) — e-mail do morador × logins da portaria', 
     nadaGravado(prisma, mail);
   });
 
-  it('conta existente SEM login (achada pelo CPF) com e-mail = login de portaria → 400, nada gravado', async () => {
-    const { svc, prisma, mail } = montar({ id: 80, cpf: '52998224725', email: null, login: null, password: null, name: 'X' });
+  // Conta achada só pelo CPF já é recusada antes (common/adocao-conta.util): aqui ela casa pelo e-mail.
+  it('conta existente SEM login (achada pelo e-mail) com e-mail = login de portaria → 400, nada gravado', async () => {
+    const { svc, prisma, mail } = montar({ id: 80, cpf: '52998224725', email: 'porteiro@x.com', login: null, password: null, name: 'X' });
     await expect(
       svc.saveMorador(corpo('porteiro@x.com', { documento: '52998224725' }), false, sindico),
     ).rejects.toThrow(MSG);
@@ -75,6 +76,8 @@ describe('saveMorador (criação) — e-mail do morador × logins da portaria', 
     const { svc, prisma } = montar({
       id: 81, cpf: null, email: 'porteiro@x.com', login: 'porteiro@x.com', password: 'hash', name: 'Porteiro', phone: '1',
     });
+    // A conta do porteiro é da equipe deste condomínio (não é conta órfã).
+    prisma.funcionarios.count = jest.fn(async ({ where }: any) => (where.id_condominio?.not !== undefined ? 0 : 1));
     await svc.saveMorador(corpo('porteiro@x.com'), false, sindico);
     expect(prisma.apartamentos_Users.create).toHaveBeenCalledWith({ data: expect.objectContaining({ id_apto: 11, id_user: 81 }) });
     expect(prisma.moradores.create).toHaveBeenCalled();

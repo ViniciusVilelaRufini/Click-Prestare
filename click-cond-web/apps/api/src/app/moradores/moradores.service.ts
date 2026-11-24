@@ -15,6 +15,7 @@ import { momentoTrocaSenha } from '../auth/senha-alterada.util';
 import * as bcrypt from 'bcrypt';
 import { MSG_CONTA_DE_OUTRO_CONDOMINIO, usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio, usuariosComVinculoEmOutroCondominio } from '../common/vinculos-usuario.util';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
+import { contaOrfaAutocriada, invalidarPosseDaConta } from '../common/adocao-conta.util';
 import { randomBytes } from 'crypto';
 import { calcularIdade, temTermoResponsavel, validarBiometria, validarMaioridade } from '../common/idade.util';
 
@@ -1164,6 +1165,7 @@ export class MoradoresService {
     // por exemplo) deixava a conta e o vínculo gravados — o card da unidade contava "1 morador", o
     // painel dela aparecia vazio e tentar de novo com o mesmo e-mail criava um segundo vínculo.
     let passwordWasSet = false;
+    let contaOrfaAdotada = false;
     let createdMorador;
     try {
       createdMorador = await this.prisma.$transaction(async (tx) => {
@@ -1197,6 +1199,11 @@ export class MoradoresService {
             if (contaDeOutroCondominio && existing.id !== idUsuarioDoToken(operador) && !opts?.permitirContaDeOutroCondominio) {
               throw new BadRequestException(MSG_CONTA_DE_OUTRO_CONDOMINIO);
             }
+            // Conta com senha e sem vínculo em condomínio nenhum (a que o /sindico/signup deixa, sem prova
+            // de posse do e-mail): só é ligada com senha nova, sessões derrubadas e credenciais revogadas.
+            // A senha vai ao e-mail da conta (achada por dto.email), mesmo sem sendCredentials.
+            contaOrfaAdotada =
+              !contaDeOutroCondominio && (await contaOrfaAutocriada(tx as any, existing, idUsuarioDoToken(operador)));
             // Atualiza login e password caso estejam vazios para permitir acesso, e as fotos
             const userUpdates: any = {};
             if (!contaDeOutroCondominio && (!existing.login || !existing.password)) {
@@ -1209,7 +1216,10 @@ export class MoradoresService {
               userUpdates.photo = fotoPessoaUrl;
               userUpdates.profile_image = fotoPessoaUrl;
             }
-            if (Object.keys(userUpdates).length > 0) {
+            if (contaOrfaAdotada) {
+              await invalidarPosseDaConta(tx as any, existing.id, senhaHash, userUpdates);
+              passwordWasSet = true;
+            } else if (Object.keys(userUpdates).length > 0) {
               await tx.users.update({
                 where: { id: existing.id },
                 data: userUpdates,
@@ -1322,7 +1332,8 @@ export class MoradoresService {
     // só o aviso de "você já tem conta", sem credencial.
     let credenciaisEnviadas: boolean | undefined;
     let avisoEmail: string | undefined;
-    if (dto.sendCredentials && criaContaApp) {
+    // Conta órfã adotada: a senha nova é a única forma de o dono entrar, então sai mesmo sem sendCredentials.
+    if ((dto.sendCredentials || contaOrfaAdotada) && criaContaApp) {
       const enviar = () => this.enviarEmailAcesso(dto.email!, dto.nome, passwordWasSet ? senhaInicial : undefined);
       if (opts?.adiarEnvio) {
         opts.adiarEnvio(enviar);
@@ -1861,6 +1872,7 @@ export class MoradoresService {
     // editado por um operador e divergir de Users (mandar para lá entregaria a
     // senha da conta a quem trocou o e-mail do cadastro).
     let emailDestino: string = m.email;
+    let contaOrfa = false;
     if (this.prisma.isConnected) {
       let userId: number | null = m.id_user ?? null;
       let conta: ContaEnvioAcesso | null = null;
@@ -1895,7 +1907,12 @@ export class MoradoresService {
         !!(conta?.login ?? '').trim() &&
         ((await this.prisma.funcionarios_Portaria?.count({ where: { login: String(conta!.login).trim() } })) ?? 0) > 0;
 
-      if (modoEnvioAcesso(conta, { outroCondominio, loginDePortaria }) === 'link') {
+      // Conta achada pelo e-mail, com senha e sem vínculo em condomínio nenhum (a do /sindico/signup): o link
+      // manteria a senha de quem a criou valendo com a unidade já ligada. Vai a senha nova, com as sessões
+      // derrubadas e as credenciais revogadas, ao e-mail da conta.
+      contaOrfa =
+        ligarCadastro && !outroCondominio && (await contaOrfaAutocriada(this.prisma as any, conta as any, idUsuarioDoToken(operador)));
+      if (!contaOrfa && modoEnvioAcesso(conta, { outroCondominio, loginDePortaria }) === 'link') {
         // A senha atual e as sessões continuam valendo até o morador trocar.
         // Conta de síndico/equipe sem login de e-mail cai na recusa de conferirLinkRedefinicao, sem gravar nada.
         const login = String(conta?.login ?? '').trim().toLowerCase();
@@ -1971,19 +1988,27 @@ export class MoradoresService {
       }
       if (ligarCadastro) await this.prisma.moradores.update({ where: { id }, data: { id_user: userId! } });
       const senhaHash = await bcrypt.hash(senhaInicial, 10);
-      userIdSenha = userId!;
+      // Conta órfã: a posse anterior não volta se o e-mail falhar (senha_alterada_em fica).
+      userIdSenha = contaOrfa ? null : userId!;
       senhaAlteradaAntes = conta?.senha_alterada_em ?? null;
-      await this.prisma.users.update({
-        where: { id: userId! },
-        data: {
-          // Conta existente mantém o login; só a conta nova (ou a que não tinha login) recebe o e-mail.
-          ...(!m.id_user && { login: m.email }),
-          ...(loginNovo && { login: loginNovo, ...(!conta?.email && { email: loginNovo }) }),
-          password: senhaHash,
-          // Senha nova: derruba os tokens emitidos antes (JwtStrategy).
-          senha_alterada_em: momentoTrocaSenha(),
-        },
-      });
+      const dadosConta = {
+        // Conta existente mantém o login; só a conta nova (ou a que não tinha login) recebe o e-mail.
+        ...(!m.id_user && { login: m.email }),
+        ...(loginNovo && { login: loginNovo, ...(!conta?.email && { email: loginNovo }) }),
+      };
+      if (contaOrfa) {
+        await invalidarPosseDaConta(this.prisma as any, userId!, senhaHash, dadosConta);
+      } else {
+        await this.prisma.users.update({
+          where: { id: userId! },
+          data: {
+            ...dadosConta,
+            password: senhaHash,
+            // Senha nova: derruba os tokens emitidos antes (JwtStrategy).
+            senha_alterada_em: momentoTrocaSenha(),
+          },
+        });
+      }
     }
     try {
       await this.enviarEmailAcesso(emailDestino, m.nome, senhaInicial);

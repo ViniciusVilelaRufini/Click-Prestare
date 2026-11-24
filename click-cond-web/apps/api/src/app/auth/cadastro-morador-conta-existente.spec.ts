@@ -69,12 +69,15 @@ describe('saveMorador — conta existente com vínculo em outro condomínio', ()
     expect(prisma.users.update).not.toHaveBeenCalled();
   });
 
-  it('conta sem vínculo fora deste condomínio continua recebendo login e senha', async () => {
-    const { svc, prisma } = montar(false);
-    await svc.saveMorador(corpo(true), false, sindico);
-    expect(prisma.users.update).toHaveBeenCalledWith({
-      where: { id: 70 },
-      data: expect.objectContaining({ login: 'atacante@x.com', email: 'atacante@x.com', password: expect.stringMatching(/^\$2/) }),
-    });
+  // Antes a conta achada pelo CPF recebia o e-mail do cadastro como login e uma senha nova (R2): quem tinha o
+  // CPF entrava como a pessoa. Agora conta achada só pelo CPF não é adotada (common/adocao-conta.util).
+  it('conta sem vínculo fora, achada só pelo CPF: 400, nada gravado', async () => {
+    const { svc, prisma, mail } = montar(false);
+    await expect(svc.saveMorador(corpo(true), false, sindico)).rejects.toThrow(
+      'Já existe uma conta com este CPF. Use o e-mail da conta existente ou fale com o suporte.',
+    );
+    expect(prisma.users.update).not.toHaveBeenCalled();
+    expect(prisma.apartamentos_Users.create).not.toHaveBeenCalled();
+    expect(mail.sendWelcomeMorador).not.toHaveBeenCalled();
   });
 });

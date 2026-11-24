@@ -13,6 +13,9 @@ import { momentoTrocaSenha } from '../auth/senha-alterada.util';
 import { assertEmailNaoReservado } from '../common/email-reservado.util';
 import { autorDoToken } from '../auth/usuario-do-token.util';
 import { usuarioTemVinculoEmOutroCondominio } from '../common/vinculos-usuario.util';
+import { contaOrfaAutocriada, invalidarPosseDaConta } from '../common/adocao-conta.util';
+import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
+import { MailService } from '../common/mail/mail.service';
 import { PREFIXOS_FOTO_MORADOR, StorageService } from '../common/storage/storage.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { AuditoriaService } from '../auditoria/auditoria.service';
@@ -116,6 +119,8 @@ export class CrmCondominiosService {
     private readonly deviceClient: FacialDeviceClientService,
     // Global (StorageModule). Opcional para os specs antigos: sem ele, a purga não apaga as fotos.
     @Optional() private readonly storage?: StorageService,
+    // Global (MailModule). Opcional para os specs antigos: a senha nova da conta órfã sai por ele.
+    @Optional() private readonly mail?: MailService,
   ) {}
 
   // ════════════════════════ Criação ════════════════════════
@@ -277,7 +282,7 @@ export class CrmCondominiosService {
     if (!cond) throw new NotFoundException('Condomínio não encontrado.');
 
     // Prioridade: e-mail primeiro, depois login (como no create de moradores).
-    const colunasConta = { id: true, name: true, is_sindico: true } as const;
+    const colunasConta = { id: true, name: true, is_sindico: true, email: true, login: true, password: true } as const;
     const existente =
       (await this.prisma.users.findFirst({ where: { email }, select: colunasConta })) ??
       (await this.prisma.users.findFirst({ where: { login: email }, select: colunasConta }));
@@ -303,6 +308,11 @@ export class CrmCondominiosService {
     }
 
     const senha = existente ? null : this.gerarSenha();
+    // Conta com senha e sem vínculo em condomínio nenhum (a do /sindico/signup, sem prova de posse do e-mail):
+    // ligar o papel de síndico a ela entregava o console a quem a criou. Só é ligada com senha nova enviada
+    // ao e-mail da conta, sessões derrubadas e credenciais revogadas. O operador do CRM não recebe essa senha.
+    const contaOrfa = !!existente && (await contaOrfaAutocriada(this.prisma as any, existente, idUsuarioDoToken(operador)));
+    const senhaOrfa = contaOrfa ? this.gerarSenha() : null;
     let idUser: number;
     try {
       idUser = await this.prisma.$transaction(async (tx) => {
@@ -320,7 +330,14 @@ export class CrmCondominiosService {
           });
           return user.id;
         }
-        if (!existente.is_sindico) {
+        if (senhaOrfa) {
+          await invalidarPosseDaConta(
+            tx,
+            existente.id,
+            await bcrypt.hash(senhaOrfa, 10),
+            existente.is_sindico ? {} : { is_sindico: 1 },
+          );
+        } else if (!existente.is_sindico) {
           await tx.users.update({ where: { id: existente.id }, data: { is_sindico: 1 } });
         }
         const jaTemSindicos = await tx.sindicos.findFirst({
@@ -354,6 +371,21 @@ export class CrmCondominiosService {
       throw e;
     }
 
+    // A senha nova da conta órfã vai ao e-mail dela (o mesmo da busca). Falha no envio não desfaz o vínculo:
+    // a posse anterior já caiu e o dono entra pelo "Esqueci a senha".
+    let credenciaisEnviadas: boolean | undefined;
+    if (senhaOrfa) {
+      const destino = existente!.email || existente!.login || email;
+      try {
+        if (!this.mail) throw new Error('serviço de e-mail indisponível');
+        await this.mail.sendForgotPassword(destino, senhaOrfa, 'Síndico');
+        credenciaisEnviadas = true;
+      } catch (err: any) {
+        this.logger.warn(`Falha ao enviar a senha nova do síndico ${idUser}: ${err?.message ?? err}`);
+        credenciaisEnviadas = false;
+      }
+    }
+
     await this.auditoria.registrar({
       id_condominio: idCondominio,
       usuario_nome:
@@ -366,12 +398,14 @@ export class CrmCondominiosService {
         email: mascararEmail(email),
         contaExistente: !!existente,
         anteriorRemovido: atual ? atual.id_user : null,
+        ...(senhaOrfa && { senhaRedefinida: true }),
       },
     });
 
     return {
       id_user: idUser,
       contaExistente: !!existente,
+      ...(credenciaisEnviadas !== undefined && { credenciais_enviadas: credenciaisEnviadas }),
       ...(existente ? { nomeConta: existente.name || nome } : {}),
       ...(senha ? { senhaSindico: senha } : {}),
       ...(atual ? { anteriorRemovido: { id_user: atual.id_user, nome: nomeAtual } } : {}),

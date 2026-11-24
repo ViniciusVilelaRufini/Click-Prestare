@@ -23,6 +23,8 @@ describe('MoradoresService.sendCredentials — link para quem já tem senha', ()
     contaAchadaPeloEmail?: Record<string, unknown> | null;
     outroCondominio?: boolean;
     loginDePortaria?: boolean;
+    /** A conta já tem vínculo de unidade neste condomínio (não é conta órfã, common/adocao-conta.util). */
+    vinculoAqui?: boolean;
   } = {}) {
     const prisma: any = {
       isConnected: true,
@@ -40,7 +42,9 @@ describe('MoradoresService.sendCredentials — link para quem já tem senha', ()
       funcionarios_Portaria: { count: jest.fn(async ({ where }: any) => (opts.loginDePortaria && where?.login === 'bia@x.com' ? 1 : 0)) },
       sindicos_Condominios: { count: jest.fn().mockResolvedValue(0) },
       funcionarios: { count: jest.fn().mockResolvedValue(0) },
-      apartamentos_Users: { count: jest.fn().mockResolvedValue(0) },
+      apartamentos_Users: {
+        count: jest.fn(async ({ where }: any) => (opts.vinculoAqui && where?.apartamento === undefined ? 1 : 0)),
+      },
     };
     const mail: any = { sendWelcomeMorador: jest.fn().mockResolvedValue({}), sendWelcomeMoradorExisting: jest.fn() };
     const auditoria: any = { registrar: jest.fn().mockResolvedValue({}) };
@@ -205,6 +209,7 @@ describe('MoradoresService.sendCredentials — link para quem já tem senha', ()
     const { service, prisma, mail, mobileAuth } = harness({
       morador: { id_user: null },
       contaAchadaPeloEmail: { id: 77, ...JA_ENTROU },
+      vinculoAqui: true,
     });
 
     const res = await service.sendCredentials(5);
@@ -220,6 +225,7 @@ describe('MoradoresService.sendCredentials — link para quem já tem senha', ()
     const { service, prisma, mobileAuth } = harness({
       morador: { id_user: null },
       contaAchadaPeloEmail: { id: 77, ...JA_ENTROU },
+      vinculoAqui: true,
       linksNaUltimaHora: 3,
     });
 

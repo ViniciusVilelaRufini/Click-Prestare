@@ -23,6 +23,7 @@ import { ehLoginDoPrestador, nomeNormalizado } from '../prestadores/login-do-pre
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { lerPermissoesSalvas } from '../prestadores/permissoes-salvas.util';
 import { idUsuarioDoToken } from './usuario-do-token.util';
+import { MSG_CONTA_SO_POR_CPF, contaCasaComEmail, contaOrfaAutocriada, invalidarPosseDaConta } from '../common/adocao-conta.util';
 import { momentoTrocaSenha } from './senha-alterada.util';
 import { assertEmailNaoReservado } from '../common/email-reservado.util';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -5019,6 +5020,7 @@ export class MobileAuthService {
 
       let userId: number;
       let passwordWasSet = false;
+      let contaOrfaAdotada = false;
       // Senha inicial SEMPRE aleatória. Com envio de credenciais ela vai no e-mail
       // de boas-vindas; sem, ninguém a conhece e a conta é ativada depois por
       // "Enviar credenciais" (moradores.sendCredentials) ou "Esqueci a senha".
@@ -5066,6 +5068,16 @@ export class MobileAuthService {
         if (contaDeOutroCondominio && existing.id !== idUsuarioDoToken(user)) {
           throw new BadRequestException(MSG_CONTA_DE_OUTRO_CONDOMINIO);
         }
+        // CPF não é segredo: conta achada só por ele (cadastro sem e-mail ou com outro e-mail) não é adotada —
+        // quem tem o CPF de um futuro familiar criava a conta no signup com o próprio e-mail e herdava a unidade.
+        // Exceção: a conta é a do próprio solicitante (a sessão prova a posse).
+        if (!contaCasaComEmail(existing, mor.email) && existing.id !== idUsuarioDoToken(user)) {
+          throw new BadRequestException(MSG_CONTA_SO_POR_CPF);
+        }
+        // Conta achada pelo e-mail, com senha e sem vínculo em condomínio nenhum (a do /sindico/signup): só é
+        // ligada com senha nova enviada ao e-mail dela, sessões derrubadas e credenciais revogadas.
+        contaOrfaAdotada =
+          !contaDeOutroCondominio && (await contaOrfaAutocriada(this.prisma as any, existing, idUsuarioDoToken(user)));
         const patch: any = {};
         if (!contaDeOutroCondominio) {
           // Garante que o usuário tem login/senha para acessar o app. O login novo não pode ser login/e-mail
@@ -5088,7 +5100,10 @@ export class MobileAuthService {
           patch.photo = photoUrl;
           patch.profile_image = photoUrl;
         }
-        if (Object.keys(patch).length > 0) {
+        if (contaOrfaAdotada) {
+          await invalidarPosseDaConta(this.prisma as any, existing.id, senhaHash, patch);
+          passwordWasSet = true;
+        } else if (Object.keys(patch).length > 0) {
           await this.prisma.users.update({ where: { id: existing.id }, data: patch });
         }
       } else if (ehMenor) {
@@ -5176,7 +5191,12 @@ export class MobileAuthService {
       }
 
       // Dispara email de boas-vindas (assíncrono, não bloqueia resposta)
-      if (mor.email && mor.sendCredentials !== false && (passwordWasSet || !existing || existing.email === mor.email)) {
+      if (contaOrfaAdotada) {
+        // A senha nova é a única forma de o dono da conta entrar: vai ao e-mail dela mesmo sem sendCredentials.
+        this.mail
+          .sendWelcomeMorador(existing!.email || mor.email!, mor.nome ?? '', senhaInicial)
+          .catch(() => {});
+      } else if (mor.email && mor.sendCredentials !== false && (passwordWasSet || !existing || existing.email === mor.email)) {
         if (passwordWasSet) {
           this.mail
             .sendWelcomeMorador(mor.email, mor.nome ?? '', senhaInicial)

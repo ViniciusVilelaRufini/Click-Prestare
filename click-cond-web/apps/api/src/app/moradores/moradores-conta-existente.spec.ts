@@ -6,15 +6,21 @@ describe('MoradoresService.create — conta existente com vínculo em outro cond
   const MSG = 'Não foi possível concluir o cadastro com este e-mail/CPF. Fale com o suporte para vincular a unidade.';
   const existente = { id: 70, email: 'v@x.com', login: null, password: '$2b$10$senhaDaVitima', photo: null };
 
-  function build(vinculoFora: boolean) {
-    const contaFora = jest.fn(async ({ where }: any) => (vinculoFora && where.id_condominio?.not !== undefined ? 1 : 0));
+  // vinculoAqui: a conta já tem vínculo neste condomínio (a contagem sem filtro de condomínio da regra da conta
+  // órfã, common/adocao-conta.util, também a vê).
+  function build(vinculoFora: boolean, vinculoAqui = false) {
+    const contaFora = jest.fn(async ({ where }: any) =>
+      vinculoFora && where.id_condominio?.not !== undefined ? 1 : vinculoAqui && where.id_condominio?.not === undefined ? 1 : 0,
+    );
     const prisma: any = {
       isConnected: true,
       moradores: {
         findFirst: jest.fn(async () => null),
         create: jest.fn(async ({ data }: any) => ({ id: 300, ...data })),
         count: contaFora,
+        findMany: jest.fn(async () => []),
       },
+      credenciais_Acesso: { updateMany: jest.fn(async () => ({ count: 0 })) },
       visitantes: { findFirst: jest.fn(async () => null) },
       users: {
         findFirst: jest.fn(async () => ({ ...existente })),
@@ -48,7 +54,7 @@ describe('MoradoresService.create — conta existente com vínculo em outro cond
   });
 
   it('conta só deste condomínio continua recebendo login/senha', async () => {
-    const { svc, prisma } = build(false);
+    const { svc, prisma } = build(false, true);
     await svc.create(dto as any);
     expect(prisma.users.update).toHaveBeenCalledWith({
       where: { id: 70 },
