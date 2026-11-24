@@ -161,7 +161,7 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
     --bg-000:#000000;--bg-100:#0b0b0b;--bg-200:#141414;--bg-300:#1f1f1f;--line-100:#242424;--line-200:#666666;
     --ink:#ffffff;--ink-muted:#a3a3a3;--ink-subtle:#8a8a8a;--accent:#ffffff;--on-accent:#000000;--accent-ghost:rgba(255,255,255,.08);--brand:#FFC83D;--on-brand:#000000;--brand-ink:#FFC83D;--brand-soft:rgba(255,200,61,.12);
     --signal-ok:#5ec28a;--signal-warn:#e3b04b;--signal-danger:#ff6b6b;--grid:rgba(255,255,255,.05);--glow:rgba(255,255,255,.35);
-    --show-dark:block;--show-light:none;
+    --show-dark:block;--show-light:none;--faixa:#0f0f0f;--faixa-linha:#2e2e2e;
     --font-display:"Barlow Condensed","Arial Narrow",sans-serif;--font-sans:"Barlow",system-ui,sans-serif;
     --gutter:clamp(16px,4vw,64px);--fone:clamp(230px,15vw,270px);
     color-scheme:dark;
@@ -170,12 +170,12 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
     --bg-000:#ffffff;--bg-100:#fafafa;--bg-200:#f4f4f4;--bg-300:#e9e9e9;--line-100:#e2e2e2;--line-200:#888888;
     --ink:#000000;--ink-muted:#555555;--ink-subtle:#6b6b6b;--accent:#000000;--on-accent:#ffffff;--accent-ghost:rgba(0,0,0,.05);--brand:#F2B10F;--on-brand:#000000;--brand-ink:#8A5A00;--brand-soft:rgba(242,177,15,.16);
     --signal-ok:#1a7a48;--signal-warn:#946000;--signal-danger:#c42d33;--grid:rgba(0,0,0,.06);--glow:rgba(0,0,0,.25);
-    --show-dark:none;--show-light:block;color-scheme:light}}
+    --show-dark:none;--show-light:block;--faixa:#f5f5f5;--faixa-linha:#dcdcdc;color-scheme:light}}
   :root[data-theme="light"]{
     --bg-000:#ffffff;--bg-100:#fafafa;--bg-200:#f4f4f4;--bg-300:#e9e9e9;--line-100:#e2e2e2;--line-200:#888888;
     --ink:#000000;--ink-muted:#555555;--ink-subtle:#6b6b6b;--accent:#000000;--on-accent:#ffffff;--accent-ghost:rgba(0,0,0,.05);--brand:#F2B10F;--on-brand:#000000;--brand-ink:#8A5A00;--brand-soft:rgba(242,177,15,.16);
     --signal-ok:#1a7a48;--signal-warn:#946000;--signal-danger:#c42d33;--grid:rgba(0,0,0,.06);--glow:rgba(0,0,0,.25);
-    --show-dark:none;--show-light:block;color-scheme:light}
+    --show-dark:none;--show-light:block;--faixa:#f5f5f5;--faixa-linha:#dcdcdc;color-scheme:light}
   html{scroll-behavior:smooth;scroll-padding-top:72px;background:var(--bg-000)}
   body{margin:0;background:var(--bg-000);color:var(--ink);font-family:var(--font-sans);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;transition:background .4s,color .4s}
   *{box-sizing:border-box}
@@ -190,7 +190,20 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
   svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none}
   .ps-page{min-height:100vh;background:var(--bg-000);color:var(--ink)}
   .wrap{max-width:1560px;margin:0 auto;padding-left:max(var(--gutter),env(safe-area-inset-left,0px));padding-right:max(var(--gutter),env(safe-area-inset-right,0px))}
-  section{padding-block:84px;border-top:1px solid var(--line-100);position:relative}
+  section{--sec-bg:var(--bg-000);padding-block:84px;border-top:1px solid var(--faixa-linha);position:relative;background:var(--sec-bg)}
+  /* Divisões: faixas alternadas separam assuntos; simulador e orçamento ganham respiro maior e fio amarelo no topo. */
+  section.faixa{--sec-bg:var(--faixa)}
+  section.destaque{padding-block:112px;border-top:2px solid var(--brand)}
+  section.cont{border-top-color:transparent;padding-top:24px}
+  section.stats.cont{padding-top:0}
+  /* Faixa amarela de chamada, uma vez, antes do formulário. */
+  section.brand{--sec-bg:var(--brand);color:var(--on-brand);border-top-color:var(--brand)}
+  section.brand .eyebrow,section.brand .h2 span,section.brand .lead{color:var(--on-brand)}
+  section.brand .eyebrow::before{background:var(--on-brand)}
+  section.brand :focus-visible{outline-color:var(--on-brand)}
+  .faixa-cta{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:32px 64px}
+  .faixa-cta .lead{max-width:52ch}
+  #orcamento+#contato{border-top:0}#orcamento+#contato .contact{margin-top:0}
   #contato{scroll-margin-top:max(0px,calc(50vh - 392px))}
 
   /* Tipografia */
@@ -219,6 +232,8 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
   .btn.sec:hover{background:var(--brand);color:var(--on-brand);border-color:var(--brand)}
   .btn.sm{height:44px;padding:0 18px;font-size:12px}
   .btn.block{width:100%}
+  .btn.inv{background:var(--on-brand);color:var(--brand);border-color:var(--on-brand)}
+  .btn.inv:hover{background:transparent;color:var(--on-brand)}
   .btn.quiet{border-color:transparent;background:transparent;color:var(--ink)}
   .btn svg.i{width:18px;height:18px;transition:transform .25s}
   .btn:hover svg.i{transform:translateX(3px)}
@@ -258,7 +273,9 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
   .ps-hero::before{content:"";position:absolute;inset:0;background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:80px 80px;mask-image:radial-gradient(ellipse 80% 70% at 70% 40%,#000 20%,transparent 75%);-webkit-mask-image:radial-gradient(ellipse 80% 70% at 70% 40%,#000 20%,transparent 75%);pointer-events:none}
   .scan{position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--glow),transparent);top:12%;animation:scan 9s ease-in-out infinite;pointer-events:none}
   @keyframes scan{0%,100%{top:12%;opacity:0}10%{opacity:1}50%{top:88%;opacity:1}60%{opacity:0}}
-  .ps-hero .wrap{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:48px;align-items:center;position:relative}
+  .ps-hero .wrap{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:48px;align-items:center;position:relative;z-index:1}
+  .ps-hero::after{content:"";position:absolute;left:0;right:0;bottom:0;height:160px;background:linear-gradient(to bottom,transparent,var(--faixa));pointer-events:none}
+  #sindico{--sec-bg:var(--faixa);border-top-color:transparent}
   .ps-hero h1{font-family:var(--font-display);font-weight:600;font-size:clamp(56px,6.2vw,112px);line-height:.9;letter-spacing:.01em;text-transform:uppercase;margin:24px 0 0}
   .ps-hero h1 .l{display:block;overflow:hidden}
   .ps-hero h1 .l>span{display:block;animation:up 1s cubic-bezier(.2,.8,.2,1) both}
@@ -281,7 +298,7 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
   .phones .p1{right:min(calc(var(--fone)*.84),calc(100% - var(--fone)));top:0;animation:float1 1.2s .3s cubic-bezier(.2,.8,.2,1) both}
   .phones .p2{right:0;top:calc(var(--fone)*.33);animation:float1 1.2s .5s cubic-bezier(.2,.8,.2,1) both}
   @keyframes float1{from{opacity:0;transform:translateY(60px)}}
-  .phones .tagline{position:absolute;left:0;bottom:24px;display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-weight:600;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-muted);background:var(--bg-000);border:1px solid var(--line-100);padding:10px 14px;animation:fade .9s 1s both}
+  .phones .tagline{position:absolute;left:0;bottom:24px;display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-weight:600;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-muted);background:var(--sec-bg,var(--bg-000));border:1px solid var(--line-100);padding:10px 14px;animation:fade .9s 1s both}
   .ps-frame{cursor:zoom-in}
 
   /* Números */
@@ -296,7 +313,7 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
   /* Grades */
   .split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:64px;align-items:start}
   .cards3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line-100);border:1px solid var(--line-100);margin-top:64px}
-  .card{background:var(--bg-000);padding:36px 32px;display:flex;flex-direction:column;gap:16px;transition:background .3s}
+  .card{background:var(--sec-bg,var(--bg-000));padding:36px 32px;display:flex;flex-direction:column;gap:16px;transition:background .3s}
   a.card:hover{background:var(--bg-200)}
   .card .n{font-family:var(--font-display);font-weight:300;font-size:14px;letter-spacing:.2em;color:var(--ink-subtle)}
   .card p{margin:0;color:var(--ink-muted)}
@@ -320,7 +337,7 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
 
   /* Simulador */
   .sim{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1px;background:var(--line-100);border:1px solid var(--line-100);margin-top:56px}
-  .sim>div{background:var(--bg-000);padding:40px;min-width:0}
+  .sim>div{background:var(--sec-bg,var(--bg-000));padding:40px;min-width:0}
   .units{display:flex;align-items:center;gap:12px;margin-top:16px}
   .units input[type=number]{width:140px;min-width:0;height:64px;background:var(--bg-200);border:1px solid var(--line-200);border-radius:0;text-align:center;font-family:var(--font-display);font-size:40px;font-weight:300;color:var(--ink);-moz-appearance:textfield;appearance:textfield}
   .units input::-webkit-inner-spin-button,.units input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
@@ -376,7 +393,7 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
 
   /* Portaria e segurança */
   .sec4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line-100);border:1px solid var(--line-100);margin-top:56px}
-  .sec4>div,.sec4>button{background:var(--bg-000);padding:32px 28px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;text-align:left;min-width:0;transition:background .3s}
+  .sec4>div,.sec4>button{background:var(--sec-bg,var(--bg-000));padding:32px 28px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;text-align:left;min-width:0;transition:background .3s}
   .sec4>button:hover{background:var(--bg-200)}
   .sec4 p,.sec4 .desc{margin:0;color:var(--ink-muted);font-size:15px}
   .sec4 p a{text-decoration:underline;text-underline-offset:2px;color:var(--ink)}
@@ -384,7 +401,7 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
 
   /* Módulos */
   .mods{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line-100);border:1px solid var(--line-100);margin-top:56px}
-  .mod{background:var(--bg-000);padding:36px 32px;display:flex;flex-direction:column;gap:14px;min-width:0}
+  .mod{background:var(--sec-bg,var(--bg-000));padding:36px 32px;display:flex;flex-direction:column;gap:14px;min-width:0}
   .mod ul{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:8px;color:var(--ink-muted);font-size:15px}
   .mod li{display:flex;gap:10px}.mod li svg.i{width:16px;height:16px;margin-top:4px;color:var(--brand-ink)}
   .mod p{margin:0;color:var(--ink-muted)}
@@ -484,7 +501,7 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
 
   /* Contato */
   .contact{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1px;background:var(--line-100);border:1px solid var(--line-100);margin-top:56px}
-  .contact>div{background:var(--bg-000);padding:40px;min-width:0}
+  .contact>div{background:var(--sec-bg,var(--bg-000));padding:40px;min-width:0}
   .contato-lista{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:14px}
   .contato-lista li{display:flex;gap:12px}
   .contato-acoes{margin-top:36px;display:flex;flex-direction:column;align-items:flex-start;gap:16px}
@@ -553,7 +570,10 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
   @media (min-width:901px) and (max-width:1100px){:root{--fone:210px}}
   @media (max-width:1080px){.sec4{grid-template-columns:1fr 1fr}.more-mods{grid-template-columns:1fr 1fr}}
   @media (max-width:900px){
-    section{padding-block:80px}
+    section{padding-block:64px}
+    section.destaque{padding-block:80px}
+    section.cont{padding-top:16px}
+    .faixa-cta .btn{width:100%}
     :root{--fone:290px}.ps-hero{padding-block:48px 72px}
     .ps-hero .wrap,.split,.sim,.contact,.aws,.insta{grid-template-columns:minmax(0,1fr)}
     .phones{height:520px;max-width:460px;width:100%;margin:0 auto}
@@ -701,7 +721,7 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
   </div></section>
 
   <ps-if data-if="mostrarNumeros">
-    <section class="stats" aria-label="Como funciona"><div class="wrap"><div class="grid">
+    <section class="stats faixa cont" aria-label="Como funciona"><div class="wrap"><div class="grid">
       <div class="stat"><b class="menor">Data e hora</b><span>Em cada entrada e saída, com quem registrou ou como foi liberada</span></div>
       <div class="stat"><b class="menor">Com o porteiro</b><span>O condomínio faz o próprio controle, sem central à distância</span></div>
       <div class="stat"><b class="menor">Mesmo dia</b><span>Com a planilha pronta, a portaria começa a registrar. Terminal facial tem instalação à parte</span></div>
@@ -736,7 +756,7 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
     </div>
   </div></section>
 
-  <section id="solucoes"><div class="wrap">
+  <section id="solucoes" class="cont"><div class="wrap">
     <div class="eyebrow">Plataforma</div><h2 class="h2 rv">Aplicativo para condomínio, <span>console web e app da portaria</span></h2>
     <div class="cards3 rv">
       <a class="card" href="#app"><span class="n">01</span><span class="icobox"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg></span><h3 class="h3">App do Morador</h3><p>Visitantes liberados antes de chegar, aviso de encomenda no app e a conta do condomínio na tela.</p><span class="more">Conheça o app <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span></a>
@@ -745,7 +765,7 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
     </div>
   </div></section>
 
-  <section id="app"><div class="wrap">
+  <section id="app" class="faixa"><div class="wrap">
     <div class="split">
       <div><div class="eyebrow">Para o morador</div><h2 class="h2 rv">O morador resolve sozinho, <span>sem ligar para a portaria</span></h2></div>
       <div class="rv">
@@ -769,7 +789,7 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
     </div>
   </div></section>
 
-  <section id="simulador"><div class="wrap">
+  <section id="simulador" class="destaque"><div class="wrap">
     <div class="eyebrow">Simulador de valor</div><h2 class="h2 rv">Quanto custa para o <span>seu condomínio?</span></h2>
     <p class="lead">Controle de acesso com reconhecimento facial, visitantes e encomendas no app do morador e console para a portaria. Informe o número de unidades e veja o plano indicado e a mensalidade. <a href="/precos/">Ver a tabela de preços</a>.</p>
     <div class="sim">
@@ -827,7 +847,7 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
     </div>
   </div></section>
 
-  <section id="console"><div class="wrap">
+  <section id="console" class="faixa"><div class="wrap">
     <div class="split">
       <div><div class="eyebrow">Para o síndico e a portaria</div><h2 class="h2 rv">O sistema web mostra quem está no condomínio <span>agora</span></h2></div>
       <p class="lead lead-top rv">Mesma informação do app, do outro lado do balcão: ativos no local, liberados aguardando, quem saiu e o total registrado, com validação de PIN, documento mascarado na tela e baixa por apartamento.</p>
@@ -870,7 +890,7 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
     </div>
   </div></section>
 
-  <section id="portaria-app"><div class="wrap">
+  <section id="portaria-app" class="faixa cont"><div class="wrap">
     <div class="split">
       <div><div class="eyebrow">App do porteiro</div><h2 class="h2 rv">O sistema de portaria <span>no celular do porteiro</span></h2></div>
       <div class="rv">
@@ -913,7 +933,7 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
     <p class="note">Sem internet, o terminal guarda os eventos e eles sobem depois; o app e o console precisam de conexão para registrar. <a href="/reconhecimento-facial-condominio/">Como funciona, em detalhe</a> · <a href="/politica-de-privacidade.html">Política de privacidade, seção 5</a></p>
   </div></section>
 
-  <section id="modulos"><div class="wrap">
+  <section id="modulos" class="faixa"><div class="wrap">
     <div class="split">
       <div><div class="eyebrow">Módulos</div><h2 class="h2 rv">Controle de visitantes, financeiro <span>e encomendas</span></h2></div>
       <div class="rv">
@@ -943,7 +963,7 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
     </ul>
   </div></section>
 
-  <section id="diferenciais" aria-labelledby="diferenciais-titulo"><div class="wrap">
+  <section id="diferenciais" class="faixa cont" aria-labelledby="diferenciais-titulo"><div class="wrap">
     <div class="eyebrow">Por que a Prestare</div><h2 id="diferenciais-titulo" class="h2 rv" style="max-width: 20ch;">Prestare, uCondo e Superlógica <span>lado a lado</span></h2>
     <p class="lead">Os três oferecem app e recursos de portaria. Abaixo, o que encontramos nas páginas públicas de cada fornecedor e o que a Prestare tem.</p>
     <div class="tablewrap rv"><table>
@@ -977,7 +997,7 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
     </div>
   </div></section>
 
-  <section id="aws" aria-labelledby="aws-titulo"><div class="wrap">
+  <section id="aws" class="cont" aria-labelledby="aws-titulo"><div class="wrap">
     <div class="aws">
       <div>
         <div class="eyebrow">Infraestrutura e revisão técnica</div>
@@ -1004,7 +1024,7 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
     <p class="fine aws-fine">Amazon Web Services, AWS, o logotipo Powered by AWS e AWS Well-Architected são marcas comerciais da Amazon.com, Inc. ou de suas afiliadas. A citação descreve a infraestrutura usada pela Prestare e o resultado da revisão técnica; não representa patrocínio ou endosso da Prestare pela AWS.</p>
   </div></section>
 
-  <section id="baixar-app"><div class="wrap split">
+  <section id="baixar-app" class="faixa"><div class="wrap split">
     <div>
       <div class="eyebrow">Disponível nas lojas oficiais</div>
       <h2 class="h2 rv">Baixe o aplicativo <span>Prestare Gestão</span></h2>
@@ -1031,7 +1051,7 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
     <div class="fone-loja rv"><div class="phone"><img class="img-dark" loading="lazy" decoding="async" srcSet="/sobre/assets/TelaEntrada-dark-360.webp 360w, /sobre/assets/TelaEntrada-dark.webp 738w" sizes="(max-width: 560px) 72vw, 300px" src="/sobre/assets/TelaEntrada-dark.webp" alt="App do morador: minhas encomendas" width="738" height="1600"><img class="img-light" loading="lazy" decoding="async" srcSet="/sobre/assets/TelaEntrada-light-360.webp 360w, /sobre/assets/TelaEntrada-light.webp 738w" sizes="(max-width: 560px) 72vw, 300px" src="/sobre/assets/TelaEntrada-light.webp" alt="Tela de entrada do app: síndico, morador ou funcionário" width="738" height="1600"></div></div>
   </div></section>
 
-  <section id="instagram" aria-labelledby="instagram-title"><div class="wrap insta">
+  <section id="instagram" class="faixa cont" aria-labelledby="instagram-title"><div class="wrap insta">
     <div>
       <div class="eyebrow">Instagram Prestare</div>
       <h2 id="instagram-title" class="h2 h2-sm rv">Acompanhe a Prestare <span>no Instagram</span></h2>
@@ -1065,9 +1085,13 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
     </div></section>
   </ps-if>
 
-  <section id="contato"><div class="wrap">
-    <div class="eyebrow">Orçamento</div><h2 class="h2 rv">Receba um orçamento para o <span>seu condomínio</span></h2>
-    <p class="lead">O valor acompanha o tamanho do condomínio. Diga quantas unidades e respondemos com o orçamento.</p>
+  <section id="orcamento" class="brand" aria-labelledby="orcamento-titulo"><div class="wrap faixa-cta">
+    <div><div class="eyebrow">Orçamento</div><h2 id="orcamento-titulo" class="h2 rv">Receba um orçamento para o <span>seu condomínio</span></h2>
+    <p class="lead">O valor acompanha o tamanho do condomínio. Diga quantas unidades e respondemos com o orçamento.</p></div>
+    <a class="btn inv" href="#contato" data-on-click="irParaContato">Pedir orçamento <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+  </div></section>
+
+  <section id="contato" aria-label="Formulário de orçamento"><div class="wrap">
     <div class="contact">
       <div>
         <ul class="contato-lista">
