@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { VisitantesService } from './visitantes.service';
+import { gravacaoCondicionalMapa } from './where-falso.testutil';
 
 /**
  * Solicitar/Liberar reaproveitavam a MESMA visita e zeravam data_entrada e
@@ -62,7 +63,8 @@ describe('Solicitar/Liberar não apagam o histórico de uma visita usada', () =>
           Object.assign(v, data);
           return comRelacoes(v);
         }),
-        updateMany: jest.fn(async () => ({ count: 0 })),
+        updateMany: jest.fn(gravacaoCondicionalMapa(visitas, comRelacoes).updateMany),
+        findUnique: jest.fn(gravacaoCondicionalMapa(visitas, comRelacoes).findUnique),
       },
     };
     const svc = new VisitantesService(
@@ -121,7 +123,10 @@ describe('Solicitar/Liberar não apagam o histórico de uma visita usada', () =>
       const { svc, prisma } = montar({});
       await (svc as any)[acao](1000004, operador);
       expect(prisma.visitas.create).not.toHaveBeenCalled();
-      expect(prisma.visitas.update.mock.calls[0][0].where.id).toBe(1000004);
+      // Liberar grava por updateMany condicional (P4); Solicitar, por update.
+      const escritas = [...prisma.visitas.update.mock.calls, ...prisma.visitas.updateMany.mock.calls];
+      expect(escritas.map((c: any) => c[0].where.id)).toEqual(escritas.map(() => 1000004));
+      expect(escritas.length).toBeGreaterThan(0);
     },
   );
 });

@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { VisitantesService } from './visitantes.service';
+import { casaLinha } from './where-falso.testutil';
 
 /**
  * Card ao vivo da portaria remota: ganchos no caminho antigo (Visitantes).
@@ -35,7 +36,7 @@ describe('VisitantesService — card ao vivo (caminho antigo)', () => {
       visitantes: {
         findUnique: jest.fn(async () => ({ ...visitor })),
         update: jest.fn(async ({ data }: any) => ({ ...visitor, ...data })),
-        updateMany: jest.fn(async () => ({ count: 0 })),
+        updateMany: jest.fn(async ({ where }: any) => ({ count: casaLinha(visitor, where) ? 1 : 0 })),
         findMany: jest.fn(async () => []),
       },
       users: {

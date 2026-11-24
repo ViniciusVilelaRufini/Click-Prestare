@@ -1608,12 +1608,22 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           return false;
         });
 
-        const authStatus = isAutorizado ? 'autorizado' : isPendente ? 'pendente' : null;
         const noLocalApto = regs.some((r) => r.data_entrada && !r.data_saida);
+        // Mesmo critério do caminho Pessoas/Visitas: a resposta mais recente
+        // do morador foi NEGAR e ninguém liberou depois. Sem isto o legado
+        // não mostrava a negativa e o porteiro só via o 409 da trava.
+        const criadaEm = (r: (typeof regs)[number]) => (r.created_at ? new Date(r.created_at).getTime() : 0);
+        const maisRecenteApto = regs.reduce((m, r) => (criadaEm(r) > criadaEm(m) ? r : m), regs[0]);
+        const negadoApto =
+          !isAutorizado && !isPendente && !noLocalApto &&
+          (maisRecenteApto as any).auth_status === 'negado' &&
+          maisRecenteApto.liberado !== 1 &&
+          !maisRecenteApto.data_entrada;
+        const authStatus = isAutorizado ? 'autorizado' : isPendente ? 'pendente' : negadoApto ? 'negado' : null;
 
         const regAtivoApto = regs.find((r) => (r as any).auth_status === 'autorizado')
           || regs.find((r) => (r as any).auth_status === 'pendente')
-          || best;
+          || (negadoApto ? maisRecenteApto : best);
 
         return {
           id: aptoId,
@@ -1645,9 +1655,18 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       const temVaga = idVisComVaga != null;
       const vagaMorador = temVaga ? vagaPorVisitante.get(idVisComVaga) ?? null : null;
 
+      // Negativa só sobe para a pessoa quando nenhuma unidade tem algo valendo
+      // (liberação, pedido, alguém dentro) — como no caminho Pessoas/Visitas.
+      const aptoNegadoPessoa = !apartamentosVisitados.some((a) => a.liberado || a.noLocal)
+        ? apartamentosVisitados.find((a) => a.auth_status === 'negado')
+        : undefined;
       const aptoAtivoPessoa = apartamentosVisitados.find((a) => a.auth_status === 'autorizado')
-        || apartamentosVisitados.find((a) => a.auth_status === 'pendente');
-      const regAtivoPessoa = aptoAtivoPessoa ? arr.find((r) => r.apartamento?.id === aptoAtivoPessoa.id) : null;
+        || apartamentosVisitados.find((a) => a.auth_status === 'pendente')
+        || aptoNegadoPessoa;
+      const regAtivoPessoa = aptoAtivoPessoa
+        ? (aptoAtivoPessoa === aptoNegadoPessoa ? arr.find((r) => r.id === aptoAtivoPessoa.visitanteId) : undefined)
+          ?? arr.find((r) => r.apartamento?.id === aptoAtivoPessoa.id)
+        : null;
       const authStatusFinalPessoa = aptoAtivoPessoa ? aptoAtivoPessoa.auth_status : null;
 
       pessoas.push({
@@ -3498,27 +3517,20 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // Pessoa dentro: recusa (duplo clique não reescreve a entrada). Visita
     // encerrada: nova visita, preservando a passagem anterior no histórico.
     const idVisita = await this.visitaParaNovaPassagem(ref);
-    const v = await this.prisma.visitas.update({
-      where: { id: idVisita },
-      data: {
-        data_entrada: new Date(),
-        data_saida: null,
-        liberado: 1,
-        ...(idApartamento ? { id_apartamento: targetAptoId } : {}),
-        ...(idUsuarioDoToken(payload) != null && { user: idUsuarioDoToken(payload) }),
-        ...(ref.auth_status === 'pendente' && {
-          auth_status: 'autorizado',
-          auth_respondido_em: new Date(),
-          auth_respondido_por: idUsuarioDoToken(payload),
-        }),
-        // A portaria decidiu por cima de uma negativa que ela viu: a negativa
-        // deixa de valer (fica na auditoria), senão travaria as próximas ações.
-        ...(ref.auth_status === 'negado' && { auth_status: null }),
-      },
-      include: {
-        pessoa: true,
-        apartamento: { select: { bloco: true, apto: true } },
-      },
+    const v = await this.gravarSemNegativaNova('visitas', idVisita, ref, esperado, payload, {
+      data_entrada: new Date(),
+      data_saida: null,
+      liberado: 1,
+      ...(idApartamento ? { id_apartamento: targetAptoId } : {}),
+      ...(idUsuarioDoToken(payload) != null && { user: idUsuarioDoToken(payload) }),
+      ...(ref.auth_status === 'pendente' && {
+        auth_status: 'autorizado',
+        auth_respondido_em: new Date(),
+        auth_respondido_por: idUsuarioDoToken(payload),
+      }),
+      // A portaria decidiu por cima de uma negativa que ela viu: a negativa
+      // deixa de valer (fica na auditoria), senão travaria as próximas ações.
+      ...(ref.auth_status === 'negado' && { auth_status: null }),
     });
 
     this.fireFacialSyncPessoa(v.id_pessoa);
@@ -3583,6 +3595,39 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Grava a entrada/liberação do console só se o morador não negou entre a
+   * leitura (`assertNegativaConhecida`) e a gravação: a leitura passava, o
+   * negar gravava, e o update do porteiro vinha por cima com `liberado=1`.
+   * Com a trava ativa (console) e a negativa ainda não vista, o `where` exige
+   * `auth_status` ≠ 'negado' (NULL conta como "sem negativa": no SQL,
+   * `<> 'negado'` sozinho deixaria o NULL de fora). Nada gravado → 409.
+   * Fora da trava (app sem `esperado`) segue como antes.
+   */
+  private async gravarSemNegativaNova(
+    tabela: 'visitas' | 'visitantes',
+    idAlvo: number,
+    ref: { auth_status?: string | null },
+    esperado: string | null | undefined,
+    payload: JwtPayload | undefined,
+    data: Record<string, unknown>,
+  ): Promise<any> {
+    const include =
+      tabela === 'visitas' ? { pessoa: true, apartamento: { select: { bloco: true, apto: true } } } : undefined;
+    const travaAtiva = !(esperado === undefined && !payload?.id_condominio);
+    if (!travaAtiva || ref.auth_status === 'negado') {
+      return (this.prisma[tabela] as any).update({ where: { id: Number(idAlvo) }, data, ...(include && { include }) });
+    }
+    const r = await (this.prisma[tabela] as any).updateMany({
+      where: { id: Number(idAlvo), OR: [{ auth_status: null }, { auth_status: { not: 'negado' } }] },
+      data,
+    });
+    if (r.count === 0) {
+      throw new ConflictException('O morador acabou de negar esta entrada. Confira antes de registrar.');
+    }
+    return (this.prisma[tabela] as any).findUnique({ where: { id: Number(idAlvo) }, ...(include && { include }) });
+  }
+
+  /**
    * Visita sobre a qual Solicitar/Liberar vão agir, sem apagar histórico.
    *
    * As duas ações zeram data_entrada/data_saida. Numa visita já USADA (entrou
@@ -3596,6 +3641,19 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    */
   private async visitaParaNovaPassagem(ref: any): Promise<number> {
     return visitaParaNovaPassagem(this.prisma, ref);
+  }
+
+  /**
+   * Legado (Visitantes): uma linha só por visitante, sem visita nova a criar.
+   * Liberar/Solicitar zeram data_entrada; em quem está dentro isso apagava a
+   * entrada de quem ainda está no prédio. Mesma recusa de visitaParaNovaPassagem.
+   */
+  private assertNaoEstaDentro(ref: { data_entrada?: Date | null; data_saida?: Date | null }) {
+    if (ref.data_entrada && !ref.data_saida) {
+      throw new BadRequestException(
+        'Este visitante já está no condomínio. Dê baixa antes de registrar uma nova passagem.',
+      );
+    }
   }
 
   private async liberarAcessoViaPessoasVisitas(
@@ -3615,28 +3673,21 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       await this.assertPodeUsarApartamento(targetAptoId, payload);
     }
     const idVisita = await this.visitaParaNovaPassagem(ref);
-    const v = await this.prisma.visitas.update({
-      where: { id: idVisita },
-      data: {
-        liberado: 1,
-        data_entrada: null,
-        data_saida: null,
-        ...(idApartamento ? { id_apartamento: targetAptoId } : {}),
-        ...(idUsuarioDoToken(payload) != null && { user: idUsuarioDoToken(payload) }),
-        ...(ref.auth_status === 'pendente' && {
-          auth_status: 'autorizado',
-          auth_respondido_em: new Date(),
-          auth_respondido_por: idUsuarioDoToken(payload),
-        }),
-        ...(ref.auth_status === 'negado' && { auth_status: null }),
-        // Autorização remota do morador (10 min no portão): liberar por cima
-        // é decisão de quem liberou e vale pela janela, como toda liberação.
-        ...(ehAutorizacaoRemota(ref) && { auth_status: null }),
-      },
-      include: {
-        pessoa: true,
-        apartamento: { select: { bloco: true, apto: true } },
-      },
+    const v = await this.gravarSemNegativaNova('visitas', idVisita, ref, esperado, payload, {
+      liberado: 1,
+      data_entrada: null,
+      data_saida: null,
+      ...(idApartamento ? { id_apartamento: targetAptoId } : {}),
+      ...(idUsuarioDoToken(payload) != null && { user: idUsuarioDoToken(payload) }),
+      ...(ref.auth_status === 'pendente' && {
+        auth_status: 'autorizado',
+        auth_respondido_em: new Date(),
+        auth_respondido_por: idUsuarioDoToken(payload),
+      }),
+      ...(ref.auth_status === 'negado' && { auth_status: null }),
+      // Autorização remota do morador (10 min no portão): liberar por cima
+      // é decisão de quem liberou e vale pela janela, como toda liberação.
+      ...(ehAutorizacaoRemota(ref) && { auth_status: null }),
     });
 
     const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
@@ -3792,6 +3843,23 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // para quem estava liberado até aqui).
     this.fireFacialSyncPessoa(v.id_pessoa);
 
+    // Pedido redirecionado para outra unidade: o pedido pendente da unidade
+    // original deixava de ser o pedido, mas seguia respondível — o morador de
+    // lá ainda tocava AUTORIZAR no card e liberava o rosto pela unidade
+    // errada, mesmo com a nova negando. Não há estado "cancelado": o pedido
+    // volta a "sem pedido" (auth_status/auth_solicitado_em nulos), que
+    // autorizar/negar recusam, e o card dele é encerrado. Condicional ao
+    // `pendente`, para não desfazer uma resposta que chegou antes.
+    if (idApartamento && Number(idApartamento) !== principal.id_apartamento) {
+      const cancelado = await this.prisma.visitas.updateMany({
+        where: { id: Number(principal.id), auth_status: 'pendente' },
+        data: { auth_status: null, auth_solicitado_em: null },
+      });
+      if (cancelado.count > 0) {
+        this.card((c) => c.encerrar('visita', Number(principal.id)));
+      }
+    }
+
     const avisados = await this.notificarMoradoresAutorizacao({
       id: v.id,
       nome: v.pessoa.nome,
@@ -3853,6 +3921,30 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Grava a resposta do morador só se o pedido AINDA está pendente. A leitura
+   * de `assertPedidoPendente` não basta: autorizar e negar ao mesmo tempo
+   * passavam os dois pela leitura e a última gravação vencia (um "negar"
+   * atrasado derrubava a autorização, ou um "autorizar" liberava o negado).
+   * Nada gravado → a mesma recusa de `assertPedidoPendente`, sem efeitos.
+   */
+  private async responderPedidoPendente(
+    tabela: 'visitas' | 'visitantes',
+    id: number,
+    data: Record<string, unknown>,
+  ): Promise<any> {
+    const r = await (this.prisma[tabela] as any).updateMany({
+      where: { id: Number(id), auth_status: 'pendente' },
+      data,
+    });
+    if (r.count === 0) {
+      throw new BadRequestException('Esta solicitação já foi respondida ou resolvida pela portaria.');
+    }
+    const include =
+      tabela === 'visitas' ? { pessoa: true, apartamento: { select: { bloco: true, apto: true } } } : undefined;
+    return (this.prisma[tabela] as any).findUnique({ where: { id: Number(id) }, ...(include && { include }) });
+  }
+
   private async autorizarViaPessoasVisitas(id: number, payload?: JwtPayload, darEntrada?: boolean) {
     const ref = await this.assertPodeAcessarVisita(id, payload);
     if (ref.bloqueado === 1 || (ref.pessoa as any)?.bloqueado === 1) {
@@ -3867,19 +3959,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       }
     }
     const respondidoPor = idUsuarioDoToken(payload);
-    const v = await this.prisma.visitas.update({
-      where: { id: Number(id) },
-      data: {
-        auth_status: 'autorizado',
-        liberado: 1,
-        ...(darEntrada ? { data_entrada: new Date(), data_saida: null } : { data_saida: null }),
-        auth_respondido_em: new Date(),
-        auth_respondido_por: respondidoPor,
-      },
-      include: {
-        pessoa: true,
-        apartamento: { select: { bloco: true, apto: true } },
-      },
+    const v = await this.responderPedidoPendente('visitas', Number(id), {
+      auth_status: 'autorizado',
+      liberado: 1,
+      ...(darEntrada ? { data_entrada: new Date(), data_saida: null } : { data_saida: null }),
+      auth_respondido_em: new Date(),
+      auth_respondido_por: respondidoPor,
     });
 
     this.fireFacialSyncPessoa(v.id_pessoa);
@@ -3915,18 +4000,11 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const ref = await this.assertPodeAcessarVisita(id, payload);
     this.assertPedidoPendente(ref);
     const respondidoPor = idUsuarioDoToken(payload);
-    const v = await this.prisma.visitas.update({
-      where: { id: Number(id) },
-      data: {
-        auth_status: 'negado',
-        liberado: 0,
-        auth_respondido_em: new Date(),
-        auth_respondido_por: respondidoPor,
-      },
-      include: {
-        pessoa: true,
-        apartamento: { select: { bloco: true, apto: true } },
-      },
+    const v = await this.responderPedidoPendente('visitas', Number(id), {
+      auth_status: 'negado',
+      liberado: 0,
+      auth_respondido_em: new Date(),
+      auth_respondido_por: respondidoPor,
     });
 
     this.fireFacialSyncPessoa(v.id_pessoa);
@@ -5123,21 +5201,18 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (idApartamento && targetAptoId !== ref.id_apartamento) {
       await this.assertPodeUsarApartamento(targetAptoId, payload);
     }
-    const v = await this.prisma.visitantes.update({
-      where: { id: Number(id) },
-      data: {
-        data_entrada: new Date(),
-        data_saida: null,
-        liberado: 1,
-        ...(idApartamento ? { id_apartamento: targetAptoId } : {}),
-        ...(idUsuarioDoToken(payload) != null && { user: idUsuarioDoToken(payload) }),
-        // Override do porteiro: se havia pedido pendente, marca como resolvido.
-        ...(ref.auth_status === 'pendente' && {
-          auth_status: 'autorizado',
-          auth_respondido_em: new Date(),
-          auth_respondido_por: idUsuarioDoToken(payload),
-        }),
-      },
+    const v = await this.gravarSemNegativaNova('visitantes', Number(id), ref as any, esperado, payload, {
+      data_entrada: new Date(),
+      data_saida: null,
+      liberado: 1,
+      ...(idApartamento ? { id_apartamento: targetAptoId } : {}),
+      ...(idUsuarioDoToken(payload) != null && { user: idUsuarioDoToken(payload) }),
+      // Override do porteiro: se havia pedido pendente, marca como resolvido.
+      ...(ref.auth_status === 'pendente' && {
+        auth_status: 'autorizado',
+        auth_respondido_em: new Date(),
+        auth_respondido_por: idUsuarioDoToken(payload),
+      }),
     });
     // Re-enrola o rosto no terminal para garantir que o acesso biométrico
     // funcione (especialmente para saída posterior pelo facial).
@@ -5178,21 +5253,21 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (idApartamento && targetAptoId !== ref.id_apartamento) {
       await this.assertPodeUsarApartamento(targetAptoId, payload);
     }
-    const v = await this.prisma.visitantes.update({
-      where: { id: Number(id) },
-      data: {
-        liberado: 1,
-        data_entrada: null,
-        data_saida: null,
-        ...(idApartamento ? { id_apartamento: targetAptoId } : {}),
-        ...(idUsuarioDoToken(payload) != null && { user: idUsuarioDoToken(payload) }),
-        // Override do porteiro: se havia pedido pendente, marca como resolvido.
-        ...(ref.auth_status === 'pendente' && {
-          auth_status: 'autorizado',
-          auth_respondido_em: new Date(),
-          auth_respondido_por: idUsuarioDoToken(payload),
-        }),
-      },
+    // Liberar zera data_entrada: em quem está dentro, apagava a entrada de
+    // quem ainda está no prédio (mesma trava de visitaParaNovaPassagem).
+    this.assertNaoEstaDentro(ref);
+    const v = await this.gravarSemNegativaNova('visitantes', Number(id), ref as any, esperado, payload, {
+      liberado: 1,
+      data_entrada: null,
+      data_saida: null,
+      ...(idApartamento ? { id_apartamento: targetAptoId } : {}),
+      ...(idUsuarioDoToken(payload) != null && { user: idUsuarioDoToken(payload) }),
+      // Override do porteiro: se havia pedido pendente, marca como resolvido.
+      ...(ref.auth_status === 'pendente' && {
+        auth_status: 'autorizado',
+        auth_respondido_em: new Date(),
+        auth_respondido_por: idUsuarioDoToken(payload),
+      }),
     });
     const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
     const ctx = await this.carregarContextoVisitante(v.id);
@@ -5402,6 +5477,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       }
       redirecionarApto = Number(idApartamento);
     }
+    // O pedido zera data_entrada: mesma trava do Liberar para quem está dentro.
+    this.assertNaoEstaDentro(ref);
     const v = await this.prisma.visitantes.update({
       where: { id: Number(id) },
       data: {
@@ -5451,15 +5528,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       }
     }
     const respondidoPor = idUsuarioDoToken(payload);
-    const v = await this.prisma.visitantes.update({
-      where: { id: Number(id) },
-      data: {
-        auth_status: 'autorizado',
-        liberado: 1,
-        ...(darEntrada ? { data_entrada: new Date(), data_saida: null } : { data_saida: null }),
-        auth_respondido_em: new Date(),
-        auth_respondido_por: respondidoPor,
-      },
+    const v = await this.responderPedidoPendente('visitantes', Number(id), {
+      auth_status: 'autorizado',
+      liberado: 1,
+      ...(darEntrada ? { data_entrada: new Date(), data_saida: null } : { data_saida: null }),
+      auth_respondido_em: new Date(),
+      auth_respondido_por: respondidoPor,
     });
     // Enrola (ou re-enrola) o rosto no terminal agora que liberado=1.
     this.fireFacialSync(v.id);
@@ -5499,14 +5573,11 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const refNegar = await this.assertPodeAcessarVisitante(id, payload);
     this.assertPedidoPendente(refNegar);
     const respondidoPor = idUsuarioDoToken(payload);
-    const v = await this.prisma.visitantes.update({
-      where: { id: Number(id) },
-      data: {
-        auth_status: 'negado',
-        liberado: 0,
-        auth_respondido_em: new Date(),
-        auth_respondido_por: respondidoPor,
-      },
+    const v = await this.responderPedidoPendente('visitantes', Number(id), {
+      auth_status: 'negado',
+      liberado: 0,
+      auth_respondido_em: new Date(),
+      auth_respondido_por: respondidoPor,
     });
     // liberado=0 → syncVisitante remove o rosto do terminal (se estava enrolado).
     this.fireFacialSync(v.id);

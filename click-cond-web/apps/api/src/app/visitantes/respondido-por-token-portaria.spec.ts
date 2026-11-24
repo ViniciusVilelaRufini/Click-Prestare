@@ -1,5 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import { VisitantesService } from './visitantes.service';
+import { casaLinha } from './where-falso.testutil';
 
 describe('Visitantes — auth_respondido_por e inbox usam idUsuarioDoToken', () => {
   const ENV = process.env['PESSOAS_MIGRATION_ENABLED'];
@@ -17,6 +18,7 @@ describe('Visitantes — auth_respondido_por e inbox usam idUsuarioDoToken', () 
       visitantes: {
         findUnique: jest.fn(async () => ({ ...visitor })),
         update: jest.fn(async ({ data }: any) => ({ ...visitor, ...data })),
+        updateMany: jest.fn(async ({ where }: any) => ({ count: casaLinha(visitor, where) ? 1 : 0 })),
         findMany: jest.fn(async () => []),
       },
       users: { findMany: jest.fn(async () => []), findUnique: jest.fn(async () => null) },
@@ -37,7 +39,7 @@ describe('Visitantes — auth_respondido_por e inbox usam idUsuarioDoToken', () 
   it('check-in do porteiro que resolve o pedido pendente grava auth_respondido_por = null', async () => {
     const { svc, prisma } = build();
     await svc.checkIn(5, { sub: 20, nome: 'Portaria', id_condominio: 1, turno: 'Manha', tipo_sub: 'funcionario_portaria' } as any);
-    expect(prisma.visitantes.update.mock.calls[0][0].data).toEqual(
+    expect(prisma.visitantes.updateMany.mock.calls[0][0].data).toEqual(
       expect.objectContaining({ auth_status: 'autorizado', auth_respondido_por: null }),
     );
   });
@@ -45,7 +47,7 @@ describe('Visitantes — auth_respondido_por e inbox usam idUsuarioDoToken', () 
   it('check-in do síndico no console grava o Users.id dele', async () => {
     const { svc, prisma } = build();
     await svc.checkIn(5, { sub: 3, nome: 'Síndico', id_condominio: 1, typeAccess: 'Sindico' } as any);
-    expect(prisma.visitantes.update.mock.calls[0][0].data.auth_respondido_por).toBe(3);
+    expect(prisma.visitantes.updateMany.mock.calls[0][0].data.auth_respondido_por).toBe(3);
   });
 
   it('inbox de pendentes recusa token sem Users.id (CRM) em vez de usar o sub', async () => {

@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { VisitantesService } from './visitantes.service';
+import { gravacaoCondicionalMapa } from './where-falso.testutil';
 
 /**
  * A saída pelo facial não limpa `auth_status` da visita. Uma visita
@@ -35,6 +36,8 @@ describe('check-in (Pessoas/Visitas) — autorização já usada não trava a no
       visitas: {
         create: jest.fn(async ({ data }: any) => { const n = { id: seq++, ...data }; visitas.set(n.id, n); return rel(n); }),
         update: jest.fn(async ({ where, data }: any) => { const v = visitas.get(where.id); Object.assign(v, data); return rel(v); }),
+        updateMany: jest.fn(gravacaoCondicionalMapa(visitas, rel).updateMany),
+        findUnique: jest.fn(gravacaoCondicionalMapa(visitas, rel).findUnique),
       },
       vagas: { updateMany: jest.fn(async () => ({ count: 0 })) },
     };

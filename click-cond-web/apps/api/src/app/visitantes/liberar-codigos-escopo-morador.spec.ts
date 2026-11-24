@@ -1,4 +1,5 @@
 import { VisitantesService } from './visitantes.service';
+import { casaLinha } from './where-falso.testutil';
 
 /**
  * Pessoa/visitante compartilhado entre unidades: o morador do apto 10 que libera a PRÓPRIA visita
@@ -45,7 +46,7 @@ describe('Liberar visita — revogação de outros PINs só nas unidades do mora
         visitantes: {
           findUnique: jest.fn(async () => ({ ...visitor })),
           update: jest.fn(async ({ data }: any) => ({ ...visitor, ...data })),
-          updateMany: jest.fn(async () => ({ count: 0 })),
+          updateMany: jest.fn(async ({ where }: any) => ({ count: casaLinha(visitor, where) ? 1 : 0 })),
         },
         apartamentos_Users: vinculosDoMoradorA,
       };
@@ -63,7 +64,8 @@ describe('Liberar visita — revogação de outros PINs só nas unidades do mora
     it('operador: revoga no condomínio inteiro, como antes', async () => {
       const { svc, prisma } = build();
       await svc.liberarAcesso(5, porteiro);
-      expect(prisma.visitantes.updateMany.mock.calls[0][0].where).not.toHaveProperty('id_apartamento');
+      // A última: a primeira é a gravação condicional da própria liberação.
+      expect(prisma.visitantes.updateMany.mock.calls.at(-1)[0].where).not.toHaveProperty('id_apartamento');
     });
   });
 
@@ -81,7 +83,7 @@ describe('Liberar visita — revogação de outros PINs só nas unidades do mora
         visitas: {
           findUnique: jest.fn(async () => ({ ...ref })),
           update: jest.fn(async ({ data }: any) => ({ ...ref, ...data, apartamento: { bloco: 'A', apto: '10' } })),
-          updateMany: jest.fn(async () => ({ count: 0 })),
+          updateMany: jest.fn(async ({ where }: any) => ({ count: casaLinha(ref, where) ? 1 : 0 })),
         },
         pessoas: {},
         apartamentos_Users: vinculosDoMoradorA,
@@ -102,7 +104,7 @@ describe('Liberar visita — revogação de outros PINs só nas unidades do mora
     it('operador: revoga só na unidade da visita liberada', async () => {
       const { svc, prisma } = build();
       await svc.liberarAcesso(50, porteiro);
-      expect(prisma.visitas.updateMany.mock.calls[0][0].where).toEqual(
+      expect(prisma.visitas.updateMany.mock.calls.at(-1)[0].where).toEqual(
         expect.objectContaining({ id_pessoa: 7, id_apartamento: { in: [10] } }),
       );
     });

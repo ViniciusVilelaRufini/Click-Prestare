@@ -1,4 +1,5 @@
 import { VisitantesService } from './visitantes.service';
+import { gravacaoCondicional } from './where-falso.testutil';
 import { VisitantesGlobalController } from './visitantes.controller';
 import { prazoAutorizacaoRemotaMs } from '../common/janela-visita';
 import { mantemLiberadoNaSaida } from './visitantes.service';
@@ -35,7 +36,8 @@ describe('Liberar (Pessoas/Visitas) sobre autorização remota do morador', () =
       isConnected: true,
       visitas: {
         update: jest.fn(async ({ data }: any) => rel(Object.assign(visita, data))),
-        updateMany: jest.fn(async () => ({ count: 0 })),
+        updateMany: jest.fn(gravacaoCondicional(visita, rel).updateMany),
+        findUnique: jest.fn(gravacaoCondicional(visita, rel).findUnique),
       },
     };
     const svc = new VisitantesService(

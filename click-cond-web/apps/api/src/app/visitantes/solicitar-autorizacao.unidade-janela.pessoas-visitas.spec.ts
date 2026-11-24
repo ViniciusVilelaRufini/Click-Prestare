@@ -1,4 +1,5 @@
 import { VisitantesService } from './visitantes.service';
+import { gravacaoCondicionalMapa } from './where-falso.testutil';
 
 /**
  * Solicitar (portaria remota), caminho Pessoas/Visitas:
@@ -72,6 +73,8 @@ describe('solicitarAutorizacao (Pessoas/Visitas) — unidade escolhida e janela 
           Object.assign(v, data);
           return comRelacoes(v);
         }),
+        updateMany: jest.fn(gravacaoCondicionalMapa(visitas, comRelacoes).updateMany),
+        findUnique: jest.fn(gravacaoCondicionalMapa(visitas, comRelacoes).findUnique),
       },
     };
     const svc = new VisitantesService(

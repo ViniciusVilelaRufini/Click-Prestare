@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { VisitantesService } from './visitantes.service';
+import { gravacaoCondicionalMapa } from './where-falso.testutil';
 
 /**
  * Check-in / check-out (modelo Pessoas/Visitas):
@@ -38,6 +39,8 @@ describe('check-in / check-out — integridade da visita', () => {
       visitas: {
         create: jest.fn(async ({ data }: any) => { const n = { id: seq++, ...data }; visitas.set(n.id, n); return rel(n); }),
         update: jest.fn(async ({ where, data }: any) => { const v = visitas.get(where.id); Object.assign(v, data); return rel(v); }),
+        updateMany: jest.fn(gravacaoCondicionalMapa(visitas, rel).updateMany),
+        findUnique: jest.fn(gravacaoCondicionalMapa(visitas, rel).findUnique),
       },
       vagas: { findFirst: jest.fn(async () => null), updateMany: jest.fn(async () => ({ count: 0 })) },
     };
@@ -84,13 +87,13 @@ describe('check-in / check-out — integridade da visita', () => {
   it('check-in pelo porteiro não grava o id dele em visitas.user (FK para Users)', async () => {
     const { svc, prisma } = montar({});
     await svc.checkIn(1000004, porteiro);
-    const data = prisma.visitas.update.mock.calls.at(-1)[0].data;
+    const data = prisma.visitas.updateMany.mock.calls.at(-1)[0].data;
     expect(data.user).toBeUndefined();
   });
 
   it('check-in pelo síndico continua registrando quem fez', async () => {
     const { svc, prisma } = montar({});
     await svc.checkIn(1000004, sindicoPortaria);
-    expect(prisma.visitas.update.mock.calls.at(-1)[0].data.user).toBe(7);
+    expect(prisma.visitas.updateMany.mock.calls.at(-1)[0].data.user).toBe(7);
   });
 });

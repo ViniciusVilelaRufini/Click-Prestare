@@ -1,4 +1,5 @@
 import { VisitantesService } from './visitantes.service';
+import { gravacaoCondicional } from './where-falso.testutil';
 
 /**
  * Rodada 3, item 4A: o porteiro abre "Registrar Entrada" com o pedido ainda
@@ -30,7 +31,8 @@ describe('check-in (Pessoas/Visitas) — negativa que chegou com o modal aberto'
       isConnected: true,
       visitas: {
         update: jest.fn(async ({ data }: any) => rel(Object.assign(visita, data))),
-        updateMany: jest.fn(async () => ({ count: 0 })),
+        updateMany: jest.fn(gravacaoCondicional(visita, rel).updateMany),
+        findUnique: jest.fn(gravacaoCondicional(visita, rel).findUnique),
       },
     };
     const svc = new VisitantesService(
@@ -49,6 +51,7 @@ describe('check-in (Pessoas/Visitas) — negativa que chegou com o modal aberto'
     const { svc, prisma, visita } = montar({});
     await expect(svc.checkIn(1000004, porteiro, undefined, 'pendente')).rejects.toMatchObject({ status: 409 });
     expect(prisma.visitas.update).not.toHaveBeenCalled();
+    expect(prisma.visitas.updateMany).not.toHaveBeenCalled();
     expect(visita.liberado).toBe(0);
   });
 
@@ -71,6 +74,7 @@ describe('check-in (Pessoas/Visitas) — negativa que chegou com o modal aberto'
     const { svc, prisma } = montar({});
     await expect(svc.checkIn(1000004, porteiro)).rejects.toMatchObject({ status: 409 });
     expect(prisma.visitas.update).not.toHaveBeenCalled();
+    expect(prisma.visitas.updateMany).not.toHaveBeenCalled();
   });
 
   it('app (token sem id_condominio) sem `esperado`: segue como antes', async () => {
@@ -99,6 +103,7 @@ describe('check-in (Pessoas/Visitas) — negativa que chegou com o modal aberto'
       const { svc, prisma, visita } = montar({});
       await expect(svc.liberarAcesso(1000004, porteiro, undefined, 'pendente')).rejects.toMatchObject({ status: 409 });
       expect(prisma.visitas.update).not.toHaveBeenCalled();
+      expect(prisma.visitas.updateMany).not.toHaveBeenCalled();
       expect(visita.liberado).toBe(0);
     });
 
@@ -139,9 +144,10 @@ describe('check-in (Pessoas/Visitas) — negativa que chegou com o modal aberto'
     });
 
     it('Liberar: libera', async () => {
-      const { svc, prisma } = montar({ liberado: 1 });
+      const { svc, visita } = montar({ liberado: 1 });
       await svc.liberarAcesso(1000004, porteiro, undefined, null);
-      expect(prisma.visitas.update).toHaveBeenCalled();
+      expect(visita.liberado).toBe(1);
+      expect(visita.data_entrada).toBeNull();
     });
 
     it('I-1 continua: negada com liberado=0 no momento do clique, sem o porteiro ver: 409', async () => {
@@ -149,6 +155,7 @@ describe('check-in (Pessoas/Visitas) — negativa que chegou com o modal aberto'
       await expect(svc.checkIn(1000004, porteiro, undefined, null)).rejects.toMatchObject({ status: 409 });
       await expect(svc.liberarAcesso(1000004, porteiro, undefined, 'pendente')).rejects.toMatchObject({ status: 409 });
       expect(prisma.visitas.update).not.toHaveBeenCalled();
+      expect(prisma.visitas.updateMany).not.toHaveBeenCalled();
     });
   });
 });
