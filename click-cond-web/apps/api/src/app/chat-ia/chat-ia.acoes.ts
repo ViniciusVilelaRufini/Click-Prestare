@@ -419,7 +419,7 @@ FERRAMENTAS_ACAO.push({
       { rotulo: 'Vencimento', valor: venc.br },
       { rotulo: 'Situação', valor: jaPaga ? 'Já paga' : 'Em aberto' },
       ...(linhaDigitavel ? [{ rotulo: 'Linha Digitável', valor: linhaDigitavel }] : []),
-      ...(codigoPix ? [{ rotulo: 'PIX Copia e Cola', valor: 'Disponível' }] : []),
+      ...(codigoPix ? [{ rotulo: 'PIX Copia e Cola', valor: codigoPix }] : []),
     ];
 
     return {

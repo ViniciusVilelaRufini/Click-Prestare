@@ -220,8 +220,8 @@ describe('DeliveryService — autoatendimento no portão', () => {
     expect(card.encerrarDeOutros).toHaveBeenCalledWith('delivery', 1, 9);
     // Quem respondeu virou o dono: nada de "Bruno autorizou" para ele mesmo.
     expect(notifications.sendPushNotification).not.toHaveBeenCalled();
-    // Pedido do portão: o card está em todos os vínculos atuais.
-    expect(card.atualizarDelivery).toHaveBeenCalledWith(expect.objectContaining({ status: 'AUTORIZADA' }), [7, 9], { voceRespondeu: true });
+    // Pedido do portão com dono definido: o card só vai ao dono (os dos outros fecharam e não reabrem).
+    expect(card.atualizarDelivery).toHaveBeenCalledWith(expect.objectContaining({ status: 'AUTORIZADA' }), 9, { voceRespondeu: true });
     // Resposta ao morador sem ids.
     expect(r).not.toHaveProperty('id_morador_user');
     expect(r).not.toHaveProperty('id_pedido_portao');

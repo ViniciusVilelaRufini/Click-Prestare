@@ -40,6 +40,7 @@ const logger = new Logger('EstadoCompartilhado');
 let tabelaAusente = false;
 let ultimaPurgaEm = 0;
 const PURGA_A_CADA_MS = 10 * 60 * 1000;
+const TENTATIVAS_CONTADOR = 20;
 
 /** Só para testes: volta a tentar o banco e a purgar. */
 export function limparEstadoEmMemoria() {
@@ -188,6 +189,58 @@ export class EstadoCompartilhado {
         if (!l || l.consumidoEm || l.expiraEm <= agora.getTime()) return false;
         l.consumidoEm = agora.getTime();
         if (json !== undefined) l.valor = json;
+        return true;
+      },
+    );
+  }
+
+  /**
+   * Contador numérico com teto, atômico entre instâncias: soma 1 em `chave`
+   * só se o valor atual for menor que `limite`. true = consumiu. Sem a chave
+   * (ou vencida) cria com 1. A soma é um UPDATE condicional ao valor lido
+   * (confere as linhas afetadas): se outra instância mexeu no meio, relê e
+   * tenta de novo, então nunca passa do teto numa rajada.
+   */
+  async incrementarSeAbaixo(chave: string, limite: number, ttlMs: number): Promise<boolean> {
+    for (let tentativa = 0; tentativa < TENTATIVAS_CONTADOR; tentativa++) {
+      const atual = await this.obter<number>(chave);
+      if (!atual) {
+        if (limite < 1) return false;
+        if (await this.criarSeAusente(chave, 1, ttlMs)) return true;
+        continue; // outro criou antes: relê
+      }
+      const usado = Number(atual.valor) || 0;
+      if (usado >= limite) return false;
+      if (await this.trocarContador(chave, usado, usado + 1)) return true;
+    }
+    return false;
+  }
+
+  /** Desfaz um `incrementarSeAbaixo` (nunca abaixo de 0), com a mesma garantia de atomicidade. */
+  async decrementar(chave: string): Promise<void> {
+    for (let tentativa = 0; tentativa < TENTATIVAS_CONTADOR; tentativa++) {
+      const atual = await this.obter<number>(chave);
+      const usado = Number(atual?.valor) || 0;
+      if (!atual || usado <= 0) return;
+      if (await this.trocarContador(chave, usado, usado - 1)) return;
+    }
+  }
+
+  /** UPDATE condicional: só troca se o valor ainda for `de` (e a chave não venceu). */
+  private async trocarContador(chave: string, de: number, para: number): Promise<boolean> {
+    const agora = new Date();
+    return this.noBanco(
+      async (db) => {
+        const r = await db.updateMany({
+          where: { chave, valor: JSON.stringify(de), expira_em: { gt: agora } },
+          data: { valor: JSON.stringify(para) },
+        });
+        return Number(r?.count ?? 0) === 1;
+      },
+      () => {
+        const l = this.memoria.get(chave);
+        if (!l || l.expiraEm <= agora.getTime() || l.valor !== JSON.stringify(de)) return false;
+        l.valor = JSON.stringify(para);
         return true;
       },
     );

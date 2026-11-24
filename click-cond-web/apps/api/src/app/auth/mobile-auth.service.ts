@@ -2545,6 +2545,11 @@ export class MobileAuthService {
         : null;
 
     // O token é único na tabela: o upsert é o que migra o aparelho de dono.
+    // Antes dele, encerra os cards ao vivo que o aparelho ainda mostra do dono
+    // anterior (logout que não chegou ao servidor); os do próprio usuário ficam.
+    if (this.cardAoVivo) {
+      await this.cardAoVivo.encerrarDoToken(token, idUser).catch(() => undefined);
+    }
     await this.prisma.users_Devices.upsert({
       where: { fcm_token: token },
       create: {
