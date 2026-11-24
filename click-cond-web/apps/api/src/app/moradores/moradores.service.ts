@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../common/mail/mail.service';
 import { type Gravados, PREFIXOS_FOTO_MORADOR, StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
-import { AuditoriaService } from '../auditoria/auditoria.service';
+import { AuditoriaService, type AuditoriaAutorTipo } from '../auditoria/auditoria.service';
 import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
 import { WalletService } from '../wallet/wallet.service';
 import { MobileAuthService } from '../auth/mobile-auth.service';
@@ -2051,7 +2051,15 @@ export class MoradoresService {
 
   async exportExcel(
     idCondominio: number,
-    options?: { mascarar?: boolean; finalidade?: string; usuarioNome?: string; usuarioEmail?: string; ip?: string },
+    options?: {
+      mascarar?: boolean;
+      finalidade?: string;
+      usuarioNome?: string;
+      usuarioEmail?: string;
+      autor_id?: number | null;
+      autor_tipo?: AuditoriaAutorTipo | null;
+      ip?: string;
+    },
   ) {
     const list = await this.findAll(idCondominio);
     const deveMascarar = options?.mascarar !== false; // padrão true para cumprir minimização LGPD
@@ -2062,7 +2070,9 @@ export class MoradoresService {
       id_condominio: idCondominio,
       usuario_nome: options?.usuarioNome || 'Operador',
       usuario_email: options?.usuarioEmail,
-      acao: 'STATUS',
+      autor_id: options?.autor_id ?? null,
+      autor_tipo: options?.autor_tipo ?? null,
+      acao: 'EXPORT',
       modulo: 'moradores',
       descricao: `Exportação em massa da lista de moradores (${list.length} registros). Finalidade: ${finalidade}. Documentos mascarados: ${deveMascarar ? 'Sim' : 'Não'}.`,
       detalhes: {
