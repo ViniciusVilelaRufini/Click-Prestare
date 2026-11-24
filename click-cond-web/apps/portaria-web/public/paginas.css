@@ -122,6 +122,26 @@ section{padding-block:84px}
 .pg-fig{margin:0}
 .pg-fig img{width:100%;border:1px solid var(--line-200)}
 .pg-fig.fone{max-width:300px;margin-inline:auto}
+.pg-fig.terminais{background:radial-gradient(ellipse 72% 62% at 50% 52%,var(--bg-300),transparent 72%);padding:16px 8px 0}
+.pg-fig.terminais img{border:0}
+/* Escada de preço (/precos/): barras proporcionais à mensalidade, cores do tema. */
+.pg-escada .esc{border:1px solid var(--line-200);background:var(--bg-100);padding:28px 28px 22px}
+.esc-tit{margin:0;font-family:var(--font-display);font-weight:600;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-subtle)}
+.esc-barras{list-style:none;margin:24px 0 0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;align-items:end;height:280px}
+.esc-barras li{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-end;height:100%;min-width:0}
+.esc-barras b{font-family:var(--font-display);font-weight:300;font-size:20px;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap;margin-bottom:8px;color:var(--ink)}
+.esc-barra{display:block;height:calc(var(--h) * .62);min-height:12px;background:var(--bg-300);border:1px solid var(--line-200);border-bottom:0;box-shadow:0 1px 0 var(--line-200);transform-origin:bottom;animation:esc-sobe .9s cubic-bezier(.2,.8,.2,1) both}
+.esc-barras li:nth-child(2) .esc-barra{animation-delay:.08s}.esc-barras li:nth-child(3) .esc-barra{animation-delay:.16s}.esc-barras li:nth-child(4) .esc-barra{animation-delay:.24s}.esc-barras li:nth-child(5) .esc-barra{animation-delay:.32s}
+.esc-barras li.on .esc-barra{background:var(--brand);border-color:var(--brand)}
+.esc-barras li.on b{font-weight:600}
+@keyframes esc-sobe{from{transform:scaleY(0)}}
+.esc-un{display:block;margin-top:12px;font-family:var(--font-display);font-weight:600;font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink);white-space:nowrap}
+.esc-barras small{display:block;margin-top:2px;font-size:12px;color:var(--ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.esc-rodape{margin:20px 0 0;padding-top:16px;border-top:1px solid var(--line-100);display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;font-size:14px;color:var(--ink-muted)}
+.esc-rodape span:first-child{font-family:var(--font-display);font-weight:600;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-subtle)}
+.esc-rodape b{font-family:var(--font-display);font-weight:300;font-size:24px;line-height:1;color:var(--ink)}
+@media (max-width:560px){.pg-escada .esc{padding:22px 16px 18px}.esc-barras{gap:6px;height:220px}.esc-barras b{font-size:15px}.esc-un{font-size:12px;letter-spacing:.02em}.esc-barras small{font-size:11px}}
+@media (prefers-reduced-motion:reduce){.esc-barra{animation:none}}
 .pg-fig figcaption{margin-top:10px;font-size:13px;color:var(--ink-subtle)}
 .prosa{max-width:70ch}
 .sindico-page .prosa p,.sindico-page .prosa ul{margin:16px 0 0}

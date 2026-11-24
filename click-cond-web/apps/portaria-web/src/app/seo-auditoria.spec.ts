@@ -381,18 +381,22 @@ describe('desempenho das páginas estáticas', () => {
 });
 
 describe('rodada 3: imagens, descrições e CSS das páginas de conteúdo', () => {
-  it.each(['/precos/', '/reconhecimento-facial-condominio/'])('%s tem imagem real com alt, dimensões e legenda de dados fictícios', (rota) => {
-    const html = pagina(rota);
+  it('/precos/ mostra a escada de preço com os valores da tabela de exemplos', () => {
+    const fig = pagina('/precos/').match(/<figure class="pg-fig pg-escada"[\s\S]*?<\/figure>/)![0];
+    expect(fig).toContain('aria-labelledby="escada-tit"');
+    ['R$ 298', 'R$ 595', 'R$ 773', 'R$ 1.129', 'R$ 1.486', 'R$ 490'].forEach((v) => expect(fig).toContain(v));
+    expect(texto(pagina('/precos/'))).toContain('R$ 1.486,00');
+  });
+  it('/reconhecimento-facial-condominio/ mostra os terminais integrados, com alt, dimensões e crédito dos fabricantes', () => {
+    const html = pagina('/reconhecimento-facial-condominio/');
     const img = html.match(/<figure class="pg-fig[^"]*"><img [^>]+>/)![0];
-    expect(img).toMatch(/ src="\/sobre\/assets\/[^"]+\.webp"/);
-    expect(img).toMatch(/ alt="[^"]{20,}"/);
+    expect(img).toMatch(/ src="\/sobre\/assets\/terminais-faciais\.webp"/);
+    expect(img).toMatch(/ alt="[^"]*Hikvision[^"]*Intelbras[^"]*"/);
     expect(img).toMatch(/ width="\d+" height="\d+"/);
-    expect(html).toContain('Dados fictícios.');
-    const src = img.match(/ src="([^"]+)"/)![1];
-    expect(statSync(pub(src.slice(1))).size).toBeGreaterThan(1000);
+    expect(html).toContain('Fotos dos fabricantes.');
   });
   it('imagens do facial existem nas duas larguras do srcset', () => {
-    ['sobre/assets/app-eventos.webp', 'sobre/assets/app-eventos-360.webp'].forEach((p) => expect(statSync(pub(p)).size).toBeGreaterThan(1000));
+    ['sobre/assets/terminais-faciais.webp', 'sobre/assets/terminais-faciais-600.webp'].forEach((p) => expect(statSync(pub(p)).size).toBeGreaterThan(1000));
   });
   it('preço fica no fecho da description só na /sobre, na /sindico e em /precos', () => {
     const desc = (html: string) => html.match(/<meta name="description" content="([^"]+)"/)![1];
