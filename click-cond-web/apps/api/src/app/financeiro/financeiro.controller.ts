@@ -125,7 +125,10 @@ export class FinanceiroController {
     return this.service.getInadimplenteDetail(Number(idCondominio), apto, bloco, payload);
   }
 
+  // 200, não o 201 padrão do @Post: o app publicado só aceitava 200 e mostrava
+  // falha depois de enviar — o reenvio duplicava push e e-mail.
   @Post('inadimplente/notificar')
+  @HttpCode(200)
   notifyInadimplente(
     @Body('id_condominio') idCondominio: string | number,
     @Body('apto') apto: string,

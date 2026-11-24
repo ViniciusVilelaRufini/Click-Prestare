@@ -146,4 +146,20 @@ describe('FinanceiroService — notifyInadimplente', () => {
     expect(mail.sendBillingReminder).not.toHaveBeenCalled();
     expect(notifications.sendPushNotification).not.toHaveBeenCalled();
   });
+
+  it('o push leva o condomínio (C4: com o app fechado, o toque abria sem condomínio e dava 403)', async () => {
+    const { svc, notifications } = montar({
+      faturas: [
+        { id: 1, nome: 'Apto 1 Bloco a - Ref. 01/2020', valor: 20, data_vencimento: new Date(Date.UTC(2020, 0, 10)), pago: 0, status: '0' },
+      ],
+      usuarios: [{ id: 10, name: 'Fulano', email: null, fcm_token: 'tok' }],
+    });
+
+    await svc.notifyInadimplente(7, '1', 'a');
+
+    expect((notifications.sendPushNotification as jest.Mock).mock.calls[0][3]).toEqual({
+      type: 'financeiro',
+      id_condominio: '7',
+    });
+  });
 });

@@ -13,6 +13,7 @@ import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
 import 'package:click/services/atualizacoes_app.dart';
 import 'package:click/services/card_ao_vivo/card_android.dart';
 import 'package:click/services/card_ao_vivo/card_ao_vivo_ios.dart';
+import 'package:click/services/push_condominio.dart';
 import 'package:click/theme/theme_controller.dart';
 import 'package:click/utils/api_client.dart';
 import 'package:click/utils/api_config.dart';
@@ -254,7 +255,7 @@ class FirebaseService {
         case 'autorizacao_visitante':
           nav.push(
             MaterialPageRoute(
-              builder: (_) => const PendentesVisitantePage(),
+              builder: (_) => PendentesVisitantePage(idCondominio: condominioDoPush(data)),
             ),
           );
           break;
@@ -286,6 +287,7 @@ class FirebaseService {
           );
           break;
         case 'financeiro':
+          condominioParaAbrirFinanceiro(data);
           nav.push(
             MaterialPageRoute(
               builder: (_) => const MoradorFinanceiroView(),

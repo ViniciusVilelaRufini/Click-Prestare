@@ -208,4 +208,15 @@ describe('VisitantesService — portaria remota', () => {
     expect(res).toHaveLength(1);
     expect(res[0]).toEqual(expect.objectContaining({ id: 5, nome: 'João', apto: '101' }));
   });
+
+  // A3: quem tem vínculo em dois condomínios e aparelho sem card ao vivo via a
+  // lista de pendentes do condomínio aberto no app — vazia.
+  it('o push comum do pedido leva o condomínio do visitante', async () => {
+    const { svc, notifications } = build();
+    await svc.solicitarAutorizacao(5, porteiro);
+    expect(notifications.sendPushNotification).toHaveBeenCalledWith(
+      'token-valido-fcm-1', expect.any(String), expect.any(String),
+      expect.objectContaining({ type: 'autorizacao_visitante', id: '5', id_condominio: '1' }),
+    );
+  });
 });

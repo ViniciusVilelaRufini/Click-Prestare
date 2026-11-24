@@ -3864,6 +3864,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       id: v.id,
       nome: v.pessoa.nome,
       id_apartamento: v.id_apartamento,
+      id_condominio: v.id_condominio,
       is_prestador: v.is_prestador,
       foto_pessoa: v.pessoa.foto_pessoa,
       auth_solicitado_em: v.auth_solicitado_em,
@@ -5352,6 +5353,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     id: number;
     nome: string;
     id_apartamento: number;
+    id_condominio?: number | null;
     is_prestador: number;
     foto_pessoa?: string | null;
     auth_solicitado_em?: Date | null;
@@ -5424,6 +5426,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               type: 'autorizacao_visitante',
               id: v.id.toString(),
               nome: v.nome,
+              // Quem tem vínculo em dois condomínios: o toque abre os pendentes
+              // DESTE condomínio, não os do condomínio aberto no app.
+              ...(v.id_condominio ? { id_condominio: String(v.id_condominio) } : {}),
               ...(photoUrl ? { photo: photoUrl } : {}),
             },
           );

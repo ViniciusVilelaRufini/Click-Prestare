@@ -511,4 +511,22 @@ describe('CardAoVivoService — fases', () => {
     expect(aps.event).toBe('end');
     expect(k.prisma.cards_Ao_Vivo.rows[0].encerrado_em).toBeInstanceOf(Date);
   });
+
+describe('CardAoVivoService — push comum leva o condomínio (A3)', () => {
+  beforeEach(() => jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] }));
+  afterEach(() => jest.useRealTimers());
+
+  it('aparelho sem card recebe o push comum com o id_condominio do pedido', async () => {
+    const { svc, notifications } = montarCard({
+      aparelhos: [{ id_user: 2, fcm_token: 'fcm-antigo', plataforma: null, card_token_inicio: null }],
+      usuarios: [{ id: 2, fcm_token: 'fcm-antigo', name: 'Carlos' }],
+      visitante: { id_condominio: 42 },
+    });
+    await svc.abrir(pedido, [2]);
+    expect(notifications.enviarParaAparelho).toHaveBeenCalledWith(
+      'fcm-antigo', expect.any(String), expect.any(String),
+      expect.objectContaining({ type: 'autorizacao_visitante', id: '5', id_condominio: '42' }),
+    );
+  });
+});
 });

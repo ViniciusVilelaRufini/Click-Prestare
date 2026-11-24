@@ -69,8 +69,16 @@ apiNotificarInadimplente(String bloco, String apto) async {
         "apto": apto,
       }),
     );
-    if (response.statusCode == 200) {
-      final body = jsonDecode(response.body);
+    // Qualquer 2xx: o resultado vem no `success` do corpo. Exigir 200 fazia o
+    // 201 do servidor aparecer como falha depois de enviar, e o síndico
+    // reenviava (push e e-mail duplicados).
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      dynamic body;
+      try {
+        body = jsonDecode(response.body);
+      } catch (_) {
+        body = null;
+      }
       return body is Map ? body : { "success": true };
     }
     // Não-200 (403 de permissão, 500) também traz {message} em português do

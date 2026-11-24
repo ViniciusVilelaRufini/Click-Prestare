@@ -16,6 +16,38 @@ void main() {
     expect(respostaRecusadaFechaCard(500), isFalse);
   });
 
+  // A2: NEGAR da portaria recusado pelo servidor deixava o card parado na
+  // tela (o delivery já fechava).
+  group('NEGAR da portaria pelo card', () {
+    tearDown(ApiClient.restaurarPadroes);
+
+    Future<({bool aceito, bool fecharCard})> negarCom(int status) {
+      ApiClient.tokenProvider = () => 'sessao';
+      ApiClient.client = MockClient((req) async {
+        expect(req.url.path, endsWith('/visitantes/77/negar'));
+        return http.Response(status < 300 ? '{}' : jsonEncode({'message': 'Pedido já respondido.'}), status);
+      });
+      return negarPortariaDoCard(77);
+    }
+
+    test('aceito: mostra negado, não fecha', () async {
+      expect(await negarCom(200), (aceito: true, fecharCard: false));
+      expect(await negarCom(201), (aceito: true, fecharCard: false));
+    });
+
+    test('recusado com 400 ou 409: fecha o card', () async {
+      expect(await negarCom(409), (aceito: false, fecharCard: true));
+      expect(await negarCom(400), (aceito: false, fecharCard: true));
+    });
+
+    test('500, 401 ou sem rede: o card fica para tentar de novo', () async {
+      expect(await negarCom(500), (aceito: false, fecharCard: false));
+      expect(await negarCom(401), (aceito: false, fecharCard: false));
+      ApiClient.client = MockClient((_) async => throw Exception('sem rede'));
+      expect(await negarPortariaDoCard(77), (aceito: false, fecharCard: false));
+    });
+  });
+
   group('botões de segundo plano do delivery', () {
     tearDown(ApiClient.restaurarPadroes);
 

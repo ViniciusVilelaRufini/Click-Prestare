@@ -165,13 +165,14 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     await this.encerrar(p.origem, p.id);
     if (!idsUsuarios.length) return;
     // Unidade e hora vêm do banco (quem chama nem sempre tem o apartamento).
-    const conteudo = montarConteudo((await this.carregarBase(p.origem, p.id)) ?? p, 'aguardando');
+    const base = (await this.carregarBase(p.origem, p.id)) ?? p;
+    const conteudo = montarConteudo(base, 'aguardando');
     await this.abrirNucleo({
       origem: p.origem,
       id: p.id,
       idsUsuarios,
       conteudo,
-      pushComum: this.pushComum(p, conteudo),
+      pushComum: this.pushComum(p, conteudo, base.idCondominio),
       foto: () => this.fotoDoCard(p),
       fotoNoEstado: false,
       versaoMinima: 1,
@@ -457,7 +458,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
       const r = await marcar();
       if (!r.count || !base) continue;
       const c = montarConteudo(base, 'aguardando');
-      const push = this.pushComum({ id: l.id_pedido }, c);
+      const push = this.pushComum({ id: l.id_pedido }, c, base.idCondominio);
       await this.notifications.enviarParaAparelho(l.fcm_token, push.titulo, push.corpo, push.dados);
     }
   }
@@ -745,7 +746,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** O push de hoje (mesmo título, corpo e `type`), para quem não tem card. */
-  private pushComum(p: Pick<PedidoCard, 'id' | 'fotoUrl'>, c: ConteudoCard) {
+  private pushComum(p: Pick<PedidoCard, 'id' | 'fotoUrl'>, c: ConteudoCard, idCondominio?: number | null) {
     const t = textoAlerta(c);
     const foto = p.fotoUrl && !p.fotoUrl.startsWith('data:') && p.fotoUrl.length < 500 ? p.fotoUrl : '';
     return {
@@ -755,6 +756,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
         type: 'autorizacao_visitante',
         id: String(p.id),
         nome: c.nome,
+        ...(idCondominio ? { id_condominio: String(idCondominio) } : {}),
         ...(foto ? { photo: foto } : {}),
       } as Record<string, string>,
     };
@@ -770,6 +772,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
             is_prestador: true,
             auth_solicitado_em: true,
             created_at: true,
+            id_condominio: true,
             pessoa: { select: { nome: true } },
             apartamento: { select: { bloco: true, apto: true } },
           },
@@ -782,6 +785,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
           bloco: x.apartamento?.bloco ?? null,
           apto: x.apartamento?.apto ?? null,
           solicitadoEm: x.auth_solicitado_em ?? x.created_at ?? new Date(this.agora()),
+          idCondominio: x.id_condominio ?? null,
         };
       }
       const v = await this.prisma.visitantes.findUnique({
@@ -790,6 +794,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
           nome: true,
           is_prestador: true,
           auth_solicitado_em: true,
+          id_condominio: true,
           apartamento: { select: { bloco: true, apto: true } },
         },
       });
@@ -800,6 +805,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
         bloco: v.apartamento?.bloco ?? null,
         apto: v.apartamento?.apto ?? null,
         solicitadoEm: v.auth_solicitado_em ?? new Date(this.agora()),
+        idCondominio: v.id_condominio ?? null,
       };
     } catch (e: any) {
       this.logger.warn(`Card ao vivo: pedido ${origem}:${id} não carregou: ${e?.message ?? e}`);

@@ -574,8 +574,11 @@ export class EncomendasService implements OnModuleInit {
     }
 
     try {
+      // 'Esperando' (pré-registro do morador, ex.: iFood) também sai direto
+      // para 'Retirada', como na baixa do morador: o app do staff oferece
+      // "Dar Baixa" nela e não tem "Receber".
       const transicao = await this.prisma.encomendas.updateMany({
-        where: { id: Number(id), status: 'Aguardando' },
+        where: { id: Number(id), status: { in: ['Aguardando', 'Esperando'] } },
         data: {
           retirado_em: new Date(),
           retirado_por: retiradoPor,

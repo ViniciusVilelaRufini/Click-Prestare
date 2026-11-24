@@ -1659,7 +1659,9 @@ export class FinanceiroService implements OnModuleInit {
             morador.fcm_token,
             'Lembrete de Inadimplência',
             `Constatamos ${pendingFaturas.length} fatura(s) pendente(s) para o Apto ${apto} ${rotuloBloco(bloco)}, totalizando ${totalFormatted}. Regularize pelo App.`,
-            { type: 'financeiro' },
+            // Condomínio no push: com o app fechado, o toque abre o financeiro
+            // sem condomínio aberto e a API respondia 403.
+            { type: 'financeiro', id_condominio: String(idCondominio) },
           );
           sentPushCount++;
         } catch (err) {
@@ -2599,7 +2601,7 @@ export class FinanceiroService implements OnModuleInit {
           try {
             await this.notifications.sendPushNotification(
               morador.fcm_token, title, body,
-              { id: fat.id.toString(), type: 'financeiro' },
+              { id: fat.id.toString(), type: 'financeiro', id_condominio: String(fat.id_condominio) },
             );
             stats.pushEnviados++;
           } catch (err) {
@@ -3585,7 +3587,7 @@ export class FinanceiroService implements OnModuleInit {
               morador.fcm_token,
               'Nova Fatura Emitida',
               textMessage,
-              { id: criado.id.toString(), type: 'financeiro' },
+              { id: criado.id.toString(), type: 'financeiro', id_condominio: String(cond.id) },
             );
           } catch (_) {}
         }

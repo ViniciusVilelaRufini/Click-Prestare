@@ -119,7 +119,10 @@ Widget _buildFallbackAvatar(
 /// Portaria remota — tela "Solicitações pendentes" (inbox do morador).
 /// Lista visitantes aguardando autorização e permite Autorizar/Negar.
 class PendentesVisitantePage extends StatefulWidget {
-  const PendentesVisitantePage({super.key});
+  /// Condomínio do push tocado: lista os pendentes dele sem trocar o
+  /// condomínio aberto no app. Null = o condomínio aberto.
+  final int? idCondominio;
+  const PendentesVisitantePage({super.key, this.idCondominio});
 
   @override
   State<PendentesVisitantePage> createState() => _PendentesVisitantePageState();
@@ -167,7 +170,7 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
 
   Future<void> _load({bool silent = false}) async {
     if (!silent) setState(() => _isLoading = true);
-    final data = await apiGetPendentes();
+    final data = await apiGetPendentes(idCondominio: widget.idCondominio);
     if (!mounted) return;
     setState(() {
       // Filtra o que ja foi decidido: a resposta pode ter saido do servidor
