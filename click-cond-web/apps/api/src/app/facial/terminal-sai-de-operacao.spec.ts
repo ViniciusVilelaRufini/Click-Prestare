@@ -48,6 +48,10 @@ describe('FacialService — terminal que sai de operação (T1, T2, T3)', () => 
       moradores: { findMany: jest.fn(async () => [{ id: 1, face_id: 'F1' }, { id: 2, face_id: 'F2' }]) },
       visitantes: { findMany: jest.fn(async () => [{ id: 8, face_id: 'V8' }]) },
       prestadores_servico: { findMany: jest.fn(async () => []) },
+      // Heartbeat: por padrão o aparelho já falou com o agente um dia.
+      agente_Dispositivos_Estado: {
+        findUnique: jest.fn(async () => ({ ultimo_poll_em: new Date('2026-11-20T10:00:00Z') })),
+      },
     };
     const auditoria: any = { registrar: jest.fn(async () => undefined) };
     const agent: any = { isOnline: jest.fn(() => opts.online ?? true) };
@@ -94,7 +98,7 @@ describe('FacialService — terminal que sai de operação (T1, T2, T3)', () => 
       expect(auditoria.registrar.mock.calls[0][0].detalhes.rostos_removidos).toBe(3);
     });
 
-    it('agente offline: desativar é recusado com 409 e nada é gravado', async () => {
+    it('falou com o agente um dia e está offline: desativar é recusado com 409 e nada é gravado', async () => {
       const { svc, prisma, client } = build({}, { online: false });
       const p = svc.updateDevice(5, { ativo: 0 });
       await expect(p).rejects.toThrow(ConflictException);
@@ -107,6 +111,41 @@ describe('FacialService — terminal que sai de operação (T1, T2, T3)', () => 
       const { svc, prisma } = build({}, { online: false });
       await expect(svc.removeDevice(5)).rejects.toThrow(ConflictException);
       expect(prisma.facial_Devices.delete).not.toHaveBeenCalled();
+    });
+
+    it('nunca falou com o agente (sem linha de heartbeat): desativa e exclui sem limpeza, auditado', async () => {
+      const { svc, prisma, client, auditoria } = build({}, { online: false });
+      prisma.agente_Dispositivos_Estado.findUnique.mockResolvedValue(null);
+      await svc.updateDevice(5, { ativo: 0 });
+      expect(prisma.facial_Devices.update).toHaveBeenCalled();
+      expect(auditoria.registrar.mock.calls[0][0].detalhes.limpeza_dispensada).toMatch(/nunca falou com o agente/);
+
+      const outro = build({}, { online: false });
+      outro.prisma.agente_Dispositivos_Estado.findUnique.mockResolvedValue(null);
+      await expect(outro.svc.removeDevice(5)).resolves.toEqual({ ok: true });
+      expect(outro.prisma.facial_Devices.delete).toHaveBeenCalled();
+      expect(outro.auditoria.registrar.mock.calls[0][0].detalhes.limpeza_dispensada).toMatch(/nunca falou/);
+
+      for (const c of [client, outro.client]) {
+        expect(c.listUserIds).not.toHaveBeenCalled();
+        expect(c.removeUsers).not.toHaveBeenCalled();
+        expect(c.removePerson).not.toHaveBeenCalled();
+      }
+    });
+
+    it('linha de heartbeat com ultimo_poll_em nulo também conta como nunca falou', async () => {
+      const { svc, prisma, client } = build({}, { online: false });
+      prisma.agente_Dispositivos_Estado.findUnique.mockResolvedValue({ ultimo_poll_em: null });
+      await svc.updateDevice(5, { tipo: 'catraca' } as any);
+      expect(prisma.facial_Devices.update).toHaveBeenCalled();
+      expect(client.listUserIds).not.toHaveBeenCalled();
+    });
+
+    it('falha ao ler o heartbeat não prova nada: 409 como offline', async () => {
+      const { svc, prisma } = build({}, { online: false });
+      prisma.agente_Dispositivos_Estado.findUnique.mockRejectedValue(new Error('tabela ausente'));
+      await expect(svc.updateDevice(5, { ativo: 0 })).rejects.toThrow(/agente local está offline/i);
+      expect(prisma.facial_Devices.update).not.toHaveBeenCalled();
     });
 
     it('remoção que falha no aparelho: 409 e nada é gravado', async () => {

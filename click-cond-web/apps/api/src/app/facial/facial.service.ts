@@ -1471,7 +1471,13 @@ export class FacialService {
    * recusar a operação se falhar) e zera o face_id da pessoa no banco, o que
    * vale para TODOS os terminais — aqui só este aparelho sai.
    *
-   * Devolve quantos rostos foram apagados (para a auditoria).
+   * Exceção: aparelho que NUNCA falou com o agente (sem linha de heartbeat, ou
+   * `ultimo_poll_em` nulo) nunca recebeu comando de cadastro, então não tem
+   * rosto nosso — sai sem limpeza (senão o terminal cadastrado por engano fica
+   * preso para sempre). Quem falou um dia e está offline agora segue com 409.
+   *
+   * Devolve o que entra nos detalhes da auditoria: quantos rostos foram
+   * apagados, ou por que a limpeza foi dispensada.
    */
   private async limparRostosDoTerminalQueSai(device: {
     id: number;
@@ -1482,11 +1488,19 @@ export class FacialService {
     api_user: string | null;
     api_password: string | null;
     fabricante: string;
-  }): Promise<number> {
-    if (FACIAL_DISABLED) return 0;
+  }): Promise<{ rostos_removidos: number } | { limpeza_dispensada: string }> {
+    if (FACIAL_DISABLED) return { rostos_removidos: 0 };
     // Simulador interno (só fora de produção): nenhum aparelho físico a limpar.
-    if (device.ip === 'sim' || device.ip === 'simulador') return 0;
+    if (device.ip === 'sim' || device.ip === 'simulador') return { rostos_removidos: 0 };
     if (!this.agent?.isOnline?.(device.id)) {
+      // Erro ao ler o heartbeat (tabela ausente, banco fora) não prova que
+      // nunca falou: recusa, como offline.
+      const estado = await this.prisma.agente_Dispositivos_Estado
+        .findUnique({ where: { id_device: device.id }, select: { ultimo_poll_em: true } })
+        .catch(() => undefined);
+      if (estado === null || (estado !== undefined && estado.ultimo_poll_em == null)) {
+        return { limpeza_dispensada: 'o aparelho nunca falou com o agente: nenhum rosto foi cadastrado nele' };
+      }
       throw new ConflictException(MSG_TERMINAL_COM_ROSTOS_AGENTE_OFFLINE);
     }
     const config = this.toConfig(device);
@@ -1496,7 +1510,7 @@ export class FacialService {
       if (FABRICANTES_COM_LISTAGEM.includes(config.fabricante)) {
         const ids = await this.client.listUserIds(config);
         await this.client.removeUsers(config, ids);
-        return ids.length;
+        return { rostos_removidos: ids.length };
       }
       // Sem listagem: remove, uma a uma, todas as pessoas com rosto no
       // condomínio (as mesmas quatro fontes da varredura de fantasmas).
@@ -1528,7 +1542,7 @@ export class FacialService {
       if (falhas.length > 0) {
         throw new Error(`${falhas.length} de ${alvos.length} rosto(s) não saíram (${falhas.slice(0, 5).join(', ')})`);
       }
-      return alvos.length;
+      return { rostos_removidos: alvos.length };
     } catch (e: any) {
       throw new ConflictException(
         `Não foi possível apagar os rostos do terminal "${device.nome}": ${e?.message ?? e}. ` +
@@ -1839,9 +1853,9 @@ export class FacialService {
     }
     // T1: terminal facial ativo que deixa de valer (desativado ou trocado de
     // tipo) sai sem rostos — ANTES do update, enquanto o agente ainda fala com ele.
-    let rostosRemovidos: number | undefined;
+    let limpeza: Record<string, unknown> | undefined;
     if (antes.tipo === 'facial' && antes.ativo === 1 && (ativoFinal !== 1 || tipoFinal !== 'facial')) {
-      rostosRemovidos = await this.limparRostosDoTerminalQueSai(antes);
+      limpeza = await this.limparRostosDoTerminalQueSai(antes);
     }
 
     const atual = await this.prisma.facial_Devices.update({
@@ -1903,7 +1917,7 @@ export class FacialService {
       modulo: 'facial',
       entidade_id: id,
       descricao: `Alterou dispositivo "${atual.nome}"`,
-      detalhes: { changes: diff, ...(rostosRemovidos !== undefined && { rostos_removidos: rostosRemovidos }) },
+      detalhes: { changes: diff, ...limpeza },
     });
 
     // Nome ou tipo mudou: o chamado de offline com a descrição antiga não
@@ -2088,7 +2102,7 @@ export class FacialService {
     if (device.tipo === TIPO_GUARITA) await this.prepararExclusaoDoGuarita(id);
     // T1: terminal facial ativo sai sem rostos — antes do delete, enquanto o
     // agente ainda fala com ele (excluído, nenhuma manutenção o alcança mais).
-    const rostosRemovidos =
+    const limpeza =
       device.tipo === 'facial' && device.ativo === 1 ? await this.limparRostosDoTerminalQueSai(device) : undefined;
 
     try {
@@ -2110,7 +2124,7 @@ export class FacialService {
       detalhes: {
         tipo: device.tipo,
         ip: device.ip,
-        ...(rostosRemovidos !== undefined && { rostos_removidos: rostosRemovidos }),
+        ...limpeza,
       },
     });
     await this.fecharChamadosOffline(device, 'Encerrado automaticamente: o dispositivo foi excluído.');
