@@ -257,14 +257,11 @@ export class ConsentimentosService {
     const fotos = new Set<string>();
     // Operador: sem recusa global, a marca na linha é o que impede o recadastro do rosto aqui (R5b).
     const marcaOperador = escopo != null ? REVOGADO_PELO_OPERADOR : null;
-    for (const m of moradores) {
+    // Uma linha: remove o rosto (se houver) e grava o estado final. Devolve false se a remoção não
+    // chegou a todos os aparelhos (fica 'pending_removal' para o retry).
+    const revogarLinha = async (m: any): Promise<boolean> => {
       if (m.foto_pessoa) fotos.add(m.foto_pessoa);
       if (m.face_id && m.id_condominio) {
-        // A marca vai ANTES da remoção (Q1): um sync em voo da mesma pessoa relê a linha antes de
-        // enfileirar o update e, vendo a marca, segue para a remoção em vez de devolver o rosto.
-        if (marcaOperador) {
-          await this.prisma.moradores.update({ where: { id: m.id }, data: { face_sync_error: marcaOperador } });
-        }
         const ok = await this.facial.unsyncMorador(m.id, m.face_id, m.id_condominio);
         if (ok) {
           await this.prisma.moradores.update({
@@ -276,18 +273,12 @@ export class ConsentimentosService {
               foto_pessoa: null,
             },
           });
-        } else {
-          allRemoved = false;
-          await this.prisma.moradores.update({
-            where: { id: m.id },
-            data: {
-              face_sync_status: 'pending_removal',
-              face_sync_error: marcaOperador ?? 'device_offline_pending_retry',
-              foto_pessoa: null,
-            },
-          });
+          return true;
         }
-      } else if (marcaOperador) {
+        await this.marcarRemocaoPendente(m.id, marcaOperador);
+        return false;
+      }
+      if (marcaOperador) {
         // Sem rosto no aparelho: a foto (se houver) sai do banco e a linha fica bloqueada mesmo assim.
         await this.prisma.moradores.update({
           where: { id: m.id },
@@ -296,6 +287,33 @@ export class ConsentimentosService {
       } else if (m.foto_pessoa) {
         // Foto guardada mas nunca enrolada (sem face_id): sai do banco também.
         await this.prisma.moradores.update({ where: { id: m.id }, data: { foto_pessoa: null } });
+      }
+      return true;
+    };
+    for (const m of moradores) {
+      if (m.foto_pessoa) fotos.add(m.foto_pessoa);
+      // A marca vai ANTES da remoção (Q1): um sync em voo da mesma pessoa relê a linha antes de
+      // enfileirar o update e, vendo a marca, segue para a remoção em vez de devolver o rosto.
+      if (marcaOperador && (m.face_id || m.foto_pessoa)) {
+        await this.prisma.moradores.update({ where: { id: m.id }, data: { face_sync_error: marcaOperador } });
+      }
+      if (typeof this.facial.comLockDoMorador !== 'function') {
+        if (!(await revogarLinha(m))) allRemoved = false;
+        continue;
+      }
+      // Com o lock do morador (Q1): um 1º enroll em voo só grava o face_id no fim do sync; relida
+      // dentro do lock, a linha já traz o rosto que ele mandou, e a remoção o tira.
+      const r = await this.facial.comLockDoMorador(m.id, async () => {
+        const atual = await this.prisma.moradores.findUnique({ where: { id: m.id } });
+        return atual ? revogarLinha(atual) : true;
+      });
+      if (!r.obtido) {
+        // Sync da mesma pessoa segurou o lock além da espera: não dá para confirmar a remoção. Fica
+        // pendente (com a marca/recusa já gravada, o sync em voo e o tickSyncRetry removem).
+        await this.marcarRemocaoPendente(m.id, marcaOperador);
+        allRemoved = false;
+      } else if (!r.valor) {
+        allRemoved = false;
       }
     }
 
@@ -330,6 +348,18 @@ export class ConsentimentosService {
       revogado: true,
       status: allRemoved ? 'revoked' : 'pending_removal',
     };
+  }
+
+  /** Remoção que não chegou a todos os aparelhos: mantém o face_id para o retry e tira a foto. */
+  private async marcarRemocaoPendente(idMorador: number, marcaOperador: string | null) {
+    await this.prisma.moradores.update({
+      where: { id: idMorador },
+      data: {
+        face_sync_status: 'pending_removal',
+        face_sync_error: marcaOperador ?? 'device_offline_pending_retry',
+        foto_pessoa: null,
+      },
+    });
   }
 
   /**

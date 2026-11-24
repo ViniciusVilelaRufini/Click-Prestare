@@ -104,6 +104,20 @@ const LOCK_PESSOA_DURACAO_MS = 10 * 60 * 1000;
  * devolve false (quem chamou grava pendente) — o tickSyncRetry refaz. Nunca espera indefinidamente.
  */
 const LOCK_PESSOA_ESPERA_MS = 30 * 1000;
+/**
+ * Teto de locks de pessoa simultâneos no processo. Cada lock segura UMA conexão do pool (a transação
+ * interativa do GET_LOCK) pelo sync inteiro, e o sync ainda precisa de outras para as próprias
+ * queries: sem teto, um tick que dispara dezenas de syncs em paralelo esgotava o pool
+ * (connection_limit=25) e travava a API. Quem não acha vaga espera dentro do mesmo orçamento de
+ * LOCK_PESSOA_ESPERA_MS e, sem vaga, desiste como quem não pegou o lock (sync 'pending', remoção false).
+ * Lido na carga: FACIAL_LOCKS_PESSOA_MAX (inteiro > 0), padrão 6.
+ */
+const LOCKS_PESSOA_MAX = (() => {
+  const n = Number(process.env.FACIAL_LOCKS_PESSOA_MAX);
+  return Number.isInteger(n) && n > 0 ? n : 6;
+})();
+/** Locks de pessoa (vagas do teto acima) em uso neste processo. */
+let locksPessoaEmUso = 0;
 
 /** Resultado de um sync de pessoa (morador, visitante, Pessoa, prestador de serviço) com os terminais. */
 /**
@@ -2438,23 +2452,31 @@ export class FacialService {
       rodou = true;
       return dentro();
     };
+    // Sem banco (offline/testes) o lock não segura conexão nenhuma: o teto não se aplica.
+    const p: any = this.prisma;
+    const usaConexao = !!p && p.isConnected !== false && typeof p.$transaction === 'function';
     const limite = Date.now() + (this.esperaLockPessoaMs ?? LOCK_PESSOA_ESPERA_MS);
     for (let pausa = 50; ; pausa = Math.min(pausa * 2, 400)) {
-      let r: ResultadoLock<T>;
-      try {
-        r = await comLock(this.prisma, nome, marcado, {
-          esperaSegundos: 0,
-          duracaoMaximaMs: LOCK_PESSOA_DURACAO_MS,
-        });
-      } catch (err: any) {
-        if (err instanceof PrazoDoLockEstouradoError) {
-          // `fn` segue rodando sem exclusividade e grava o próprio resultado; daqui fica pendente.
-          this.logger.error(`${err.message} (${tipo} ${id} fica pendente)`);
-          return { obtido: false };
+      let r: ResultadoLock<T> = { obtido: false };
+      if (!usaConexao || locksPessoaEmUso < LOCKS_PESSOA_MAX) {
+        if (usaConexao) locksPessoaEmUso++;
+        try {
+          r = await comLock(this.prisma, nome, marcado, {
+            esperaSegundos: 0,
+            duracaoMaximaMs: LOCK_PESSOA_DURACAO_MS,
+          });
+        } catch (err: any) {
+          if (err instanceof PrazoDoLockEstouradoError) {
+            // `fn` segue rodando sem exclusividade e grava o próprio resultado; daqui fica pendente.
+            this.logger.error(`${err.message} (${tipo} ${id} fica pendente)`);
+            return { obtido: false };
+          }
+          if (rodou) throw err;
+          this.logger.warn(`Lock "${nome}" indisponível (${err?.message ?? err}) — seguindo sem exclusividade`);
+          return { obtido: true, valor: await dentro() };
+        } finally {
+          if (usaConexao) locksPessoaEmUso--;
         }
-        if (rodou) throw err;
-        this.logger.warn(`Lock "${nome}" indisponível (${err?.message ?? err}) — seguindo sem exclusividade`);
-        return { obtido: true, valor: await dentro() };
       }
       const resta = limite - Date.now();
       if (r.obtido || resta <= 0) return r;
@@ -2463,6 +2485,15 @@ export class FacialService {
         (t as any)?.unref?.();
       });
     }
+  }
+
+  /**
+   * Lock do morador para a revogação de biometria (ConsentimentosService): a revogação relê a linha
+   * DENTRO do lock — um 1º enroll em voo só grava o face_id no fim do sync, e a revogação que lia
+   * face_id nulo por fora do lock gravava "revoked" que o sync sobrescrevia com "synced" (Q1).
+   */
+  async comLockDoMorador<T>(idMorador: number, fn: () => Promise<T>): Promise<ResultadoLock<T>> {
+    return this.comLockDaPessoa('morador', idMorador, fn);
   }
 
   /** Sync que não pegou o lock da pessoa: fica 'pending' para o tickSyncRetry (não é descartado). */

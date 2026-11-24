@@ -163,6 +163,7 @@ describe('Q1 — sync em voo × revogação da mesma pessoa', () => {
     const consentimentos = new ConsentimentosService(prisma, ponte, { deleteUrl: jest.fn(async () => true) } as any);
     const facial = novoFacial(prisma, client, consentimentos);
     ponte.unsyncMorador = (...a: any[]) => (facial as any).unsyncMorador(...a);
+    ponte.comLockDoMorador = (...a: any[]) => (facial as any).comLockDoMorador(...a);
     // Foto atrasada: o sync fica "em voo" com a autorização lida antes da revogação.
     jest.spyOn(facial as any, 'fetchPhotoAsBase64').mockImplementation(async () => {
       await dormir(opts.atrasoFotoMs ?? 150);
@@ -257,6 +258,42 @@ describe('Q1 — sync em voo × revogação da mesma pessoa', () => {
     expect(linha.face_sync_status).toBe('synced');
   });
 
+  it('1º enroll em voo (face_id ainda nulo) e revogação entre a última releitura e a gravação final: o rosto sai', async () => {
+    const { facial, consentimentos, prisma, comandos, linha } = cenarioMorador({ comLock: true, atrasoFotoMs: 5 });
+    linha.face_id = null;
+    linha.face_sync_status = 'pending';
+    // A revogação entra exatamente quando o sync, já tendo relido, vai gravar "synced" com o face_id.
+    // (A revogação é disparada pelo corpo do teste, fora do fluxo assíncrono do sync.)
+    const gravar = prisma.moradores.update.getMockImplementation();
+    let chegou!: () => void;
+    const naGravacaoFinal = new Promise<void>((r) => (chegou = r));
+    let segurou = false;
+    prisma.moradores.update.mockImplementation(async (args: any) => {
+      if (args.data?.face_sync_status === 'synced' && !segurou) {
+        segurou = true;
+        chegou();
+        await dormir(50);
+      }
+      return gravar(args);
+    });
+
+    const sync = facial.syncMorador(1);
+    await naGravacaoFinal;
+    const revogacao = consentimentos.revogarBiometria(7, 'Portaria', 1);
+    await sync;
+    await revogacao;
+
+    // Enroll no 1º terminal (gera o face_id) e update no 2º, todos antes da revogação.
+    expect(comandos.slice(0, 2)).toEqual([
+      { tipo: 'enroll', device: 101 },
+      { tipo: 'update', device: 102 },
+    ]);
+    expect(ultimoPorTerminal(comandos)).toEqual({ 101: 'remove', 102: 'remove' });
+    expect(linha.face_id).toBeNull();
+    expect(linha.face_sync_status).toBe('revoked');
+    expect(linha.face_sync_error).toBe(REVOGADO_PELO_OPERADOR);
+  });
+
   // ---------------------------------------------------------------- pessoa
 
   it('pessoa bloqueada durante o sync (com lock): o 2º sync espera, o 1º não manda update e o último comando é remove', async () => {
@@ -316,5 +353,95 @@ describe('Q1 — sync em voo × revogação da mesma pessoa', () => {
     expect(ultimoPorTerminal(comandos)).toEqual({ 101: 'remove', 102: 'remove' });
     expect(pessoa.face_sync_status).toBe('revoked');
     expect(trava.donos.size).toBe(0);
+  });
+
+  // ---------------------------------------------------------------- teto de locks (pool)
+
+  function cenarioMuitasPessoas(qtd: number, atrasoFotoMs: number) {
+    const agora = Date.now();
+    const pessoas = new Map<number, any>();
+    for (let i = 1; i <= qtd; i++) {
+      pessoas.set(i, {
+        id: i,
+        id_condominio: 1,
+        nome: `Visitante ${i}`,
+        tipo_pessoa: 'visitante',
+        doc_identificacao: String(i),
+        foto_pessoa: 'https://pub.example.com/pessoas/foto.jpg',
+        face_id: null,
+        face_sync_status: 'pending',
+        face_sync_error: null,
+        face_enrolled_at: null,
+        bloqueado: 0,
+        visitas: [
+          {
+            id: 1000 + i,
+            id_pessoa: i,
+            id_condominio: 1,
+            liberado: 1,
+            bloqueado: 0,
+            is_prestador: 0,
+            data_hora_inicio: new Date(agora - 60_000),
+            data_hora_termino: new Date(agora + 3_600_000),
+          },
+        ],
+      });
+    }
+    const trava = travaEmMemoria();
+    // Conexões presas pelos locks: cada transação interativa segura uma do começo ao fim.
+    const conexoes = { emUso: 0, max: 0 };
+    const prisma: any = {
+      isConnected: true,
+      $transaction: async (fn: any) => {
+        conexoes.emUso++;
+        conexoes.max = Math.max(conexoes.max, conexoes.emUso);
+        try {
+          return await trava.$transaction(fn);
+        } finally {
+          conexoes.emUso--;
+        }
+      },
+      pessoas: {
+        findUnique: jest.fn(async ({ where }: any) => {
+          const p = pessoas.get(where.id);
+          return p ? { ...p, visitas: p.visitas.map((v: any) => ({ ...v })) } : null;
+        }),
+        update: jest.fn(async ({ where, data }: any) => Object.assign(pessoas.get(where.id), data)),
+      },
+      vagas: { count: jest.fn(async () => 0), findMany: jest.fn(async () => []) },
+      facial_Devices: { findMany: jest.fn(async () => [{ ...DEVICES[0] }]) },
+    };
+    const comandos: Comando[] = [];
+    const facial = novoFacial(prisma, cliente(comandos), null, { autorizouBiometria: jest.fn(async () => true) });
+    jest.spyOn(facial as any, 'fetchPhotoAsBase64').mockImplementation(async () => {
+      await dormir(atrasoFotoMs);
+      return 'Zm90bw==';
+    });
+    return { facial, pessoas, conexoes };
+  }
+
+  it('30 syncs em paralelo (tick): nunca mais que 6 locks/conexões ao mesmo tempo e todos terminam synced', async () => {
+    const { facial, pessoas, conexoes } = cenarioMuitasPessoas(30, 40);
+
+    const rs = await Promise.all([...pessoas.keys()].map((id) => facial.syncPessoa(id)));
+
+    expect(conexoes.max).toBeLessThanOrEqual(6);
+    expect(conexoes.max).toBeGreaterThan(1);
+    expect(conexoes.emUso).toBe(0);
+    expect(rs.every((r: any) => r.status === 'synced')).toBe(true);
+    expect([...pessoas.values()].every((p) => p.face_sync_status === 'synced')).toBe(true);
+  });
+
+  it('30 syncs em paralelo com espera curta: o teto segura, ninguém fica preso e quem não achou vaga fica pending', async () => {
+    const { facial, pessoas, conexoes } = cenarioMuitasPessoas(30, 150);
+    (facial as any).esperaLockPessoaMs = 100;
+
+    const rs = await Promise.all([...pessoas.keys()].map((id) => facial.syncPessoa(id)));
+
+    expect(conexoes.max).toBeLessThanOrEqual(6);
+    expect(conexoes.emUso).toBe(0);
+    expect(rs.every((r: any) => r.status === 'synced' || r.status === 'pending')).toBe(true);
+    expect(rs.some((r: any) => r.status === 'pending')).toBe(true);
+    for (const p of pessoas.values()) expect(['synced', 'pending']).toContain(p.face_sync_status);
   });
 });
