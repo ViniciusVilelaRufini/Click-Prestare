@@ -439,7 +439,7 @@ export class MoradoresPageComponent implements OnInit {
     const nome = this.novo.nome?.trim() || 'este morador';
     const ok = await this.confirm.ask({
       title: 'Cancelar passe da carteira',
-      message: `Cancelar o passe da carteira de ${nome}? O passe deixa de abrir na hora. O QR do app e o rosto continuam funcionando.`,
+      message: `Cancelar o passe da carteira de ${nome}? O passe e o QR do app deixam de abrir na hora. O rosto continua funcionando.`,
       confirmLabel: 'Cancelar passe',
       cancelLabel: 'Voltar',
       variant: 'danger',
@@ -450,7 +450,8 @@ export class MoradoresPageComponent implements OnInit {
       this.api.cancelarPasseCarteira(id).subscribe({
         next: (r) => {
           this.cancelandoPasse.set(false);
-          if ((r?.cancelados ?? 0) > 0) this.toast.success('Passe cancelado.');
+          if ((r?.cancelados ?? 0) > 0) this.toast.success('Passe e QR do app cancelados.');
+          else if ((r?.qr_app_cancelados ?? 0) > 0) this.toast.success('QR do app cancelado. Este morador não tinha passe ativo.');
           else this.toast.info('Este morador não tinha passe ativo.');
           fim();
         },

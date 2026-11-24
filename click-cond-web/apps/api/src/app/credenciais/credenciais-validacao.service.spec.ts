@@ -44,7 +44,9 @@ describe('CredenciaisValidacaoService', () => {
     };
   }
 
-  function build(opts: { cred?: any; opcao?: boolean; morador?: any; visita?: any; visitante?: any } = {}) {
+  function build(
+    opts: { cred?: any; opcao?: boolean; morador?: any; visita?: any; visitante?: any; unidade?: boolean; senhaAlteradaEm?: Date } = {},
+  ) {
     const cred = opts.cred === undefined ? credencial() : opts.cred;
     const prisma: any = {
       credenciais_Acesso: { findUnique: jest.fn(async () => cred) },
@@ -53,9 +55,16 @@ describe('CredenciaisValidacaoService', () => {
       },
       moradores: {
         findUnique: jest.fn(async () =>
-          opts.morador === undefined ? { id: 11, nome: 'Ana', tipo: 'morador', id_condominio: 1 } : opts.morador,
+          opts.morador === undefined ? { id: 11, nome: 'Ana', tipo: 'morador', id_condominio: 1, id_user: 5 } : opts.morador,
         ),
       },
+      // Conta 5 mora numa unidade do condomínio 1, salvo `unidade: false`.
+      apartamentos_Users: {
+        findFirst: jest.fn(async ({ where }: any) =>
+          opts.unidade !== false && where.id_user === 5 && where.apartamento?.id_condominio === 1 ? { id_apto: 3 } : null,
+        ),
+      },
+      users: { findUnique: jest.fn(async () => ({ senha_alterada_em: opts.senhaAlteradaEm ?? null })) },
       visitas: { findUnique: jest.fn(async () => opts.visita ?? null) },
       visitantes: { findUnique: jest.fn(async () => opts.visitante ?? null) },
       credenciais_Leituras: {
@@ -182,6 +191,25 @@ describe('CredenciaisValidacaoService', () => {
       expect(await ausente.svc.validarLeitura(codigo(), LEITOR, AGORA)).toMatchObject({ ok: false, motivo: 'morador_removido' });
       const mudou = build({ morador: { id: 11, nome: 'Ana', tipo: 'morador', id_condominio: 2 } });
       expect(await mudou.svc.validarLeitura(codigo(), LEITOR, AGORA)).toMatchObject({ ok: false, motivo: 'morador_removido' });
+    });
+
+    it('morador_removido: a linha de Moradores ficou, mas a conta não tem mais unidade no condomínio (W2)', async () => {
+      const { svc, prisma } = build({ unidade: false });
+      expect(await svc.validarLeitura(codigo(), LEITOR, AGORA)).toMatchObject({ ok: false, motivo: 'morador_removido' });
+      expect(prisma.apartamentos_Users.findFirst).toHaveBeenCalledWith({
+        where: { id_user: 5, apartamento: { id_condominio: 1, condominio: { ativo: 1 } } },
+        select: { id_apto: true },
+      });
+      // Linha sem conta não prova vínculo nenhum.
+      const semConta = build({ morador: { id: 11, nome: 'Ana', tipo: 'morador', id_condominio: 1, id_user: null } });
+      expect(await semConta.svc.validarLeitura(codigo(), LEITOR, AGORA)).toMatchObject({ ok: false, motivo: 'morador_removido' });
+    });
+
+    it('revogada: credencial criada antes da última troca de senha da conta (R6); depois dela, abre', async () => {
+      const trocada = build({ senhaAlteradaEm: new Date('2026-11-10T00:00:00.000Z') });
+      expect(await trocada.svc.validarLeitura(codigo(), LEITOR, AGORA)).toMatchObject({ ok: false, motivo: 'revogada' });
+      const anterior = build({ senhaAlteradaEm: new Date('2026-10-30T00:00:00.000Z') });
+      expect(await anterior.svc.validarLeitura(codigo(), LEITOR, AGORA)).toMatchObject({ ok: true });
     });
 
     it('visita_encerrada: PIN anulado, ausente ou de outro condomínio', async () => {

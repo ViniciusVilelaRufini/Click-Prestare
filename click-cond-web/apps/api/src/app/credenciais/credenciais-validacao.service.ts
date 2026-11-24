@@ -10,6 +10,7 @@ import {
   normalizarLeitura,
   rotuloDeCredencial,
 } from './codigo-dinamico.util';
+import { motivoCredencialMoradorInvalida } from './credencial-morador-vigencia.util';
 
 export type MotivoNegacao =
   | 'desconhecida'
@@ -175,10 +176,15 @@ export class CredenciaisValidacaoService {
         cred.id_pessoa != null
           ? await p.moradores.findUnique({
               where: { id: cred.id_pessoa },
-              select: { id: true, nome: true, tipo: true, id_condominio: true },
+              select: { id: true, nome: true, tipo: true, id_condominio: true, id_user: true },
             })
           : null;
       if (!morador || morador.id_condominio !== device.id_condominio) return negar('morador_removido');
+      // A linha de Moradores sobrevive à unidade tirada ou apagada, e a troca de senha não revoga em todo
+      // caminho: exige a unidade atual da conta no condomínio e credencial posterior à última troca de senha.
+      const invalida = await motivoCredencialMoradorInvalida(p, cred, morador.id_user, device.id_condominio);
+      if (invalida === 'sem_unidade') return negar('morador_removido');
+      if (invalida === 'senha_trocada') return negar('revogada');
       alvo = { tipo: 'morador', morador: { id: morador.id, nome: morador.nome, tipo: morador.tipo ?? null } };
     } else if (cred.tipo_pessoa === 'visita') {
       const usarVisitas = pessoasMigrationEnabled(p);

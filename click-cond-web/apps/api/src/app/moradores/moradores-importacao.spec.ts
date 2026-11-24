@@ -193,6 +193,25 @@ describe('MoradoresService.importBulk — data de nascimento', () => {
     expect(r.total).toBe(1);
     expect(r.sem_acesso).toEqual([]);
   });
+
+  it('sem e-mail, documento e unidade: recusa a linha (reenviar a planilha duplicava o morador) (W5)', async () => {
+    const prisma = prismaBase();
+    const { svc } = servico(prisma);
+    const r = await svc.importBulk(1, [{ nome: 'Ana', documento: '  ', data_nascimento: '15/05/1985' }], { podeCriarUnidade: false });
+    expect(r.total).toBe(0);
+    expect(r.erros).toEqual([{ nome: 'Ana', erro: 'Linha sem e-mail, documento e unidade: informe ao menos um deles.' }]);
+    expect(prisma.moradores.create).not.toHaveBeenCalled();
+  });
+
+  it('só com documento (sem e-mail e sem unidade) continua importando', async () => {
+    const prisma = prismaBase();
+    const { svc } = servico(prisma);
+    const r = await svc.importBulk(1, [{ nome: 'Ana', documento: '123.456.789-09', data_nascimento: '15/05/1985' }], {
+      podeCriarUnidade: false,
+    });
+    expect(r.erros).toEqual([]);
+    expect(r.total).toBe(1);
+  });
 });
 
 describe('MoradoresController.importBulk — quem pode criar unidade', () => {

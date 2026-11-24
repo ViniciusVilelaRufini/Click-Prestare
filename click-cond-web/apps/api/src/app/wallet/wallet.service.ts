@@ -27,6 +27,11 @@ import { carregarImagensDoPasse, DadosDoPasse, montarPasseApple } from './apple-
 import { WalletChavesService } from './wallet-chaves.service';
 import { ApplePassPushClient, RespostaApns, tokenMorto } from './apple-push.client';
 import { WALLET_WEB_SERVICE_URL } from './wallet.constantes';
+import {
+  credencialAnteriorATrocaDeSenha,
+  motivoCredencialMoradorInvalida,
+  revogarCredenciaisDeMoradores,
+} from '../credenciais/credencial-morador-vigencia.util';
 
 export const ORIGENS_WALLET = ['wallet_apple', 'wallet_google'] as const;
 
@@ -81,8 +86,10 @@ function rotuloUnidade(bloco: string | null | undefined, apartamento: string | n
  * O passe é uma credencial própria em Credenciais_Acesso (origem
  * `wallet_apple`), com segredo separado do segredo do app, e mostra o código
  * diário P2. Uma ativa por pessoa, condomínio e origem: "adicionar de novo"
- * reentrega o mesmo passe (mesmo número de série). Cancelar revoga; o QR do
- * app (origem `app`) nunca é tocado aqui.
+ * reentrega o mesmo passe (mesmo número de série). Cancelar pelo próprio
+ * morador revoga só o passe; o cancelamento pelo operador ("perdeu o
+ * celular") e os eventos de vida da conta (unidade tirada ou apagada, senha
+ * trocada) revogam também o QR do app (origem `app`).
  *
  * O segredo, o código e o token do passe nunca vão para log nem para resposta
  * JSON: só dentro do .pkpass entregue ao dono.
@@ -179,7 +186,12 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
           where: { ...this.daPessoa(idCondominio, morador.id), origem: 'wallet_apple', revogada_em: null },
           orderBy: { id: 'desc' },
         });
-        if (ativa) return ativa;
+        // Passe anterior à última troca de senha já sai anulado (passeAppleDaCredencial): reentregá-lo
+        // deixaria o morador sem passe que abre. Revoga e emite outro.
+        if (ativa && !(await credencialAnteriorATrocaDeSenha(p, ativa, idUser))) return ativa;
+        if (ativa) {
+          await p.credenciais_Acesso.updateMany({ where: { id: ativa.id, revogada_em: null }, data: { revogada_em: agora } });
+        }
         return p.credenciais_Acesso.create({
           data: {
             id_condominio: idCondominio,
@@ -227,7 +239,7 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
     idMoradorBruto: unknown,
     operador: JwtPayload,
     agora: Date = new Date(),
-  ): Promise<{ ok: true; cancelados: number }> {
+  ): Promise<{ ok: true; cancelados: number; qr_app_cancelados: number }> {
     assertOperador(operador, 'cancelar o passe da carteira');
     const idMorador = exigirIdPositivo(idMoradorBruto, 'Morador inválido.');
     const p = this.prisma as any;
@@ -253,6 +265,9 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
     if (!linhas.includes(morador.id)) linhas.push(morador.id);
     let cancelados = 0;
     for (const id of linhas) cancelados += await this.revogar(morador.id_condominio, id, agora);
+    // O QR do app também: o segredo guardado no aparelho perdido gera o código sem internet. O app do
+    // morador emite um novo na próxima abertura com sessão válida.
+    const qrApp = await revogarCredenciaisDeMoradores(p, linhas, agora);
     await this.auditoria.registrar({
       id_condominio: morador.id_condominio,
       usuario_nome: operador?.nome ?? 'Portaria',
@@ -260,10 +275,10 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
       acao: 'UPDATE',
       modulo: 'wallet',
       entidade_id: morador.id,
-      descricao: `Cancelou o passe da carteira de ${morador.nome}`,
-      detalhes: { cancelados },
+      descricao: `Cancelou o passe da carteira e o QR do app de ${morador.nome}`,
+      detalhes: { cancelados, qr_app_cancelados: qrApp },
     });
-    return { ok: true, cancelados };
+    return { ok: true, cancelados, qr_app_cancelados: qrApp };
   }
 
   /**
@@ -276,6 +291,40 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
       await this.revogar(idCondominio, idMorador, agora);
     } catch (e: any) {
       this.logger.warn(`Passes de carteira do morador ${idMorador} não foram revogados: ${e?.message ?? e}`);
+    }
+  }
+
+  /**
+   * Eventos de vida da conta (unidade tirada ou apagada, senha trocada): revoga o QR do app e os passes de
+   * carteira das linhas de Moradores dadas e avisa os aparelhos (o passe aparece anulado). A leitura já nega
+   * pela conferência de vínculo e de senha; isto deixa o estado gravado e o passe atualizado. Nunca lança.
+   */
+  async revogarCredenciaisDosMoradores(idsMoradores: number[], agora: Date = new Date()): Promise<void> {
+    const ids = [...new Set(idsMoradores)].filter((id) => Number.isInteger(id) && id > 0);
+    if (!ids.length) return;
+    try {
+      const p = this.prisma as any;
+      const carteira: Array<{ id: number }> = await p.credenciais_Acesso.findMany({
+        where: { tipo_pessoa: 'morador', id_pessoa: { in: ids }, origem: { in: [...ORIGENS_WALLET] }, revogada_em: null },
+        select: { id: true },
+      });
+      await revogarCredenciaisDeMoradores(p, ids, agora);
+      await this.marcarAtualizado(carteira.map((c) => c.id));
+    } catch (e: any) {
+      this.logger.warn(`Credenciais dos moradores ${ids.join(',')} não foram revogadas: ${e?.message ?? e}`);
+    }
+  }
+
+  /** `revogarCredenciaisDosMoradores` de todas as linhas de Moradores da conta (troca de senha). Nunca lança. */
+  async revogarCredenciaisDaConta(idUser: number, agora: Date = new Date()): Promise<void> {
+    try {
+      const linhas: Array<{ id: number }> = await (this.prisma as any).moradores.findMany({
+        where: { id_user: idUser },
+        select: { id: true },
+      });
+      await this.revogarCredenciaisDosMoradores(linhas.map((l) => l.id), agora);
+    } catch (e: any) {
+      this.logger.warn(`Credenciais da conta ${idUser} não foram revogadas: ${e?.message ?? e}`);
     }
   }
 
@@ -304,13 +353,20 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
       cred.id_pessoa != null
         ? p.moradores.findUnique({
             where: { id: cred.id_pessoa },
-            select: { id: true, nome: true, bloco: true, apartamento: true, id_condominio: true },
+            select: { id: true, nome: true, bloco: true, apartamento: true, id_condominio: true, id_user: true },
           })
         : null,
       p.condominios.findUnique({ where: { id: cred.id_condominio }, select: { nome: true } }),
       this.validacao.walletHabilitado(cred.id_condominio),
     ]);
-    const moradorValido = morador && morador.id_condominio === cred.id_condominio ? morador : null;
+    // Mesma conferência do leitor: a conta segue com unidade no condomínio e o passe é posterior à última
+    // troca de senha. Sem isso o ex-morador recebia todo dia um passe novo.
+    const moradorValido =
+      morador &&
+      morador.id_condominio === cred.id_condominio &&
+      !(await motivoCredencialMoradorInvalida(p, cred, morador.id_user, cred.id_condominio))
+        ? morador
+        : null;
     const segredo = this.segredoDe(cred);
     const valido = !cred.revogada_em && !!moradorValido && !!segredo;
     const dia = diaBrasiliaDe(agora);

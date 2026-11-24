@@ -115,11 +115,11 @@ export class MoradoresApi {
 
   /**
    * Celular perdido: cancela o passe da carteira do morador neste condomínio
-   * (Apple e Google). A rota mora em credenciais/wallet, não em moradores.
-   * `cancelados` é 0 quando o morador não tinha passe ativo.
+   * (Apple e Google) e o QR do app. A rota mora em credenciais/wallet, não em
+   * moradores. `cancelados` (passes) é 0 quando o morador não tinha passe ativo.
    */
-  cancelarPasseCarteira(idMorador: number): Observable<{ ok: true; cancelados: number }> {
-    return this.http.post<{ ok: true; cancelados: number }>(
+  cancelarPasseCarteira(idMorador: number): Observable<{ ok: true; cancelados: number; qr_app_cancelados?: number }> {
+    return this.http.post<{ ok: true; cancelados: number; qr_app_cancelados?: number }>(
       `${API_BASE}/credenciais/wallet/morador/${idMorador}/cancelar`,
       {},
     );

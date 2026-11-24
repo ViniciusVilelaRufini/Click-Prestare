@@ -29,6 +29,7 @@ import { assertEmailNaoReservado } from '../common/email-reservado.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CardAoVivoService } from '../card-ao-vivo/card-ao-vivo.service';
 import { WalletService } from '../wallet/wallet.service';
+import { revogarCredenciaisDaConta } from '../credenciais/credencial-morador-vigencia.util';
 import { GuaritaOperacoesService } from '../guarita/guarita-operacoes.service';
 import {
   ESTADOS_TAG_COM_OPERACAO_PENDENTE,
@@ -3510,6 +3511,7 @@ export class MobileAuthService {
         where: { id: registro.id_conta },
         data: { password: hash, senha_alterada_em: momentoTrocaSenha() },
       });
+      await this.revogarCredenciaisAposTrocaDeSenha(registro.id_conta);
       try {
         const rel = await this.prisma.sindicos_Condominios.findFirst({
           where: { id_user: registro.id_conta },
@@ -3531,6 +3533,7 @@ export class MobileAuthService {
         where: { id: registro.id_conta },
         data: { password: hash, senha_alterada_em: momentoTrocaSenha() },
       });
+      await this.revogarCredenciaisAposTrocaDeSenha(registro.id_conta);
       try {
         const morador = await this.prisma.moradores.findFirst({
           where: { id_user: registro.id_conta },
@@ -5949,6 +5952,20 @@ export class MobileAuthService {
     return this.prisma.encomendas.findUnique({ where: { id: encomenda.id } });
   }
 
+  /**
+   * Troca ou redefinição de senha: o segredo do QR do app e os passes da carteira emitidos antes caem junto
+   * com os tokens (R6). O app emite um QR novo na próxima abertura. A leitura também nega credencial
+   * anterior a `senha_alterada_em`; isto anula o passe no aparelho. Nunca lança.
+   */
+  private async revogarCredenciaisAposTrocaDeSenha(idUser: number): Promise<void> {
+    if (this.wallet) return this.wallet.revogarCredenciaisDaConta(idUser);
+    try {
+      await revogarCredenciaisDaConta(this.prisma as any, idUser);
+    } catch (e: any) {
+      this.logger.warn(`Credenciais da conta ${idUser} não foram revogadas após a troca de senha: ${e?.message ?? e}`);
+    }
+  }
+
   async updatePassword(idUser: number, newPasswordPlana: string, typeAccess: string, senhaAtual?: string) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');
@@ -5976,6 +5993,7 @@ export class MobileAuthService {
         sindicosCondominios: true,
       },
     });
+    await this.revogarCredenciaisAposTrocaDeSenha(idUser);
 
     if (typeAccess.toLowerCase() === 'sindico') {
       const sindico = user.sindicos[0];

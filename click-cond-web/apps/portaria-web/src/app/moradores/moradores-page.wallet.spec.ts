@@ -100,10 +100,10 @@ describe('MoradoresPageComponent — Cancelar passe da carteira', () => {
 
     expect(confirm.ask).toHaveBeenCalledTimes(1);
     expect((confirm.ask.mock.calls[0] as any[])[0].message).toBe(
-      'Cancelar o passe da carteira de Bia Souza? O passe deixa de abrir na hora. O QR do app e o rosto continuam funcionando.',
+      'Cancelar o passe da carteira de Bia Souza? O passe e o QR do app deixam de abrir na hora. O rosto continua funcionando.',
     );
     expect(cancelar).toHaveBeenCalledWith(5);
-    expect(toast.success).toHaveBeenCalledWith('Passe cancelado.');
+    expect(toast.success).toHaveBeenCalledWith('Passe e QR do app cancelados.');
   });
 
   it('sem passe ativo: avisa que o morador não tinha passe', async () => {
@@ -114,6 +114,16 @@ describe('MoradoresPageComponent — Cancelar passe da carteira', () => {
 
     expect(toast.success).not.toHaveBeenCalled();
     expect(toast.info).toHaveBeenCalledWith('Este morador não tinha passe ativo.');
+  });
+
+  it('sem passe, mas com QR do app: avisa que o QR foi cancelado', async () => {
+    const { tela, toast } = build(jest.fn(() => of({ ok: true as const, cancelados: 0, qr_app_cancelados: 1 })));
+    tela.abrirEditar(morador);
+
+    await tela.cancelarPasseCarteira();
+
+    expect(toast.success).toHaveBeenCalledWith('QR do app cancelado. Este morador não tinha passe ativo.');
+    expect(toast.info).not.toHaveBeenCalled();
   });
 
   it('recusar a confirmação não chama a API', async () => {

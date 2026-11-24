@@ -8,6 +8,7 @@ import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
 import { WalletService } from '../wallet/wallet.service';
+import { revogarCredenciaisSemUnidade } from '../credenciais/credencial-morador-vigencia.util';
 import { MobileAuthService } from '../auth/mobile-auth.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador } from '../auth/tenant.util';
@@ -1696,6 +1697,12 @@ export class MoradoresService {
       this.fireFacialSync(id);
     }
 
+    // Unidade tirada: a conta que ficou sem unidade neste condomínio perde o QR do app e o passe da
+    // carteira (a linha de Moradores fica, e era só ela que a validação exigia).
+    if (dto.id_apartamento !== undefined && !(Number(dto.id_apartamento) > 0) && atual.id_user && atual.id_condominio != null) {
+      await revogarCredenciaisSemUnidade(this.prisma as any, this.wallet, [atual.id_user], atual.id_condominio, this.logger);
+    }
+
     // Módulo Guarita: unidade trocada → os dispositivos do morador são
     // regravados com a unidade nova; unidade desvinculada → removidos do
     // Guarita. Só enfileira (best-effort); a edição do morador já foi gravada.
@@ -2212,6 +2219,11 @@ export class MoradoresService {
         }
 
         const email = item.email?.toString().trim() || undefined;
+        // Sem e-mail, documento e unidade não há chave para achar o cadastro já importado: reenviar a
+        // planilha criava o morador de novo a cada envio.
+        if (!email && !item.documento?.toString().trim() && !idApto) {
+          throw new BadRequestException('Linha sem e-mail, documento e unidade: informe ao menos um deles.');
+        }
         // Com e-mail e sem data: o cadastro entra sem conta de app. Se o e-mail já é de uma conta,
         // ligar a ela daria acesso a este condomínio sem saber a idade — pede a data.
         const semContaApp = !!email && !dataNascimento;

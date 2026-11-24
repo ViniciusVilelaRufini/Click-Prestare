@@ -21,6 +21,10 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
       },
       moradores: {
         findFirst: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      credenciais_Acesso: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       apartamentos_Users: {
         findFirst: jest.fn(),
@@ -251,8 +255,16 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
       });
 
       prisma.users.update.mockResolvedValue({ id: 55 });
+      prisma.moradores.findMany.mockResolvedValue([{ id: 3 }]);
 
       const res = await service.confirmarRedefinicaoSenha(rawToken, 'MinhaNovaSenha@2026');
+
+      // R6: o segredo do QR do app e os passes da carteira emitidos antes caem com os tokens.
+      expect(prisma.moradores.findMany).toHaveBeenCalledWith({ where: { id_user: 55 }, select: { id: true } });
+      expect(prisma.credenciais_Acesso.updateMany).toHaveBeenCalledWith({
+        where: { tipo_pessoa: 'morador', id_pessoa: { in: [3] }, revogada_em: null },
+        data: { revogada_em: expect.any(Date) },
+      });
 
       expect(res.success).toBe(true);
       expect(prisma.users.update).toHaveBeenCalledWith({
@@ -344,6 +356,9 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
       prisma.users.update.mockResolvedValue({ id: 10 });
 
       const res = await service.confirmarRedefinicaoSenha(rawToken, 'SenhaSuperSegura2026!');
+
+      // Síndico que também mora no condomínio: as credenciais de morador da conta caem (R6).
+      expect(prisma.moradores.findMany).toHaveBeenCalledWith({ where: { id_user: 10 }, select: { id: true } });
 
       expect(res.success).toBe(true);
       expect(prisma.users.update).toHaveBeenCalledWith({

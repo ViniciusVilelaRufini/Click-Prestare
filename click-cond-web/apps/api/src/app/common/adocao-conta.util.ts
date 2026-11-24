@@ -1,5 +1,6 @@
 import type { Prisma } from '../prisma/generated';
 import { momentoTrocaSenha } from '../auth/senha-alterada.util';
+import { revogarCredenciaisDaConta } from '../credenciais/credencial-morador-vigencia.util';
 
 /**
  * Adoção de conta existente (Users) nos pontos de cadastro — moradores (console, importação, CRM),
@@ -122,9 +123,5 @@ export async function invalidarPosseDaConta(
     where: { id: idUser },
     data: { ...dadosExtras, password: senhaHash, senha_alterada_em: momentoTrocaSenha(agora.getTime()) },
   });
-  const linhas = await tx.moradores.findMany({ where: { id_user: idUser }, select: { id: true } });
-  await tx.credenciais_Acesso.updateMany({
-    where: { tipo_pessoa: 'morador', id_pessoa: { in: linhas.map((l) => l.id) }, revogada_em: null },
-    data: { revogada_em: agora },
-  });
+  await revogarCredenciaisDaConta(tx, idUser, agora);
 }

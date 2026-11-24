@@ -6,6 +6,8 @@ import { AuditoriaService } from '../auditoria/auditoria.service';
 import { assertStaff } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
+import { WalletService } from '../wallet/wallet.service';
+import { revogarCredenciaisSemUnidade } from '../credenciais/credencial-morador-vigencia.util';
 
 import { chaveUnidade, normalizarBloco, rotuloBloco } from '../common/rotulo-bloco.util';
 export interface CreateApartamentoDto {
@@ -27,6 +29,8 @@ export class ApartamentosService {
     // Módulo Guarita: a unidade que some tira do Guarita os dispositivos de
     // quem morava nela. Opcional (specs antigos instanciam sem).
     @Optional() private readonly guarita?: GuaritaOperacoesService,
+    // Carteira: unidade apagada anula os passes de quem ficou sem unidade. Opcional (specs antigos).
+    @Optional() private readonly wallet?: WalletService,
   ) {}
 
   /**
@@ -406,6 +410,8 @@ export class ApartamentosService {
         },
         data: { bloco: null, apartamento: null },
       });
+      // Quem ficou sem unidade neste condomínio perde o QR do app e o passe da carteira.
+      await revogarCredenciaisSemUnidade(this.prisma as any, this.wallet, idsUsers, atual.id_condominio, this.logger);
     }
 
     const label = atual.bloco ? `Apto ${atual.apto} ${rotuloBloco(atual.bloco)}` : `Apto ${atual.apto}`;

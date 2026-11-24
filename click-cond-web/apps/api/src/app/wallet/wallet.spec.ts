@@ -237,8 +237,11 @@ describe('WalletService', () => {
     });
 
     it('pelo operador: exige operador, exige o condomínio do morador, registra auditoria com o nome do morador', async () => {
-      const { svc, estado, auditoria } = build();
+      const { svc, estado, auditoria, credenciais } = build();
       await svc.emitirApple(MORADOR, { id_condominio: 1 }, AGORA);
+      // "Perdeu o celular": o segredo do QR do app guardado no aparelho também cai (W3).
+      const app: any = await credenciais.minha(MORADOR, { id_condominio: 1 }, AGORA);
+      const credApp = estado.creds.find((c) => c.id === app.id);
 
       await expect(svc.cancelarPeloOperador(11, MORADOR)).rejects.toThrow(ForbiddenException);
       await expect(svc.cancelarPeloOperador(11, PORTEIRO_OUTRO_COND)).rejects.toThrow(ForbiddenException);
@@ -246,8 +249,11 @@ describe('WalletService', () => {
       expect(estado.creds[0].revogada_em).toBeNull();
       expect(auditoria.registrar).not.toHaveBeenCalled();
 
-      expect(await svc.cancelarPeloOperador(11, PORTEIRO, AGORA)).toEqual({ ok: true, cancelados: 1 });
+      expect(credApp.revogada_em).toBeNull();
+
+      expect(await svc.cancelarPeloOperador(11, PORTEIRO, AGORA)).toEqual({ ok: true, cancelados: 1, qr_app_cancelados: 1 });
       expect(estado.creds[0].revogada_em).toEqual(AGORA);
+      expect(credApp.revogada_em).toEqual(AGORA);
       expect(auditoria.registrar).toHaveBeenCalledWith({
         id_condominio: 1,
         usuario_nome: 'Zé Portaria',
@@ -256,11 +262,11 @@ describe('WalletService', () => {
         acao: 'UPDATE',
         modulo: 'wallet',
         entidade_id: 11,
-        descricao: 'Cancelou o passe da carteira de Ana Souza',
-        detalhes: { cancelados: 1 },
+        descricao: 'Cancelou o passe da carteira e o QR do app de Ana Souza',
+        detalhes: { cancelados: 1, qr_app_cancelados: 1 },
       });
 
-      expect(await svc.cancelarPeloOperador(11, SINDICO, AGORA)).toEqual({ ok: true, cancelados: 0 });
+      expect(await svc.cancelarPeloOperador(11, SINDICO, AGORA)).toEqual({ ok: true, cancelados: 0, qr_app_cancelados: 0 });
     });
 
     it('pelo operador na ficha de outra unidade do mesmo usuário: cancela o passe preso à primeira linha e o P2 passa a ser negado', async () => {
@@ -290,15 +296,19 @@ describe('WalletService', () => {
         id, id_condominio: idCondominio, tipo_pessoa: 'morador', id_pessoa: idPessoa, origem: 'wallet_apple', segredo: 'x', revogada_em: null,
       });
       estado.creds.push(ativa(90, 11), ativa(91, 12, 2), ativa(92, 13), ativa(93, 15));
+      estado.creds.push({ ...ativa(94, 11), origem: 'app' }, { ...ativa(95, 13), origem: 'app' }, { ...ativa(96, 12, 2), origem: 'app' });
 
-      expect(await svc.cancelarPeloOperador(11, PORTEIRO, AGORA)).toEqual({ ok: true, cancelados: 1 });
+      expect(await svc.cancelarPeloOperador(11, PORTEIRO, AGORA)).toEqual({ ok: true, cancelados: 1, qr_app_cancelados: 1 });
       const porId = (id: number) => estado.creds.find((c) => c.id === id);
+      expect(porId(94).revogada_em).toEqual(AGORA); // QR do app da mesma linha
+      expect(porId(95).revogada_em).toBeNull(); // QR do app de outro usuário
+      expect(porId(96).revogada_em).toBeNull(); // QR do app no condomínio 2
       expect(porId(90).revogada_em).toEqual(AGORA);
       expect(porId(91).revogada_em).toBeNull(); // condomínio 2
       expect(porId(92).revogada_em).toBeNull(); // outro usuário
       expect(porId(93).revogada_em).toBeNull(); // linha sem id_user
 
-      expect(await svc.cancelarPeloOperador(15, PORTEIRO, AGORA)).toEqual({ ok: true, cancelados: 1 });
+      expect(await svc.cancelarPeloOperador(15, PORTEIRO, AGORA)).toEqual({ ok: true, cancelados: 1, qr_app_cancelados: 0 });
       expect(porId(93).revogada_em).toEqual(AGORA);
       expect(porId(92).revogada_em).toBeNull();
     });
@@ -501,6 +511,83 @@ describe('WalletService', () => {
       await svc.cancelarDoUsuario(MORADOR, { id_condominio: 1 }, AGORA);
       expect(estado.creds[0].revogada_em).toEqual(AGORA);
       expect(estado.creds[0].wallet_atualizado_em).toEqual(FUTURO);
+    });
+  });
+
+  describe('eventos de vida da conta (W2, R6)', () => {
+    const DEPOIS = new Date(AGORA.getTime() + 60_000);
+
+    it('passeAppleDaCredencial anula o passe de quem ficou sem unidade no condomínio', async () => {
+      const { svc, estado } = build();
+      await svc.emitirApple(MORADOR, { id_condominio: 1 }, AGORA);
+      // A linha de Moradores fica; só o vínculo com a unidade some.
+      estado.vinculos = estado.vinculos.filter((v) => !(v.id_user === 7 && v.id_condominio === 1));
+      const pass = passJson((await svc.passeAppleDaCredencial(estado.creds[0].id, AGORA))!.pkpass);
+      expect(pass.voided).toBe(true);
+      expect(JSON.stringify(pass)).not.toMatch(/P2[A-Z2-7]{26}/);
+    });
+
+    it('passe anterior à troca de senha sai anulado; adicionar de novo emite outro, que abre', async () => {
+      const { svc, estado, validacao } = build();
+      const a = passJson(await svc.emitirApple(MORADOR, { id_condominio: 1 }, AGORA));
+      const antiga = estado.creds[0];
+      antiga.criado_em = AGORA;
+      estado.users.push({ id: 7, senha_alterada_em: DEPOIS });
+
+      expect(passJson((await svc.passeAppleDaCredencial(antiga.id, DEPOIS))!.pkpass).voided).toBe(true);
+      expect(await validacao.validarLeitura(a.barcodes[0].message, { id: 42, id_condominio: 1 }, DEPOIS)).toMatchObject({
+        ok: false,
+        motivo: 'revogada',
+      });
+
+      const b = passJson(await svc.emitirApple(MORADOR, { id_condominio: 1 }, DEPOIS));
+      expect(b.serialNumber).not.toBe(a.serialNumber);
+      expect(antiga.revogada_em).toEqual(DEPOIS);
+      const nova = estado.creds.find((c) => `c${c.id}` === b.serialNumber);
+      nova.criado_em = DEPOIS;
+      expect(await validacao.validarLeitura(b.barcodes[0].message, { id: 42, id_condominio: 1 }, DEPOIS)).toMatchObject({ ok: true });
+    });
+
+    it('revogarCredenciaisDosMoradores revoga QR do app e passes das linhas dadas e marca os passes', async () => {
+      const { svc, estado } = build();
+      await svc.emitirApple(MORADOR, { id_condominio: 1 }, AGORA);
+      estado.creds.push(
+        { id: 80, id_condominio: 1, tipo_pessoa: 'morador', id_pessoa: 11, origem: 'app', segredo: 'x', revogada_em: null },
+        { id: 81, id_condominio: 1, tipo_pessoa: 'morador', id_pessoa: 13, origem: 'app', segredo: 'x', revogada_em: null },
+      );
+      svc.relogio = () => DEPOIS;
+
+      await svc.revogarCredenciaisDosMoradores([11], AGORA);
+
+      const passe = estado.creds.find((c) => c.origem === 'wallet_apple');
+      expect(passe.revogada_em).toEqual(AGORA);
+      expect(passe.wallet_atualizado_em).toEqual(DEPOIS);
+      expect(estado.creds.find((c) => c.id === 80).revogada_em).toEqual(AGORA);
+      expect(estado.creds.find((c) => c.id === 81).revogada_em).toBeNull();
+    });
+
+    it('revogarCredenciaisDaConta cobre todas as linhas da conta e não toca nas de outra', async () => {
+      const { svc, estado } = build();
+      const app = (id: number, idPessoa: number, idCondominio = 1) => ({
+        id, id_condominio: idCondominio, tipo_pessoa: 'morador', id_pessoa: idPessoa, origem: 'app', segredo: 'x', revogada_em: null,
+      });
+      estado.creds.push(app(80, 11), app(81, 12, 2), app(82, 13));
+
+      await svc.revogarCredenciaisDaConta(7, AGORA);
+
+      expect(estado.creds.map((c) => [c.id, c.revogada_em])).toEqual([
+        [80, AGORA],
+        [81, AGORA],
+        [82, null],
+      ]);
+    });
+
+    it('as duas nunca lançam', async () => {
+      const { svc, prisma } = build();
+      prisma.credenciais_Acesso.findMany.mockRejectedValueOnce(new Error('banco fora'));
+      await expect(svc.revogarCredenciaisDosMoradores([11], AGORA)).resolves.toBeUndefined();
+      prisma.moradores.findMany.mockRejectedValueOnce(new Error('banco fora'));
+      await expect(svc.revogarCredenciaisDaConta(7, AGORA)).resolves.toBeUndefined();
     });
   });
 

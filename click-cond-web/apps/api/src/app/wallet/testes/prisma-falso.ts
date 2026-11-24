@@ -14,6 +14,9 @@ export interface EstadoFalso {
   moradores: any[];
   creds: any[];
   registros: any[];
+  /** Apartamentos_Users como { id_user, id_condominio } (o condomínio da unidade). */
+  vinculos: any[];
+  users: any[];
 }
 
 function casaValor(valor: any, cond: any): boolean {
@@ -91,6 +94,13 @@ export function criarPrismaFalso(inicial: Partial<EstadoFalso> = {}, opcoes: { l
     moradores: inicial.moradores ?? [],
     creds: inicial.creds ?? [],
     registros: inicial.registros ?? [],
+    // Sem vínculos dados, cada morador com conta mora numa unidade do próprio condomínio.
+    vinculos:
+      inicial.vinculos ??
+      (inicial.moradores ?? [])
+        .filter((m: any) => m.id_user != null && m.id_condominio != null)
+        .map((m: any) => ({ id_user: m.id_user, id_condominio: m.id_condominio })),
+    users: inicial.users ?? [],
   };
   const ceder = () => (opcoes.lento ? new Promise<void>((r) => setImmediate(r)) : Promise.resolve());
   let proximoCred = 100 + estado.creds.length;
@@ -203,6 +213,19 @@ export function criarPrismaFalso(inicial: Partial<EstadoFalso> = {}, opcoes: { l
         estado.registros = estado.registros.filter((r) => !casa(r, where));
         return { count: antes - estado.registros.length };
       }),
+    },
+    apartamentos_Users: {
+      findFirst: jest.fn(
+        async ({ where }: any) =>
+          estado.vinculos.find(
+            (v) => v.id_user === where.id_user && v.id_condominio === where.apartamento?.id_condominio,
+          ) ?? null,
+      ),
+    },
+    users: {
+      findUnique: jest.fn(async ({ where, select }: any) =>
+        selecionar(estado.users.find((u) => u.id === where.id) ?? null, select),
+      ),
     },
     credenciais_Leituras: {
       create: jest.fn(async ({ data }: any) => ({ id: 1, ...data })),

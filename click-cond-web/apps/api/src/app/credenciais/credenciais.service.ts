@@ -20,6 +20,8 @@ import { rotuloBloco } from '../common/rotulo-bloco.util';
 import { comLock } from '../common/lock-distribuido';
 import { contadorDe, gerarCodigo, INTERVALO_MS } from './codigo-dinamico.util';
 import { WalletService } from '../wallet/wallet.service';
+import { credencialAnteriorATrocaDeSenha } from './credencial-morador-vigencia.util';
+import { TOLERANCIA_JANELA_MS } from '../common/janela-visita';
 
 /** Mesmo padrão do link do convite (`convites.service.ts`). */
 const BASE_URL_PADRAO = 'https://www.prestarecondominios.com.br';
@@ -112,7 +114,10 @@ export class CredenciaisService {
       `credenciais:minha:${idCondominio}:morador:${morador.id}:app`,
       async (): Promise<RespostaCredencialMinha> => {
         const ativa = await p.credenciais_Acesso.findFirst({ where: daPessoa, orderBy: { id: 'desc' } });
-        if (ativa && body?.renovar !== true) {
+        // Credencial anterior à última troca de senha o leitor nega: não é devolvida como a atual (o app
+        // perceberia o id novo e pediria outra). Assim o QR volta sozinho em todo caminho que troca a senha.
+        const vencidaPelaSenha = !!ativa && (await credencialAnteriorATrocaDeSenha(p, ativa, idUser));
+        if (ativa && !vencidaPelaSenha && body?.renovar !== true) {
           return { disponivel: true, id: ativa.id, intervalo_s: 30, agora_servidor: agora.toISOString() };
         }
 
@@ -226,6 +231,13 @@ export class CredenciaisService {
     if (idAlvo == null) throw indisponivel();
     const ref = await this.visitantes.referenciaParaCredencial(idAlvo).catch(() => null);
     if (!ref || ref.id_condominio !== cred.id_condominio || !ref.codigo_acesso) throw indisponivel();
+    // O leitor nega a visita bloqueada, a negada pelo morador e a que passou da janela (com a mesma
+    // tolerância): a página não segue mostrando código novo para ela.
+    if (ref.bloqueado) throw indisponivel();
+    if (ref.auth_status === 'negado' && ref.liberado !== 1) throw indisponivel();
+    if (ref.data_hora_termino && t > new Date(ref.data_hora_termino).getTime() + TOLERANCIA_JANELA_MS) {
+      throw indisponivel();
+    }
 
     const segredo = decryptSecret(cred.segredo);
     if (!segredo || !SEGREDO_HEX.test(segredo)) {

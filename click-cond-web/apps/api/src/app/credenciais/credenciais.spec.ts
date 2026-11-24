@@ -89,9 +89,14 @@ describe('Credenciais', () => {
       permissaoFuncionario?: boolean;
       vinculosApto?: Array<{ id_user: number; id_apto: number }>;
       lento?: boolean;
+      /** Users.senha_alterada_em por id. */
+      senhaAlteradaEm?: Record<number, Date>;
     } = {},
   ) {
     const creds: any[] = [];
+    const senhaAlteradaEm: Record<number, Date> = { ...(opts.senhaAlteradaEm ?? {}) };
+    /** `id_user:id_condominio` sem unidade (a unidade foi tirada). */
+    const semUnidade = new Set<string>();
     let opcao = opts.opcao ?? true;
     const moradores = opts.moradores ?? [
       { id: 11, id_user: 7, id_condominio: 1, nome: 'Ana', tipo: 'morador' },
@@ -156,9 +161,18 @@ describe('Credenciais', () => {
       visitas: { findUnique: jest.fn(async ({ where }: any) => (visita && where.id === visita.id ? visita : null)) },
       visitantes: { findUnique: jest.fn(async () => null) },
       apartamentos_Users: {
-        findFirst: jest.fn(async ({ where }: any) =>
-          (opts.vinculosApto ?? []).find((v) => v.id_user === where.id_user && v.id_apto === where.id_apto) ?? null,
-        ),
+        findFirst: jest.fn(async ({ where }: any) => {
+          // Vínculo com a unidade no condomínio (validação): cada morador mora no seu, salvo `semUnidade`.
+          if (where.apartamento) {
+            const cond = where.apartamento.id_condominio;
+            const mora = moradores.some((m) => m.id_user === where.id_user && m.id_condominio === cond);
+            return mora && !semUnidade.has(`${where.id_user}:${cond}`) ? { id_apto: 1 } : null;
+          }
+          return (opts.vinculosApto ?? []).find((v) => v.id_user === where.id_user && v.id_apto === where.id_apto) ?? null;
+        }),
+      },
+      users: {
+        findUnique: jest.fn(async ({ where }: any) => ({ id: where.id, senha_alterada_em: senhaAlteradaEm[where.id] ?? null })),
       },
       credenciais_Leituras: {
         create: jest.fn(async ({ data }: any) => ({ id: 1, ...data })),
@@ -190,6 +204,9 @@ describe('Credenciais', () => {
           data_hora_termino: visita.data_hora_termino,
           bloco: 'A',
           apto: '101',
+          bloqueado: visita.bloqueado === 1,
+          liberado: visita.liberado ?? 1,
+          auth_status: visita.auth_status ?? null,
         };
       }),
     };
@@ -202,8 +219,13 @@ describe('Credenciais', () => {
       visitantes,
       validacao,
       creds,
+      senhaAlteradaEm,
+      semUnidade,
       encerrarVisita: () => {
         if (visita) visita = { ...visita, codigo_acesso: null };
+      },
+      mudarVisita: (campos: any) => {
+        if (visita) visita = { ...visita, ...campos };
       },
     };
   }
@@ -416,6 +438,48 @@ describe('Credenciais', () => {
     });
   });
 
+  describe('vínculo atual e troca de senha (W2, R6)', () => {
+    const codigoDe = async (r: any, instante = AGORA) => {
+      const { gerarCodigo, contadorDe } = await import('./codigo-dinamico.util');
+      return gerarCodigo('P1', r.id, contadorDe(instante), Buffer.from(r.segredo, 'hex'));
+    };
+
+    it('ex-morador (sem unidade no condomínio) tem o QR guardado negado no leitor', async () => {
+      const { svc, validacao, semUnidade } = build();
+      const r: any = await svc.minha(MORADOR, { id_condominio: 1 }, AGORA);
+      const codigo = await codigoDe(r);
+      semUnidade.add('7:1');
+
+      expect(await validacao.validarLeitura(codigo, { id: 42, id_condominio: 1 }, AGORA)).toMatchObject({
+        ok: false,
+        motivo: 'morador_removido',
+      });
+    });
+
+    it('credencial anterior à troca de senha é negada; minha emite outra que abre', async () => {
+      const { svc, validacao, senhaAlteradaEm, creds } = build();
+      const r1: any = await svc.minha(MORADOR, { id_condominio: 1 }, AGORA);
+      const codigo1 = await codigoDe(r1);
+      senhaAlteradaEm[7] = new Date(AGORA.getTime() + 60_000);
+      const depois = new Date(AGORA.getTime() + 120_000);
+
+      expect(await validacao.validarLeitura(codigo1, { id: 42, id_condominio: 1 }, AGORA)).toMatchObject({
+        ok: false,
+        motivo: 'revogada',
+      });
+
+      // Sem `renovar` (a conferência do app): a anterior não é devolvida como a atual.
+      const r2: any = await svc.minha(MORADOR, { id_condominio: 1 }, depois);
+      expect(r2.id).not.toBe(r1.id);
+      expect(r2.segredo).toMatch(/^[0-9a-f]{64}$/);
+      expect(creds.find((c) => c.id === r1.id).revogada_em).toEqual(depois);
+      creds.find((c) => c.id === r2.id).criado_em = depois;
+      expect(await validacao.validarLeitura(await codigoDe(r2, depois), { id: 42, id_condominio: 1 }, depois)).toMatchObject({
+        ok: true,
+      });
+    });
+  });
+
   describe('chave do token do link', () => {
     it('é derivada por HMAC com rótulo próprio, separada da chave do encryptSecret', () => {
       const { svc } = build();
@@ -482,6 +546,25 @@ describe('Credenciais', () => {
       encerrarVisita();
       await expect(svc.lerPassePublico(token, AGORA)).rejects.toThrow(new NotFoundException('Passe indisponível.'));
       expect(tokenOutro).toBe(token); // mesmo id e versão → mesmo token (derivado, não guardado)
+    });
+
+    it('visita bloqueada, negada pelo morador ou fora da janela responde o mesmo 404 (W4)', async () => {
+      const { svc, mudarVisita } = build();
+      const token = tokenDe((await svc.linkVisita(300, MORADOR)).url);
+      const indisponivel = new NotFoundException('Passe indisponível.');
+
+      mudarVisita({ bloqueado: 1 });
+      await expect(svc.lerPassePublico(token, AGORA)).rejects.toThrow(indisponivel);
+      mudarVisita({ bloqueado: 0, liberado: 0, auth_status: 'negado' });
+      await expect(svc.lerPassePublico(token, AGORA)).rejects.toThrow(indisponivel);
+      // Pendente (liberado 0, ainda sem resposta) segue mostrando: o leitor decide pelo fluxo do PIN.
+      mudarVisita({ liberado: 0, auth_status: 'pendente' });
+      expect(await svc.lerPassePublico(token, AGORA)).toMatchObject({ nome: 'Vítor' });
+      mudarVisita({ liberado: 1, auth_status: null });
+
+      // Fim da janela em 16/11 00:00: a tolerância de 15 min do leitor ainda mostra; depois, não.
+      expect(await svc.lerPassePublico(token, new Date('2026-11-16T00:14:00.000Z'))).toMatchObject({ nome: 'Vítor' });
+      await expect(svc.lerPassePublico(token, new Date('2026-11-16T00:16:00.000Z'))).rejects.toThrow(indisponivel);
     });
 
     it('opção do condomínio desligada responde o mesmo 404', async () => {
@@ -570,6 +653,7 @@ describe('Credenciais', () => {
       expect(await svc.referenciaParaCredencial(300, MORADOR)).toEqual({
         espaco: 'visita', id: 300, id_condominio: 1, nome: 'Vítor Souza', codigo_acesso: '482913',
         id_apartamento: 5, data_hora_inicio: null, data_hora_termino: null, bloco: 'A', apto: '101',
+        bloqueado: false, liberado: null, auth_status: null,
       });
       expect(prisma.visitantes.findUnique).not.toHaveBeenCalled();
 
@@ -605,7 +689,13 @@ describe('Credenciais', () => {
     });
 
     it('o controller público lê o token do corpo e devolve a resposta do serviço', async () => {
-      const { svc } = build();
+      // O controller lê pela hora real: a janela da visita fica aberta.
+      const { svc } = build({
+        visita: {
+          id: 300, id_condominio: 1, id_apartamento: 5, codigo_acesso: '482913',
+          data_hora_inicio: null, data_hora_termino: null, pessoa: { nome: 'Vítor Souza Lima' },
+        },
+      });
       const token = tokenDe((await svc.linkVisita(300, MORADOR)).url);
       const ctrl = new PassesPublicosController(svc);
       expect(await ctrl.ler({ token })).toMatchObject({ nome: 'Vítor', codigo: expect.stringMatching(/^P1/) });

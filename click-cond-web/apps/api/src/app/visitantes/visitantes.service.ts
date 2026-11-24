@@ -570,6 +570,10 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     data_hora_termino: Date | null;
     bloco: string | null;
     apto: string | null;
+    /** Visita (ou, com a migração, a pessoa) bloqueada. */
+    bloqueado: boolean;
+    liberado: number | null;
+    auth_status: string | null;
   }> {
     const migrado = pessoasMigrationEnabled(this.prisma);
     const v: any = migrado
@@ -581,6 +585,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           select: { bloco: true, apto: true },
         })
       : null;
+    // Com a migração o bloqueio também mora na pessoa (o leitor confere os dois).
+    const pessoaBloqueada =
+      migrado && v.id_pessoa != null
+        ? (await this.prisma.pessoas.findUnique({ where: { id: Number(v.id_pessoa) }, select: { bloqueado: true } }))
+            ?.bloqueado === 1
+        : false;
     return {
       espaco: migrado ? 'visita' : 'visitante',
       id: v.id,
@@ -592,6 +602,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       data_hora_termino: v.data_hora_termino ?? null,
       bloco: apartamento?.bloco ?? null,
       apto: apartamento?.apto ?? null,
+      bloqueado: v.bloqueado === 1 || pessoaBloqueada,
+      liberado: v.liberado ?? null,
+      auth_status: v.auth_status ?? null,
     };
   }
 

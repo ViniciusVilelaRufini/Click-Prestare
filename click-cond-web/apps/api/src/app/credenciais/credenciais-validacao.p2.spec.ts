@@ -41,7 +41,9 @@ describe('CredenciaisValidacaoService — P2', () => {
     };
   }
 
-  function build(opts: { cred?: any; qr?: boolean; wallet?: boolean; morador?: any } = {}) {
+  function build(
+    opts: { cred?: any; qr?: boolean; wallet?: boolean; morador?: any; unidade?: boolean; senhaAlteradaEm?: Date } = {},
+  ) {
     const cred = opts.cred === undefined ? credencial() : opts.cred;
     const prisma: any = {
       credenciais_Acesso: { findUnique: jest.fn(async () => cred) },
@@ -53,9 +55,16 @@ describe('CredenciaisValidacaoService — P2', () => {
       },
       moradores: {
         findUnique: jest.fn(async () =>
-          opts.morador === undefined ? { id: 11, nome: 'Ana', tipo: 'morador', id_condominio: 1 } : opts.morador,
+          opts.morador === undefined ? { id: 11, nome: 'Ana', tipo: 'morador', id_condominio: 1, id_user: 5 } : opts.morador,
         ),
       },
+      // Conta 5 mora numa unidade do condomínio 1, salvo `unidade: false`.
+      apartamentos_Users: {
+        findFirst: jest.fn(async ({ where }: any) =>
+          opts.unidade !== false && where.id_user === 5 && where.apartamento?.id_condominio === 1 ? { id_apto: 3 } : null,
+        ),
+      },
+      users: { findUnique: jest.fn(async () => ({ senha_alterada_em: opts.senhaAlteradaEm ?? null })) },
       visitas: { findUnique: jest.fn(async () => null) },
       visitantes: { findUnique: jest.fn(async () => null) },
       credenciais_Leituras: {
@@ -197,6 +206,13 @@ describe('CredenciaisValidacaoService — P2', () => {
       ok: false,
       motivo: 'morador_removido',
     });
+  });
+
+  it('passe de quem ficou sem unidade ou anterior à troca de senha não abre (W2, R6)', async () => {
+    const semUnidade = build({ unidade: false });
+    expect(await semUnidade.svc.validarLeitura(p2(), LEITOR, AGORA)).toMatchObject({ ok: false, motivo: 'morador_removido' });
+    const senhaTrocada = build({ senhaAlteradaEm: new Date('2026-11-05T00:00:00.000Z') });
+    expect(await senhaTrocada.svc.validarLeitura(p2(), LEITOR, AGORA)).toMatchObject({ ok: false, motivo: 'revogada' });
   });
 
   it('nenhum resultado contém o código lido ou o segredo', async () => {
