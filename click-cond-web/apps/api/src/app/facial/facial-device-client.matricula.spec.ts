@@ -29,6 +29,30 @@ describe('FacialDeviceClientService — matrícula no update/remove pelo agente'
     expect(a.enqueue).toHaveBeenCalledWith(7, { type: 'remove', faceId: '77', externalId: 'morador_42' });
   });
 
+  it('Control iD em outra grafia ("Control iD") também leva a matrícula', async () => {
+    const a = agente();
+    const client = new FacialDeviceClientService(a as any);
+    await client.updatePerson({ ...dev, fabricante: 'Control iD' }, '77', { externalId: 'morador_42', nome: 'F' });
+    await client.removePerson({ ...dev, fabricante: 'Control iD' }, '77', 'morador_42');
+    expect(a.enqueue.mock.calls[0][1]).toEqual(expect.objectContaining({ externalId: 'morador_42' }));
+    expect(a.enqueue.mock.calls[1][1]).toEqual({ type: 'remove', faceId: '77', externalId: 'morador_42' });
+  });
+
+  it.each(['intelbras', 'dahua', 'hikvision'])(
+    '%s: update e remove continuam pela MESMA chave (o face_id), sem externalId — senão o update gravaria a matrícula e o remove apagaria o face_id',
+    async (fabricante) => {
+      const a = agente();
+      const client = new FacialDeviceClientService(a as any);
+      const d = { ...dev, fabricante };
+      await client.updatePerson(d, '77', { externalId: 'morador_42', nome: 'F' });
+      await client.removePerson(d, '77', 'morador_42');
+      const [update, remove] = a.enqueue.mock.calls.map((c) => c[1]);
+      expect(update).toEqual(expect.objectContaining({ type: 'update', faceId: '77' }));
+      expect(update).not.toHaveProperty('externalId');
+      expect(remove).toEqual({ type: 'remove', faceId: '77' });
+    },
+  );
+
   it('sem matrícula, o comando sai como antes (sem campo externalId)', async () => {
     const a = agente();
     const client = new FacialDeviceClientService(a as any);
