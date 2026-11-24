@@ -3,7 +3,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { executarComLock } from '../common/lock-distribuido';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
 import { SuperlogicaService } from './superlogica.service';
-import { SuperlogicaContato } from './superlogica.types';
+import { hojeBrasilia } from '../common/hora-brasilia.util';
+import { SuperlogicaClient } from './superlogica.client';
+import { STATUS_LOCAL_FORA_DA_DIVIDA, SuperlogicaContato } from './superlogica.types';
 
 /**
  * Importação de unidades e sincronização das cobranças da Superlógica.
@@ -66,6 +68,12 @@ export interface ResultadoSync {
   descartadas: number;
   /** Quantos meses para trás esta passada olhou. */
   mesesAtras: number;
+  /**
+   * Pendentes da janela que não voltaram na leitura completa do ERP e saíram
+   * da dívida (status STATUS_LOCAL_FORA_DA_DIVIDA). Zero quando a leitura não
+   * foi completa — aí nada é aposentado.
+   */
+  aposentadas: number;
   /**
    * Unidades do ERP vinculadas a mais de um apartamento. Cobrança delas não é
    * gravada — seria entregue ao morador errado. Exige correção manual.
@@ -222,14 +230,39 @@ export class SuperlogicaSyncService implements OnModuleInit {
     };
   }
 
-  /** Primeiro dia do mês que abre a janela sincronizada. */
+  /**
+   * Dia civil como instante ao meio-dia UTC: é o mesmo dia em UTC e em
+   * Brasília, então `formatarData` (que usa o dia de Brasília) manda ao ERP
+   * exatamente o dia pedido. À meia-noite UTC seria a noite do dia anterior
+   * em Brasília, e a janela sairia um dia mais curta no fim.
+   */
+  private static diaCivil(ano: number, mes: number, dia: number): Date {
+    return new Date(Date.UTC(ano, mes, dia, 12));
+  }
+
+  /** Primeiro dia do mês que abre a janela sincronizada (calendário de Brasília). */
   private inicioJanela(hoje = new Date(), mesesAtras = MESES_ATRAS_PADRAO): Date {
-    return new Date(hoje.getFullYear(), hoje.getMonth() - mesesAtras, 1);
+    const h = hojeBrasilia(hoje);
+    return SuperlogicaSyncService.diaCivil(h.getUTCFullYear(), h.getUTCMonth() - mesesAtras, 1);
   }
 
   /** Último dia do mês seguinte — cobre boleto já emitido para o próximo mês. */
   private fimJanela(hoje = new Date()): Date {
-    return new Date(hoje.getFullYear(), hoje.getMonth() + 2, 0);
+    const h = hojeBrasilia(hoje);
+    return SuperlogicaSyncService.diaCivil(h.getUTCFullYear(), h.getUTCMonth() + 2, 0);
+  }
+
+  /** "AAAA-MM-DD" de uma coluna @db.Date (o Prisma a devolve à meia-noite UTC). */
+  private static diaDaColuna(d: Date | null | undefined): string | null {
+    return d ? new Date(d).toISOString().slice(0, 10) : null;
+  }
+
+  /** "AAAA-MM-DD" de uma data do ERP já parseada (`parsearData` usa o relógio local). */
+  private static diaDoErp(d: Date | null | undefined): string | null {
+    if (!d) return null;
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    const dia = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${mes}-${dia}`;
   }
 
   /**
@@ -246,10 +279,12 @@ export class SuperlogicaSyncService implements OnModuleInit {
     const condominio = await this.condominioVinculado(idCondominioClique);
     const mesesAtras = opcoes.profunda ? MESES_ATRAS_PROFUNDA : MESES_ATRAS_PADRAO;
 
-    const cobrancas = await this.superlogica.listarCobrancas(
+    const inicio = this.inicioJanela(hoje, mesesAtras);
+    const fim = this.fimJanela(hoje);
+    const { cobrancas, completa } = await this.superlogica.listarCobrancas(
       condominio.id_superlogica_cond,
-      this.inicioJanela(hoje, mesesAtras),
-      this.fimJanela(hoje),
+      inicio,
+      fim,
     );
 
     // Um único SELECT resolve o vínculo de todas as cobranças do lote.
@@ -286,12 +321,21 @@ export class SuperlogicaSyncService implements OnModuleInit {
       );
     }
 
-    // O que já está gravado deste condomínio. Serve a duas coisas que o upsert
-    // sozinho não sabe fazer: preservar o status de comprovante em auditoria e
-    // não perder a linha digitável já extraída.
+    // O que já está gravado deste condomínio. Serve ao que o upsert sozinho
+    // não sabe fazer: preservar o status de comprovante em auditoria, não
+    // perder a linha digitável já extraída (nem reaproveitá-la depois que o
+    // boleto mudou) e achar as pendentes que sumiram do ERP.
     const jaGravados = await this.prisma.financeiro.findMany({
       where: { id_condominio: idCondominioClique, origem: 'superlogica' },
-      select: { id_externo: true, status: true, linha_digitavel: true },
+      select: {
+        id_externo: true,
+        status: true,
+        linha_digitavel: true,
+        valor: true,
+        data_vencimento: true,
+        url_boleto: true,
+        pago: true,
+      },
     });
     const porExterno = new Map(jaGravados.map((f) => [f.id_externo, f]));
 
@@ -336,13 +380,26 @@ export class SuperlogicaSyncService implements OnModuleInit {
       // via, um fetch por cobrança. Reaproveitar a que já está gravada evita
       // repetir isso a cada passada — e, sobretudo, evita que uma raspagem que
       // falhou sobrescreva com null a linha que já funcionava.
-      if (!dados.linha_digitavel) {
-        dados.linha_digitavel = existente?.linha_digitavel ?? null;
+      //
+      // Mas só enquanto o boleto for o mesmo. A linha gravada foi raspada com o
+      // valor, o vencimento e a URL que estão na mesma linha do banco; se o
+      // ERP mudou qualquer um deles, ela codifica o boleto velho (valor e
+      // vencimento estão dentro dela) e o morador pagaria o valor errado.
+      // Raspa de novo; se a raspagem falhar, fica sem linha até a próxima
+      // passada — melhor que uma linha errada.
+      if (!dados.linha_digitavel && existente?.linha_digitavel) {
+        const mesmoBoleto =
+          Number(existente.valor) === dados.valor &&
+          SuperlogicaSyncService.diaDaColuna(existente.data_vencimento) ===
+            SuperlogicaSyncService.diaDoErp(dados.data_vencimento) &&
+          (existente.url_boleto ?? null) === (dados.url_boleto ?? null);
+        if (mesmoBoleto) dados.linha_digitavel = existente.linha_digitavel;
       }
-      // Boleto já pago não precisa de linha digitável: ninguém vai pagar de
-      // novo. Sem esse corte, a varredura profunda dispararia um fetch para
-      // cada cobrança de doze meses, uma a uma.
-      if (!dados.linha_digitavel && dados.url_boleto && !dados.pago) {
+      // Só boleto pendente precisa de linha digitável: o pago ninguém vai
+      // pagar de novo, e o que saiu da dívida não deve ser pago. Sem esse
+      // corte, a varredura profunda dispararia um fetch para cada cobrança de
+      // doze meses, uma a uma.
+      if (!dados.linha_digitavel && dados.url_boleto && dados.status === 'pendente') {
         dados.linha_digitavel = await SuperlogicaService.extrairLinhaDigitavel(dados.url_boleto);
       }
 
@@ -353,6 +410,8 @@ export class SuperlogicaSyncService implements OnModuleInit {
       //
       // Quando o ERP confirma o pagamento, aí sim 'pago' vence: a auditoria
       // perdeu o objeto.
+      // Vale também para cobrança que voltou com fl_status_recb desconhecido
+      // (mapeada fora da dívida): o comprovante em análise não some por isso.
       if (!dados.pago && existente?.status === '2') {
         dados.status = '2';
       }
@@ -384,8 +443,10 @@ export class SuperlogicaSyncService implements OnModuleInit {
       gravados++;
     }
 
+    const aposentadas = await this.aposentarSumidas(idCondominioClique, cobrancas, completa, inicio, fim, jaGravados);
+
     this.logger.log(
-      `Sync do condomínio ${idCondominioClique} (${mesesAtras}m atrás): ${gravados} lançamento(s), ${semApartamento} sem apartamento, ${descartadas} descartada(s).`,
+      `Sync do condomínio ${idCondominioClique} (${mesesAtras}m atrás): ${gravados} lançamento(s), ${semApartamento} sem apartamento, ${descartadas} descartada(s), ${aposentadas} aposentada(s).`,
     );
 
     return {
@@ -394,8 +455,108 @@ export class SuperlogicaSyncService implements OnModuleInit {
       semApartamento,
       descartadas,
       mesesAtras,
+      aposentadas,
       unidadesAmbiguas: [...unidadesAmbiguas],
     };
+  }
+
+  /**
+   * Tira da dívida a pendente da janela que não voltou do ERP.
+   *
+   * A leitura usa `status=validos`: cobrança cancelada, invalidada ou
+   * renegociada no ERP simplesmente não vem. Como o sync só fazia upsert, ela
+   * ficava "pendente" no Prestare para sempre — com Pix e linha digitável, e
+   * sem que o síndico pudesse apagá-la (baixa manual em origem='superlogica'
+   * é bloqueada).
+   *
+   * Concluir pela AUSÊNCIA é perigoso: aposentar uma cobrança válida esconde
+   * uma dívida real. Por isso só age quando:
+   * - a leitura foi completa (paginação até o fim, sem teto e sem página em
+   *   formato desconhecido; erro de rede/HTTP já interrompeu o sync antes);
+   * - veio ao menos uma cobrança (lista vazia de um condomínio que tem
+   *   pendentes é mais provável falha do ERP que cancelamento geral);
+   * - todas as cobranças lidas vencem dentro da janela pedida — sinal de que
+   *   o filtro dtInicio/dtFim do ERP é por vencimento, o mesmo critério usado
+   *   aqui para decidir o que "deveria ter vindo".
+   *
+   * Só mexe em pendente (pago=0, fora do '2' de comprovante em análise) de
+   * vencimento dentro da janela, e só com SUPERLOGICA_APOSENTAR_SUMIDAS=true. Não apaga
+   * nada: muda o status, e se a cobrança voltar ao ERP o upsert a regrava.
+   */
+  private async aposentarSumidas(
+    idCondominioClique: number,
+    cobrancas: { id_recebimento_recb: string | number; dt_vencimento_recb: string }[],
+    completa: boolean,
+    inicio: Date,
+    fim: Date,
+    jaGravados: {
+      id_externo: string | null;
+      status: string | null;
+      data_vencimento: Date | null;
+      pago: number;
+    }[],
+  ): Promise<number> {
+    // Desligada por padrão. Concluir pela ausência só é seguro se o filtro
+    // dtInicio/dtFim do cobranca/index for por VENCIMENTO, e isso ainda não foi
+    // conferido contra o ERP. Ligar (SUPERLOGICA_APOSENTAR_SUMIDAS=true) só
+    // depois de cancelar uma cobrança no condomínio "teste Api prestare" e
+    // confirmar o que a listagem devolve e qual data o filtro usa. Lida a cada
+    // chamada, como as outras flags do projeto.
+    if (process.env['SUPERLOGICA_APOSENTAR_SUMIDAS'] !== 'true') return 0;
+
+    if (!completa) {
+      this.logger.warn(`Condomínio ${idCondominioClique}: leitura do ERP incompleta — nenhuma cobrança aposentada.`);
+      return 0;
+    }
+    if (cobrancas.length === 0) return 0;
+
+    const diaInicio = inicio.toISOString().slice(0, 10);
+    const diaFim = fim.toISOString().slice(0, 10);
+    const dentro = (dia: string | null) => dia !== null && dia >= diaInicio && dia <= diaFim;
+
+    const foraDaJanela = cobrancas.filter(
+      (c) => !dentro(SuperlogicaSyncService.diaDoErp(SuperlogicaClient.parsearData(c.dt_vencimento_recb))),
+    );
+    if (foraDaJanela.length > 0) {
+      this.logger.warn(
+        `Condomínio ${idCondominioClique}: ${foraDaJanela.length} cobrança(s) do ERP vencem fora da janela ${diaInicio}..${diaFim} ` +
+          '(o filtro do ERP não é por vencimento?) — nenhuma cobrança aposentada.',
+      );
+      return 0;
+    }
+
+    const lidas = new Set(cobrancas.map((c) => String(c.id_recebimento_recb)));
+    const sumidas = jaGravados
+      .filter(
+        (f) =>
+          f.id_externo != null &&
+          !lidas.has(f.id_externo) &&
+          f.pago === 0 &&
+          f.status !== STATUS_LOCAL_FORA_DA_DIVIDA &&
+          // Comprovante em análise ('2') nunca é aposentado: o síndico tem um
+          // pagamento para conferir, e esse sinal não pode sumir sozinho.
+          f.status !== '2' &&
+          dentro(SuperlogicaSyncService.diaDaColuna(f.data_vencimento)),
+      )
+      .map((f) => f.id_externo as string);
+    if (sumidas.length === 0) return 0;
+
+    const r = await this.prisma.financeiro.updateMany({
+      where: {
+        id_condominio: idCondominioClique,
+        origem: 'superlogica',
+        id_externo: { in: sumidas },
+        pago: 0,
+        // Repete as exclusões no banco: o morador pode anexar comprovante
+        // entre a leitura acima e este update.
+        status: { notIn: ['2', STATUS_LOCAL_FORA_DA_DIVIDA] },
+      },
+      data: { status: STATUS_LOCAL_FORA_DA_DIVIDA },
+    });
+    this.logger.warn(
+      `Condomínio ${idCondominioClique}: ${r.count} pendente(s) sumiram do ERP e saíram da dívida (id_externo ${sumidas.join(', ')}).`,
+    );
+    return r.count;
   }
 
   /** Sincroniza todos os condomínios vinculados. Usado pelo tick horário. */

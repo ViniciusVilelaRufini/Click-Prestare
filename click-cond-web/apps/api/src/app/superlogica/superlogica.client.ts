@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { limiteExterno } from '../common/limitar-concorrencia';
+import { hojeBrasilia } from '../common/hora-brasilia.util';
 
 /** Bulkhead da Superlógica (máx. 4 em voo por instância — ver LIMITES_EXTERNOS). */
 const limitarSuperlogica = limiteExterno('superlogica');
@@ -85,11 +86,16 @@ export class SuperlogicaClient {
    * O ERP é americano. Mandar 01/02/2026 querendo 1º de fevereiro devolve
    * janeiro, silenciosamente — o filtro de período traz o mês errado sem erro
    * nenhum. Sempre usar este helper.
+   *
+   * O dia é o de Brasília: o servidor roda em UTC, e com `getDate()` o
+   * contato cadastrado entre 21:00 e 23:59 ia ao ERP com DT_ENTRADA_RES do dia
+   * seguinte.
    */
   static formatarData(data: Date): string {
-    const mes = String(data.getMonth() + 1).padStart(2, '0');
-    const dia = String(data.getDate()).padStart(2, '0');
-    return `${mes}/${dia}/${data.getFullYear()}`;
+    const dia = hojeBrasilia(data);
+    const mes = String(dia.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(dia.getUTCDate()).padStart(2, '0');
+    return `${mes}/${d}/${dia.getUTCFullYear()}`;
   }
 
   /**
@@ -147,10 +153,19 @@ export class SuperlogicaClient {
    * depois que a vaga sai.
    */
   get<T>(rota: string, params: Record<string, string | number> = {}): Promise<T[]> {
-    return limitarSuperlogica(() => this.getDireto<T>(rota, params));
+    return limitarSuperlogica(() => this.getDireto<T>(rota, params)).then((r) => r.itens);
   }
 
-  private async getDireto<T>(rota: string, params: Record<string, string | number>): Promise<T[]> {
+  /**
+   * `reconhecido` diz se o corpo veio no formato de listagem (array ou
+   * `{data: [...]}`). Fora disso `itens` é [] — e um [] que não é "a lista
+   * está vazia" não pode ser lido como fim da paginação por quem decide algo
+   * pela AUSÊNCIA de um registro (ver getPaginadoCompleto).
+   */
+  private async getDireto<T>(
+    rota: string,
+    params: Record<string, string | number>,
+  ): Promise<{ itens: T[]; reconhecido: boolean }> {
     const rotaValida = this.validarRota(rota, ROTAS_PERMITIDAS, 'leitura');
 
     const query = new URLSearchParams();
@@ -185,9 +200,9 @@ export class SuperlogicaClient {
 
       const dados = JSON.parse(texto);
       // Listagens vêm como array puro; alguns endpoints envelopam em {data}.
-      if (Array.isArray(dados)) return dados as T[];
-      if (Array.isArray(dados?.data)) return dados.data as T[];
-      return [];
+      if (Array.isArray(dados)) return { itens: dados as T[], reconhecido: true };
+      if (Array.isArray(dados?.data)) return { itens: dados.data as T[], reconhecido: true };
+      return { itens: [], reconhecido: false };
     } finally {
       clearTimeout(timer);
     }
@@ -257,21 +272,45 @@ export class SuperlogicaClient {
    * sinal de fim — a API não informa total de registros.
    */
   async getPaginado<T>(rota: string, params: Record<string, string | number> = {}): Promise<T[]> {
+    return (await this.getPaginadoCompleto<T>(rota, params)).itens;
+  }
+
+  /**
+   * Como `getPaginado`, dizendo também se a leitura foi COMPLETA: a paginação
+   * chegou ao fim (página incompleta) sem bater no teto de páginas e sem
+   * nenhuma página em formato desconhecido. Erro HTTP ou de rede lança, como
+   * em `get`.
+   *
+   * Quem conclui algo pela ausência de um registro (a cobrança que sumiu do
+   * ERP) só pode concluir com `completo === true`: numa leitura truncada, o
+   * que "não veio" pode simplesmente estar na página que não foi lida.
+   */
+  async getPaginadoCompleto<T>(
+    rota: string,
+    params: Record<string, string | number> = {},
+  ): Promise<{ itens: T[]; completo: boolean }> {
     const acumulado: T[] = [];
 
     for (let pagina = 1; pagina <= MAX_PAGINAS; pagina++) {
-      const lote = await this.get<T>(rota, {
-        ...params,
-        itensPorPagina: MAX_ITENS_POR_PAGINA,
-        pagina,
-      });
+      const { itens: lote, reconhecido } = await limitarSuperlogica(() =>
+        this.getDireto<T>(rota, {
+          ...params,
+          itensPorPagina: MAX_ITENS_POR_PAGINA,
+          pagina,
+        }),
+      );
 
       acumulado.push(...lote);
 
-      if (lote.length < MAX_ITENS_POR_PAGINA) return acumulado;
+      if (!reconhecido) {
+        this.logger.warn(`Página ${pagina} de ${rota} veio em formato desconhecido — leitura tratada como incompleta.`);
+        return { itens: acumulado, completo: false };
+      }
+
+      if (lote.length < MAX_ITENS_POR_PAGINA) return { itens: acumulado, completo: true };
     }
 
     this.logger.warn(`Paginação de ${rota} atingiu o teto de ${MAX_PAGINAS} páginas — resultado pode estar truncado.`);
-    return acumulado;
+    return { itens: acumulado, completo: false };
   }
 }

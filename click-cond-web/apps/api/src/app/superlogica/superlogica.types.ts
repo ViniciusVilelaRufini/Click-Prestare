@@ -76,3 +76,18 @@ export interface SuperlogicaCobranca {
  */
 export const STATUS_PENDENTE = '0';
 export const STATUS_PAGO = '3';
+
+/**
+ * Status LOCAL (coluna `Financeiro.status`, não o `fl_status_recb` do ERP) da
+ * cobrança que deixou de ser dívida viva sem ter sido paga: sumiu da listagem
+ * de válidas do ERP (cancelada, invalidada, renegociada lá) ou voltou com um
+ * `fl_status_recb` que não é pendente nem pago.
+ *
+ * É o mesmo '3' da dívida renegociada em acordo de propósito: todas as
+ * leituras de dívida em aberto já o excluem (`NAO_RENEGOCIADO` na
+ * inadimplência, no detalhe e na notificação do inadimplente, nos lembretes,
+ * na régua de WhatsApp e na tela do morador; o resumo do app e o assistente
+ * também filtram `status <> '3'`). Um valor novo exigiria acertar cada uma.
+ * Se a cobrança voltar a aparecer no ERP, o sync seguinte regrava o status.
+ */
+export const STATUS_LOCAL_FORA_DA_DIVIDA = '3';

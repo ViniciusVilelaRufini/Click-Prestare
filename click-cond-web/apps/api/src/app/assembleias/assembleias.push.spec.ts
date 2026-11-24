@@ -6,14 +6,18 @@ import { DocumentosService } from '../documentos/documentos.service';
  * (preferência `notif_comunicados`):
  *  - ao CONVOCAR assembleia (criação);
  *  - ao ABRIR enquete (criação; pauta de assembleia não, a convocação já avisa);
- *  - ao PUBLICAR ATA em Documentos, inclusive a gerada ao finalizar assembleia.
+ *  - ao PUBLICAR ATA, que só nasce ao finalizar assembleia (Documentos recusa ATA avulsa).
  * Edição não avisa. Falha de push nunca desfaz a gravação.
  */
 const sindico: any = { sub: 7, typeAccess: 'Sindico', user: { id: 7 } };
 const esvaziar = () => new Promise((r) => setImmediate(r));
 
 const FILTRO_MORADORES = {
-  where: { notif_comunicados: 1, fcm_token: { not: null }, moradores: { some: { id_condominio: 1 } } },
+  where: {
+    notif_comunicados: 1,
+    fcm_token: { not: null },
+    apartamentosUsers: { some: { apartamento: { id_condominio: 1 } } },
+  },
   select: { fcm_token: true },
 };
 
@@ -77,10 +81,10 @@ const tenant: any = {
   assertEntidade: jest.fn(async () => undefined),
 };
 
-function assembleias(opts: { falha?: boolean; prisma?: any } = {}) {
+function assembleias(opts: { falha?: boolean; prisma?: any; chatIa?: any } = {}) {
   const prisma = opts.prisma ?? prismaBase();
   const push = notificacoes(opts.falha);
-  const svc = new AssembleiasService(prisma, storage, tenant, push);
+  const svc = new AssembleiasService(prisma, storage, tenant, push, opts.chatIa);
   return { svc, prisma, push };
 }
 
@@ -233,24 +237,85 @@ describe('push ao publicar ATA', () => {
     expect(prisma.assembleias.delete).not.toHaveBeenCalled();
   });
 
-  describe('Documentos', () => {
-    function documentos(falha = false) {
+  // I3: a ATA nunca entrava no índice do assistente (só o upload de Documentos indexava).
+  describe('indexação da ATA para o assistente', () => {
+    const PDF = 'data:application/pdf;base64,JVBERi0xLjQK';
+
+    it('finalizar indexa a ATA (não a apuração) no condomínio da assembleia', async () => {
+      let proximoId = 62;
+      const prisma = prismaBase({
+        documentos: { create: jest.fn(async ({ data }: any) => ({ id: proximoId++, ...data })) },
+        votacoes: {
+          findMany: jest.fn(async () => [{
+            id: 10, id_condominio: 1, titulo: 'Contas', descricao: '',
+            data_inicio: new Date('2026-11-01T00:00:00Z'), data_termino: new Date('2026-11-05T00:00:00Z'),
+            opcoes: [{ id: 1, nome: 'Aprovar', votos: [] }, { id: 2, nome: 'Rejeitar', votos: [] }],
+          }]),
+        },
+      });
+      storage.uploadDataUrl
+        .mockResolvedValueOnce('https://bucket.s3.amazonaws.com/atas/1-ata.pdf')
+        .mockResolvedValueOnce('https://bucket.s3.amazonaws.com/atas/2-apuracao.txt');
+      const chatIa = { indexarDocumentoPorId: jest.fn(async () => ({ indexed: 3 })) };
+      const { svc } = assembleias({ prisma, chatIa });
+      await svc.finish(1, { id: 2, doc: PDF }, sindico);
+      await esvaziar();
+      expect(prisma.documentos.create).toHaveBeenCalledTimes(2);
+      expect(chatIa.indexarDocumentoPorId).toHaveBeenCalledTimes(1);
+      expect(chatIa.indexarDocumentoPorId).toHaveBeenCalledWith(1, 62);
+    });
+
+    it('falha na indexação não desfaz a finalização (best-effort)', async () => {
+      const chatIa = { indexarDocumentoPorId: jest.fn(async () => { throw new Error('Bedrock fora do ar'); }) };
+      const { svc, prisma } = assembleias({ chatIa });
+      await expect(svc.finish(1, { id: 2, doc: PDF }, sindico)).resolves.toEqual(
+        expect.objectContaining({ message: expect.any(String) }),
+      );
+      await esvaziar();
+      expect(chatIa.indexarDocumentoPorId).toHaveBeenCalledTimes(1);
+      expect(prisma.assembleias.updateMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('indexação que lança na hora (síncrono) também não derruba', async () => {
+      const chatIa = { indexarDocumentoPorId: jest.fn(() => { throw new Error('quebrou'); }) };
+      const { svc } = assembleias({ chatIa });
+      await expect(svc.finish(1, { id: 2, doc: PDF }, sindico)).resolves.toBeDefined();
+      await esvaziar();
+    });
+
+    it('finalização que falha não indexa', async () => {
       const prisma = prismaBase();
-      const push = notificacoes(falha);
+      prisma.$transaction = jest.fn(async () => { throw new Error('banco'); });
+      const chatIa = { indexarDocumentoPorId: jest.fn(async () => ({ indexed: 1 })) };
+      const { svc } = assembleias({ prisma, chatIa });
+      await expect(svc.finish(1, { id: 2, doc: PDF }, sindico)).rejects.toThrow();
+      await esvaziar();
+      expect(chatIa.indexarDocumentoPorId).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Documentos', () => {
+    // Documentos não avisa mais ninguém (o push da ATA é do finish()); o
+    // `push` aqui só prova que nada é enviado.
+    function documentos() {
+      const prisma = prismaBase();
+      const push = notificacoes();
       const chatIa: any = { indexarDocumentoPorId: jest.fn(async () => ({ indexed: 1 })) };
       const st: any = { isDataUrl: () => false, uploadDataUrl: jest.fn(), exigirArquivoDoRegistro: jest.fn(async () => undefined) };
-      const svc = new DocumentosService(prisma, st, tenant, chatIa, push);
+      const svc = new DocumentosService(prisma, st, tenant, chatIa);
       return { svc, prisma, push };
     }
 
     // Payload do app (new_document.dart) e do console: is_ata 1/true/'1'.
-    it.each([1, true, '1'])('ATA nova (is_ata = %j) avisa os moradores', async (isAta) => {
-      const { svc, push } = documentos();
-      await svc.insert(1, { nome: 'ATA AGO 2026', link_doc: 'https://cdn/ata.pdf', is_ata: isAta }, sindico);
+    // V1: ATA só nasce no finish() — a avulsa é recusada e ninguém é avisado.
+    it.each([1, true, '1'])('ATA avulsa (is_ata = %j) é recusada e não avisa', async (isAta) => {
+      const { svc, prisma, push } = documentos();
+      await expect(
+        svc.insert(1, { nome: 'ATA AGO 2026', link_doc: 'https://cdn/ata.pdf', is_ata: isAta }, sindico),
+      ).rejects.toThrow('A ATA é publicada ao finalizar a assembleia');
       await esvaziar();
-      expect(push.sendPushNotification).toHaveBeenCalledWith(
-        'tok-a', 'ATA publicada', 'ATA AGO 2026', { type: 'ata', id: '62' },
-      );
+      expect(prisma.documentos.create).not.toHaveBeenCalled();
+      expect(push.sendPushNotification).not.toHaveBeenCalled();
     });
 
     it('documento que não é ATA não avisa', async () => {
@@ -258,15 +323,6 @@ describe('push ao publicar ATA', () => {
       await svc.insert(1, { nome: 'Regimento', link_doc: 'https://cdn/r.pdf', is_ata: 0 }, sindico);
       await esvaziar();
       expect(push.sendPushNotification).not.toHaveBeenCalled();
-    });
-
-    it('falha no push não desfaz a publicação', async () => {
-      const { svc, prisma } = documentos(true);
-      await expect(
-        svc.insert(1, { nome: 'ATA', link_doc: 'https://cdn/ata.pdf', is_ata: 1 }, sindico),
-      ).resolves.toEqual({ success: true });
-      await esvaziar();
-      expect(prisma.documentos.create).toHaveBeenCalledTimes(1);
     });
   });
 });

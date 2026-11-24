@@ -312,6 +312,16 @@ Future<DeliveryResult> respostaDeliveryDoCard(String acao, int idPedido) =>
         ? apiVouBuscarDeliveryPorId(idPedido)
         : apiResponderDeliveryPorId(idPedido, autorizar: false);
 
+/// NEGAR da portaria tocado no card: `aceito` mostra "negado" na hora;
+/// recusado com 400/409 (a portaria já resolveu ou cancelou o pedido) fecha o
+/// card, como no delivery — antes ele ficava parado na tela.
+Future<({bool aceito, bool fecharCard})> negarPortariaDoCard(int idPedido) async {
+  final r = await apiResponderAutorizacaoComStatus(idPedido, false);
+  if (r.erro == null) return (aceito: true, fecharCard: false);
+  logDebug('Card ao vivo: negar recusado (${r.statusCode}): ${r.erro}');
+  return (aceito: false, fecharCard: respostaRecusadaFechaCard(r.statusCode));
+}
+
 /// Fase mostrada na hora, depois que a API aceitou o botão (o push do
 /// servidor confirma em seguida).
 String faseDepoisDoBotao(String acao) => acao == CardAndroid.acaoVouBuscar ? 'retirar' : 'recusado';
@@ -348,8 +358,8 @@ Future<void> respostaCardSegundoPlano(NotificationResponse r) async {
     }
     // "Vou buscar" só existe no delivery: nunca vira NEGAR de visitante.
     if (acao != CardAndroid.acaoNegar) return;
-    final res = await apiResponderAutorizacao(p.idPedido, false);
-    if (res is Map) {
+    final res = await negarPortariaDoCard(p.idPedido);
+    if (res.aceito) {
       // Mostra o resultado na hora; o push do servidor confirma em seguida.
       await CardAndroid.mostrar(
         idCartao: p.idCartao,
@@ -362,8 +372,8 @@ Future<void> respostaCardSegundoPlano(NotificationResponse r) async {
           'horaResposta': DateTime.now().millisecondsSinceEpoch ~/ 1000,
         },
       );
-    } else {
-      logDebug('Card ao vivo: negar recusado: $res');
+    } else if (res.fecharCard) {
+      await CardAndroid._plugin.cancel(id: p.idCartao);
     }
   } catch (e) {
     logDebug('Card ao vivo: negar falhou: $e');

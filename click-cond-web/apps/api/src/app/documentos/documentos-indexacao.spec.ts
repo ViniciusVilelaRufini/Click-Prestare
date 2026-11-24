@@ -43,7 +43,7 @@ describe('DocumentosService — indexação para o assistente', () => {
 
     await svc.insert(
       1,
-      { nome: 'Ata mes 07', link_doc: 'https://cdn/ata.pdf', is_ata: 1 },
+      { nome: 'Regimento', link_doc: 'https://cdn/regimento.pdf', is_ata: 0 },
       sindico,
     );
 

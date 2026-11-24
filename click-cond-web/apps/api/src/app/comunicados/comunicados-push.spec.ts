@@ -24,7 +24,13 @@ describe('ComunicadosService.create — push aos moradores', () => {
     await new Promise((r) => setImmediate(r));
 
     expect(prisma.users.findMany).toHaveBeenCalledWith({
-      where: { notif_comunicados: 1, fcm_token: { not: null }, moradores: { some: { id_condominio: 1 } } },
+      where: {
+        notif_comunicados: 1,
+        fcm_token: { not: null },
+        // Vínculo com unidade (Apartamentos_Users), não a linha em Moradores:
+        // essa sobrevive à exclusão da unidade e o ex-morador seguia avisado.
+        apartamentosUsers: { some: { apartamento: { id_condominio: 1 } } },
+      },
       select: { fcm_token: true },
     });
     expect(notifications.sendPushNotification).toHaveBeenCalledTimes(2);

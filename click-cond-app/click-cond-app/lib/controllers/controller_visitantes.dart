@@ -71,10 +71,13 @@ apiSaveVisitante(dynamic obj, bool isEdit) async {
 
 /// Portaria remota: lista as solicitações de autorização PENDENTES dos
 /// apartamentos do morador logado. GET /visitantes/pendentes.
-apiGetPendentes() async {
+/// [idCondominio] (o do push tocado) tem precedência sobre o condomínio aberto.
+apiGetPendentes({int? idCondominio}) async {
   final params = <String, String>{};
-  if (Singleton.instance.id_condominio != 0) {
-    params['id_condominio'] = Singleton.instance.id_condominio.toString();
+  final cond = idCondominio ?? Singleton.instance.id_condominio;
+  // Sem condomínio aberto (app aberto pela notificação), não manda "null".
+  if (cond != null && cond != 0) {
+    params['id_condominio'] = cond.toString();
   }
   final url = ApiConfig.buildUri('/visitantes/pendentes', params.isEmpty ? null : params);
   try {
@@ -98,27 +101,43 @@ apiGetPendentes() async {
 /// autorizar=false                  → POST /visitantes/:id/negar
 /// Retorna {} em sucesso ou a mensagem de erro.
 apiResponderAutorizacao(int idVisitante, bool autorizar, {bool darEntrada = false}) async {
+  final r = await apiResponderAutorizacaoComStatus(idVisitante, autorizar, darEntrada: darEntrada);
+  return r.erro == null ? {} : r.erro;
+}
+
+/// Igual a [apiResponderAutorizacao], mas devolve também o status HTTP
+/// (`null` = sem resposta: rede ou timeout). O card do Android decide por ele
+/// se fecha quando o servidor recusa o NEGAR (400/409), como no delivery.
+/// `erro` é null em sucesso.
+Future<({int? statusCode, dynamic erro})> apiResponderAutorizacaoComStatus(
+    int idVisitante, bool autorizar, {bool darEntrada = false}) async {
   final acao = autorizar ? 'autorizar' : 'negar';
   final url = ApiConfig.buildUri('/visitantes/$idVisitante/$acao');
   final headers = {
     "Authorization": getToken(),
     "Content-Type": "application/json; charset=utf-8"
   };
+  final dynamic response;
   try {
     final body = autorizar ? {'darEntrada': darEntrada} : {};
-    final response = await ApiClient.post(
+    response = await ApiClient.post(
       url,
       headers: headers,
       body: json.encode(body),
       encoding: utf8,
     ).timeout(ApiConfig.timeout);
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return {};
-    }
-    final parsed = jsonDecode(response.body);
-    return parsed['message'] ?? "Erro ao responder solicitação";
   } catch (e) {
-    return "Falha de comunicação com o servidor.";
+    return (statusCode: null, erro: "Falha de comunicação com o servidor.");
+  }
+  final int status = response.statusCode;
+  if (status >= 200 && status < 300) {
+    return (statusCode: status, erro: null);
+  }
+  try {
+    final parsed = jsonDecode(response.body);
+    return (statusCode: status, erro: parsed['message'] ?? "Erro ao responder solicitação");
+  } catch (e) {
+    return (statusCode: status, erro: "Falha de comunicação com o servidor.");
   }
 }
 

@@ -59,12 +59,14 @@ describe('VisitantesService — autorização de tenant (IDOR)', () => {
       const { svc, prisma } = buildService();
       await expect(svc.liberarAcesso(500, porteiroCond1)).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.visitantes.update).not.toHaveBeenCalled();
+      expect(prisma.visitantes.updateMany).not.toHaveBeenCalled();
     });
 
     it('PERMITE porteiro do mesmo condomínio', async () => {
       const { svc, prisma } = buildService();
       await svc.liberarAcesso(500, porteiroCond2);
-      expect(prisma.visitantes.update).toHaveBeenCalled();
+      // A liberação do console grava condicionada à negativa (updateMany).
+      expect(prisma.visitantes.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ id: 500 }) }));
     });
   });
 

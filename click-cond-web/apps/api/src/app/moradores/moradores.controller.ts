@@ -1,12 +1,13 @@
 import {
-  Body, Controller, Delete, ForbiddenException, Get, Param, ParseIntPipe, Post, Put, Query,
+  Body, BadRequestException, Controller, Delete, ForbiddenException, Get, Param, ParseIntPipe, Post, Put, Query,
 } from '@nestjs/common';
 import { CreateMoradorDto, MoradoresService } from './moradores.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
-import { assertOperador, assertStaff } from '../auth/tenant.util';
+import { assertOperador, assertStaff, isSindicoEstrito } from '../auth/tenant.util';
+import { autorDoToken } from '../auth/usuario-do-token.util';
 
 /**
  * Superfície do CONSOLE (portaria-web). Enxerga o cadastro de moradores do
@@ -45,10 +46,17 @@ export class MoradoresController {
   ) {
     // Planilha com o cadastro inteiro do prédio: protegido e auditado conforme LGPD (Art. 46)
     assertOperador(user, 'exportar a lista de moradores');
-    const deveMascarar = mascarar !== 'false';
+    // Finalidade é obrigatória para todos (LGPD Art. 6º, I): sem ela não há o que registrar.
+    const finalidadeInformada = typeof finalidade === 'string' ? finalidade.trim() : '';
+    if (!finalidadeInformada) {
+      throw new BadRequestException('Informe a finalidade da exportação.');
+    }
+    // Só o síndico estrito exporta o CPF inteiro; para os demais a máscara é forçada (a exportação sai, protegida).
+    const deveMascarar = isSindicoEstrito(user) ? mascarar !== 'false' : true;
     return this.service.exportExcel(idCondominio, {
       mascarar: deveMascarar,
-      finalidade,
+      finalidade: finalidadeInformada,
+      ...autorDoToken(user),
       usuarioNome: user.nome || 'Operador',
       usuarioEmail: (user as any)?.email,
     });

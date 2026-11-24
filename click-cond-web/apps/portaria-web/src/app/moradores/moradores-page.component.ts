@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal, effect, untracked } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, computed, inject, signal, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CreateMorador, Morador, MoradoresApi, MoradorAtividade, SindicoOption } from './moradores.service';
@@ -39,6 +39,7 @@ export class MoradoresPageComponent implements OnInit {
   private confirm = inject(ConfirmService);
   private auth = inject(AuthService);
   private toast = inject(ToastService);
+  private cdr = inject(ChangeDetectorRef);
   private route = inject(ActivatedRoute);
 
   idCondominioAtual = () => this.auth.porteiroInfo()?.id_condominio ?? null;
@@ -375,6 +376,8 @@ export class MoradoresPageComponent implements OnInit {
         if (this.abrindoEdicaoId !== m.id) return;
         this.abrindoEdicaoId = null;
         this.montarEdicao({ ...m, ...ficha });
+        // Zoneless: showForm é campo comum e esta resposta HTTP não passa por evento do template.
+        this.cdr.markForCheck();
       },
       error: (e) => {
         if (this.abrindoEdicaoId !== m.id) return;

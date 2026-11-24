@@ -101,8 +101,16 @@ describe('SuperlogicaClient — datas', () => {
    */
   it('formata no padrão americano da Superlógica', () => {
     // 1º de fevereiro de 2026 → 02/01/2026, e não 01/02/2026.
-    expect(SuperlogicaClient.formatarData(new Date(2026, 1, 1))).toBe('02/01/2026');
-    expect(SuperlogicaClient.formatarData(new Date(2026, 11, 25))).toBe('12/25/2026');
+    expect(SuperlogicaClient.formatarData(new Date('2026-02-01T12:00:00Z'))).toBe('02/01/2026');
+    expect(SuperlogicaClient.formatarData(new Date('2026-12-25T12:00:00Z'))).toBe('12/25/2026');
+  });
+
+  it('usa o dia de Brasília, não o de UTC (servidor roda em UTC)', () => {
+    // 23:30 de 14/11 em Brasília já é 15/11 em UTC. O DT_ENTRADA_RES do
+    // contato cadastrado à noite ia ao ERP com o dia seguinte.
+    expect(SuperlogicaClient.formatarData(new Date('2026-11-15T02:30:00Z'))).toBe('11/14/2026');
+    // Virada de mês e de ano à noite.
+    expect(SuperlogicaClient.formatarData(new Date('2027-01-01T01:00:00Z'))).toBe('12/31/2026');
   });
 
   it('parseia data com hora', () => {
@@ -167,5 +175,49 @@ describe('SuperlogicaClient — paginação', () => {
 
     expect(todos).toHaveLength(12);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  describe('getPaginadoCompleto — só diz "completa" quando leu até o fim', () => {
+    // O sync tira da dívida a cobrança que NÃO veio. Numa leitura truncada, a
+    // que não veio pode estar na página que não foi lida.
+    it('completa quando a paginação termina numa página incompleta', async () => {
+      fetchMock.mockResolvedValueOnce(pagina(50)).mockResolvedValueOnce(pagina(3));
+
+      const r = await client.getPaginadoCompleto('cobranca/index', { idCondominio: 24 });
+
+      expect(r.itens).toHaveLength(53);
+      expect(r.completo).toBe(true);
+    });
+
+    it('INCOMPLETA quando bate no teto de páginas', async () => {
+      fetchMock.mockImplementation(async () => pagina(50));
+
+      const r = await client.getPaginadoCompleto('cobranca/index', { idCondominio: 24 });
+
+      expect(r.completo).toBe(false);
+      expect(fetchMock).toHaveBeenCalledTimes(200);
+    });
+
+    it('INCOMPLETA quando uma página vem em formato desconhecido', async () => {
+      // {"msg": ...} com 200 era lido como lista vazia — isto é, "acabou".
+      fetchMock
+        .mockResolvedValueOnce(pagina(50))
+        .mockResolvedValueOnce({ ok: true, status: 200, text: async () => JSON.stringify({ msg: 'instável' }) });
+
+      const r = await client.getPaginadoCompleto('cobranca/index', { idCondominio: 24 });
+
+      expect(r.itens).toHaveLength(50);
+      expect(r.completo).toBe(false);
+    });
+
+    it('erro HTTP no meio lança em vez de devolver parcial', async () => {
+      fetchMock
+        .mockResolvedValueOnce(pagina(50))
+        .mockResolvedValueOnce({ ok: false, status: 500, text: async () => 'erro' });
+
+      await expect(client.getPaginadoCompleto('cobranca/index', { idCondominio: 24 })).rejects.toBeInstanceOf(
+        SuperlogicaHttpError,
+      );
+    });
   });
 });

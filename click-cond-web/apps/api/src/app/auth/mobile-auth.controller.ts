@@ -791,6 +791,16 @@ export class EncomendasMobileController {
   }
 }
 
+/**
+ * Unidade aberta no app (`id_apartamento`, opcional): só escolhe entre os
+ * vínculos do próprio usuário (o serviço confere e dá 403). O app já publicado
+ * não manda — undefined, e o serviço usa o vínculo mais antigo.
+ */
+function unidadeDoApp(v: unknown): number | undefined {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : undefined;
+}
+
 // ==========================================
 // VEÍCULOS (app do morador) — paridade com as rotas Express /veiculos/*
 // ==========================================
@@ -800,36 +810,40 @@ export class VeiculosMobileController {
   constructor(private readonly service: MobileAuthService) {}
 
   @Get('get-all')
-  getAll(@ReqUser() payload: JwtPayload, @Query('id_condominio') idCondominio?: string) {
+  getAll(
+    @ReqUser() payload: JwtPayload,
+    @Query('id_condominio') idCondominio?: string,
+    @Query('id_apartamento') idApartamento?: string,
+  ) {
     const idUser = payload.user?.id ?? payload.sub;
-    return this.service.listVeiculosByUser(Number(idUser), Number(idCondominio));
+    return this.service.listVeiculosByUser(Number(idUser), Number(idCondominio), unidadeDoApp(idApartamento));
   }
 
   @Post('insert')
   insert(
     @ReqUser() payload: JwtPayload,
-    @Body() body: { id_condominio: number | string; veiculo: any },
+    @Body() body: { id_condominio: number | string; id_apartamento?: number | string; veiculo: any },
   ) {
     const idUser = payload.user?.id ?? payload.sub;
-    return this.service.criarVeiculoMorador(Number(idUser), Number(body.id_condominio), body.veiculo);
+    return this.service.criarVeiculoMorador(Number(idUser), Number(body.id_condominio), body.veiculo, unidadeDoApp(body.id_apartamento));
   }
 
   @Post('update')
   update(
     @ReqUser() payload: JwtPayload,
-    @Body() body: { id_condominio: number | string; veiculo: any },
+    @Body() body: { id_condominio: number | string; id_apartamento?: number | string; veiculo: any },
   ) {
     const idUser = payload.user?.id ?? payload.sub;
-    return this.service.atualizarVeiculoMorador(Number(idUser), Number(body.id_condominio), body.veiculo);
+    return this.service.atualizarVeiculoMorador(Number(idUser), Number(body.id_condominio), body.veiculo, unidadeDoApp(body.id_apartamento));
   }
 
   @Post('remove')
   remove(
     @ReqUser() payload: JwtPayload,
-    @Body() body: { id: number; id_condominio: number | string },
+    @Body() body: { id: number; id_condominio: number | string; id_apartamento?: number | string },
   ) {
     const idUser = payload.user?.id ?? payload.sub;
-    return this.service.removerVeiculoMorador(Number(idUser), Number(body.id_condominio), Number(body.id));
+    return this.service.removerVeiculoMorador(Number(idUser), Number(body.id_condominio), Number(body.id), unidadeDoApp(body.id_apartamento));
   }
 }
 
@@ -842,15 +856,23 @@ export class VagasMobileController {
   constructor(private readonly service: MobileAuthService) {}
 
   @Get('get-all')
-  getAll(@ReqUser() payload: JwtPayload, @Query('id_condominio') idCondominio?: string) {
+  getAll(
+    @ReqUser() payload: JwtPayload,
+    @Query('id_condominio') idCondominio?: string,
+    @Query('id_apartamento') idApartamento?: string,
+  ) {
     const idUser = payload.user?.id ?? payload.sub;
-    return this.service.listVagasByUser(Number(idUser), Number(idCondominio));
+    return this.service.listVagasByUser(Number(idUser), Number(idCondominio), unidadeDoApp(idApartamento));
   }
 
   @Get('beneficiarios')
-  beneficiarios(@ReqUser() payload: JwtPayload, @Query('id_condominio') idCondominio?: string) {
+  beneficiarios(
+    @ReqUser() payload: JwtPayload,
+    @Query('id_condominio') idCondominio?: string,
+    @Query('id_apartamento') idApartamento?: string,
+  ) {
     const idUser = payload.user?.id ?? payload.sub;
-    return this.service.listBeneficiariosVaga(Number(idUser), Number(idCondominio));
+    return this.service.listBeneficiariosVaga(Number(idUser), Number(idCondominio), unidadeDoApp(idApartamento));
   }
 
   @Post('liberar')
@@ -859,16 +881,16 @@ export class VagasMobileController {
     @Body() body: { id_condominio: number | string } & Record<string, any>,
   ) {
     const idUser = payload.user?.id ?? payload.sub;
-    return this.service.liberarVaga(Number(idUser), Number(body.id_condominio), body);
+    return this.service.liberarVaga(Number(idUser), Number(body.id_condominio), body, unidadeDoApp(body.id_apartamento));
   }
 
   @Post('revogar')
   revogar(
     @ReqUser() payload: JwtPayload,
-    @Body() body: { id: number; id_condominio: number | string },
+    @Body() body: { id: number; id_condominio: number | string; id_apartamento?: number | string },
   ) {
     const idUser = payload.user?.id ?? payload.sub;
-    return this.service.revogarVaga(Number(idUser), Number(body.id_condominio), Number(body.id));
+    return this.service.revogarVaga(Number(idUser), Number(body.id_condominio), Number(body.id), unidadeDoApp(body.id_apartamento));
   }
 }
 

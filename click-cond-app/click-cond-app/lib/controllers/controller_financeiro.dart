@@ -22,8 +22,9 @@ Never _throwHttpError(dynamic response) {
   throw Exception(msg);
 }
 
-apiGetAllFinanceiro(String route, String mes, String ano) async {
-  var url = ApiConfig.buildUri('/$route/get-all',{'id_condominio': Singleton.instance.id_condominio.toString(), 'mes':mes, 'ano':ano});
+/// [idCondominio] (o do push tocado) tem precedência sobre o condomínio aberto.
+apiGetAllFinanceiro(String route, String mes, String ano, {int? idCondominio}) async {
+  var url = ApiConfig.buildUri('/$route/get-all',{'id_condominio': (idCondominio ?? Singleton.instance.id_condominio).toString(), 'mes':mes, 'ano':ano});
   dynamic response;
   try {
     response = await ApiClient.get(url);
@@ -69,8 +70,16 @@ apiNotificarInadimplente(String bloco, String apto) async {
         "apto": apto,
       }),
     );
-    if (response.statusCode == 200) {
-      final body = jsonDecode(response.body);
+    // Qualquer 2xx: o resultado vem no `success` do corpo. Exigir 200 fazia o
+    // 201 do servidor aparecer como falha depois de enviar, e o síndico
+    // reenviava (push e e-mail duplicados).
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      dynamic body;
+      try {
+        body = jsonDecode(response.body);
+      } catch (_) {
+        body = null;
+      }
       return body is Map ? body : { "success": true };
     }
     // Não-200 (403 de permissão, 500) também traz {message} em português do
@@ -119,9 +128,9 @@ apiUploadComprovante(int id, String fileBase64) async {
   }
 }
 
-apiGetFinanceiroByUser() async {
+apiGetFinanceiroByUser({int? idCondominio}) async {
   var url = ApiConfig.buildUri('/financeiro/get-by-user', {
-    'id_condominio': Singleton.instance.id_condominio.toString(),
+    'id_condominio': (idCondominio ?? Singleton.instance.id_condominio).toString(),
     'id_user': getUserId()
   });
   dynamic response;
@@ -137,13 +146,13 @@ apiGetFinanceiroByUser() async {
   _throwHttpError(response);
 }
 
-apiInsertMoradorFinanceiro(Map<String, dynamic> data) async {
+apiInsertMoradorFinanceiro(Map<String, dynamic> data, {int? idCondominio}) async {
   var url = ApiConfig.buildUri('/financeiro/morador/insert');
   try {
     var response = await ApiClient.post(
       url,
       body: jsonEncode({
-        "id_condominio": Singleton.instance.id_condominio.toString(),
+        "id_condominio": (idCondominio ?? Singleton.instance.id_condominio).toString(),
         "data": data
       })
     );
@@ -153,13 +162,13 @@ apiInsertMoradorFinanceiro(Map<String, dynamic> data) async {
   }
 }
 
-apiUpdateMoradorFinanceiro(Map<String, dynamic> data) async {
+apiUpdateMoradorFinanceiro(Map<String, dynamic> data, {int? idCondominio}) async {
   var url = ApiConfig.buildUri('/financeiro/morador/update');
   try {
     var response = await ApiClient.post(
       url,
       body: jsonEncode({
-        "id_condominio": Singleton.instance.id_condominio.toString(),
+        "id_condominio": (idCondominio ?? Singleton.instance.id_condominio).toString(),
         "data": data
       })
     );

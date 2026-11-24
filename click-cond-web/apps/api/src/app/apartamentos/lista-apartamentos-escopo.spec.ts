@@ -1,5 +1,6 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { ApartamentosController } from './apartamentos.controller';
+import { ApartamentosService } from './apartamentos.service';
 import { MobileAuthService } from '../auth/mobile-auth.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
@@ -92,5 +93,86 @@ describe('removeApto do app delega para o ApartamentosService', () => {
     const r: any = await svc.removeApto(5, sindico);
     expect(apartamentos.remove).toHaveBeenCalledWith(5, sindico);
     expect(r.arrastados.visitantes).toBe(7);
+  });
+});
+
+/**
+ * V3 — o cadastro de unidade pelo app tinha a sua própria cópia do create e
+ * não deduplicava: "A"/"Bloco A", "0101"/"101" e bloco NULL × '' passavam
+ * pelo @@unique e viravam duas linhas da mesma unidade (quórum inflado; com
+ * proprietário numa e inquilino na outra, dois votos). Agora delega ao
+ * ApartamentosService, como o removeApto.
+ */
+describe('saveApto do app delega para o ApartamentosService', () => {
+  function montar(existentes: any[] = []) {
+    const prisma: any = {
+      isConnected: true,
+      apartamentos: {
+        findMany: jest.fn(async () => existentes),
+        findUnique: jest.fn(async () => ({ id: 5, id_condominio: 1, bloco: 'A', apto: '101' })),
+        create: jest.fn(async ({ data }: any) => ({ id: 99, ...data })),
+        update: jest.fn(async ({ data }: any) => ({ id: 5, bloco: 'A', apto: '101', ...data })),
+      },
+      apartamentos_Users: { findMany: jest.fn(async () => []) },
+      moradores: { findMany: jest.fn(async () => []), updateMany: jest.fn() },
+    };
+    prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
+    const tenant: any = {
+      assertCondominio: jest.fn(async () => undefined),
+      assertEntidade: jest.fn(async () => undefined),
+      assertPermissaoFuncionario: jest.fn(async () => undefined),
+    };
+    // Real: é a dedup dele que o app passa a ganhar.
+    const apartamentos = new ApartamentosService(prisma, tenant, {} as any);
+    jest.spyOn(apartamentos, 'create');
+    jest.spyOn(apartamentos, 'update');
+    const svc = new MobileAuthService(
+      prisma, { sign: jest.fn() } as any, {} as any, {} as any, {} as any,
+      tenant, {} as any, apartamentos,
+    );
+    return { svc, prisma, apartamentos };
+  }
+
+  it.each([
+    ['Bloco A', '101'],
+    ['A', '0101'],
+    [' a ', 'Apto 101'],
+  ])('recusa %j/%j quando já existe A/101 (sem gravar)', async (bloco, apto) => {
+    const { svc, prisma } = montar([{ id: 1, bloco: 'A', apto: '101' }]);
+    await expect(
+      svc.saveApto({ id_condominio: 1, Apartamento: { bloco, apto } }, false, sindico),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.apartamentos.create).not.toHaveBeenCalled();
+  });
+
+  it("bloco '' × NULL é a mesma unidade", async () => {
+    const { svc, prisma } = montar([{ id: 1, bloco: null, apto: '7' }]);
+    await expect(
+      svc.saveApto({ id_condominio: 1, Apartamento: { bloco: '', apto: '7' } }, false, sindico),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.apartamentos.create).not.toHaveBeenCalled();
+  });
+
+  it('unidade nova é criada pelo service único, com os campos do app', async () => {
+    const { svc, prisma, apartamentos } = montar([{ id: 1, bloco: 'A', apto: '101' }]);
+    const r: any = await svc.saveApto(
+      { id_condominio: '1', Apartamento: { bloco: 'B', apto: '101', fracao: '0,5', qtd_vagas: '2' } },
+      false,
+      sindico,
+    );
+    expect(apartamentos.create).toHaveBeenCalledWith(
+      { bloco: 'B', apto: '101', fracao: '0,5', qtd_vagas: '2', id_condominio: 1 },
+      sindico,
+    );
+    expect(prisma.apartamentos.create.mock.calls[0][0].data).toEqual({
+      bloco: 'B', apto: '101', fracao: '0,5', qtd_vagas: 2, id_condominio: 1,
+    });
+    expect(r.id).toBe(99);
+  });
+
+  it('edição delega ao update (só os campos enviados)', async () => {
+    const { svc, apartamentos } = montar();
+    await svc.saveApto({ id_condominio: 1, Apartamento: { id: 5, apto: '102' } }, true, sindico);
+    expect(apartamentos.update).toHaveBeenCalledWith(5, { apto: '102' }, sindico);
   });
 });

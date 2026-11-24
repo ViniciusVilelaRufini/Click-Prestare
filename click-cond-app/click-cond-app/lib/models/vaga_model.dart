@@ -1,3 +1,5 @@
+import 'package:click/utils/datas.dart';
+
 /// Uma vaga ocupada/liberada do apartamento. As vagas livres não têm registro
 /// (livres = qtd_vagas - vagas ativas), então este model representa só as ocupadas.
 class VagaModel {
@@ -26,10 +28,10 @@ class VagaModel {
   bool get isVisitante => tipoOcupacao == 'visitante';
   bool get isInquilino => tipoOcupacao == 'inquilino';
 
-  static DateTime? _parseDate(dynamic v) {
-    if (v == null) return null;
-    return DateTime.tryParse(v.toString());
-  }
+  // No fuso do aparelho: a API manda ISO em UTC e a tela lê dia/mês do
+  // DateTime — sem a conversão, o período aparecia no dia UTC (uma vaga até
+  // 22h de Brasília mostrava o dia seguinte).
+  static DateTime? _parseDate(dynamic v) => parseDataApi(v);
 
   factory VagaModel.fromJson(Map<String, dynamic> json) {
     return VagaModel(

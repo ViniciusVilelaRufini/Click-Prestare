@@ -43,6 +43,8 @@ class ListEncomendasState extends State<ListEncomendas> {
   bool _isLoading = false;
   List<EncomendaModel> _encomendas = [];
   bool _jaAbriuDestaque = false;
+  /// Aviso de encomenda (pré-registro) sendo enviado: trava o "Cadastrar".
+  bool _salvandoRastreio = false;
   EncomendaFiltro _filtro = EncomendaFiltro.todas;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
@@ -437,6 +439,7 @@ class ListEncomendasState extends State<ListEncomendas> {
     final txtCodigo = TextEditingController();
     final txtValidacao = TextEditingController();
     String selectedCarrier = 'Correios';
+    _salvandoRastreio = false;
 
     showDialog(
       context: context,
@@ -535,16 +538,26 @@ class ListEncomendasState extends State<ListEncomendas> {
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         elevation: 0,
                       ),
-                      onPressed: () async {
+                      // Trava de toque duplo: o segundo toque durante o envio
+                      // cadastrava o mesmo aviso duas vezes.
+                      onPressed: _salvandoRastreio ? null : () async {
+                        if (_salvandoRastreio) return;
                         if (formKey.currentState?.validate() ?? false) {
                           final isDelivery = _isDeliveryCarrier(selectedCarrier);
-                          final success = await apiCadastrarRastreio(
-                            txtDescricao.text,
-                            selectedCarrier,
-                            codigoRastreio: isDelivery ? null : (txtCodigo.text.trim().isEmpty ? null : txtCodigo.text.trim()),
-                            codigoValidacao: isDelivery ? (txtValidacao.text.trim().isEmpty ? null : txtValidacao.text.trim()) : null,
-                          );
+                          setState(() => _salvandoRastreio = true);
+                          bool success = false;
+                          try {
+                            success = await apiCadastrarRastreio(
+                              txtDescricao.text,
+                              selectedCarrier,
+                              codigoRastreio: isDelivery ? null : (txtCodigo.text.trim().isEmpty ? null : txtCodigo.text.trim()),
+                              codigoValidacao: isDelivery ? (txtValidacao.text.trim().isEmpty ? null : txtValidacao.text.trim()) : null,
+                            );
+                          } finally {
+                            _salvandoRastreio = false;
+                          }
                           if (!context.mounted) return;
+                          if (!success) setState(() {});
                           if (success) {
                             Navigator.pop(context);
                             _loadList();

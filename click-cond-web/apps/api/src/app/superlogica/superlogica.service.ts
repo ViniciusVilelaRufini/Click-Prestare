@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SuperlogicaClient } from './superlogica.client';
 import {
+  STATUS_LOCAL_FORA_DA_DIVIDA,
   STATUS_PAGO,
+  STATUS_PENDENTE,
   SuperlogicaCobranca,
   SuperlogicaCondominio,
   SuperlogicaUnidade,
@@ -91,13 +93,17 @@ export class SuperlogicaService {
    *
    * `status=validos` traz pendentes e pagas, excluindo canceladas e
    * invalidadas — que não devem aparecer para o morador.
+   *
+   * `completa` diz se a paginação chegou ao fim sem truncar (ver
+   * `getPaginadoCompleto`). Só com ela o sync pode concluir que uma cobrança
+   * que não veio deixou de valer no ERP.
    */
   async listarCobrancas(
     idCondominioSuperlogica: number,
     inicio: Date,
     fim: Date,
-  ): Promise<SuperlogicaCobranca[]> {
-    return this.client.getPaginado<SuperlogicaCobranca>('cobranca/index', {
+  ): Promise<{ cobrancas: SuperlogicaCobranca[]; completa: boolean }> {
+    const { itens, completo } = await this.client.getPaginadoCompleto<SuperlogicaCobranca>('cobranca/index', {
       idCondominio: idCondominioSuperlogica,
       status: 'validos',
       apenasColunasPrincipais: 1,
@@ -105,6 +111,7 @@ export class SuperlogicaService {
       dtInicio: SuperlogicaClient.formatarData(inicio),
       dtFim: SuperlogicaClient.formatarData(fim),
     });
+    return { cobrancas: itens, completa: completo };
   }
 
   /**
@@ -164,6 +171,15 @@ export class SuperlogicaService {
     }
 
     const pago = cobranca.fl_status_recb === STATUS_PAGO;
+    // Pendente é só o '0'. Qualquer outro código (a documentação não descreve
+    // nenhum) virava dívida no Prestare, com Pix e linha digitável; agora fica
+    // fora da dívida até alguém confirmar o que ele significa.
+    const pendente = cobranca.fl_status_recb === STATUS_PENDENTE;
+    if (!pago && !pendente) {
+      this.logger.warn(
+        `Cobrança ${cobranca.id_recebimento_recb} com fl_status_recb "${cobranca.fl_status_recb}" desconhecido — gravada fora da dívida.`,
+      );
+    }
     const liquidacao = SuperlogicaClient.parsearData(cobranca.dt_liquidacao_recb);
 
     return {
@@ -180,7 +196,7 @@ export class SuperlogicaService {
       // `data` é a data do pagamento; fica no vencimento enquanto pendente.
       data: liquidacao ?? vencimento,
       pago: pago ? 1 : 0,
-      status: pago ? 'pago' : 'pendente',
+      status: pago ? 'pago' : pendente ? 'pendente' : STATUS_LOCAL_FORA_DA_DIVIDA,
       descricao: cobranca.st_documento_recb || null,
       linha_digitavel: (cobranca as any).st_linhadigitavel_recb || null,
       pix_copia_cola: cobranca.st_pixqrcode_recb || null,

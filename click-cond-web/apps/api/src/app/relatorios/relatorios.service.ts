@@ -8,7 +8,7 @@ import { csvCelula } from '../common/csv.util';
 import { autorOcorrencia } from '../ocorrencias/autor-ocorrencia.util';
 import { formatarApto } from '../common/formatar-apto.util';
 import { normalizarBloco } from '../common/rotulo-bloco.util';
-import { AuditoriaService } from '../auditoria/auditoria.service';
+import { AuditoriaService, type AuditoriaAutorTipo } from '../auditoria/auditoria.service';
 import { ocorrenciaSolucionada as solucionada } from '../common/status-ocorrencia.util';
 import {
   FiltroEspinha,
@@ -75,6 +75,22 @@ const formatDateTime = (d: Date | null | undefined): string => {
   });
 };
 
+/** Auditoria em CSV: horário de Brasília com segundos (o log é de segundos). */
+const formatDateTimeSegundos = (d: Date | null | undefined): string => {
+  if (!d) return '';
+  return new Date(d).toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+};
+
+const LIMITE_CSV_AUDITORIA = 10_000;
+
 const formatDateOnly = (d: Date | null | undefined): string => {
   if (!d) return '-';
   return new Date(d).toLocaleDateString('pt-BR', {
@@ -117,6 +133,15 @@ const getGeradoEmStr = (): string => {
   return `${dateStr} às ${timeStr}`;
 };
 
+/** Quem baixou: autor do token (`autorDoToken`) e IP da requisição. */
+export interface SolicitanteRelatorio {
+  nome?: string;
+  email?: string;
+  autor_id?: number | null;
+  autor_tipo?: AuditoriaAutorTipo | null;
+  ip?: string;
+}
+
 @Injectable()
 export class RelatoriosService {
   constructor(
@@ -125,6 +150,10 @@ export class RelatoriosService {
     @Optional() private readonly auditoria?: AuditoriaService,
   ) {}
 
+  /**
+   * Gera o relatório e deixa o rastro do download (LGPD): tipo, formato, filtros, linhas, autor e IP.
+   * O `AuditInterceptor` ignora GET, então o registro tem que sair daqui.
+   */
   async generate(
     idCondominio: number,
     tipo: 'visitantes' | 'encomendas' | 'ocorrencias' | 'financeiro',
@@ -134,6 +163,63 @@ export class RelatoriosService {
     bloco?: string,
     apto?: string,
     opcoes: OpcoesRelatorioFinanceiro = {},
+    solicitante?: SolicitanteRelatorio,
+  ): Promise<{ buffer: Buffer; mime: string; filename: string }> {
+    const contagem = { linhas: 0 };
+    const arquivo = await this.montarRelatorio(
+      idCondominio, tipo, formato, dataInicio, dataFim, bloco, apto, opcoes, contagem,
+    );
+    await this.registrarDownloadRelatorio(idCondominio, solicitante, {
+      tipo,
+      formato,
+      dataInicio,
+      dataFim,
+      bloco: bloco?.trim() || undefined,
+      apto: apto?.trim() || undefined,
+      incluirTaxasCondominiais: opcoes.incluirTaxasCondominiais === true,
+    }, contagem.linhas);
+    return arquivo;
+  }
+
+  /** Nunca derruba o download: se o registro falhar, só loga. */
+  private async registrarDownloadRelatorio(
+    idCondominio: number,
+    solicitante: SolicitanteRelatorio | undefined,
+    filtros: Record<string, unknown>,
+    linhas: number,
+  ): Promise<void> {
+    const tipo = String(filtros['tipo']);
+    const formato = String(filtros['formato']);
+    try {
+      if (this.auditoria) {
+        await this.auditoria.registrar({
+          id_condominio: idCondominio,
+          usuario_nome: solicitante?.nome || 'Operador',
+          usuario_email: solicitante?.email,
+          autor_id: solicitante?.autor_id ?? null,
+          autor_tipo: solicitante?.autor_tipo ?? null,
+          acao: 'EXPORT',
+          modulo: 'relatorios',
+          descricao: `Download do relatório de ${tipo} em ${formato} (${linhas} linhas)`,
+          detalhes: { filtros, linhas },
+          ip: solicitante?.ip,
+        });
+      }
+    } catch (e) {
+      console.error('[RelatoriosService] Falha ao registrar o download do relatório:', e);
+    }
+  }
+
+  private async montarRelatorio(
+    idCondominio: number,
+    tipo: 'visitantes' | 'encomendas' | 'ocorrencias' | 'financeiro',
+    formato: 'pdf' | 'xlsx',
+    dataInicio: string | undefined,
+    dataFim: string | undefined,
+    bloco: string | undefined,
+    apto: string | undefined,
+    opcoes: OpcoesRelatorioFinanceiro,
+    contagem: { linhas: number },
   ): Promise<{ buffer: Buffer; mime: string; filename: string }> {
     const condominio = await this.prisma.condominios.findUnique({
       where: { id: idCondominio },
@@ -204,6 +290,7 @@ export class RelatoriosService {
           : v,
       );
 
+      contagem.linhas = list.length;
       const excelData = list.map((v) => ({
         Nome: v.nome,
         Documento: v.doc_identificacao || 'Não informado',
@@ -280,6 +367,7 @@ export class RelatoriosService {
         orderBy: { recebido_em: 'desc' },
       });
 
+      contagem.linhas = list.length;
       const excelData = list.map((e) => ({
         Descrição: e.descricao,
         Destinatário: formatarApto(e.destinatario_apto, e.destinatario_bloco) || '-',
@@ -369,6 +457,7 @@ export class RelatoriosService {
         orderBy: { created_at: 'desc' },
       });
 
+      contagem.linhas = list.length;
       const excelData = list.map((o) => ({
         Categoria: o.categoria?.nome || 'Geral',
         Descrição: o.descricao || 'Sem descrição',
@@ -531,6 +620,7 @@ export class RelatoriosService {
     ];
     const arred = (n: number) => Math.round(n * 100) / 100;
 
+    contagem.linhas = list.length;
     const excelData = list.map((f) => {
       const v = valorNoLivroCaixa(f);
       return {
@@ -800,7 +890,8 @@ export class RelatoriosService {
     const [items, total] = await Promise.all([
       this.prisma.auditLog.findMany({
         where,
-        orderBy: { created_at: 'desc' },
+        // `created_at` tem precisão de segundos: sem o id a ordem empata e a página repete/pula linhas.
+        orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
         skip: (safePage - 1) * safeSize,
         take: safeSize,
       }),
@@ -828,11 +919,13 @@ export class RelatoriosService {
 
     // Export é exclusivo do síndico (assertSindico no controller): vê tudo.
     const where = this.buildAuditWhere(idCondominio, modulo, dataInicio, dataFim, true);
-    const rows = await this.prisma.auditLog.findMany({
+    const lidas = await this.prisma.auditLog.findMany({
       where,
-      orderBy: { created_at: 'desc' },
-      take: 10_000,
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      take: LIMITE_CSV_AUDITORIA + 1, // a linha extra só denuncia que há mais do que o teto
     });
+    const truncado = lidas.length > LIMITE_CSV_AUDITORIA;
+    const rows = truncado ? lidas.slice(0, LIMITE_CSV_AUDITORIA) : lidas;
 
     const header = ['Data', 'Usuário', 'E-mail', 'Ação', 'Módulo', 'Entidade', 'Descrição', 'IP', 'Detalhes'];
     const lines = [header.map(this.csvEscape).join(',')];
@@ -840,7 +933,7 @@ export class RelatoriosService {
     for (const r of rows) {
       lines.push(
         [
-          r.created_at?.toISOString() ?? '',
+          formatDateTimeSegundos(r.created_at),
           r.usuario_nome ?? '',
           r.usuario_email ?? '',
           r.acao ?? '',
@@ -852,6 +945,14 @@ export class RelatoriosService {
         ]
           .map(this.csvEscape)
           .join(','),
+      );
+    }
+
+    if (truncado) {
+      lines.push(
+        csvCelula(
+          `ATENÇÃO: exportação truncada em ${LIMITE_CSV_AUDITORIA} linhas; há registros mais antigos. Filtre por data para exportar o restante.`,
+        ),
       );
     }
 

@@ -1,6 +1,7 @@
 import { isAutorizacaoAtual, VisitantesService } from './visitantes.service';
 import { PessoasService } from '../pessoas/pessoas.service';
 import { VisitasService } from '../visitas/visitas.service';
+import { casaWhere } from './where-falso.testutil';
 
 function buildStateHarness() {
   // A janela de validade é calculada em relação a "agora" — não a uma data
@@ -123,6 +124,13 @@ function buildStateHarness() {
         };
       }),
       updateMany: jest.fn(async ({ where, data }: any) => {
+        // Gravação condicional de UMA visita (autorizar/negar/check-in/liberar).
+        if (typeof where.id === 'number') {
+          const alvo = visitas.find((x) => x.id === where.id);
+          if (!alvo || !casaWhere(alvo, where)) return { count: 0 };
+          Object.assign(alvo, data);
+          return { count: 1 };
+        }
         let count = 0;
         for (const v of visitas) {
           if (where.id_condominio && v.id_condominio !== where.id_condominio) continue;
@@ -216,9 +224,9 @@ describe('VisitantesService — ações de estado e leituras Pessoas/Visitas (Ta
       const res = await service.checkIn(50, payload);
 
       expect(res).toEqual({ ok: true });
-      expect(prisma.visitas.update).toHaveBeenCalledWith(
+      expect(prisma.visitas.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 50 },
+          where: expect.objectContaining({ id: 50 }),
           data: expect.objectContaining({
             data_entrada: expect.any(Date),
             data_saida: null,
@@ -245,9 +253,9 @@ describe('VisitantesService — ações de estado e leituras Pessoas/Visitas (Ta
       const res = await service.liberarAcesso(50, payload);
 
       expect(res).toEqual({ ok: true });
-      expect(prisma.visitas.update).toHaveBeenCalledWith(
+      expect(prisma.visitas.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 50 },
+          where: expect.objectContaining({ id: 50 }),
           data: expect.objectContaining({
             liberado: 1,
             data_entrada: null,
@@ -310,7 +318,7 @@ describe('VisitantesService — ações de estado e leituras Pessoas/Visitas (Ta
     });
 
     it('solicitarAutorizacao(), autorizar() e negar() controlam auth_status', async () => {
-      const { service, prisma, facial, realtime } = buildStateHarness();
+      const { service, prisma, facial, realtime, visitas } = buildStateHarness();
       const payload: any = { id_condominio: 1, sub: 1, user: { id: 1, name: 'Morador' } };
 
       // Solicitar
@@ -324,7 +332,7 @@ describe('VisitantesService — ações de estado e leituras Pessoas/Visitas (Ta
 
       // Autorizar com entrada
       await service.autorizar(50, payload, true);
-      expect(prisma.visitas.update).toHaveBeenCalledWith(
+      expect(prisma.visitas.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ auth_status: 'autorizado', liberado: 1, data_entrada: expect.any(Date) }),
         }),
@@ -332,10 +340,9 @@ describe('VisitantesService — ações de estado e leituras Pessoas/Visitas (Ta
       expect(facial.syncPessoa).toHaveBeenCalledWith(10);
 
       // Negar — só vale para um pedido ainda pendente (um novo pedido)
-      const atual = await prisma.visitas.findUnique({ where: { id: 50 }, include: { pessoa: true, apartamento: true } });
-      prisma.visitas.findUnique.mockResolvedValueOnce({ ...atual, auth_status: 'pendente', liberado: 0, data_entrada: null });
+      Object.assign(visitas[0], { auth_status: 'pendente', liberado: 0, data_entrada: null });
       await service.negar(50, payload);
-      expect(prisma.visitas.update).toHaveBeenCalledWith(
+      expect(prisma.visitas.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ auth_status: 'negado', liberado: 0 }),
         }),
@@ -510,12 +517,14 @@ describe('VisitantesService — ações de estado e leituras Pessoas/Visitas (Ta
         is_prestador: 0,
       });
 
+      prisma.visitantes.updateMany = jest.fn(async () => ({ count: 1 }));
+
       const res = await service.checkIn(77, { id_condominio: 1, sub: 1 } as any);
 
       expect(res).toEqual({ ok: true });
-      expect(prisma.visitantes.update).toHaveBeenCalledWith(
+      expect(prisma.visitantes.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 77 },
+          where: expect.objectContaining({ id: 77 }),
         }),
       );
       expect(prisma.visitas.update).not.toHaveBeenCalled();

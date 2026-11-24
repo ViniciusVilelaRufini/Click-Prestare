@@ -12,10 +12,20 @@ Map<String, String> _headers({bool withContentType = false}) {
   return h;
 }
 
+/// Unidade aberta no app, para a API operar ESTA unidade (e não a primeira
+/// da conta, como acontecia com quem tem duas). Síndico sem apto (-1), sem
+/// unidade aberta ou unidade de outro condomínio não manda nada — a API usa
+/// o vínculo mais antigo.
+Map<String, String> unidadeAberta() {
+  final id = Singleton.instance.unidadeDoCondominioAberto();
+  return id.isEmpty ? {} : {'id_apartamento': id};
+}
+
 /// Vagas do apartamento do morador logado (total + ocupadas).
 Future<VagasResumo> apiGetVagas() async {
   final url = ApiConfig.buildUri('/vagas/get-all', {
     'id_condominio': Singleton.instance.id_condominio.toString(),
+    ...unidadeAberta(),
   });
   try {
     final response =
@@ -35,6 +45,7 @@ Future<VagasResumo> apiGetVagas() async {
 Future<Map<String, List<BeneficiarioItem>>> apiGetBeneficiarios() async {
   final url = ApiConfig.buildUri('/vagas/beneficiarios', {
     'id_condominio': Singleton.instance.id_condominio.toString(),
+    ...unidadeAberta(),
   });
   try {
     final response =
@@ -69,6 +80,7 @@ Future<String> apiLiberarVaga({
   final url = ApiConfig.buildUri('/vagas/liberar');
   final body = jsonEncode({
     'id_condominio': Singleton.instance.id_condominio.toString(),
+    ...unidadeAberta(),
     'tipo': tipo,
     if (idVisitante != null) 'id_visitante': idVisitante,
     if (idMoradorBeneficiario != null) 'id_morador_beneficiario': idMoradorBeneficiario,
@@ -100,6 +112,7 @@ Future<bool> apiRevogarVaga(int id) async {
   final body = jsonEncode({
     'id': id,
     'id_condominio': Singleton.instance.id_condominio.toString(),
+    ...unidadeAberta(),
   });
   try {
     final response = await ApiClient.post(url,

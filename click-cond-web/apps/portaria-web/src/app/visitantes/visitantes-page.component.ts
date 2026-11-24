@@ -84,6 +84,9 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   // da página fica atrás do scrim e o porteiro não via nada.
   readonly erroForm = signal<string | null>(null);
   readonly erroModal = signal<string | null>(null);
+  // Ação da janela de autorização (Liberar) ainda sem resposta: os botões da
+  // janela ficam desabilitados — o duplo clique mandava duas liberações.
+  readonly acaoModalEmAndamento = signal(false);
   // Pessoa (chavePessoa) cujo último pedido não chegou a ninguém da unidade
   // (sem app, sem token ou aviso desligado): a janela manda interfonar.
   readonly pedidoSemAviso = signal<number | null>(null);
@@ -686,6 +689,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
    * com a autorização vencida — o modal da linha pede uma nova janela.
    */
   registrarEntradaEFechar(p: Pessoa) {
+    if (this.acaoModalEmAndamento()) return;
     this.fecharAuthModal();
     this.registrarEntradaManual(p);
   }
@@ -704,15 +708,19 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     const targetId = apto?.visitanteId ?? p.id;
     const targetAptoId = apto?.id ?? p.id_apartamento;
     if (targetId == null) return; // sem visita: nada a liberar
+    if (this.acaoModalEmAndamento()) return; // duplo clique: a primeira ainda não respondeu
+    this.acaoModalEmAndamento.set(true);
     this.erroModal.set(null);
     // O estado que a tela viu: se o morador negou antes da recarga, a API recusa (409).
     this.acao(this.service.liberar(targetId, targetAptoId, apto?.auth_status ?? null)).subscribe({
       next: () => {
+        this.acaoModalEmAndamento.set(false);
         this.fecharAuthModal();
         this.carregar();
       },
       // A janela do pedido está aberta: o erro aparece nela.
       error: (e) => {
+        this.acaoModalEmAndamento.set(false);
         this.erroModal.set(`Falha ao liberar acesso: ${e?.error?.message ?? e?.message ?? e}`);
         if (e?.status === 409) this.carregar(true);
       },

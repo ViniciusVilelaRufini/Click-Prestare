@@ -82,7 +82,7 @@ describe('documentos e assembleias — arquivos recebidos do cliente', () => {
 
     it('arquivo em `doc` continua virando upload', async () => {
       const { service, prisma } = build();
-      await service.insert(1, { nome: 'ATA', doc: DATA_URL, is_ata: 1 }, sindico);
+      await service.insert(1, { nome: 'Regimento', doc: DATA_URL }, sindico);
       expect(prisma.documentos.create.mock.calls[0][0].data.link_doc).toBe(NOVO);
     });
 

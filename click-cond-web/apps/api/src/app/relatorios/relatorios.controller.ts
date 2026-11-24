@@ -6,7 +6,15 @@ import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador, assertSindicoEstrito, isSindicoEstrito } from '../auth/tenant.util';
 import { TenantAccessService, ehFuncionarioDoApp } from '../auth/tenant-access.service';
+import { autorDoToken } from '../auth/usuario-do-token.util';
+import { requestContext, normalizeIp } from '../common/context/request-context';
 import { dataIsoOuErro, inteiroPositivoOuPadrao, textoUnico } from './relatorios-query.util';
+
+/** IP da requisição (contexto), já normalizado; o export grava direto no banco e não passa pelo AuditoriaService. */
+function ipDaRequisicao(): string | undefined {
+  const ip = requestContext.getStore()?.ip;
+  return ip ? normalizeIp(ip) : undefined;
+}
 
 /**
  * Relatórios gerenciais do condomínio.
@@ -47,6 +55,7 @@ export class RelatoriosController {
     const { buffer, filename } = await this.exportService.gerarPacoteExportacao(idCondominio, {
       nome: payload.nome || payload.email,
       email: payload.email,
+      ip: ipDaRequisicao(),
     });
 
     res.setHeader('Content-Type', 'application/zip');
@@ -62,13 +71,16 @@ export class RelatoriosController {
     @ReqUser() payload: JwtPayload,
     @Query('tipo') tipo: 'visitantes' | 'encomendas' | 'ocorrencias' | 'financeiro',
     @Query('formato') formato: 'pdf' | 'xlsx',
-    @Query('dataInicio') dataInicio?: string,
-    @Query('dataFim') dataFim?: string,
+    @Query('dataInicio') dataInicio?: unknown,
+    @Query('dataFim') dataFim?: unknown,
     @Query('bloco') bloco?: string,
     @Query('apto') apto?: string,
     // Opcional: o app publicado não manda; ausente = taxas fora, como no Livro Caixa.
     @Query('incluirTaxasCondominiais') incluirTaxasCondominiais?: string,
   ) {
+    // Data mal formada é 400, não 500 no Prisma.
+    const inicio = dataIsoOuErro(dataInicio, 'dataInicio');
+    const fim = dataIsoOuErro(dataFim, 'dataFim');
     if (tipo === 'financeiro') {
       assertSindicoEstrito(payload, 'baixar o relatório financeiro do condomínio');
     } else {
@@ -84,11 +96,17 @@ export class RelatoriosController {
       idCondominio,
       tipo,
       formato,
-      dataInicio,
-      dataFim,
+      inicio,
+      fim,
       bloco,
       apto,
       { incluirTaxasCondominiais: incluirTaxasCondominiais === 'true' },
+      {
+        nome: payload.nome || payload.email,
+        email: payload.email,
+        ...autorDoToken(payload),
+        ip: ipDaRequisicao(),
+      },
     );
 
     res.setHeader('Content-Type', mime);
@@ -190,6 +208,7 @@ export class CondominiosExportController {
     const { buffer, filename } = await this.exportService.gerarPacoteExportacao(idCondominio, {
       nome: payload.nome || payload.email,
       email: payload.email,
+      ip: ipDaRequisicao(),
     });
 
     res.setHeader('Content-Type', 'application/zip');

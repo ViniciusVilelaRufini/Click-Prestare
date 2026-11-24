@@ -197,24 +197,25 @@ describe('SuperlogicaSyncService — sincronização de cobranças', () => {
     link_segundavia: 'https://prestare.superlogica.net/x',
   });
 
-  function montar(cobrancas: any[], apartamentos: any[], jaGravados: any[] = []) {
+  function montar(cobrancas: any[], apartamentos: any[], jaGravados: any[] = [], completa = true) {
     const upsert = jest.fn(async () => ({}));
+    const updateMany = jest.fn(async ({ where }: any) => ({ count: where.id_externo.in.length }));
     const prisma: any = {
       condominios: {
         findUnique: jest.fn(async () => ({ id: 7, nome: 'Meu Prédio', id_superlogica_cond: 24 })),
       },
       apartamentos: { findMany: jest.fn(async () => apartamentos) },
-      financeiro: { upsert, findMany: jest.fn(async () => jaGravados) },
+      financeiro: { upsert, updateMany, findMany: jest.fn(async () => jaGravados) },
     };
 
     const real = new SuperlogicaService(new SuperlogicaClient());
     const superlogica = {
-      listarCobrancas: jest.fn(async () => cobrancas),
+      listarCobrancas: jest.fn(async () => ({ cobrancas, completa })),
       mapearCobranca: real.mapearCobranca.bind(real),
     };
 
     const service = new SuperlogicaSyncService(prisma, superlogica as any);
-    return { service, upsert, superlogica };
+    return { service, upsert, updateMany, superlogica, prisma };
   }
 
   it('grava a cobrança no apartamento vinculado', async () => {
@@ -336,7 +337,7 @@ describe('SuperlogicaSyncService — sincronização de cobranças', () => {
     const { service, upsert } = montar(
       [cobranca('91515', '837')],
       [{ id_superlogica_uni: 837, apto: '408', bloco: '4' }],
-      [{ id_externo: '91515', status: 'pendente', linha_digitavel: '34191.79001 01043.510047 91020.150008 1 99999999999999' }],
+      [{ ...gravada('91515'), linha_digitavel: '34191.79001 01043.510047 91020.150008 1 99999999999999' }],
     );
 
     await service.sincronizarCondominio(7);
@@ -379,6 +380,225 @@ describe('SuperlogicaSyncService — sincronização de cobranças', () => {
 
     expect(raspar).not.toHaveBeenCalled();
     raspar.mockRestore();
+  });
+
+  // Linha já gravada da cobrança-fixture, com o mesmo boleto que o ERP manda.
+  const gravada = (id: string, extra: any = {}) => ({
+    id_externo: id,
+    status: 'pendente',
+    linha_digitavel: null,
+    valor: 350,
+    data_vencimento: new Date(Date.UTC(2026, 7, 10)),
+    url_boleto: 'https://prestare.superlogica.net/x',
+    pago: 0,
+    ...extra,
+  });
+
+  describe('S3 — linha digitável não sobrevive à mudança do boleto', () => {
+    const LINHA_VELHA = '34191.79001 01043.510047 91020.150008 1 99990000035000';
+    const LINHA_NOVA = '34191.79001 01043.510047 91020.150008 1 99990000042000';
+
+    it('valor mudou no ERP: raspa de novo em vez de reaproveitar a linha velha', async () => {
+      const raspar = jest.spyOn(SuperlogicaService, 'extrairLinhaDigitavel').mockResolvedValue(LINHA_NOVA);
+      const { service, upsert } = montar(
+        [{ ...cobranca('91515', '837'), vl_total_recb: '420.00' }],
+        [{ id_superlogica_uni: 837, apto: '408', bloco: '4' }],
+        [gravada('91515', { linha_digitavel: LINHA_VELHA })],
+      );
+
+      await service.sincronizarCondominio(7);
+
+      expect(raspar).toHaveBeenCalledTimes(1);
+      expect((upsert.mock.calls[0][0] as any).update.linha_digitavel).toBe(LINHA_NOVA);
+      raspar.mockRestore();
+    });
+
+    it('vencimento mudou e a raspagem falhou: zera a linha em vez de manter a velha', async () => {
+      const raspar = jest.spyOn(SuperlogicaService, 'extrairLinhaDigitavel').mockResolvedValue(null);
+      const { service, upsert } = montar(
+        [{ ...cobranca('91515', '837'), dt_vencimento_recb: '08/20/2026 00:00:00' }],
+        [{ id_superlogica_uni: 837, apto: '408', bloco: '4' }],
+        [gravada('91515', { linha_digitavel: LINHA_VELHA })],
+      );
+
+      await service.sincronizarCondominio(7);
+
+      expect(raspar).toHaveBeenCalledTimes(1);
+      expect((upsert.mock.calls[0][0] as any).update.linha_digitavel).toBeNull();
+      raspar.mockRestore();
+    });
+
+    it('URL da 2ª via mudou: raspa de novo', async () => {
+      const raspar = jest.spyOn(SuperlogicaService, 'extrairLinhaDigitavel').mockResolvedValue(LINHA_NOVA);
+      const { service, upsert } = montar(
+        [{ ...cobranca('91515', '837'), link_segundavia: 'https://prestare.superlogica.net/y' }],
+        [{ id_superlogica_uni: 837, apto: '408', bloco: '4' }],
+        [gravada('91515', { linha_digitavel: LINHA_VELHA })],
+      );
+
+      await service.sincronizarCondominio(7);
+
+      expect(raspar).toHaveBeenCalledWith('https://prestare.superlogica.net/y');
+      expect((upsert.mock.calls[0][0] as any).update.linha_digitavel).toBe(LINHA_NOVA);
+      raspar.mockRestore();
+    });
+  });
+
+  describe('S1 — cobrança que sumiu do ERP sai da dívida, só com leitura completa', () => {
+    // hoje = 15/08/2026 → janela 01/07/2026..30/09/2026. A fixture vence em 10/08.
+    const HOJE = new Date('2026-08-15T15:00:00Z');
+    const apto = [{ id_superlogica_uni: 837, apto: '408', bloco: '4' }];
+    const sumida = gravada('91516', { data_vencimento: new Date(Date.UTC(2026, 7, 20)) });
+
+    // A aposentadoria fica atrás da flag; estes testes rodam com ela ligada.
+    beforeEach(() => {
+      process.env['SUPERLOGICA_APOSENTAR_SUMIDAS'] = 'true';
+    });
+    afterEach(() => {
+      delete process.env['SUPERLOGICA_APOSENTAR_SUMIDAS'];
+    });
+
+    it('flag desligada (padrão): não aposenta nada, mesmo com leitura completa', async () => {
+      delete process.env['SUPERLOGICA_APOSENTAR_SUMIDAS'];
+      const { service, updateMany } = montar([cobranca('91515', '837')], apto, [gravada('91515'), sumida]);
+
+      const r = await service.sincronizarCondominio(7, HOJE);
+
+      expect(updateMany).not.toHaveBeenCalled();
+      expect(r.aposentadas).toBe(0);
+    });
+
+    it('flag com valor diferente de "true" também não aposenta', async () => {
+      process.env['SUPERLOGICA_APOSENTAR_SUMIDAS'] = '1';
+      const { service, updateMany } = montar([cobranca('91515', '837')], apto, [gravada('91515'), sumida]);
+
+      await service.sincronizarCondominio(7, HOJE);
+
+      expect(updateMany).not.toHaveBeenCalled();
+    });
+
+    it('aposenta a pendente da janela que não voltou numa leitura completa', async () => {
+      const { service, updateMany } = montar([cobranca('91515', '837')], apto, [gravada('91515'), sumida]);
+
+      const r = await service.sincronizarCondominio(7, HOJE);
+
+      expect(updateMany).toHaveBeenCalledTimes(1);
+      const arg = updateMany.mock.calls[0][0] as any;
+      expect(arg.where).toEqual({
+        id_condominio: 7,
+        origem: 'superlogica',
+        id_externo: { in: ['91516'] },
+        pago: 0,
+        status: { notIn: ['2', '3'] },
+      });
+      // '3' é o status que inadimplência, notificação, lembretes e a tela do
+      // morador já excluem (NAO_RENEGOCIADO).
+      expect(arg.data).toEqual({ status: '3' });
+      expect(r.aposentadas).toBe(1);
+    });
+
+    it('leitura INCOMPLETA (paginação truncada ou formato desconhecido) não aposenta nada', async () => {
+      const { service, updateMany } = montar([cobranca('91515', '837')], apto, [gravada('91515'), sumida], false);
+
+      const r = await service.sincronizarCondominio(7, HOJE);
+
+      expect(updateMany).not.toHaveBeenCalled();
+      expect(r.aposentadas).toBe(0);
+    });
+
+    it('erro na leitura do ERP não aposenta nada (o sync falha antes)', async () => {
+      const { service, updateMany, upsert, superlogica } = montar([], apto, [sumida]);
+      superlogica.listarCobrancas.mockRejectedValueOnce(new Error('Superlógica respondeu 500'));
+
+      await expect(service.sincronizarCondominio(7, HOJE)).rejects.toThrow('500');
+
+      expect(updateMany).not.toHaveBeenCalled();
+      expect(upsert).not.toHaveBeenCalled();
+    });
+
+    it('leitura completa porém VAZIA não aposenta nada', async () => {
+      const { service, updateMany } = montar([], apto, [sumida]);
+
+      await service.sincronizarCondominio(7, HOJE);
+
+      expect(updateMany).not.toHaveBeenCalled();
+    });
+
+    it('cobrança lida vencendo fora da janela (filtro do ERP não é por vencimento) não aposenta nada', async () => {
+      const { service, updateMany } = montar(
+        [cobranca('91515', '837'), { ...cobranca('91517', '837'), dt_vencimento_recb: '10/10/2026 00:00:00' }],
+        apto,
+        [gravada('91515'), sumida],
+      );
+
+      await service.sincronizarCondominio(7, HOJE);
+
+      expect(updateMany).not.toHaveBeenCalled();
+    });
+
+    it('não toca em paga, em já aposentada nem em pendente de fora da janela', async () => {
+      const { service, updateMany } = montar([cobranca('91515', '837')], apto, [
+        gravada('91515'),
+        gravada('80001', { pago: 1, status: 'pago' }),
+        gravada('80002', { status: '3' }),
+        gravada('80005', { status: '2' }), // comprovante em análise nunca é aposentado
+        gravada('80003', { data_vencimento: new Date(Date.UTC(2026, 5, 30)) }), // 30/06, antes da janela
+        gravada('80004', { data_vencimento: new Date(Date.UTC(2026, 9, 1)) }), // 01/10, depois da janela
+      ]);
+
+      const r = await service.sincronizarCondominio(7, HOJE);
+
+      expect(updateMany).not.toHaveBeenCalled();
+      expect(r.aposentadas).toBe(0);
+    });
+
+    it('a cobrança aposentada que volta ao ERP é regravada como pendente', async () => {
+      const { service, upsert, updateMany } = montar([cobranca('91515', '837')], apto, [
+        gravada('91515', { status: '3' }),
+      ]);
+
+      await service.sincronizarCondominio(7, HOJE);
+
+      expect((upsert.mock.calls[0][0] as any).update.status).toBe('pendente');
+      expect(updateMany).not.toHaveBeenCalled();
+    });
+
+    it('fl_status_recb que não é "0" nem "3" fica fora da dívida e sem raspagem', async () => {
+      const raspar = jest.spyOn(SuperlogicaService, 'extrairLinhaDigitavel').mockResolvedValue('x');
+      const { service, upsert } = montar([{ ...cobranca('91515', '837'), fl_status_recb: '1' }], apto);
+
+      await service.sincronizarCondominio(7, HOJE);
+
+      const arg = upsert.mock.calls[0][0] as any;
+      expect(arg.create.status).toBe('3');
+      expect(arg.create.pago).toBe(0);
+      expect(raspar).not.toHaveBeenCalled();
+      raspar.mockRestore();
+    });
+
+    it('comprovante em análise (\'2\') sobrevive a fl_status_recb desconhecido', async () => {
+      const { service, upsert } = montar([{ ...cobranca('91515', '837'), fl_status_recb: '1' }], apto, [
+        gravada('91515', { status: '2' }),
+      ]);
+
+      await service.sincronizarCondominio(7, HOJE);
+
+      expect((upsert.mock.calls[0][0] as any).update.status).toBe('2');
+    });
+
+    it('janela no calendário de Brasília e enviada ao ERP com os dias certos', async () => {
+      // 31/08 23:30 em Brasília já é 01/09 em UTC. A janela é a de agosto
+      // (julho..setembro), e o último dia (30/09) precisa chegar ao ERP —
+      // com a meia-noite UTC, o dia de Brasília seria 29/09 e o boleto que
+      // vence em 30/09 não viria (e seria aposentado).
+      const { service, superlogica } = montar([], []);
+
+      await service.sincronizarCondominio(7, new Date('2026-09-01T02:30:00Z'));
+
+      const [, inicio, fim] = superlogica.listarCobrancas.mock.calls[0] as any[];
+      expect(SuperlogicaClient.formatarData(inicio)).toBe('07/01/2026');
+      expect(SuperlogicaClient.formatarData(fim)).toBe('09/30/2026');
+    });
   });
 
   it('descarta cobranças de outros condomínios retornadas pelo ERP', async () => {

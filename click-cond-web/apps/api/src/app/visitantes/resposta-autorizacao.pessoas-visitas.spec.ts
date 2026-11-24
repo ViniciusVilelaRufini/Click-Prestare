@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { VisitantesService } from './visitantes.service';
+import { gravacaoCondicional } from './where-falso.testutil';
 
 /**
  * Autorizar/Negar (portaria remota) aceitavam resposta a qualquer momento,
@@ -35,6 +36,8 @@ describe('Portaria remota — só responde pedido pendente e dentro do prazo', (
       pessoas: {},
       visitas: {
         update: jest.fn(async ({ data }: any) => { Object.assign(v, data); return rel(); }),
+        updateMany: jest.fn(gravacaoCondicional(v).updateMany),
+        findUnique: jest.fn(async () => rel()),
       },
     };
     const svc = new VisitantesService(
@@ -66,7 +69,7 @@ describe('Portaria remota — só responde pedido pendente e dentro do prazo', (
     async (status) => {
       const { svc, prisma } = montar({ auth_status: status });
       await expect(svc.autorizar(1000004, morador, true)).rejects.toBeInstanceOf(BadRequestException);
-      expect(prisma.visitas.update).not.toHaveBeenCalled();
+      expect(prisma.visitas.updateMany).not.toHaveBeenCalled();
     },
   );
 
@@ -74,13 +77,13 @@ describe('Portaria remota — só responde pedido pendente e dentro do prazo', (
     const entrou = minutosAtras(1);
     const { svc, prisma, v } = montar({ auth_status: 'autorizado', liberado: 1, data_entrada: entrou });
     await expect(svc.negar(1000004, morador)).rejects.toBeInstanceOf(BadRequestException);
-    expect(prisma.visitas.update).not.toHaveBeenCalled();
+    expect(prisma.visitas.updateMany).not.toHaveBeenCalled();
     expect(v.liberado).toBe(1);
   });
 
   it('autorizar depois de 10 minutos é recusado (mesmo prazo da portaria)', async () => {
     const { svc, prisma } = montar({ auth_solicitado_em: minutosAtras(12) });
     await expect(svc.autorizar(1000004, morador)).rejects.toBeInstanceOf(BadRequestException);
-    expect(prisma.visitas.update).not.toHaveBeenCalled();
+    expect(prisma.visitas.updateMany).not.toHaveBeenCalled();
   });
 });

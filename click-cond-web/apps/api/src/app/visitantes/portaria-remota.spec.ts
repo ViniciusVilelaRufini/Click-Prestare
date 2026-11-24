@@ -1,5 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import { VisitantesService } from './visitantes.service';
+import { casaLinha } from './where-falso.testutil';
 
 /**
  * Portaria remota — autorização de visitante em tempo real.
@@ -45,6 +46,7 @@ describe('VisitantesService — portaria remota', () => {
       visitantes: {
         findUnique: jest.fn(async () => ({ ...visitor })),
         update: jest.fn(async ({ data }: any) => ({ ...visitor, ...data })),
+        updateMany: jest.fn(async ({ where }: any) => ({ count: casaLinha(visitor, where) ? 1 : 0 })),
         findMany: jest.fn(async () => []),
       },
       users: {
@@ -125,9 +127,9 @@ describe('VisitantesService — portaria remota', () => {
     const res = await svc.autorizar(5, moradorDono);
 
     expect(res).toEqual({ ok: true });
-    expect(prisma.visitantes.update).toHaveBeenCalledWith(
+    expect(prisma.visitantes.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 5 },
+        where: { id: 5, auth_status: 'pendente' },
         data: expect.objectContaining({
           auth_status: 'autorizado',
           liberado: 1,
@@ -143,9 +145,9 @@ describe('VisitantesService — portaria remota', () => {
     const res = await svc.autorizar(5, moradorDono, true);
 
     expect(res).toEqual({ ok: true });
-    expect(prisma.visitantes.update).toHaveBeenCalledWith(
+    expect(prisma.visitantes.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 5 },
+        where: { id: 5, auth_status: 'pendente' },
         data: expect.objectContaining({
           auth_status: 'autorizado',
           liberado: 1,
@@ -167,7 +169,7 @@ describe('VisitantesService — portaria remota', () => {
   it('negar (morador dono) → negado, liberado=0', async () => {
     const { svc, prisma } = build({ auth_status: 'pendente', auth_solicitado_em: new Date() });
     await svc.negar(5, moradorDono);
-    expect(prisma.visitantes.update).toHaveBeenCalledWith(
+    expect(prisma.visitantes.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ auth_status: 'negado', liberado: 0 }),
       }),
@@ -182,7 +184,7 @@ describe('VisitantesService — portaria remota', () => {
   it('check-in do porteiro resolve um pedido pendente (override)', async () => {
     const { svc, prisma } = build({ auth_status: 'pendente' });
     await svc.checkIn(5, porteiro);
-    expect(prisma.visitantes.update).toHaveBeenCalledWith(
+    expect(prisma.visitantes.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ liberado: 1, auth_status: 'autorizado' }),
       }),
@@ -205,5 +207,16 @@ describe('VisitantesService — portaria remota', () => {
     const res = await svc.listarPendentes(1, moradorDono);
     expect(res).toHaveLength(1);
     expect(res[0]).toEqual(expect.objectContaining({ id: 5, nome: 'João', apto: '101' }));
+  });
+
+  // A3: quem tem vínculo em dois condomínios e aparelho sem card ao vivo via a
+  // lista de pendentes do condomínio aberto no app — vazia.
+  it('o push comum do pedido leva o condomínio do visitante', async () => {
+    const { svc, notifications } = build();
+    await svc.solicitarAutorizacao(5, porteiro);
+    expect(notifications.sendPushNotification).toHaveBeenCalledWith(
+      'token-valido-fcm-1', expect.any(String), expect.any(String),
+      expect.objectContaining({ type: 'autorizacao_visitante', id: '5', id_condominio: '1' }),
+    );
   });
 });

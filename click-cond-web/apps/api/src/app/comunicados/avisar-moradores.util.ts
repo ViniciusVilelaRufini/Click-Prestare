@@ -18,8 +18,15 @@ export async function avisarMoradoresDoCondominio(
 ): Promise<void> {
   if (!deps.notifications) return;
   try {
+    // Morador atual = vínculo com uma unidade do condomínio (Apartamentos_Users,
+    // o mesmo critério do assertCondominio). A linha em Moradores sobrevive à
+    // exclusão da unidade (só perde bloco/apto), e o ex-morador seguia avisado.
     const users = await deps.prisma.users.findMany({
-      where: { notif_comunicados: 1, fcm_token: { not: null }, moradores: { some: { id_condominio: idCondominio } } },
+      where: {
+        notif_comunicados: 1,
+        fcm_token: { not: null },
+        apartamentosUsers: { some: { apartamento: { id_condominio: idCondominio } } },
+      },
       select: { fcm_token: true },
     });
     for (const u of users) {

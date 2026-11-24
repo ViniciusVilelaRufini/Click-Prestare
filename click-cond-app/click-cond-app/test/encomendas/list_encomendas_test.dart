@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:click/pages/shared/encomendas/list_encomendas.dart';
@@ -177,5 +178,35 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
+  });
+
+  // C5: o "Cadastrar" do aviso de encomenda não tinha trava — o segundo toque
+  // durante o envio cadastrava o mesmo aviso duas vezes.
+  testWidgets('aviso de encomenda: toque duplo no Cadastrar envia uma vez só',
+      (tester) async {
+    comoMorador();
+    final resposta = Completer<http.Response>();
+    var envios = 0;
+    ApiClient.client = MockClient((req) async {
+      if (req.method == 'POST' && req.url.path.endsWith('/encomendas/cadastrar')) {
+        envios++;
+        return resposta.future;
+      }
+      return http.Response(jsonEncode(_encomendas()), 200);
+    });
+    await abrir(tester);
+
+    await tester.tap(find.text('AVISAR ENCOMENDA'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).first, 'Livro');
+    await tester.tap(find.text('Cadastrar'));
+    await tester.pump();
+    await tester.tap(find.text('Cadastrar'), warnIfMissed: false);
+    await tester.pump();
+    expect(envios, 1);
+
+    resposta.complete(http.Response('{"id": 9}', 201));
+    await tester.pumpAndSettle();
+    expect(envios, 1);
   });
 }

@@ -10,6 +10,7 @@ import { createHash } from 'crypto';
 import { formatarDataHoraBrasilia, formatarDataHoraSegundosBrasilia, hojeBrasilia } from '../common/hora-brasilia.util';
 import { rotuloBloco } from '../common/rotulo-bloco.util';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ChatIaService } from '../chat-ia/chat-ia.service';
 import { avisarMoradoresDoCondominio } from '../comunicados/avisar-moradores.util';
 import { maiorVinculo, nivelVinculo, normalizarTipoVinculo, type TipoVinculo } from '../common/tipo-vinculo.util';
 
@@ -345,7 +346,29 @@ export class AssembleiasService {
     private readonly tenant: TenantAccessService,
     // Global (NotificationsModule). Opcional só porque vários specs instanciam o service sem ele.
     @Optional() private readonly notifications?: NotificationsService,
+    // Indexa a ATA para o assistente (ChatIaModule). Opcional pelo mesmo motivo.
+    @Optional() private readonly chatIa?: ChatIaService,
   ) {}
+
+  /**
+   * Indexa a ATA para o assistente responder sobre ela (como o upload de
+   * documento faz). Best-effort e sem esperar: baixar o PDF e gerar os
+   * embeddings leva segundos, e falha aqui só vai para o log — a assembleia já
+   * está finalizada. A apuração é .txt e o indexador só lê PDF.
+   */
+  private indexarAta(idCondominio: number, idAta: number) {
+    if (!this.chatIa) return;
+    void Promise.resolve()
+      .then(() => this.chatIa!.indexarDocumentoPorId(idCondominio, idAta))
+      .then((r: any) => {
+        if (r?.skipped) {
+          this.logger.warn(`ATA ${idAta} não indexada (${r.motivo}) — o assistente não vai saber responder sobre ela.`);
+        } else {
+          this.logger.log(`ATA ${idAta} indexada: ${r?.indexed ?? 0} trecho(s).`);
+        }
+      })
+      .catch((e) => this.logger.error(`Falha ao indexar a ATA ${idAta}: ${e?.message ?? e}`));
+  }
 
   /**
    * Push aos moradores (mesmo envio e preferência do "Novo comunicado"). Sem
@@ -835,6 +858,7 @@ export class AssembleiasService {
       );
       // Um aviso pela ATA (a apuração vai junto, sem push próprio).
       this.avisarMoradores(idCond, 'ATA publicada', nomeAta, { type: 'ata', id: String(idAta ?? '') });
+      if (idAta != null) this.indexarAta(idCond, idAta);
     } catch (e) {
       // Best-effort: deleteUrl não lança e só apaga dentro de `atas/`.
       for (const url of enviados) await this.storage.deleteUrl(url, ['atas/']);

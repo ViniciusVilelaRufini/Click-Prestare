@@ -43,6 +43,8 @@ export interface BaseCard {
   apto: string | null;
   /** Quando o porteiro pediu (auth_solicitado_em). */
   solicitadoEm: Date;
+  /** Condomínio do pedido: vai no push comum (o toque abre os pendentes dele). */
+  idCondominio?: number | null;
 }
 
 export interface ConteudoCard {

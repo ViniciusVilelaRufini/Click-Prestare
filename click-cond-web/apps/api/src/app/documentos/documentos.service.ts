@@ -1,12 +1,16 @@
-import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { ChatIaService } from '../chat-ia/chat-ia.service';
 import { assertStaff } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { NotificationsService } from '../notifications/notifications.service';
-import { avisarMoradoresDoCondominio } from '../comunicados/avisar-moradores.util';
+
+const MSG_ATA_SO_PELA_ASSEMBLEIA =
+  'A ATA é publicada ao finalizar a assembleia (menu Assembleias). Para outro arquivo, publique como documento.';
+const MSG_ATA_IMUTAVEL = 'A ATA e a apuração de uma assembleia finalizada não podem ser excluídas.';
+/** Nome que o finish() da assembleia dá ao arquivo de apuração (ver AssembleiasService.finish). */
+const PREFIXO_APURACAO = 'Apuração das pautas - ';
 
 @Injectable()
 export class DocumentosService {
@@ -17,17 +21,21 @@ export class DocumentosService {
     private readonly storage: StorageService,
     private readonly tenant: TenantAccessService,
     private readonly chatIa: ChatIaService,
-    // Global (NotificationsModule). Opcional só porque specs instanciam o service sem ele.
-    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   async insert(idCondominio: number, documento: any, user?: JwtPayload) {
     assertStaff(user, 'publicar documento');
     await this.tenant.assertCondominio(idCondominio, user);
+    // A ATA nasce só ao finalizar a assembleia (com a apuração e o código de
+    // integridade). Por aqui qualquer síndico ou funcionário publicava uma
+    // "ATA" avulsa, com push "ATA publicada" para todos os moradores.
+    if (documento?.is_ata === true || documento?.is_ata === '1' || documento?.is_ata === 1) {
+      throw new BadRequestException(MSG_ATA_SO_PELA_ASSEMBLEIA);
+    }
     if (!this.prisma.isConnected) return { success: true };
 
     let linkDoc = documento.link_doc ?? '';
-    const prefix = documento.is_ata ? 'atas' : 'documentos';
+    const prefix = 'documentos';
 
     // Documento novo: nenhuma URL do bucket é "a dele". Sem isto, publicar a
     // URL de um arquivo de outro registro fazia a API assiná-la em toda
@@ -43,12 +51,10 @@ export class DocumentosService {
       if (uploaded) linkDoc = uploaded;
     }
 
-    const isAta = (documento.is_ata === true || documento.is_ata === '1' || documento.is_ata === 1) ? 1 : 0;
-
     const criado = await this.prisma.documentos.create({
       data: {
         id_condominio: Number(idCondominio),
-        is_ata: isAta,
+        is_ata: 0,
         nome: documento.nome,
         link_doc: linkDoc,
       },
@@ -75,16 +81,6 @@ export class DocumentosService {
           `Falha ao indexar documento ${criado.id}: ${e?.message ?? e}`,
         ),
       );
-
-    // ATA publicada avisa os moradores (mesmo envio do "Novo comunicado").
-    // Sem esperar: falha no push não desfaz a publicação.
-    if (isAta) {
-      void avisarMoradoresDoCondominio(
-        { prisma: this.prisma, notifications: this.notifications, logger: this.logger },
-        Number(idCondominio),
-        { titulo: 'ATA publicada', corpo: String(documento.nome ?? '').trim() || 'Nova ATA', data: { type: 'ata', id: String(criado.id) } },
-      );
-    }
 
     return { success: true };
   }
@@ -127,9 +123,15 @@ export class DocumentosService {
   async remove(id: number, user?: JwtPayload) {
     assertStaff(user, 'remover documento');
     if (!this.prisma.isConnected) return { success: true };
-    const atual = await this.prisma.documentos.findUnique({ where: { id: Number(id) }, select: { id_condominio: true } });
+    const atual = await this.prisma.documentos.findUnique({
+      where: { id: Number(id) },
+      select: { id_condominio: true, is_ata: true, nome: true },
+    });
     if (!atual) throw new NotFoundException('Documento não encontrado.');
     await this.tenant.assertEntidade(atual.id_condominio, user, `documento #${id}`);
+    if (atual.is_ata === 1 && (await this.ehDocumentoDeAssembleiaFinalizada(Number(id), atual))) {
+      throw new BadRequestException(MSG_ATA_IMUTAVEL);
+    }
     await this.prisma.documentos.delete({ where: { id: Number(id) } });
     // Sem isso o assistente continuaria respondendo com base num documento
     // que já não existe.
@@ -141,5 +143,34 @@ export class DocumentosService {
         ),
       );
     return { success: true };
+  }
+
+  /**
+   * A ATA (Assembleias.id_documento_ata) e a apuração publicada junto dela
+   * fazem parte do registro imutável da assembleia finalizada. A apuração não
+   * tem coluna própria: o finish() a grava no mesmo condomínio, como ATA, com
+   * o nome "Apuração das pautas - <nome da ATA>".
+   */
+  private async ehDocumentoDeAssembleiaFinalizada(
+    id: number,
+    doc: { id_condominio: number; nome: string | null },
+  ): Promise<boolean> {
+    const daAta = await this.prisma.assembleias.findFirst({ where: { id_documento_ata: id }, select: { id: true } });
+    if (daAta) return true;
+
+    const nome = doc.nome ?? '';
+    if (!nome.startsWith(PREFIXO_APURACAO)) return false;
+    const finalizadas = await this.prisma.assembleias.findMany({
+      where: { id_condominio: doc.id_condominio, id_documento_ata: { not: null } },
+      select: { id_documento_ata: true },
+    });
+    const idsAtas = finalizadas.map((a) => a.id_documento_ata as number);
+    if (idsAtas.length === 0) return false;
+    const atas = await this.prisma.documentos.findMany({
+      where: { id: { in: idsAtas }, id_condominio: doc.id_condominio },
+      select: { nome: true },
+    });
+    // Mesmo corte de 255 do finish().
+    return atas.some((a) => `${PREFIXO_APURACAO}${a.nome ?? ''}`.slice(0, 255) === nome);
   }
 }
