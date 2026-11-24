@@ -260,6 +260,11 @@ export class ConsentimentosService {
     for (const m of moradores) {
       if (m.foto_pessoa) fotos.add(m.foto_pessoa);
       if (m.face_id && m.id_condominio) {
+        // A marca vai ANTES da remoção (Q1): um sync em voo da mesma pessoa relê a linha antes de
+        // enfileirar o update e, vendo a marca, segue para a remoção em vez de devolver o rosto.
+        if (marcaOperador) {
+          await this.prisma.moradores.update({ where: { id: m.id }, data: { face_sync_error: marcaOperador } });
+        }
         const ok = await this.facial.unsyncMorador(m.id, m.face_id, m.id_condominio);
         if (ok) {
           await this.prisma.moradores.update({

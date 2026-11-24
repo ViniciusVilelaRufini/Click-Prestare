@@ -66,7 +66,8 @@ import { normalizarMac } from './descoberta.service';
 import { agentesSemRedeInterna, urlExternaSegura } from '../common/url-segura.util';
 import { validarIpDispositivo, validarPortaDispositivo } from './device-endereco.util';
 import { StorageService } from '../common/storage/storage.service';
-import { executarComLock, OpcoesLock } from '../common/lock-distribuido';
+import { AsyncLocalStorage } from 'async_hooks';
+import { comLock, executarComLock, OpcoesLock, PrazoDoLockEstouradoError, ResultadoLock } from '../common/lock-distribuido';
 import { hojeBrasilia, horaBrasilia, intervaloHojeBrasilia } from '../common/hora-brasilia.util';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
 import { fimEmMinutos } from '../areas-sociais/fim-reserva.util';
@@ -89,6 +90,40 @@ const MOTIVOS_RUIDO_QR: ReadonlySet<string> = new Set(['desconhecida', 'assinatu
 const BULK_SYNC_TTL_MS = 2 * 60 * 60 * 1000;
 /** Resultado da varredura de fantasmas (roda de hora em hora) vale até a próxima, com folga. */
 const FANTASMAS_TTL_MS = 3 * 60 * 60 * 1000;
+/**
+ * Lock por pessoa (Q1): sync e remoção da MESMA pessoa não rodam juntos — senão o update de um sync
+ * em voo chegava ao terminal depois da remoção e o rosto revogado voltava. Prazo de quem segura o
+ * lock: o pior caso de um sync é um enqueue de 25 s por terminal mudo e, se a autorização cair no
+ * meio, mais uma remoção (15 s) por terminal; 10 min cobrem 15 terminais mudos. Passou disso, o lock
+ * é solto e o sync segue sem exclusividade (a releitura antes de cada enqueue continua valendo).
+ */
+const LOCK_PESSOA_DURACAO_MS = 10 * 60 * 1000;
+/**
+ * Quanto o segundo sync/remoção da mesma pessoa espera o primeiro terminar, tentando de novo com
+ * pausa (sem segurar conexão do pool esperando). Não conseguiu: o sync vira 'pending' e a remoção
+ * devolve false (quem chamou grava pendente) — o tickSyncRetry refaz. Nunca espera indefinidamente.
+ */
+const LOCK_PESSOA_ESPERA_MS = 30 * 1000;
+
+/** Resultado de um sync de pessoa (morador, visitante, Pessoa, prestador de serviço) com os terminais. */
+/**
+ * Locks de pessoa (`facial:pessoa:*`) que o fluxo assíncrono atual já segura: o sync chama a própria
+ * remoção (unsyncX) dentro do lock, e pedir o mesmo GET_LOCK por outra conexão travaria.
+ */
+const locksDaPessoaNoFluxo = new AsyncLocalStorage<ReadonlySet<string>>();
+/** Syncs refeitos porque a autorização caiu no meio (evita refazer em laço). */
+const refazendoAposRevogacao = new Set<string>();
+
+type ResultadoSyncPessoa = {
+  ok?: boolean;
+  skipped?: boolean;
+  removed?: boolean;
+  reason?: string;
+  status?: string;
+  syncState?: string;
+  face_id?: string | null;
+  error?: string | null;
+};
 
 /**
  * Ciclo de negócio do tickDiasSemanaSync (porta: hora 0 de Brasília, mesma do
@@ -543,6 +578,8 @@ export class FacialService {
   private readonly logger = new Logger(FacialService.name);
   /** Condomínios cuja última passada do `tickSyncRetry` foi a carga de terminal pendente. */
   private readonly tickCargaPendenteFeita = new Set<number>();
+  /** Espera pelo lock da pessoa (campo para os testes encurtarem). */
+  private esperaLockPessoaMs = LOCK_PESSOA_ESPERA_MS;
   /** Último aviso de "payload sem credencial" por dispositivo (amostragem do log). */
   private readonly avisoSemCredencialEm = new Map<number, number>();
   /** Último `negado` de ruído de código dinâmico gravado por leitor (ms). Ver JANELA_RUIDO_QR_MS. */
@@ -2379,11 +2416,151 @@ export class FacialService {
     return permitidas === null || permitidas.has(categoria);
   }
 
+  // ---------- Lock por pessoa (Q1): sync × revogação da mesma pessoa ----------
+
+  /**
+   * Roda `fn` com o lock `facial:pessoa:<tipo>:<id>` (GET_LOCK, ver comLock). Ocupado: tenta de
+   * novo com pausa até `esperaLockPessoaMs`, sem segurar conexão esperando, e devolve
+   * `{ obtido: false }` — quem chama marca pendente para o tickSyncRetry. Reentrante no mesmo fluxo
+   * (o sync chama a própria remoção). Ordem de locks permitida: área → pessoa, nunca pessoa → área;
+   * dentro deste lock nada pega lock de área.
+   *
+   * Erro do banco ao pegar o lock: segue sem exclusividade (como antes do lock) — melhor remover
+   * sem lock do que não remover. Erro de `fn` é propagado.
+   */
+  private async comLockDaPessoa<T>(tipo: string, id: number, fn: () => Promise<T>): Promise<ResultadoLock<T>> {
+    const nome = `facial:pessoa:${tipo}:${id}`;
+    const seguros = locksDaPessoaNoFluxo.getStore();
+    if (seguros?.has(nome)) return { obtido: true, valor: await fn() };
+    const dentro = () => locksDaPessoaNoFluxo.run(new Set([...(seguros ?? []), nome]), fn);
+    let rodou = false;
+    const marcado = () => {
+      rodou = true;
+      return dentro();
+    };
+    const limite = Date.now() + (this.esperaLockPessoaMs ?? LOCK_PESSOA_ESPERA_MS);
+    for (let pausa = 50; ; pausa = Math.min(pausa * 2, 400)) {
+      let r: ResultadoLock<T>;
+      try {
+        r = await comLock(this.prisma, nome, marcado, {
+          esperaSegundos: 0,
+          duracaoMaximaMs: LOCK_PESSOA_DURACAO_MS,
+        });
+      } catch (err: any) {
+        if (err instanceof PrazoDoLockEstouradoError) {
+          // `fn` segue rodando sem exclusividade e grava o próprio resultado; daqui fica pendente.
+          this.logger.error(`${err.message} (${tipo} ${id} fica pendente)`);
+          return { obtido: false };
+        }
+        if (rodou) throw err;
+        this.logger.warn(`Lock "${nome}" indisponível (${err?.message ?? err}) — seguindo sem exclusividade`);
+        return { obtido: true, valor: await dentro() };
+      }
+      const resta = limite - Date.now();
+      if (r.obtido || resta <= 0) return r;
+      await new Promise<void>((ok) => {
+        const t = setTimeout(ok, Math.min(pausa, resta));
+        (t as any)?.unref?.();
+      });
+    }
+  }
+
+  /** Sync que não pegou o lock da pessoa: fica 'pending' para o tickSyncRetry (não é descartado). */
+  private async syncAdiadoPeloLock(
+    tabela: 'moradores' | 'visitantes' | 'pessoas' | 'prestadores_servico',
+    id: number,
+    opts: { cargaRestrita?: boolean },
+  ) {
+    this.logger.warn(
+      `Sync facial ${tabela} ${id} adiado: outro sync/remoção da mesma pessoa em andamento — fica pendente para o tickSyncRetry`,
+    );
+    // Carga restrita: quem fica pendente é o TERMINAL (o status 'pending' do retorno conta como
+    // falha transitória), não o status global da pessoa — mesma regra de preservarStatusGlobal.
+    if (!opts.cargaRestrita) {
+      await (this.prisma as any)[tabela]
+        .update({ where: { id }, data: { face_sync_status: 'pending' } })
+        .catch((err: any) => this.logger.warn(`Falha ao marcar ${tabela} ${id} pendente: ${err?.message ?? err}`));
+    }
+    return { ok: false, status: 'pending' as const, reason: 'sync_em_andamento' };
+  }
+
+  /** Remoção com o lock da pessoa. Sem o lock a tempo: false (quem chamou grava pendente). */
+  private async removerComLockDaPessoa(tipo: string, id: number, fn: () => Promise<boolean>): Promise<boolean> {
+    // Sem id (exclusão em lote só pelo face_id): não há sync com quem serializar.
+    if (!id) return fn();
+    const r = await this.comLockDaPessoa(tipo, id, fn);
+    if (r.obtido) return r.valor;
+    this.logger.warn(
+      `Remoção facial ${tipo} ${id} adiada: sync da mesma pessoa em andamento — fica pendente para o tickSyncRetry`,
+    );
+    return false;
+  }
+
+  /**
+   * A autorização caiu no meio do sync (relida antes de enfileirar): nada mais de update/enroll —
+   * o sync é refeito e, com o estado novo, cai no ramo de remoção. O rosto que ESTE sync mandou e
+   * que o banco não conhece (enroll novo, ou a revogação já zerou o face_id) é gravado antes, para
+   * a remoção saber o que tirar. Linha apagada: remove direto. Se a autorização mudar de novo no
+   * sync refeito, fica 'pending' para o tickSyncRetry.
+   */
+  private async refazerSyncAposRevogacao(p: {
+    tabela: 'moradores' | 'visitantes' | 'pessoas' | 'prestadores_servico';
+    id: number;
+    faceIdLocal: string | null;
+    externalId: string;
+    enviouAlgum: boolean;
+    remover: (faceId: string) => Promise<boolean>;
+    refazer: () => Promise<ResultadoSyncPessoa>;
+  }): Promise<ResultadoSyncPessoa> {
+    const tabela = (this.prisma as any)[p.tabela];
+    this.logger.log(`Sync facial ${p.tabela} ${p.id}: autorização caiu durante o sync — seguindo para a remoção`);
+    const linha = await tabela.findUnique({ where: { id: p.id } });
+    if (!linha) {
+      const ok = await p.remover(p.faceIdLocal ?? p.externalId);
+      return { ok, removed: ok, reason: 'removido_durante_sync' };
+    }
+    const chave = `${p.tabela}:${p.id}`;
+    if (refazendoAposRevogacao.has(chave)) {
+      await tabela.update({ where: { id: p.id }, data: { face_sync_status: 'pending' } });
+      return { ok: false, status: 'pending' as const, reason: 'autorizacao_mudou_durante_sync' };
+    }
+    if (p.enviouAlgum && p.faceIdLocal && linha.face_id !== p.faceIdLocal) {
+      await tabela.update({ where: { id: p.id }, data: { face_id: p.faceIdLocal } });
+    }
+    refazendoAposRevogacao.add(chave);
+    try {
+      return await p.refazer();
+    } finally {
+      refazendoAposRevogacao.delete(chave);
+    }
+  }
+
+  /**
+   * Releitura da autorização do morador logo antes de enfileirar update/enroll: mesmas travas do
+   * início do syncMorador (idade, marca do operador, consentimento, foto).
+   */
+  private async moradorAindaPodeTerRosto(idMorador: number): Promise<boolean> {
+    const m = await this.prisma.moradores.findUnique({ where: { id: idMorador } });
+    if (!m || !m.foto_pessoa || !m.id_condominio) return false;
+    if (m.face_sync_error === REVOGADO_PELO_OPERADOR) return false;
+    if (!m.data_nascimento || (calcularIdade(m.data_nascimento) < 18 && !temTermoResponsavel(m.extra2))) {
+      return false;
+    }
+    return this.consentimentos.autorizouBiometria(m.id_user);
+  }
+
   async syncMorador(idMorador: number, opts: { deviceIds?: number[]; cargaRestrita?: boolean } = {}) {
     if (FACIAL_DISABLED)
       return { skipped: true, reason: 'integration_disabled' };
     if (!this.prisma.isConnected) return { skipped: true, reason: 'no_db' };
+    const r = await this.comLockDaPessoa('morador', idMorador, () => this.syncMoradorComLock(idMorador, opts));
+    return r.obtido ? r.valor : this.syncAdiadoPeloLock('moradores', idMorador, opts);
+  }
 
+  private async syncMoradorComLock(
+    idMorador: number,
+    opts: { deviceIds?: number[]; cargaRestrita?: boolean },
+  ): Promise<ResultadoSyncPessoa> {
     const morador = await this.prisma.moradores.findUnique({
       where: { id: idMorador },
     });
@@ -2522,6 +2699,9 @@ export class FacialService {
     let allOk = true;
     let ultimoErro: string | null = null;
     const devicesSincronizados: number[] = [];
+    // Autorização relida antes de cada update/enroll (Q1): revogação que entrou durante a E/S
+    // lenta (foto, terminal mudo) não pode ser atropelada pelo update deste sync.
+    let revogadoNoMeio = false;
     for (const device of devices) {
       // Terminal de área gated: pula só MORADOR comum. Funcionário (administração)
       // sempre é enrolado — acessa qualquer terminal mesmo com a regra de reserva.
@@ -2536,6 +2716,10 @@ export class FacialService {
             faceId ?? externalId,
           );
           continue;
+        }
+        if (!(await this.moradorAindaPodeTerRosto(idMorador))) {
+          revogadoNoMeio = true;
+          break;
         }
         if (faceId) {
           await this.client.updatePerson(this.toConfig(device), faceId, {
@@ -2558,6 +2742,21 @@ export class FacialService {
           `Sync morador ${idMorador} device ${device.id} falhou: ${ultimoErro}`,
         );
       }
+    }
+    // Última releitura antes de gravar "synced": revogação que entrou durante o último enqueue.
+    if (!revogadoNoMeio && devicesSincronizados.length > 0 && !(await this.moradorAindaPodeTerRosto(idMorador))) {
+      revogadoNoMeio = true;
+    }
+    if (revogadoNoMeio) {
+      return this.refazerSyncAposRevogacao({
+        tabela: 'moradores',
+        id: idMorador,
+        faceIdLocal: faceId,
+        externalId,
+        enviouAlgum: devicesSincronizados.length > 0,
+        remover: (f) => this.unsyncMorador(idMorador, f, morador.id_condominio),
+        refazer: () => this.syncMoradorComLock(idMorador, opts),
+      });
     }
 
     // Atualiza ultima_sincr dos devices que receberam a sync com sucesso —
@@ -2917,6 +3116,78 @@ export class FacialService {
       return { skipped: true, reason: 'visita_nao_encontrada' };
     }
 
+    const r = await this.comLockDaPessoa('visitante', idVisitante, () => this.syncVisitanteComLock(idVisitante, opts));
+    return r.obtido ? r.valor : this.syncAdiadoPeloLock('visitantes', idVisitante, opts);
+  }
+
+  /**
+   * Janela, dia da semana e "está dentro" do visitante legado agora — o que decide se o rosto pode
+   * ficar no aparelho. Usado no início do sync e na releitura antes de cada enqueue (Q1).
+   */
+  private autorizacaoVisitanteAgora(visitante: any) {
+    // O rosto do visitante só fica no aparelho enquanto ele está AUTORIZADO —
+    // liberado=1 E dentro da janela de validade, OU atualmente DENTRO (entrou e
+    // ainda não saiu, p/ poder sair). Sem isso, um visitante já sem liberação
+    // (ou expirado) seria reconhecido e o aparelho ABRIRIA, mesmo a nuvem
+    // negando. Prestador (liberado fixo=1) permanece enquanto na janela.
+    const agora = Date.now();
+    const inicioMs = visitante.data_hora_inicio
+      ? new Date(visitante.data_hora_inicio).getTime()
+      : null;
+    const terminoMs = visitante.data_hora_termino
+      ? new Date(visitante.data_hora_termino).getTime()
+      : null;
+    const dentroJanela =
+      (inicioMs === null || agora >= inicioMs - TOLERANCIA_JANELA_MS) &&
+      (terminoMs === null || agora <= terminoMs + TOLERANCIA_JANELA_MS);
+
+    // Considera "dentro do condomínio" apenas se entrou e ainda não registrou saída,
+    // e desde que a entrada tenha ocorrido há menos de 24 horas (proteção contra estado órfão).
+    const VINTE_QUATRO_HORAS_MS = 24 * 60 * 60 * 1000;
+    const tempoMaximoCondominio = visitante.data_entrada
+      ? agora - new Date(visitante.data_entrada).getTime() < VINTE_QUATRO_HORAS_MS
+      : false;
+    const dentroDoCondominio =
+      !!visitante.data_entrada && !visitante.data_saida && tempoMaximoCondominio;
+    // Restrição de dia da semana configurada na ficha do prestador/visitante.
+    // Usa horário de Brasília para bater com o relógio do aparelho.
+    const mapDiasSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+    const agoraBRT = new Date(
+      new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }),
+    );
+    const diaSemanaAtual = mapDiasSemana[agoraBRT.getDay()];
+    const diasPermitidos: string[] = visitante.dias_semana
+      ? (visitante.dias_semana as string)
+          .split(',')
+          .map((d) => d.trim().toLowerCase())
+          .filter(Boolean)
+      : [];
+    const diaAutorizado =
+      diasPermitidos.length === 0 || diasPermitidos.includes(diaSemanaAtual);
+    // dentroDoCondominio sempre permite (pessoa dentro pode sair mesmo fora do dia autorizado).
+    const autorizado =
+      visitante.bloqueado !== 1 &&
+      ((visitante.liberado === 1 && dentroJanela && diaAutorizado) ||
+        dentroDoCondominio);
+    return { dentroJanela, dentroDoCondominio, diasPermitidos, diaAutorizado, autorizado };
+  }
+
+  /** Releitura do visitante legado antes de enfileirar update/enroll (Q1). */
+  private async visitanteAindaPodeTerRosto(idVisitante: number): Promise<boolean> {
+    const v = await this.prisma.visitantes.findUnique({ where: { id: idVisitante } });
+    if (!v || !v.foto_pessoa || !this.autorizacaoVisitanteAgora(v).autorizado) return false;
+    return this.consentimentosTerceiros.autorizouBiometria({
+      idCondominio: v.id_condominio,
+      tipoPessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
+      idPessoa: v.id,
+      doc: v.doc_identificacao,
+    });
+  }
+
+  private async syncVisitanteComLock(
+    idVisitante: number,
+    opts: { deviceIds?: number[]; cargaRestrita?: boolean },
+  ): Promise<ResultadoSyncPessoa> {
     const visitante = await this.prisma.visitantes.findUnique({
       where: { id: idVisitante },
     });
@@ -2970,50 +3241,9 @@ export class FacialService {
       return { skipped: true, reason: 'sem_consentimento_biometria' };
     }
 
-    // O rosto do visitante só fica no aparelho enquanto ele está AUTORIZADO —
-    // liberado=1 E dentro da janela de validade, OU atualmente DENTRO (entrou e
-    // ainda não saiu, p/ poder sair). Sem isso, um visitante já sem liberação
-    // (ou expirado) seria reconhecido e o aparelho ABRIRIA, mesmo a nuvem
-    // negando. Prestador (liberado fixo=1) permanece enquanto na janela.
-    const agora = Date.now();
-    const inicioMs = visitante.data_hora_inicio
-      ? new Date(visitante.data_hora_inicio).getTime()
-      : null;
-    const terminoMs = visitante.data_hora_termino
-      ? new Date(visitante.data_hora_termino).getTime()
-      : null;
-    const dentroJanela =
-      (inicioMs === null || agora >= inicioMs - TOLERANCIA_JANELA_MS) &&
-      (terminoMs === null || agora <= terminoMs + TOLERANCIA_JANELA_MS);
-
-    // Considera "dentro do condomínio" apenas se entrou e ainda não registrou saída,
-    // e desde que a entrada tenha ocorrido há menos de 24 horas (proteção contra estado órfão).
-    const VINTE_QUATRO_HORAS_MS = 24 * 60 * 60 * 1000;
-    const tempoMaximoCondominio = visitante.data_entrada
-      ? agora - new Date(visitante.data_entrada).getTime() < VINTE_QUATRO_HORAS_MS
-      : false;
-    const dentroDoCondominio =
-      !!visitante.data_entrada && !visitante.data_saida && tempoMaximoCondominio;
-    // Restrição de dia da semana configurada na ficha do prestador/visitante.
-    // Usa horário de Brasília para bater com o relógio do aparelho.
-    const mapDiasSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
-    const agoraBRT = new Date(
-      new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }),
-    );
-    const diaSemanaAtual = mapDiasSemana[agoraBRT.getDay()];
-    const diasPermitidos: string[] = visitante.dias_semana
-      ? (visitante.dias_semana as string)
-          .split(',')
-          .map((d) => d.trim().toLowerCase())
-          .filter(Boolean)
-      : [];
-    const diaAutorizado =
-      diasPermitidos.length === 0 || diasPermitidos.includes(diaSemanaAtual);
-    // dentroDoCondominio sempre permite (pessoa dentro pode sair mesmo fora do dia autorizado).
-    const autorizado =
-      visitante.bloqueado !== 1 &&
-      ((visitante.liberado === 1 && dentroJanela && diaAutorizado) ||
-        dentroDoCondominio);
+    // Janela, dia da semana e "está dentro" — ver autorizacaoVisitanteAgora.
+    const { dentroJanela, dentroDoCondominio, diasPermitidos, diaAutorizado, autorizado } =
+      this.autorizacaoVisitanteAgora(visitante);
     if (!autorizado) {
       if (visitante.face_id && visitante.id_condominio) {
         const removedOk = await this.unsyncVisitante(
@@ -3100,6 +3330,7 @@ export class FacialService {
     let allOk = true;
     let ultimoErro: string | null = null;
     const devicesSincronizados: number[] = [];
+    let revogadoNoMeio = false;
     for (const device of devices) {
       try {
         const permitidas = await this.categoriasPermitidasNoDispositivo(device);
@@ -3141,6 +3372,12 @@ export class FacialService {
           else userTimes = device.sentido === 'auto' ? 2 : 1;
         }
 
+        // Releitura antes de enfileirar (Q1): saída/bloqueio/expiração que entrou durante a E/S
+        // lenta não pode ser atropelada por este update.
+        if (!(await this.visitanteAindaPodeTerRosto(idVisitante))) {
+          revogadoNoMeio = true;
+          break;
+        }
         if (faceId) {
           await this.client.updatePerson(this.toConfig(device), faceId, {
             nome: visitante.nome,
@@ -3168,6 +3405,20 @@ export class FacialService {
           `Sync visitante ${idVisitante} device ${device.id} falhou: ${ultimoErro}`,
         );
       }
+    }
+    if (!revogadoNoMeio && devicesSincronizados.length > 0 && !(await this.visitanteAindaPodeTerRosto(idVisitante))) {
+      revogadoNoMeio = true;
+    }
+    if (revogadoNoMeio) {
+      return this.refazerSyncAposRevogacao({
+        tabela: 'visitantes',
+        id: idVisitante,
+        faceIdLocal: faceId,
+        externalId,
+        enviouAlgum: devicesSincronizados.length > 0,
+        remover: (f) => this.unsyncVisitante(idVisitante, f, visitante.id_condominio),
+        refazer: () => this.syncVisitanteComLock(idVisitante, opts),
+      });
     }
 
     // Mesma lógica de atualização de ultima_sincr do syncMorador.
@@ -3217,27 +3468,29 @@ export class FacialService {
     opts: { deviceIds?: number[] } = {},
   ): Promise<boolean> {
     if (FACIAL_DISABLED || !faceId || !idCondominio) return true;
-    // Mesmo critério do sync: só terminais faciais têm /persons.
-    const devices = await this.prisma.facial_Devices.findMany({
-      where: {
-        id_condominio: idCondominio,
-        ativo: 1,
-        tipo: 'facial',
-        ...(opts.deviceIds?.length ? { id: { in: opts.deviceIds } } : {}),
-      },
-    });
-    let allOk = true;
-    for (const device of devices) {
-      try {
-        await this.client.removePerson(this.toConfig(device), faceId);
-      } catch (err: any) {
-        allOk = false;
-        this.logger.warn(
-          `Remoção morador ${idMorador} device ${device.id}: ${err?.message ?? err}`,
-        );
+    return this.removerComLockDaPessoa('morador', idMorador, async () => {
+      // Mesmo critério do sync: só terminais faciais têm /persons.
+      const devices = await this.prisma.facial_Devices.findMany({
+        where: {
+          id_condominio: idCondominio,
+          ativo: 1,
+          tipo: 'facial',
+          ...(opts.deviceIds?.length ? { id: { in: opts.deviceIds } } : {}),
+        },
+      });
+      let allOk = true;
+      for (const device of devices) {
+        try {
+          await this.client.removePerson(this.toConfig(device), faceId);
+        } catch (err: any) {
+          allOk = false;
+          this.logger.warn(
+            `Remoção morador ${idMorador} device ${device.id}: ${err?.message ?? err}`,
+          );
+        }
       }
-    }
-    return allOk;
+      return allOk;
+    });
   }
 
   /**
@@ -3255,27 +3508,29 @@ export class FacialService {
     opts: { deviceIds?: number[] } = {},
   ): Promise<boolean> {
     if (FACIAL_DISABLED || !faceId) return true;
-    // Mesmo critério do sync: só terminais faciais têm /persons.
-    const devices = await this.prisma.facial_Devices.findMany({
-      where: {
-        id_condominio: idCondominio,
-        ativo: 1,
-        tipo: 'facial',
-        ...(opts.deviceIds?.length ? { id: { in: opts.deviceIds } } : {}),
-      },
-    });
-    let allOk = true;
-    for (const device of devices) {
-      try {
-        await this.client.removePerson(this.toConfig(device), faceId);
-      } catch (err: any) {
-        allOk = false;
-        this.logger.warn(
-          `Remoção visitante ${idVisitante} device ${device.id}: ${err?.message ?? err}`,
-        );
+    return this.removerComLockDaPessoa('visitante', idVisitante, async () => {
+      // Mesmo critério do sync: só terminais faciais têm /persons.
+      const devices = await this.prisma.facial_Devices.findMany({
+        where: {
+          id_condominio: idCondominio,
+          ativo: 1,
+          tipo: 'facial',
+          ...(opts.deviceIds?.length ? { id: { in: opts.deviceIds } } : {}),
+        },
+      });
+      let allOk = true;
+      for (const device of devices) {
+        try {
+          await this.client.removePerson(this.toConfig(device), faceId);
+        } catch (err: any) {
+          allOk = false;
+          this.logger.warn(
+            `Remoção visitante ${idVisitante} device ${device.id}: ${err?.message ?? err}`,
+          );
+        }
       }
-    }
-    return allOk;
+      return allOk;
+    });
   }
 
   /**
@@ -3288,26 +3543,28 @@ export class FacialService {
     opts: { deviceIds?: number[] } = {},
   ): Promise<boolean> {
     if (FACIAL_DISABLED || !faceId) return true;
-    const devices = await this.prisma.facial_Devices.findMany({
-      where: {
-        id_condominio: idCondominio,
-        ativo: 1,
-        tipo: 'facial',
-        ...(opts.deviceIds?.length ? { id: { in: opts.deviceIds } } : {}),
-      },
-    });
-    let allOk = true;
-    for (const device of devices) {
-      try {
-        await this.client.removePerson(this.toConfig(device), faceId);
-      } catch (err: any) {
-        allOk = false;
-        this.logger.warn(
-          `Remoção pessoa ${idPessoa} device ${device.id}: ${err?.message ?? err}`,
-        );
+    return this.removerComLockDaPessoa('pessoa', idPessoa, async () => {
+      const devices = await this.prisma.facial_Devices.findMany({
+        where: {
+          id_condominio: idCondominio,
+          ativo: 1,
+          tipo: 'facial',
+          ...(opts.deviceIds?.length ? { id: { in: opts.deviceIds } } : {}),
+        },
+      });
+      let allOk = true;
+      for (const device of devices) {
+        try {
+          await this.client.removePerson(this.toConfig(device), faceId);
+        } catch (err: any) {
+          allOk = false;
+          this.logger.warn(
+            `Remoção pessoa ${idPessoa} device ${device.id}: ${err?.message ?? err}`,
+          );
+        }
       }
-    }
-    return allOk;
+      return allOk;
+    });
   }
 
   /**
@@ -3317,7 +3574,30 @@ export class FacialService {
   async syncPessoa(idPessoa: number, opts: { deviceIds?: number[]; cargaRestrita?: boolean } = {}) {
     if (FACIAL_DISABLED) return { skipped: true, reason: 'integration_disabled' };
     if (!this.prisma.isConnected) return { skipped: true, reason: 'no_db' };
+    const id = Number(idPessoa);
+    const r = await this.comLockDaPessoa('pessoa', id, () => this.syncPessoaComLock(id, opts));
+    return r.obtido ? r.valor : this.syncAdiadoPeloLock('pessoas', id, opts);
+  }
 
+  /** Releitura da Pessoa antes de enfileirar update/enroll (Q1): mesmas travas do syncPessoa. */
+  private async pessoaAindaPodeTerRosto(idPessoa: number): Promise<boolean> {
+    const p = await this.prisma.pessoas.findUnique({ where: { id: idPessoa }, include: { visitas: true } });
+    if (!p || !p.foto_pessoa || p.bloqueado === 1) return false;
+    const visitas = p.visitas ?? [];
+    const ctx = contextoVisita(Date.now(), await this.vagasVigentesComPrazoRemoto(visitas));
+    if (!visitas.some((v) => visitaAtivaNoTerminal(v, ctx))) return false;
+    return this.consentimentosTerceiros.autorizouBiometria({
+      idCondominio: p.id_condominio,
+      tipoPessoa: p.tipo_pessoa === 'prestador' ? 'prestador' : 'visitante',
+      idPessoa: p.id,
+      doc: p.doc_identificacao,
+    });
+  }
+
+  private async syncPessoaComLock(
+    idPessoa: number,
+    opts: { deviceIds?: number[]; cargaRestrita?: boolean },
+  ): Promise<ResultadoSyncPessoa> {
     const pessoa = await this.prisma.pessoas.findUnique({
       where: { id: Number(idPessoa) },
       include: { visitas: true },
@@ -3468,7 +3748,10 @@ export class FacialService {
    * pessoa por 2 h depois do término) reenvia com a próxima; nesse intervalo o
    * aparelho nega — erra para o lado de fechar.
    */
-  async pushPessoaToDevices(pessoa: any, opts: { deviceIds?: number[]; cargaRestrita?: boolean } = {}) {
+  async pushPessoaToDevices(
+    pessoa: any,
+    opts: { deviceIds?: number[]; cargaRestrita?: boolean } = {},
+  ): Promise<ResultadoSyncPessoa> {
     const devices = await this.prisma.facial_Devices.findMany({
       where: {
         id_condominio: pessoa.id_condominio,
@@ -3571,6 +3854,9 @@ export class FacialService {
     let faceId: string | null = pessoa.face_id ?? null;
     let allOk = true;
     let ultimoErro: string | null = null;
+    // Releitura antes de cada update/enroll (Q1) — ver syncMorador.
+    let revogadoNoMeio = false;
+    let enviouAlgum = false;
     for (const device of devices) {
       try {
         // Mesma whitelist de categoria de `syncVisitante`/`syncMorador`
@@ -3624,6 +3910,10 @@ export class FacialService {
         // limite de 24 h de quem está dentro.
         const validToDispositivo = soParaSair && device.sentido !== 'saida' ? limiteDeQuemEstaDentro : validTo;
 
+        if (!(await this.pessoaAindaPodeTerRosto(pessoa.id))) {
+          revogadoNoMeio = true;
+          break;
+        }
         if (faceId) {
           await this.client.updatePerson(this.toConfig(device), faceId, {
             nome: pessoa.nome,
@@ -3643,10 +3933,25 @@ export class FacialService {
           });
           faceId = r.faceId;
         }
+        enviouAlgum = true;
       } catch (err: any) {
         allOk = false;
         ultimoErro = err?.message ?? String(err);
       }
+    }
+    if (!revogadoNoMeio && enviouAlgum && !(await this.pessoaAindaPodeTerRosto(pessoa.id))) {
+      revogadoNoMeio = true;
+    }
+    if (revogadoNoMeio) {
+      return this.refazerSyncAposRevogacao({
+        tabela: 'pessoas',
+        id: pessoa.id,
+        faceIdLocal: faceId,
+        externalId,
+        enviouAlgum,
+        remover: (f) => this.unsyncPessoa(pessoa.id, f, pessoa.id_condominio, opts),
+        refazer: () => this.syncPessoaComLock(pessoa.id, opts),
+      });
     }
 
     const status = this.classificarSync(allOk, ultimoErro);
@@ -3680,7 +3985,45 @@ export class FacialService {
     if (FACIAL_DISABLED)
       return { skipped: true, reason: 'integration_disabled' };
     if (!this.prisma.isConnected) return { skipped: true, reason: 'no_db' };
+    const r = await this.comLockDaPessoa('prestador_servico', idPrestador, () =>
+      this.syncPrestadorServicoComLock(idPrestador, opts),
+    );
+    return r.obtido ? r.valor : this.syncAdiadoPeloLock('prestadores_servico', idPrestador, opts);
+  }
 
+  /**
+   * Restrição de dia da semana do prestador de serviço (horário de Brasília p/ bater com o
+   * aparelho). Vazio = NENHUM dia permitido (semântica da tela de cadastro).
+   */
+  private prestadorNoDiaAutorizado(prest: { dias_semana: string | null }): boolean {
+    const mapDiasSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+    const agoraBRT = new Date(
+      new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }),
+    );
+    const diaSemanaAtual = mapDiasSemana[agoraBRT.getDay()];
+    const diasPermitidos: string[] = (prest.dias_semana ?? '')
+      .split(',')
+      .map((d) => d.trim().toLowerCase())
+      .filter(Boolean);
+    return diasPermitidos.length > 0 && diasPermitidos.includes(diaSemanaAtual);
+  }
+
+  /** Releitura do prestador de serviço antes de enfileirar update/enroll (Q1). */
+  private async prestadorAindaPodeTerRosto(idPrestador: number): Promise<boolean> {
+    const p = await this.prisma.prestadores_servico.findUnique({ where: { id: idPrestador } });
+    if (!p || !p.foto_pessoa || !this.prestadorNoDiaAutorizado(p)) return false;
+    return this.consentimentosTerceiros.autorizouBiometria({
+      idCondominio: p.id_condominio,
+      tipoPessoa: 'prestador',
+      idPessoa: p.id,
+      doc: null,
+    });
+  }
+
+  private async syncPrestadorServicoComLock(
+    idPrestador: number,
+    opts: { deviceIds?: number[]; cargaRestrita?: boolean },
+  ): Promise<ResultadoSyncPessoa> {
     const prest = await this.prisma.prestadores_servico.findUnique({
       where: { id: idPrestador },
     });
@@ -3726,19 +4069,8 @@ export class FacialService {
       return { skipped: true, reason: 'sem_consentimento_biometria' };
     }
 
-    // Restrição de dia da semana (horário de Brasília p/ bater com o aparelho).
-    // Vazio = NENHUM dia permitido (semântica da tela de cadastro).
-    const mapDiasSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
-    const agoraBRT = new Date(
-      new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }),
-    );
-    const diaSemanaAtual = mapDiasSemana[agoraBRT.getDay()];
-    const diasPermitidos: string[] = (prest.dias_semana ?? '')
-      .split(',')
-      .map((d) => d.trim().toLowerCase())
-      .filter(Boolean);
-    const diaAutorizado =
-      diasPermitidos.length > 0 && diasPermitidos.includes(diaSemanaAtual);
+    // Restrição de dia da semana — ver prestadorNoDiaAutorizado.
+    const diaAutorizado = this.prestadorNoDiaAutorizado(prest);
 
     // Só terminais faciais recebem cadastro de pessoa (foto + face_id).
     const devices = await this.prisma.facial_Devices.findMany({
@@ -3791,6 +4123,8 @@ export class FacialService {
     let allOk = true;
     let ultimoErro: string | null = null;
     const devicesSincronizados: number[] = [];
+    // Releitura antes de cada update/enroll (Q1) — ver syncMorador.
+    let revogadoNoMeio = false;
     for (const device of devices) {
       try {
         const permitidas = await this.categoriasPermitidasNoDispositivo(device);
@@ -3806,6 +4140,10 @@ export class FacialService {
         // meia-noite, mesmo offline; o tick da virada re-estende nos dias
         // autorizados.
         const validTo = this.fimDoDiaBRT();
+        if (!(await this.prestadorAindaPodeTerRosto(idPrestador))) {
+          revogadoNoMeio = true;
+          break;
+        }
         if (faceId) {
           await this.client.updatePerson(this.toConfig(device), faceId, {
             nome: prest.nome,
@@ -3830,6 +4168,21 @@ export class FacialService {
         );
       }
     }
+    if (!revogadoNoMeio && devicesSincronizados.length > 0 && !(await this.prestadorAindaPodeTerRosto(idPrestador))) {
+      revogadoNoMeio = true;
+    }
+    if (revogadoNoMeio) {
+      return this.refazerSyncAposRevogacao({
+        tabela: 'prestadores_servico',
+        id: idPrestador,
+        faceIdLocal: faceId,
+        externalId,
+        enviouAlgum: devicesSincronizados.length > 0,
+        remover: (f) => this.unsyncPrestadorServico(idPrestador, f, prest.id_condominio),
+        refazer: () => this.syncPrestadorServicoComLock(idPrestador, opts),
+      });
+    }
+
 
     if (devicesSincronizados.length > 0) {
       const agora = new Date();
@@ -3870,26 +4223,28 @@ export class FacialService {
     opts: { deviceIds?: number[] } = {},
   ): Promise<boolean> {
     if (FACIAL_DISABLED || !faceId || !idCondominio) return true;
-    const devices = await this.prisma.facial_Devices.findMany({
-      where: {
-        id_condominio: idCondominio,
-        ativo: 1,
-        tipo: 'facial',
-        ...(opts.deviceIds?.length ? { id: { in: opts.deviceIds } } : {}),
-      },
-    });
-    let allOk = true;
-    for (const device of devices) {
-      try {
-        await this.client.removePerson(this.toConfig(device), faceId);
-      } catch (err: any) {
-        allOk = false;
-        this.logger.warn(
-          `Remoção prestador ${idPrestador} device ${device.id}: ${err?.message ?? err}`,
-        );
+    return this.removerComLockDaPessoa('prestador_servico', idPrestador, async () => {
+      const devices = await this.prisma.facial_Devices.findMany({
+        where: {
+          id_condominio: idCondominio,
+          ativo: 1,
+          tipo: 'facial',
+          ...(opts.deviceIds?.length ? { id: { in: opts.deviceIds } } : {}),
+        },
+      });
+      let allOk = true;
+      for (const device of devices) {
+        try {
+          await this.client.removePerson(this.toConfig(device), faceId);
+        } catch (err: any) {
+          allOk = false;
+          this.logger.warn(
+            `Remoção prestador ${idPrestador} device ${device.id}: ${err?.message ?? err}`,
+          );
+        }
       }
-    }
-    return allOk;
+      return allOk;
+    });
   }
 
   // ---------- Sincronização em massa (back-fill) ----------

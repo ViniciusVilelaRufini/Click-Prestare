@@ -37,7 +37,8 @@ describe('FacialService — vaga vencida não dá usos ilimitados', () => {
     const vagas = [{ id: 1, id_visita: 60, id_visitante: null, ativo: 1, tipo_ocupacao: 'visitante', fim: fimVaga }];
     const prisma: any = {
       isConnected: true,
-      pessoas: { update: jest.fn() },
+      // findUnique: releitura da autorização antes do enroll (Q1).
+      pessoas: { update: jest.fn(), findUnique: jest.fn(async () => pessoa()) },
       facial_Devices: { findMany: jest.fn(async () => [device]) },
       vagas: { count: jest.fn(async ({ where }: any) => vagas.filter((v) => casa(v, where)).length) },
       regras_Acesso: { findMany: jest.fn(async () => []) },
