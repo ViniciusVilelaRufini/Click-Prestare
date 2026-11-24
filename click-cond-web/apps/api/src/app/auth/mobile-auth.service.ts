@@ -15,7 +15,7 @@ import { type Gravados, StorageService } from '../common/storage/storage.service
 import { FinanceiroService } from '../financeiro/financeiro.service';
 import { FacialService } from '../facial/facial.service';
 import { TenantAccessService, ehFuncionarioDoApp, type PermissaoFuncionario } from './tenant-access.service';
-import { MSG_CONTA_DE_OUTRO_CONDOMINIO, usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio, usuariosComVinculoEmOutroCondominio } from '../common/vinculos-usuario.util';
+import { MSG_CONTA_DE_OUTRO_CONDOMINIO, ehVinculoUnidadeRepetido, usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio, usuariosComVinculoEmOutroCondominio } from '../common/vinculos-usuario.util';
 import { contaSoDaEquipeDoCondominio } from './conta-so-de-equipe.util';
 import { contaDoLoginNaEquipe, tirarContaDaEquipe } from './revogacao-conta-equipe.util';
 import { MSG_FUNCIONARIO_DESATIVADO, limparCacheLoginPortariaDesativado, loginPortariaDesativadoNoCondominio } from './login-portaria-desativado.util';
@@ -883,25 +883,31 @@ export class MobileAuthService {
     const venc = new Date();
     venc.setDate(venc.getDate() + 45);
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.apartamentos_Users.create({
-        data: { id_apto: apto.id, id_user: Number(idUser), tipo, vencimento: venc },
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.apartamentos_Users.create({
+          data: { id_apto: apto.id, id_user: Number(idUser), tipo, vencimento: venc },
+        });
+        await tx.moradores.create({
+          data: {
+            nome: user.name ?? 'Síndico',
+            documento: user.cpf ?? null,
+            email: user.email ?? null,
+            telefone: user.phone ?? null,
+            tipo,
+            id_user: Number(idUser),
+            id_condominio: apto.id_condominio,
+            bloco: apto.bloco || null,
+            apartamento: apto.apto || null,
+          },
+        });
+        await tx.users.update({ where: { id: Number(idUser) }, data: { is_morador: 1 } });
       });
-      await tx.moradores.create({
-        data: {
-          nome: user.name ?? 'Síndico',
-          documento: user.cpf ?? null,
-          email: user.email ?? null,
-          telefone: user.phone ?? null,
-          tipo,
-          id_user: Number(idUser),
-          id_condominio: apto.id_condominio,
-          bloco: apto.bloco || null,
-          apartamento: apto.apto || null,
-        },
-      });
-      await tx.users.update({ where: { id: Number(idUser) }, data: { is_morador: 1 } });
-    });
+    } catch (err: any) {
+      // Dois toques ao mesmo tempo passam pela conferência acima; a chave única barra o segundo.
+      if (ehVinculoUnidadeRepetido(err)) throw new BadRequestException('Você já está vinculado a este apartamento.');
+      throw err;
+    }
 
     return {
       success: true,
@@ -2393,7 +2399,8 @@ export class MobileAuthService {
   // Exclusão de conta (LGPD / requisito Play Store): apaga o usuário logado e,
   // por cascata de FK no banco, seus dados vinculados (morador/síndico, veículos,
   // vagas, etc.). Escopo estrito por id do JWT — remove apenas a própria conta.
-  // O rosto nos terminais não segue a cascata: é removido antes, como no remove do morador.
+  // O rosto nos terminais não segue a cascata: as linhas são lidas antes e o rosto sai DEPOIS do
+  // DELETE bem-sucedido (se o DELETE falhar, a conta continua e o rosto também).
   async deleteAccount(idUser: number) {
     if (!this.prisma.isConnected) return { success: true };
     if (!idUser || Number.isNaN(idUser)) {
@@ -2424,9 +2431,11 @@ export class MobileAuthService {
       }
     }
     // O rosto do morador também está gravado nos terminais. A cascata apaga as linhas de Moradores,
-    // que são o único lugar com o face_id, e o template biométrico ficava no aparelho. Mesmo caminho
-    // do remove do morador (best-effort): falha de terminal não impede a exclusão da conta.
-    // As mesmas linhas, lidas antes do DELETE, dizem de quem revogar os passes da carteira depois.
+    // que são o único lugar com o face_id, e o template biométrico ficava no aparelho. Por isso as
+    // linhas são lidas ANTES do DELETE, e o rosto sai DEPOIS dele, só se deu certo: antes, o unsync
+    // saía primeiro e um DELETE recusado (ex.: FK RESTRICT da vaga) deixava a conta ativa sem rosto.
+    // Best-effort, como no remove do morador: falha de terminal não desfaz a exclusão.
+    // As mesmas linhas dizem de quem revogar os passes da carteira depois.
     let linhasMorador: Array<{ id: number; face_id: string | null; id_condominio: number | null }> = [];
     const tagsGuarita: number[] = [];
     try {
@@ -2437,13 +2446,6 @@ export class MobileAuthService {
       // Módulo Guarita: as tags vêm pelos veículos, que a cascata do DELETE leva.
       if (this.guarita) {
         for (const m of linhasMorador) tagsGuarita.push(...(await this.guarita.tagsDoMorador(m.id)));
-      }
-      for (const m of linhasMorador.filter((l) => l.face_id)) {
-        this.facial
-          .unsyncMorador(m.id, m.face_id, m.id_condominio)
-          .catch((err: any) =>
-            this.logger.warn(`Unsync facial morador ${m.id} (exclusão de conta) falhou: ${err?.message ?? err}`),
-          );
       }
     } catch (err: any) {
       this.logger.warn(`Exclusão de conta ${idUser}: não foi possível listar os rostos: ${err?.message ?? err}`);
@@ -2463,6 +2465,14 @@ export class MobileAuthService {
       }),
       this.prisma.$executeRaw`DELETE FROM Users WHERE id = ${idUser}`,
     ]);
+    // Só aqui, com a conta apagada: rosto, Guarita e carteira (em segundo plano, nunca lançam).
+    for (const m of linhasMorador.filter((l) => l.face_id)) {
+      this.facial
+        .unsyncMorador(m.id, m.face_id, m.id_condominio)
+        .catch((err: any) =>
+          this.logger.warn(`Unsync facial morador ${m.id} (exclusão de conta) falhou: ${err?.message ?? err}`),
+        );
+    }
     if (tagsGuarita.length && this.guarita) {
       await this.guarita
         .enfileirarRemocoes(tagsGuarita, 'Exclusão de conta')
@@ -3385,12 +3395,23 @@ export class MobileAuthService {
       throw new BadRequestException(MSG_CODIGO_INVALIDO);
     }
 
+    // Reserva a tentativa ANTES de conferir o código (atômico, como no MFA): requisições paralelas
+    // liam o mesmo contador, todas rodavam o bcrypt e a rajada passava do limite de 5. Cada uma só
+    // testa um código se conseguiu uma vaga; sem vaga, o ticket é invalidado.
+    const reserva = await this.prisma.redefinicoes_Senha.updateMany({
+      where: { id: registro.id, usado_em: null, tentativas: { lt: 5 }, expira_em: { gt: new Date() } },
+      data: { tentativas: { increment: 1 } },
+    });
+    if (Number(reserva?.count ?? 0) !== 1) {
+      await this.prisma.redefinicoes_Senha
+        .updateMany({ where: { id: registro.id, usado_em: null }, data: { usado_em: new Date() } })
+        .catch(() => null);
+      throw new BadRequestException(MSG_CODIGO_INVALIDO);
+    }
+
     const isMatch = await bcrypt.compare(cleanCode, registro.codigo_hash);
     if (!isMatch) {
-      await this.prisma.redefinicoes_Senha.update({
-        where: { id: registro.id },
-        data: { tentativas: { increment: 1 } },
-      });
+      // A tentativa já foi contada na reserva.
       throw new BadRequestException(MSG_CODIGO_INVALIDO);
     }
 
@@ -3398,13 +3419,18 @@ export class MobileAuthService {
     const resetToken = randomBytes(32).toString('base64url');
     const resetTokenHash = createHash('sha256').update(resetToken).digest('hex');
 
-    await this.prisma.redefinicoes_Senha.update({
-      where: { id: registro.id },
+    // Grava só se o ticket ainda está em aberto: invalidado no meio (esgotou, pedido novo de
+    // código) não emite reset_token.
+    const consumido = await this.prisma.redefinicoes_Senha.updateMany({
+      where: { id: registro.id, usado_em: null },
       data: {
         verificado_em: new Date(),
         reset_token_hash: resetTokenHash,
       },
     });
+    if (Number(consumido?.count ?? 0) !== 1) {
+      throw new BadRequestException(MSG_CODIGO_INVALIDO);
+    }
 
     return {
       success: true,

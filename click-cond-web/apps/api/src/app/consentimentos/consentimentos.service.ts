@@ -43,7 +43,8 @@ export async function lerBiometriaAutorizada(
     orderBy: [{ registrado_em: 'desc' }, { id: 'desc' }],
     select: { id_user: true, aceito: true },
   });
-  for (const r of rows) if (!out.has(r.id_user)) out.set(r.id_user, r.aceito === 1);
+  // id_user é anulável (prova guardada de conta excluída), mas o filtro por `in` nunca devolve NULL.
+  for (const r of rows) if (r.id_user != null && !out.has(r.id_user)) out.set(r.id_user, r.aceito === 1);
   return out;
 }
 

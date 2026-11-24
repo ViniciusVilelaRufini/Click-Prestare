@@ -6,7 +6,7 @@ import { MobileAuthService } from './mobile-auth.service';
  * horária de fantasmas tirava, e só de terminal ativo e listável.
  */
 describe('MobileAuthService.deleteAccount — rosto nos terminais', () => {
-  function montar(opts: { unsyncFalha?: boolean } = {}) {
+  function montar(opts: { unsyncFalha?: boolean; deleteFalha?: boolean } = {}) {
     const ordem: string[] = [];
     const prisma: any = {
       isConnected: true,
@@ -22,6 +22,8 @@ describe('MobileAuthService.deleteAccount — rosto nos terminais', () => {
       },
       financeiro: { updateMany: jest.fn(async () => ({ count: 0 })) },
       $executeRaw: jest.fn(async () => {
+        // FK RESTRICT (ex.: fk_vaga_benef antes de 2026-11-24-vagas-fk-set-null.sql) recusa o DELETE.
+        if (opts.deleteFalha) throw Object.assign(new Error('Foreign key constraint failed'), { code: 'P2003' });
         ordem.push('delete');
         return 1;
       }),
@@ -39,7 +41,7 @@ describe('MobileAuthService.deleteAccount — rosto nos terminais', () => {
     return { svc, prisma, facial, ordem };
   }
 
-  it('remove dos terminais o rosto de cada cadastro de morador da conta, antes de apagar o Users', async () => {
+  it('remove dos terminais o rosto de cada cadastro de morador da conta, depois de apagar o Users', async () => {
     const { svc, prisma, facial, ordem } = montar();
 
     await expect(svc.deleteAccount(5)).resolves.toEqual({ success: true });
@@ -49,8 +51,19 @@ describe('MobileAuthService.deleteAccount — rosto nos terminais', () => {
     );
     expect(facial.unsyncMorador).toHaveBeenCalledWith(11, 'morador_11', 1);
     expect(facial.unsyncMorador).toHaveBeenCalledWith(12, 'morador_12', 2);
-    expect(ordem.indexOf('unsync:11')).toBeLessThan(ordem.indexOf('delete'));
-    expect(ordem.indexOf('unsync:12')).toBeLessThan(ordem.indexOf('delete'));
+    // As linhas são lidas antes do DELETE (a cascata as leva), o rosto sai depois dele.
+    expect(ordem.indexOf('delete')).toBeGreaterThanOrEqual(0);
+    expect(ordem.indexOf('unsync:11')).toBeGreaterThan(ordem.indexOf('delete'));
+    expect(ordem.indexOf('unsync:12')).toBeGreaterThan(ordem.indexOf('delete'));
+  });
+
+  it('DELETE recusado: a conta continua e o rosto NÃO sai dos terminais', async () => {
+    const { svc, facial } = montar({ deleteFalha: true });
+
+    await expect(svc.deleteAccount(5)).rejects.toThrow('Foreign key constraint failed');
+    await new Promise((r) => setImmediate(r));
+
+    expect(facial.unsyncMorador).not.toHaveBeenCalled();
   });
 
   it('falha no terminal não impede a exclusão da conta', async () => {
