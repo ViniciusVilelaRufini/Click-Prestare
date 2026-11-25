@@ -40,13 +40,13 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
   /// Push de reserva ou volta ao app: recarrega áreas e reservas.
   StreamSubscription<DominioApp>? _atualizacoes;
 
-  /// Índice da aba "Minhas reservas" (a última, só para o morador).
-  int get _abaMinhasReservas => _isSindico ? 2 : 1;
-
   @override
   void initState() {
     super.initState();
-    if (widget.minhasReservas && _isMorador) _currentTab = _abaMinhasReservas;
+    // Push/notificação de reserva abre a aba das reservas: "Meus agendamentos"
+    // do morador ou "Agendamentos" do síndico. As duas são a 2ª aba — um
+    // perfil nunca tem as duas (o síndico abria em "Áreas sociais").
+    if (widget.minhasReservas && (_isMorador || _isSindico)) _currentTab = 1;
     _atualizacoes = ouvirAtualizacoes({DominioApp.reserva}, () {
       if (mounted) loadAll(recarga: true);
     });
