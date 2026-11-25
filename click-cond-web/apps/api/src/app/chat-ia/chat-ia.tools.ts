@@ -39,6 +39,13 @@ export interface ContextoFerramenta {
    * `ocorrencias` (vê públicas + as próprias, como em OcorrenciasService.findAll).
    */
   ocorrenciasPrivadas: boolean;
+  /**
+   * Staff que vê o movimento de visitantes do condomínio. Falso para o
+   * funcionário do app sem a flag `cadastrar_visitante` (zeladoria, limpeza):
+   * ele não tem as telas de visitantes, então a IA também não lista quem entrou.
+   * Ausente = segue `staff`.
+   */
+  visitantesDoCondominio?: boolean;
   /** Apartamentos do usuário NESTE condomínio. Vazio = morador sem vínculo. */
   aptos: number[];
   prisma: PrismaService;
@@ -419,6 +426,11 @@ export const FERRAMENTAS_LEITURA: FerramentaLeitura[] = [
     parametros: { type: 'object', properties: {} },
     papeis: STAFF,
     async executar(_args, ctx) {
+      if (ctx.visitantesDoCondominio === false) {
+        return {
+          erro: 'Seu perfil não tem acesso aos visitantes do condomínio. Fale com o síndico.',
+        };
+      }
       const agora = new Date();
       const hoje = formatarDataHoraBrasilia(agora).slice(0, 10);
       // Janela larga (48 h) só para a consulta; o corte exato do dia é feito em

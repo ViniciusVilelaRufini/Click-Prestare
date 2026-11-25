@@ -2509,11 +2509,15 @@ export class MobileAuthService {
       const emitida = f.created_at ? new Date(f.created_at).getTime() : 0;
       const entrouNaJanela = new Date(venc).getTime() - JANELA_AVISO_MS;
       const nasceu = Math.min(agoraMs, Math.max(emitida || 0, entrouNaJanela));
+      // O app (inclusive o 1.2.49 das lojas) mostrava o vencimento pelo
+      // `timestamp`; agora ele vai no texto, que toda versão exibe.
+      const [ano, mes, dia] = new Date(venc).toISOString().slice(0, 10).split('-');
+      const quando = `${vencida ? 'venceu' : 'vence'} em ${dia}/${mes}/${ano}`;
       itens.push({
         id: `financeiro-${f.id}`,
         tipo: 'financeiro',
         titulo: vencida ? 'Conta vencida' : 'Conta a vencer',
-        descricao: `${f.nome ?? 'Cobrança'} — R$ ${valor}`,
+        descricao: `${f.nome ?? 'Cobrança'} — R$ ${valor} · ${quando}`,
         timestamp: new Date(nasceu),
         vencimento: new Date(venc).toISOString().slice(0, 10),
       });

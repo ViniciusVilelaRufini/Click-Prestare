@@ -617,12 +617,23 @@ export class ChatIaService {
       papel === 'Funcionario'
         ? !!user && (await this.tenant.recorteOcorrenciasPrivadas(idCondominio, user)) === null
         : staff;
+    // Movimento da portaria: o funcionário do app precisa da flag de visitantes.
+    let visitantesDoCondominio = staff;
+    if (papel === 'Funcionario') {
+      try {
+        await this.tenant.assertPermissaoFuncionario(idCondominio, 'cadastrar_visitante', user);
+        visitantesDoCondominio = !!user;
+      } catch {
+        visitantesDoCondominio = false;
+      }
+    }
     return {
       idCondominio,
       idUser,
       papel,
       staff,
       ocorrenciasPrivadas,
+      visitantesDoCondominio,
       aptos: vinculos.map((v) => v.id_apto),
       prisma: this.prisma,
       cartoes: [],

@@ -81,19 +81,23 @@ class _LoginSindicoPageState extends State<LoginSindico> {
     setState(() => _isBiometricAuthenticating = true);
 
     final service = BiometricAuthService.instance;
-    final saved = creds ?? await service.getSavedCredentials(widget.loginType);
-    if (saved == null) {
+    Map<String, String>? saved;
+    var authenticated = false;
+    try {
+      saved = creds ?? await service.getSavedCredentials(widget.loginType);
+      if (saved != null) {
+        authenticated = await service.authenticate(
+          reason:
+              'Autentique-se com $_biometricLabel para acessar sua conta de ${_typeLabel()}',
+        );
+      }
+    } catch (_) {
+      authenticated = false;
+    } finally {
+      // Erro na biometria não pode deixar "Entrar" travado até sair da tela.
       if (mounted) setState(() => _isBiometricAuthenticating = false);
-      return;
     }
-
-    final authenticated = await service.authenticate(
-      reason:
-          'Autentique-se com $_biometricLabel para acessar sua conta de ${_typeLabel()}',
-    );
-
-    if (!mounted) return;
-    setState(() => _isBiometricAuthenticating = false);
+    if (!mounted || saved == null) return;
 
     if (authenticated) {
       _txtLogin.text = saved['login'] ?? '';

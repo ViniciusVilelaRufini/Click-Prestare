@@ -498,7 +498,7 @@ export class EncomendasService implements OnModuleInit {
             morador.fcm_token,
             titulo,
             corpo,
-            { id: e.id.toString(), type: 'encomenda', id_condominio: String(e.id_condominio) },
+            { id: e.id.toString(), type: 'encomenda', ...(e.id_condominio ? { id_condominio: String(e.id_condominio) } : {}) },
           );
           if (r) alcancou = true;
         }

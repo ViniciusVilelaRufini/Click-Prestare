@@ -434,6 +434,15 @@ describe('Ferramentas do Assistente IA — autorização', () => {
       expect(ferramentasPara('Morador').map((x) => x.nome)).not.toContain('movimento_da_portaria_hoje');
     });
 
+    it('funcionário sem a flag de visitantes não recebe nomes nem números', async () => {
+      const c = comVisitas([v('Alguém', '2026-11-25T16:16:00.000Z', null)]);
+      c.papel = 'Funcionario';
+      c.visitantesDoCondominio = false;
+      const r: any = await f().executar({}, c);
+      expect(r.erro).toMatch(/não tem acesso aos visitantes/);
+      expect((c.prisma as any).visitantes.findMany).not.toHaveBeenCalled();
+    });
+
     it('pessoa com 2 entradas conta 2 entradas e 1 pessoa, e segue no local', async () => {
       const c = comVisitas([
         v('Vinicius Vilela Rufini', '2026-11-25T16:16:00.000Z', '2026-11-25T16:16:40.000Z', 0, '123'),
