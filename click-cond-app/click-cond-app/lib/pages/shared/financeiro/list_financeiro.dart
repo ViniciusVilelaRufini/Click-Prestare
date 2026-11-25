@@ -1853,6 +1853,10 @@ class _DashboardHeader extends StatelessWidget {
 
   String _cleanMoeda(String val) {
     var s = val.replaceAll('BRL', 'R\$').trim();
+    // Zero não tem sinal ("- R$ 0,00" nas despesas zeradas).
+    if (s.startsWith('-') && !RegExp(r'[1-9]').hasMatch(s)) {
+      s = s.substring(1).trim();
+    }
     if (s.startsWith('-')) {
       var rest = s.substring(1).trim();
       if (rest.startsWith('R\$')) {
