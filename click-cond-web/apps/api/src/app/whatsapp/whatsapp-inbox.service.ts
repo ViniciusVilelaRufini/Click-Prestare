@@ -81,33 +81,51 @@ export class WhatsappInboxService {
   async registrarEntrada(m: EntradaWa): Promise<void> {
     const existente = await this.prisma.crm_WhatsApp_Mensagens.findUnique({ where: { wamid: m.wamid } });
     if (existente) {
-      if (m.mediaId && this.media && this.importacaoReivindicavel(existente.media_status)) {
-        const claim = await this.prisma.crm_WhatsApp_Mensagens.updateMany({
-          where: { wamid: m.wamid, media_status: existente.media_status }, data: { media_status: this.novaLeaseImportacao() },
-        });
-        if (claim.count === 1) await this.importarMidia(m);
-      }
+      await this.mensagemJaRegistrada(m, existente);
       return;
     }
     let conversa = await this.prisma.crm_WhatsApp_Conversas.findUnique({ where: { wa_id: m.waId } });
-    const conversaNova = !conversa;
+    let conversaNova = !conversa;
     const leadDoFormulario = await this.encontrarLeadDoFormulario(m);
     if (!conversa) {
       const leadId = await this.ligarLead(m, leadDoFormulario);
-      conversa = await this.prisma.crm_WhatsApp_Conversas.create({
-        data: { wa_id: m.waId, nome_perfil: m.nomePerfil ?? null, lead_id: leadId, ultima_msg_em: m.em },
-      });
+      try {
+        conversa = await this.prisma.crm_WhatsApp_Conversas.create({
+          data: { wa_id: m.waId, nome_perfil: m.nomePerfil ?? null, lead_id: leadId, ultima_msg_em: m.em },
+        });
+      } catch (e: any) {
+        // Corrida: outro webhook do mesmo contato novo criou a conversa entre
+        // o findUnique e este create (wa_id é único). Ela já existe: relê e
+        // segue com a mensagem nela. Quem criou é quem manda a boas-vindas.
+        if (e?.code !== 'P2002') throw e;
+        conversa = await this.prisma.crm_WhatsApp_Conversas.findUnique({ where: { wa_id: m.waId } });
+        if (!conversa) throw e;
+        conversaNova = false;
+        this.logger.warn(`Conversa ${m.waId} criada por outro webhook ao mesmo tempo — reaproveitada`);
+      }
     } else if (leadDoFormulario && conversa.lead_id !== leadDoFormulario.id) {
       conversa = await this.prisma.crm_WhatsApp_Conversas.update({
         where: { id: conversa.id }, data: { lead_id: leadDoFormulario.id },
       });
     }
-    await this.prisma.crm_WhatsApp_Mensagens.create({
-      data: {
-        conversa_id: conversa.id, wamid: m.wamid, direcao: 'entrada', tipo: m.tipo, texto: m.texto, status: 'recebida', criado_em: m.em,
-        ...(m.mediaId ? { media_mime: m.mime ?? null, media_nome: m.nome ?? null, media_status: 'pendente' } : {}),
-      },
-    });
+    try {
+      await this.prisma.crm_WhatsApp_Mensagens.create({
+        data: {
+          conversa_id: conversa.id, wamid: m.wamid, direcao: 'entrada', tipo: m.tipo, texto: m.texto, status: 'recebida', criado_em: m.em,
+          ...(m.mediaId ? { media_mime: m.mime ?? null, media_nome: m.nome ?? null, media_status: 'pendente' } : {}),
+        },
+      });
+    } catch (e: any) {
+      // Corrida: a mesma mensagem (retry do Meta) foi gravada por outro
+      // webhook entre o findUnique e este create (wamid é único). É a mesma
+      // de cima: quem gravou faz a contagem e a resposta; aqui só o que o
+      // caminho "já existe" faz (reivindicar a mídia pendente).
+      if (e?.code !== 'P2002') throw e;
+      const ja = await this.prisma.crm_WhatsApp_Mensagens.findUnique({ where: { wamid: m.wamid } });
+      if (!ja) throw e;
+      await this.mensagemJaRegistrada(m, ja);
+      return;
+    }
     if (m.mediaId && this.media) {
       const claim = await this.prisma.crm_WhatsApp_Mensagens.updateMany({
         where: { wamid: m.wamid, media_status: 'pendente' }, data: { media_status: this.novaLeaseImportacao() },
@@ -141,6 +159,16 @@ export class WhatsappInboxService {
     await this.responderAutomatico(conversa.id, m.waId, conversaNova, m.em).catch((e) =>
       this.logger.error(`Resposta automática falhou (${m.wamid}): ${e?.message ?? e}`),
     );
+  }
+
+  /** Mensagem que já está gravada (retry do Meta): só re-tenta a importação de mídia reivindicável. */
+  private async mensagemJaRegistrada(m: EntradaWa, existente: any): Promise<void> {
+    if (m.mediaId && this.media && this.importacaoReivindicavel(existente.media_status)) {
+      const claim = await this.prisma.crm_WhatsApp_Mensagens.updateMany({
+        where: { wamid: m.wamid, media_status: existente.media_status }, data: { media_status: this.novaLeaseImportacao() },
+      });
+      if (claim.count === 1) await this.importarMidia(m);
+    }
   }
 
   private async responderAutomatico(conversaId: number, waId: string, conversaNova: boolean, em: Date): Promise<void> {

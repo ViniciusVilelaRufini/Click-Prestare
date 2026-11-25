@@ -84,6 +84,13 @@ const TOKEN_PEDIDO = /^[0-9a-f]{64}$/;
 const TIPOS_QUE_ABREM = ['botoeira', 'catraca', 'facial'];
 const BASE_URL_PADRAO = 'https://www.prestarecondominios.com.br';
 const ROTINA_MS = 5 * 60_000;
+/**
+ * Vencimento dos pedidos de portão: tick próprio de 1 min. O pedido vence em
+ * PEDIDO_EXPIRA_MS (5 min); com a rotina de 5 min o card do morador ficava em
+ * AGUARDANDO, com botões, por até 10 min. Barato: uma consulta pelo índice
+ * (status, expira_em), lote de LOTE_ROTINA, e `vencerPedido` é condicional.
+ */
+const EXPIRAR_MS = 60_000;
 const DIA_MS = 24 * 3_600_000;
 /** O lock com intervaloMinimoMs garante uma passada por dia no cluster. */
 const FOTOS_VERIFICA_MS = 3_600_000;
@@ -164,6 +171,7 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
   /** Público para os testes; em produção é Date.now. */
   agora: () => number = () => Date.now();
   private tickInterval?: ReturnType<typeof setInterval>;
+  private expirarInterval?: ReturnType<typeof setInterval>;
   private fotosInterval?: ReturnType<typeof setInterval>;
   /** Pedidos em andamento por portão (id_device) nesta instância. */
   private readonly emAndamento = new Map<number, number>();
@@ -182,10 +190,16 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
   /**
    * Rotina no padrão da API (setInterval + executarComLock, uma instância
    * por vez): a cada 5 min (com uma hora, a conclusão dos 30 min poderia
-   * levar 90) e as fotos uma vez por dia no cluster.
+   * levar 90), o vencimento dos pedidos a cada 1 min e as fotos uma vez por
+   * dia no cluster.
    */
   onModuleInit() {
     if (process.env['NODE_ENV'] === 'test') return;
+    this.expirarInterval = setInterval(
+      () => void executarComLock(this.prisma, 'delivery-portao:expirar', () => this.expirarPedidosVencidos()),
+      EXPIRAR_MS,
+    );
+    this.expirarInterval.unref?.();
     this.tickInterval = setInterval(
       () => void executarComLock(this.prisma, 'delivery-portao:tick', () => this.tick()),
       ROTINA_MS,
@@ -203,6 +217,7 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
 
   onModuleDestroy() {
     if (this.tickInterval) clearInterval(this.tickInterval);
+    if (this.expirarInterval) clearInterval(this.expirarInterval);
     if (this.fotosInterval) clearInterval(this.fotosInterval);
   }
 
@@ -225,20 +240,7 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     const db = (this.prisma as any).deliveryPedidosPortao;
     const atendimentos = (this.prisma as any).deliveryAtendimentos;
 
-    await this.etapa('expirar pedidos', async () => {
-      const vencidos = (await db.findMany({
-        where: { status: 'pendente', expira_em: { lte: new Date(agora) } },
-        select: { id: true, id_atendimento: true },
-        take: LOTE_ROTINA,
-      })) as { id: number; id_atendimento: number }[];
-      for (const p of vencidos) {
-        try {
-          await this.vencerPedido(p);
-        } catch (e: any) {
-          this.logger.warn(`Rotina do portão: pedido ${p.id} vencido: ${e?.message ?? e}`);
-        }
-      }
-    });
+    await this.etapa('expirar pedidos', () => this.expirarPedidosVencidos());
 
     await this.etapa('cancelar sem resposta', async () => {
       const lista = await atendimentos.findMany({
@@ -285,6 +287,26 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
 
     await this.etapa('cancelar aviso sem chegada', () => this.delivery.cancelarAvisosSemChegada());
     await this.etapa('encerrar parados da portaria', () => this.delivery.encerrarParadosDaPortaria());
+  }
+
+  /**
+   * Pedido pendente vencido → expirado (o card vai a "Entregador não esperou").
+   * Roda no tick de 1 min e também na rotina de 5 min; `vencerPedido` é um
+   * UPDATE condicional, então as duas passadas não se atropelam.
+   */
+  async expirarPedidosVencidos(): Promise<void> {
+    const vencidos = (await (this.prisma as any).deliveryPedidosPortao.findMany({
+      where: { status: 'pendente', expira_em: { lte: new Date(this.agora()) } },
+      select: { id: true, id_atendimento: true },
+      take: LOTE_ROTINA,
+    })) as { id: number; id_atendimento: number }[];
+    for (const p of vencidos) {
+      try {
+        await this.vencerPedido(p);
+      } catch (e: any) {
+        this.logger.warn(`Rotina do portão: pedido ${p.id} vencido: ${e?.message ?? e}`);
+      }
+    }
   }
 
   /**

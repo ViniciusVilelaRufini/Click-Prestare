@@ -6,6 +6,7 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertStaff } from '../auth/tenant.util';
 import { avisarMoradoresDoCondominio } from './avisar-moradores.util';
+import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 
 /** Texto sem espaços nas pontas; vazio/só espaços → 400 com a mensagem dada. */
 function textoObrigatorio(valor: unknown, mensagem: string): string {
@@ -35,7 +36,7 @@ export class ComunicadosService {
    * Push "Novo comunicado" para os moradores do condomínio que deixaram a
    * preferência ligada. Fire-and-forget: falha no FCM não desfaz a publicação.
    */
-  private async notificarMoradores(idCondominio: number, titulo: string, id: number) {
+  private async notificarMoradores(idCondominio: number, titulo: string, id: number, idAutor: number | null) {
     await avisarMoradoresDoCondominio(
       { prisma: this.prisma, notifications: this.notifications, logger: this.logger },
       idCondominio,
@@ -43,6 +44,8 @@ export class ComunicadosService {
         titulo: 'Novo comunicado',
         corpo: titulo,
         data: { type: 'comunicado', id: String(id) },
+        // O síndico que publica e mora no condomínio não recebe o próprio aviso.
+        excluirUserId: idAutor,
       },
     );
   }
@@ -141,7 +144,7 @@ export class ComunicadosService {
       descricao: `Publicou comunicado "${criado.titulo}"`,
       detalhes: ctx ?? undefined,
     });
-    void this.notificarMoradores(dto.id_condominio, criado.titulo, criado.id);
+    void this.notificarMoradores(dto.id_condominio, criado.titulo, criado.id, idUsuarioDoToken(operador));
     return criado;
   }
 

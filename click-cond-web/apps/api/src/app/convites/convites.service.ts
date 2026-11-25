@@ -80,6 +80,10 @@ const FOTO_MIME_PERMITIDO = /^data:image\/(jpeg|jpg|png|webp);base64,/i;
  */
 /** Dias que um convite morto sobrevive antes do expurgo. */
 export const DIAS_RETENCAO_CONVITE = 7;
+/** Lote da retenção de convites; a passada laça até esvaziar (com teto de tempo). */
+const LOTE_RETENCAO_CONVITES = 500;
+/** Teto de tempo de uma passada da retenção de convites. */
+const RETENCAO_CONVITES_TETO_MS = 5 * 60 * 1000;
 
 @Injectable()
 export class ConvitesService implements OnModuleInit, OnModuleDestroy {
@@ -97,10 +101,27 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit() {
     if (process.env['NODE_ENV'] === 'test') return;
-    // Mesmo formato do tickRetencaoDadosVisitantes: um disparo após o boot
-    // assentar e depois uma vez por dia.
-    this.retencaoTimer = setTimeout(() => void executarComLock(this.prisma, 'convites:retencao', async () => { await this.tickRetencaoConvites(); }, { intervaloMinimoMs: 24 * 60 * 60 * 1000 }), 6 * 60 * 1000);
-    this.retencaoInterval = setInterval(() => void executarComLock(this.prisma, 'convites:retencao', async () => { await this.tickRetencaoConvites(); }, { intervaloMinimoMs: 24 * 60 * 60 * 1000 }), 24 * 60 * 60 * 1000);
+    // Mesmo formato da retenção de visitantes: um disparo após o boot
+    // assentar, depois tick horário com período mínimo de 24 h — a passada
+    // que falhou ou parou no teto de tempo não marca o período e a próxima
+    // hora continua.
+    const tick = () =>
+      void executarComLock(this.prisma, 'convites:retencao', () => this.rodarRetencaoAgendada(), {
+        intervaloMinimoMs: 24 * 60 * 60 * 1000,
+      });
+    this.retencaoTimer = setTimeout(tick, 6 * 60 * 1000);
+    this.retencaoInterval = setInterval(tick, 60 * 60 * 1000);
+  }
+
+  /** true = esvaziou (marca o período); false = falhou ou ficou pendente (a próxima hora tenta). */
+  async rodarRetencaoAgendada(): Promise<boolean> {
+    if (!this.prisma.isConnected) return false;
+    try {
+      return (await this.expurgarConvitesMortos()).completo;
+    } catch (err: any) {
+      this.logger.error(`Retenção de convites falhou: ${err?.message ?? err}`);
+      return false;
+    }
   }
 
   onModuleDestroy() {
@@ -124,16 +145,40 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
   async tickRetencaoConvites(dias = DIAS_RETENCAO_CONVITE): Promise<number> {
     if (!this.prisma.isConnected) return 0;
     try {
-      const limite = new Date(Date.now() - dias * 24 * 60 * 60 * 1000);
+      return (await this.expurgarConvitesMortos(dias)).total;
+    } catch (err: any) {
+      this.logger.error(`Retenção de convites falhou: ${err?.message ?? err}`);
+      return 0;
+    }
+  }
+
+  /**
+   * Corpo da retenção, em lotes de LOTE_RETENCAO_CONVITES até esvaziar ou até
+   * o teto de tempo (antes: 500 por dia, e o atraso só crescia). Roda pelo
+   * menos um lote. Lança em erro.
+   */
+  async expurgarConvitesMortos(
+    dias = DIAS_RETENCAO_CONVITE,
+    tetoMs = RETENCAO_CONVITES_TETO_MS,
+  ): Promise<{ total: number; completo: boolean }> {
+    if (!this.prisma.isConnected) return { total: 0, completo: true };
+    const limite = new Date(Date.now() - dias * 24 * 60 * 60 * 1000);
+    const prazo = Date.now() + tetoMs;
+    let total = 0;
+    let completo = false;
+    do {
       const mortos = await this.prisma.convites_Visita.findMany({
         where: {
           expira_em: { lte: limite },
           status: { in: ['aguardando', 'preenchido', 'recusado'] },
         },
         select: { id: true, foto_url: true },
-        take: 500,
+        take: LOTE_RETENCAO_CONVITES,
       });
-      if (mortos.length === 0) return 0;
+      if (mortos.length === 0) {
+        completo = true;
+        break;
+      }
 
       for (const c of mortos) {
         await this.consentimentosTerceiros.descartarConvite(c.id).catch(() => undefined);
@@ -146,16 +191,20 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
         }
       }
 
-      await this.prisma.convites_Visita.deleteMany({
+      const apagados = await this.prisma.convites_Visita.deleteMany({
         where: { id: { in: mortos.map((c) => c.id) } },
       });
+      total += mortos.length;
+      if (mortos.length < LOTE_RETENCAO_CONVITES) {
+        completo = true;
+        break;
+      }
+      // Lote cheio que não apagou nada: não gira em falso até o teto.
+      if (Number(apagados?.count ?? 0) === 0) break;
+    } while (Date.now() < prazo);
 
-      this.logger.log(`Retenção de convites: ${mortos.length} expurgado(s).`);
-      return mortos.length;
-    } catch (err: any) {
-      this.logger.error(`Retenção de convites falhou: ${err?.message ?? err}`);
-      return 0;
-    }
+    if (total > 0) this.logger.log(`Retenção de convites: ${total} expurgado(s).`);
+    return { total, completo };
   }
 
   private hash(token: string): string {

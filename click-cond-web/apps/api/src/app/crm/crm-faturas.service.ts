@@ -4,16 +4,28 @@ import { executarComLock } from '../common/lock-distribuido';
 import { hojeBrasilia } from '../common/hora-brasilia.util';
 
 /**
- * Ciclo de negócio da geração mensal (2 instâncias): uma vez por mês no
- * cluster, com a chave 'AAAA-MM'. Porta = dia 1 (mesma data do servidor que o
- * tick usa). Deduplicar pelo mês, e não pelo tempo desde a última execução,
- * impede que um restart no dia 1 pule (ou repita) as faturas do mês.
+ * Janela de recuperação da geração mensal: do dia 1 ao 5 do mês (Brasília).
+ * Antes a porta era só o dia 1 (UTC do servidor) com tick de 24 h: uma falha
+ * ou um deploy no dia 1 perdia o mês em silêncio. Mesma ideia do
+ * JANELA_RECUPERACAO_DIAS do faturamento recorrente do financeiro.
  */
-function cicloFaturasDoMes(): string | null {
-  const hoje = new Date();
-  if (hoje.getDate() !== 1) return null;
-  return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+export const JANELA_FATURAS_CRM_DIAS = 5;
+
+/**
+ * Ciclo de negócio da geração mensal (2 instâncias): uma vez por mês no
+ * cluster, com a chave 'AAAA-MM' do mês de Brasília. Porta = dia 1 a
+ * JANELA_FATURAS_CRM_DIAS. A marca só é gravada depois de uma geração
+ * bem-sucedida, então um restart ou uma falha dentro da janela não pula o
+ * mês, e a geração é idempotente (unique id_condominio+referencia).
+ */
+export function cicloFaturasDoMes(agora: Date = new Date()): string | null {
+  const hoje = hojeBrasilia(agora);
+  if (hoje.getUTCDate() > JANELA_FATURAS_CRM_DIAS) return null;
+  return `${hoje.getUTCFullYear()}-${String(hoje.getUTCMonth() + 1).padStart(2, '0')}`;
 }
+
+/** Tick da geração mensal: várias chances dentro da janela (a marca do ciclo barra repetição). */
+const TICK_FATURAS_CRM_MS = 6 * 60 * 60 * 1000;
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CrmService } from './crm.service';
@@ -40,16 +52,20 @@ export class CrmFaturasService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    // Geração mensal: checa 1x/dia; no dia 1 gera as faturas do mês.
-    // Idempotente (unique id_condominio+referencia), então rodar de novo
-    // no mesmo dia não duplica nada.
-    setInterval(() => void executarComLock(this.prisma, 'crm:faturasMensais', () => this.tickGeracaoMensal(), { cicloDeNegocio: cicloFaturasDoMes }), 24 * 60 * 60 * 1000).unref?.();
-    setTimeout(() => void executarComLock(this.prisma, 'crm:faturasMensais', () => this.tickGeracaoMensal(), { cicloDeNegocio: cicloFaturasDoMes }), 30 * 60 * 1000).unref?.();
+    // Geração mensal: checa a cada 6 h; do dia 1 ao 5 (Brasília) gera as
+    // faturas do mês, uma vez por mês no cluster (cicloDeNegocio). Idempotente
+    // (unique id_condominio+referencia), então tentar de novo não duplica.
+    const tick = () =>
+      void executarComLock(this.prisma, 'crm:faturasMensais', () => this.tickGeracaoMensal(), {
+        cicloDeNegocio: () => cicloFaturasDoMes(),
+      });
+    setInterval(tick, TICK_FATURAS_CRM_MS).unref?.();
+    setTimeout(tick, 30 * 60 * 1000).unref?.();
   }
 
-  /** true = gerou; false = fora do dia 1, já rodando ou falhou (aí o ciclo do mês não é marcado e o próximo tick tenta de novo). */
+  /** true = gerou; false = fora da janela (dia 1 a 5), já rodando ou falhou (aí o ciclo do mês não é marcado e o próximo tick da janela tenta de novo). */
   private async tickGeracaoMensal(): Promise<boolean> {
-    if (new Date().getDate() !== 1) return false;
+    if (!cicloFaturasDoMes()) return false;
     if (this.gerarJobRunning) return false;
     this.gerarJobRunning = true;
     try {
@@ -63,9 +79,10 @@ export class CrmFaturasService implements OnModuleInit {
     }
   }
 
+  /** 'MM/AAAA' do mês de Brasília (o servidor roda em UTC). */
   private referenciaAtual(): string {
-    const hoje = new Date();
-    return `${String(hoje.getMonth() + 1).padStart(2, '0')}/${hoje.getFullYear()}`;
+    const hoje = hojeBrasilia();
+    return `${String(hoje.getUTCMonth() + 1).padStart(2, '0')}/${hoje.getUTCFullYear()}`;
   }
 
   /**
@@ -108,16 +125,22 @@ export class CrmFaturasService implements OnModuleInit {
       const diaVenc = cliente.vencimento ? new Date(cliente.vencimento).getDate() : 10;
       const vencimento = new Date(Number(anoStr), Number(mesStr) - 1, Math.min(diaVenc, 28), 12, 0, 0);
 
-      await this.prisma.crm_Faturas.create({
-        data: {
-          id_condominio: cliente.id,
-          referencia: ref,
-          valor,
-          vencimento,
-          status: 'pendente',
-          estimada,
-        },
-      });
+      try {
+        await this.prisma.crm_Faturas.create({
+          data: {
+            id_condominio: cliente.id,
+            referencia: ref,
+            valor,
+            vencimento,
+            status: 'pendente',
+            estimada,
+          },
+        });
+      } catch (err: any) {
+        // Geração manual em paralelo criou a mesma (unique id_condominio+referencia): já existe.
+        if (err?.code === 'P2002') continue;
+        throw err;
+      }
       criadas++;
     }
 

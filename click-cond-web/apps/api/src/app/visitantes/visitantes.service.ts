@@ -205,6 +205,11 @@ export function parseLocalTimeToUTCNullable(dateValue: string | Date | undefined
   return parseLocalTimeToUTC(dateValue);
 }
 
+/** Tamanho do lote da retenção LGPD (cada ramo: Visitantes e Pessoas). */
+const LOTE_RETENCAO = 200;
+/** Teto de tempo de uma passada da retenção; o que sobrar fica para o próximo tick. */
+const RETENCAO_TETO_MS = 5 * 60 * 1000;
+
 @Injectable()
 export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(VisitantesService.name);
@@ -256,9 +261,31 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit() {
     if (process.env['NODE_ENV'] === 'test') return;
-    // Dispara rotina diária de retenção/expurgo LGPD (Art. 15 e 16)
-    this.retencaoTimer = setTimeout(() => void executarComLock(this.prisma, 'visitantes:retencao', async () => { await this.tickRetencaoDadosVisitantes(); }, { intervaloMinimoMs: 24 * 60 * 60 * 1000 }), 5 * 60 * 1000);
-    this.retencaoInterval = setInterval(() => void executarComLock(this.prisma, 'visitantes:retencao', async () => { await this.tickRetencaoDadosVisitantes(); }, { intervaloMinimoMs: 24 * 60 * 60 * 1000 }), 24 * 60 * 60 * 1000);
+    // Rotina diária de retenção/expurgo LGPD (Art. 15 e 16). O tick é
+    // horário e o período mínimo é 24 h: a passada que falhou ou parou no teto
+    // de tempo com trabalho pendente não marca o período, e a próxima hora
+    // continua de onde parou.
+    const tick = () =>
+      void executarComLock(this.prisma, 'visitantes:retencao', () => this.rodarRetencaoAgendada(), {
+        intervaloMinimoMs: 24 * 60 * 60 * 1000,
+      });
+    this.retencaoTimer = setTimeout(tick, 5 * 60 * 1000);
+    this.retencaoInterval = setInterval(tick, 60 * 60 * 1000);
+  }
+
+  /**
+   * Passada agendada da retenção: true = esvaziou (marca o período de 24 h);
+   * false = falhou ou parou no teto de tempo com trabalho pendente (não
+   * marca, e o tick da próxima hora tenta de novo).
+   */
+  async rodarRetencaoAgendada(): Promise<boolean> {
+    if (!this.prisma.isConnected) return false;
+    try {
+      return (await this.expurgarRetencaoVisitantes()).completo;
+    } catch (e: any) {
+      this.logger.warn(`[LGPD Retenção] Erro na rotina de expurgo: ${e?.message ?? e}`);
+      return false;
+    }
   }
 
   onModuleDestroy() {
@@ -276,119 +303,172 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   async tickRetencaoDadosVisitantes(diasRetencao = 90): Promise<number> {
     if (!this.prisma.isConnected) return 0;
     try {
-      const limiteRetencao = new Date(Date.now() - diasRetencao * 24 * 60 * 60 * 1000);
-      const paraExpurgo = await this.prisma.visitantes.findMany({
-        where: {
-          AND: [
-            { OR: [{ foto_pessoa: { not: null } }, { foto_documento: { not: null } }] },
-            // Fim da visita: a saída registrada; sem ela, o fim da autorização; sem os dois, a última
-            // atividade. Só a saída contava — visita nunca encerrada guardava as fotos para sempre.
-            {
-              OR: [
-                { data_saida: { lte: limiteRetencao } },
-                {
-                  data_saida: null,
-                  data_hora_termino: { lte: limiteRetencao },
-                  // checkIn/liberarAcesso reabrem esta mesma linha sem mexer no término: quem está
-                  // dentro ou acabou de ser liberado não pode perder a foto pelo término antigo.
-                  updated_at: { lte: limiteRetencao },
-                  OR: [{ data_entrada: null }, { data_entrada: { lte: limiteRetencao } }],
-                },
-                {
-                  data_saida: null,
-                  data_hora_termino: null,
-                  created_at: { lte: limiteRetencao },
-                  // Re-liberar a visita ou salvar foto nova só mexe em updated_at.
-                  updated_at: { lte: limiteRetencao },
-                  AND: [
-                    { OR: [{ data_entrada: null }, { data_entrada: { lte: limiteRetencao } }] },
-                    { OR: [{ data_hora_inicio: null }, { data_hora_inicio: { lte: limiteRetencao } }] },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-        select: {
-          id: true,
-          foto_pessoa: true,
-          foto_documento: true,
-        },
-        take: 200,
-      });
-
-      // Sem `return 0` antecipado aqui de propósito: um condomínio sem NENHUM
-      // Visitantes legado a expurgar (esperado, com a migração avançando)
-      // não pode pular o expurgo de Pessoas logo abaixo — foi exatamente
-      // esse early-return que, aplicado ingenuamente ao ramo novo, teria
-      // recriado o no-op que este fix existe pra eliminar.
-      let totalVisitantes = 0;
-      if (paraExpurgo.length > 0) {
-        const ids = paraExpurgo.map((v) => v.id);
-        // `novaVisitaParaPessoa` copia as fotos para a linha nova: arquivo ainda apontado por
-        // outra linha Visitantes fora deste lote não é apagado (a linha expurgada é anulada igual).
-        const urls = [...new Set(paraExpurgo.flatMap((v) => [v.foto_pessoa, v.foto_documento]).filter((u): u is string => !!u))];
-        const emUso = new Set<string>();
-        if (urls.length > 0) {
-          const outras = await this.prisma.visitantes.findMany({
-            where: {
-              id: { notIn: ids },
-              OR: [{ foto_pessoa: { in: urls } }, { foto_documento: { in: urls } }],
-            },
-            select: { foto_pessoa: true, foto_documento: true },
-          });
-          for (const o of outras) {
-            if (o.foto_pessoa) emUso.add(o.foto_pessoa);
-            if (o.foto_documento) emUso.add(o.foto_documento);
-          }
-        }
-
-        // Expurga arquivos físicos no Cloudflare R2 / S3
-        await Promise.all(
-          paraExpurgo.flatMap((v) => [v.foto_pessoa, v.foto_documento])
-            .filter((u) => !(u && emUso.has(u)))
-            .map((u) => this.storage.deleteUrl(u, PREFIXOS_FOTO_VISITANTE)),
-        );
-
-        const resultado = await this.prisma.visitantes.updateMany({
-          where: { id: { in: ids } },
-          data: {
-            foto_pessoa: null,
-            foto_documento: null,
-          },
-        });
-
-        if (resultado.count > 0) {
-          this.logger.log(`[LGPD Retenção] Expurgadas fotos e arquivos de ${resultado.count} visitas encerradas há mais de ${diasRetencao} dias.`);
-          await this.auditoria.registrar({
-            id_condominio: 0,
-            usuario_nome: 'Sistema (Rotina LGPD)',
-            acao: 'DELETE',
-            modulo: 'visitantes',
-            descricao: `Expurgo automático de fotografias e biometria de ${resultado.count} visitas encerradas há mais de ${diasRetencao} dias.`,
-            detalhes: { totalExpurgados: resultado.count, prazoDias: diasRetencao },
-          });
-        }
-        totalVisitantes = resultado.count;
-      }
-
-      // Mesma rotina, agora para Pessoas/Visitas (migração): a foto é da
-      // PESSOA (uma identidade, N visitas), não da visita — então o critério
-      // não é "esta visita encerrou há mais de 90 dias", é "TODAS as visitas
-      // desta pessoa encerraram há mais de 90 dias" (ou ela nunca teve
-      // nenhuma visita aberta/agendada). Sem isto, com a flag ligada, toda
-      // foto de rosto/documento nasce em Pessoas e o expurgo LGPD vira no-op
-      // permanente — o log acima segue dizendo "0 expurgados" para sempre.
-      const totalPessoas = await this.tickRetencaoDadosPessoas(diasRetencao, limiteRetencao);
-
-      return totalVisitantes + totalPessoas;
+      return (await this.expurgarRetencaoVisitantes(diasRetencao)).total;
     } catch (e: any) {
       this.logger.warn(`[LGPD Retenção] Erro na rotina de expurgo: ${e?.message ?? e}`);
       return 0;
     }
   }
 
-  private async tickRetencaoDadosPessoas(diasRetencao: number, limiteRetencao: Date): Promise<number> {
+  /**
+   * Corpo da retenção, em lotes de LOTE_RETENCAO até esvaziar ou até o teto de
+   * tempo (`tetoMs`). Antes era um lote de 200 por dia em cada ramo: acima
+   * disso o atraso do prazo de 90 dias só crescia. Cada ramo roda pelo menos
+   * um lote. Lança em erro (quem chama decide se engole).
+   */
+  async expurgarRetencaoVisitantes(
+    diasRetencao = 90,
+    tetoMs = RETENCAO_TETO_MS,
+  ): Promise<{ total: number; completo: boolean }> {
+    if (!this.prisma.isConnected) return { total: 0, completo: true };
+    const limiteRetencao = new Date(Date.now() - diasRetencao * 24 * 60 * 60 * 1000);
+    const prazo = Date.now() + tetoMs;
+
+    // Sem `return` antecipado aqui de propósito: um condomínio sem NENHUM
+    // Visitantes legado a expurgar (esperado, com a migração avançando)
+    // não pode pular o expurgo de Pessoas logo abaixo — foi exatamente
+    // esse early-return que, aplicado ingenuamente ao ramo novo, teria
+    // recriado o no-op que este fix existe pra eliminar.
+    let totalVisitantes = 0;
+    let completoVisitantes = false;
+    do {
+      const r = await this.expurgarLoteVisitantes(limiteRetencao);
+      totalVisitantes += r.expurgados;
+      if (r.lidos < LOTE_RETENCAO) {
+        completoVisitantes = true;
+        break;
+      }
+      // Lote cheio sem nada expurgado: não gira em falso até o teto.
+      if (r.expurgados === 0) break;
+    } while (Date.now() < prazo);
+
+    if (totalVisitantes > 0) {
+      this.logger.log(`[LGPD Retenção] Expurgadas fotos e arquivos de ${totalVisitantes} visitas encerradas há mais de ${diasRetencao} dias.`);
+      await this.auditoria.registrar({
+        id_condominio: 0,
+        usuario_nome: 'Sistema (Rotina LGPD)',
+        acao: 'DELETE',
+        modulo: 'visitantes',
+        descricao: `Expurgo automático de fotografias e biometria de ${totalVisitantes} visitas encerradas há mais de ${diasRetencao} dias.`,
+        detalhes: { totalExpurgados: totalVisitantes, prazoDias: diasRetencao },
+      });
+    }
+
+    // Mesma rotina, agora para Pessoas/Visitas (migração): a foto é da
+    // PESSOA (uma identidade, N visitas), não da visita — então o critério
+    // não é "esta visita encerrou há mais de 90 dias", é "TODAS as visitas
+    // desta pessoa encerraram há mais de 90 dias" (ou ela nunca teve
+    // nenhuma visita aberta/agendada). Sem isto, com a flag ligada, toda
+    // foto de rosto/documento nasce em Pessoas e o expurgo LGPD vira no-op
+    // permanente — o log acima segue dizendo "0 expurgados" para sempre.
+    let totalPessoas = 0;
+    let completoPessoas = false;
+    do {
+      const r = await this.expurgarLotePessoas(limiteRetencao);
+      totalPessoas += r.expurgados;
+      if (r.lidos < LOTE_RETENCAO) {
+        completoPessoas = true;
+        break;
+      }
+      if (r.expurgados === 0) break;
+    } while (Date.now() < prazo);
+
+    if (totalPessoas > 0) {
+      this.logger.log(`[LGPD Retenção] Expurgadas fotos e arquivos de ${totalPessoas} pessoas sem visita aberta há mais de ${diasRetencao} dias.`);
+      await this.auditoria.registrar({
+        id_condominio: 0,
+        usuario_nome: 'Sistema (Rotina LGPD)',
+        acao: 'DELETE',
+        modulo: 'pessoas',
+        descricao: `Expurgo automático de fotografias e biometria de ${totalPessoas} pessoas sem visita aberta há mais de ${diasRetencao} dias.`,
+        detalhes: { totalExpurgados: totalPessoas, prazoDias: diasRetencao },
+      });
+    }
+
+    return { total: totalVisitantes + totalPessoas, completo: completoVisitantes && completoPessoas };
+  }
+
+  /** Um lote do ramo legado (Visitantes). */
+  private async expurgarLoteVisitantes(limiteRetencao: Date): Promise<{ lidos: number; expurgados: number }> {
+    const paraExpurgo = await this.prisma.visitantes.findMany({
+      where: {
+        AND: [
+          { OR: [{ foto_pessoa: { not: null } }, { foto_documento: { not: null } }] },
+          // Fim da visita: a saída registrada; sem ela, o fim da autorização; sem os dois, a última
+          // atividade. Só a saída contava — visita nunca encerrada guardava as fotos para sempre.
+          {
+            OR: [
+              { data_saida: { lte: limiteRetencao } },
+              {
+                data_saida: null,
+                data_hora_termino: { lte: limiteRetencao },
+                // checkIn/liberarAcesso reabrem esta mesma linha sem mexer no término: quem está
+                // dentro ou acabou de ser liberado não pode perder a foto pelo término antigo.
+                updated_at: { lte: limiteRetencao },
+                OR: [{ data_entrada: null }, { data_entrada: { lte: limiteRetencao } }],
+              },
+              {
+                data_saida: null,
+                data_hora_termino: null,
+                created_at: { lte: limiteRetencao },
+                // Re-liberar a visita ou salvar foto nova só mexe em updated_at.
+                updated_at: { lte: limiteRetencao },
+                AND: [
+                  { OR: [{ data_entrada: null }, { data_entrada: { lte: limiteRetencao } }] },
+                  { OR: [{ data_hora_inicio: null }, { data_hora_inicio: { lte: limiteRetencao } }] },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      select: {
+        id: true,
+        foto_pessoa: true,
+        foto_documento: true,
+      },
+      take: LOTE_RETENCAO,
+    });
+    if (paraExpurgo.length === 0) return { lidos: 0, expurgados: 0 };
+
+    const ids = paraExpurgo.map((v) => v.id);
+    // `novaVisitaParaPessoa` copia as fotos para a linha nova: arquivo ainda apontado por
+    // outra linha Visitantes fora deste lote não é apagado (a linha expurgada é anulada igual).
+    const urls = [...new Set(paraExpurgo.flatMap((v) => [v.foto_pessoa, v.foto_documento]).filter((u): u is string => !!u))];
+    const emUso = new Set<string>();
+    if (urls.length > 0) {
+      const outras = await this.prisma.visitantes.findMany({
+        where: {
+          id: { notIn: ids },
+          OR: [{ foto_pessoa: { in: urls } }, { foto_documento: { in: urls } }],
+        },
+        select: { foto_pessoa: true, foto_documento: true },
+      });
+      for (const o of outras) {
+        if (o.foto_pessoa) emUso.add(o.foto_pessoa);
+        if (o.foto_documento) emUso.add(o.foto_documento);
+      }
+    }
+
+    // Expurga arquivos físicos no Cloudflare R2 / S3
+    await Promise.all(
+      paraExpurgo.flatMap((v) => [v.foto_pessoa, v.foto_documento])
+        .filter((u) => !(u && emUso.has(u)))
+        .map((u) => this.storage.deleteUrl(u, PREFIXOS_FOTO_VISITANTE)),
+    );
+
+    const resultado = await this.prisma.visitantes.updateMany({
+      where: { id: { in: ids } },
+      data: {
+        foto_pessoa: null,
+        foto_documento: null,
+      },
+    });
+    return { lidos: paraExpurgo.length, expurgados: resultado.count };
+  }
+
+  /** Um lote do ramo Pessoas/Visitas (migração). */
+  private async expurgarLotePessoas(limiteRetencao: Date): Promise<{ lidos: number; expurgados: number }> {
     const paraExpurgo = await this.prisma.pessoas.findMany({
       where: {
         AND: [
@@ -421,10 +501,10 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         },
       },
       select: { id: true, foto_pessoa: true, foto_documento: true },
-      take: 200,
+      take: LOTE_RETENCAO,
     });
 
-    if (paraExpurgo.length === 0) return 0;
+    if (paraExpurgo.length === 0) return { lidos: 0, expurgados: 0 };
 
     let totalExpurgado = 0;
     for (const pessoa of paraExpurgo) {
@@ -445,18 +525,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    if (totalExpurgado > 0) {
-      this.logger.log(`[LGPD Retenção] Expurgadas fotos e arquivos de ${totalExpurgado} pessoas sem visita aberta há mais de ${diasRetencao} dias.`);
-      await this.auditoria.registrar({
-        id_condominio: 0,
-        usuario_nome: 'Sistema (Rotina LGPD)',
-        acao: 'DELETE',
-        modulo: 'pessoas',
-        descricao: `Expurgo automático de fotografias e biometria de ${totalExpurgado} pessoas sem visita aberta há mais de ${diasRetencao} dias.`,
-        detalhes: { totalExpurgados: totalExpurgado, prazoDias: diasRetencao },
-      });
-    }
-    return totalExpurgado;
+    return { lidos: paraExpurgo.length, expurgados: totalExpurgado };
   }
 
   private fireFacialSync(idVisitante: number) {

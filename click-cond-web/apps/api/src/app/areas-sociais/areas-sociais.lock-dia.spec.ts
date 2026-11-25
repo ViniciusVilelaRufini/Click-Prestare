@@ -217,11 +217,12 @@ describe('Sync facial de cancelamentos em massa (fix round 1)', () => {
       { ...atingida(5, 100), area: { nome: 'Salão' } },
     ];
     prisma.areas_Sociais_Agendamentos.findMany = jest.fn(async () => candidatos);
-    prisma.areas_Sociais_Agendamentos.update = jest.fn(async () => ({}));
+    // Cancelamento por UPDATE condicional (J19): count 1 = esta passada cancelou.
+    prisma.areas_Sociais_Agendamentos.updateMany = jest.fn(async () => ({ count: 1 }));
     await (svc as any).cancelarReservasNaoConfirmadas(new Date('2026-06-11T12:00:00.000Z'));
     await esperaTerminar(() => facial.syncReservaArea.mock.calls.length === 5);
     await cede();
-    expect(prisma.areas_Sociais_Agendamentos.update).toHaveBeenCalledTimes(6);
+    expect(prisma.areas_Sociais_Agendamentos.updateMany).toHaveBeenCalledTimes(6);
     expect(facial.syncReservaArea).toHaveBeenCalledTimes(5);
     expect(pico()).toBe(1);
   });

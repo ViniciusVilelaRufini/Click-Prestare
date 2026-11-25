@@ -18,6 +18,14 @@ import { STATUS_LOCAL_FORA_DA_DIVIDA, SuperlogicaContato } from './superlogica.t
 /** Intervalo do polling. Boleto muda devagar; de hora em hora é suficiente. */
 const INTERVALO_SYNC_MS = 60 * 60 * 1000;
 
+/**
+ * Prazo do lock do sync. O padrão do lock (1 h) é o próprio intervalo: uma
+ * passada longa (a profunda de 12 meses com muitos condomínios) devolvia o
+ * lock no meio e o tick seguinte, em outra instância, gravava as mesmas
+ * cobranças em paralelo.
+ */
+const DURACAO_MAXIMA_SYNC_MS = 3 * 60 * 60 * 1000;
+
 /** Espera antes da primeira execução, para não competir com o boot. */
 const ATRASO_INICIAL_MS = 5 * 60 * 1000;
 
@@ -103,8 +111,13 @@ export class SuperlogicaSyncService implements OnModuleInit {
   }
 
   onModuleInit() {
-    setInterval(() => void executarComLock(this.prisma, 'superlogica:sync', () => this.tickSincronizacao(), { intervaloMinimoMs: INTERVALO_SYNC_MS }), INTERVALO_SYNC_MS).unref?.();
-    setTimeout(() => void executarComLock(this.prisma, 'superlogica:sync', () => this.tickSincronizacao(), { intervaloMinimoMs: INTERVALO_SYNC_MS }), ATRASO_INICIAL_MS).unref?.();
+    const tick = () =>
+      void executarComLock(this.prisma, 'superlogica:sync', () => this.tickSincronizacao(), {
+        intervaloMinimoMs: INTERVALO_SYNC_MS,
+        duracaoMaximaMs: DURACAO_MAXIMA_SYNC_MS,
+      });
+    setInterval(tick, INTERVALO_SYNC_MS).unref?.();
+    setTimeout(tick, ATRASO_INICIAL_MS).unref?.();
   }
 
   /**

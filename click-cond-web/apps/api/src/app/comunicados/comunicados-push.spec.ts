@@ -30,6 +30,8 @@ describe('ComunicadosService.create — push aos moradores', () => {
         // Vínculo com unidade (Apartamentos_Users), não a linha em Moradores:
         // essa sobrevive à exclusão da unidade e o ex-morador seguia avisado.
         apartamentosUsers: { some: { apartamento: { id_condominio: 1 } } },
+        // Quem publicou (síndico Users.id 1) não é avisado do próprio comunicado.
+        id: { not: 1 },
       },
       select: { fcm_token: true },
     });

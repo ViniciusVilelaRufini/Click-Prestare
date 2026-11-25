@@ -1338,10 +1338,15 @@ export class AreasSociaisService {
       const inicio = this.combineDateTime(ag.data, ag.hora_de);
       if (inicio > agora) continue; // ainda não começou
 
-      await this.prisma.areas_Sociais_Agendamentos.update({
-        where: { id: ag.id },
+      // UPDATE condicional: se o morador confirmou entre o findMany e aqui
+      // (ou outra passada já cancelou), não casa e nada é avisado. O update
+      // incondicional cancelava a reserva recém-confirmada e mandava
+      // "cancelada por falta de confirmação".
+      const r = await this.prisma.areas_Sociais_Agendamentos.updateMany({
+        where: { id: ag.id, status: 'aprovado', confirmada_em: null },
         data: { status: 'cancelado' },
       });
+      if (r.count !== 1) continue;
 
       // Facial e push são efeitos externos best-effort, fora do caminho que
       // já gravou o cancelamento — mesmo padrão de

@@ -590,3 +590,67 @@ describe('WhatsappInboxService', () => {
   });
 });
 
+
+// J11 da revisão dos ciclos: duas entregas simultâneas do mesmo contato novo
+// passavam as duas pelo findUnique; a segunda create (wa_id ou wamid únicos)
+// lançava P2002, o controller devolvia 200 e a mensagem se perdia.
+describe('WhatsappInboxService — corrida findUnique→create (P2002)', () => {
+  const p2002 = () => Object.assign(new Error('Unique constraint failed'), { code: 'P2002' });
+
+  it('conversa criada por outro webhook no meio: relê a linha e grava a mensagem nela', async () => {
+    const t = montar();
+    const vencedora = { id: 50, wa_id: '5521999369814', nao_lidas: 0, lead_id: null };
+    t.prisma.crm_WhatsApp_Conversas.findUnique.mockImplementationOnce(async () => null);
+    t.prisma.crm_WhatsApp_Conversas.create.mockImplementationOnce(async () => {
+      t.conversas.push(vencedora);
+      throw p2002();
+    });
+
+    await expect(t.svc.registrarEntrada(entrada({ wamid: 'w-corrida' }))).resolves.toBeUndefined();
+
+    expect(t.msgs).toHaveLength(1);
+    expect(t.msgs[0]).toMatchObject({ wamid: 'w-corrida', conversa_id: 50 });
+    expect(vencedora.nao_lidas).toBe(1);
+  });
+
+  it('mensagem gravada por outro webhook no meio: trata como já existente, sem erro nem contagem dupla', async () => {
+    const t = montar();
+    await t.svc.registrarEntrada(entrada({ wamid: 'w-a' }));
+    const conversa = t.conversas[0];
+    expect(conversa.nao_lidas).toBe(1);
+
+    // Retry do Meta chega junto: o findUnique ainda não vê a linha que a
+    // outra requisição está gravando.
+    t.prisma.crm_WhatsApp_Mensagens.findUnique.mockImplementationOnce(async () => null);
+    t.prisma.crm_WhatsApp_Mensagens.create.mockImplementationOnce(async () => {
+      throw p2002();
+    });
+
+    await expect(t.svc.registrarEntrada(entrada({ wamid: 'w-a' }))).resolves.toBeUndefined();
+    expect(t.msgs).toHaveLength(1);
+    expect(conversa.nao_lidas).toBe(1);
+  });
+
+  it('P2002 da mensagem com mídia: reivindica a importação como no caminho de mensagem existente', async () => {
+    const media = { guardarEntrada: jest.fn(async () => ({ chave: 'k', mime: 'image/jpeg', nome: 'a.jpg', tamanho: 3 })) };
+    const t = montar(undefined, undefined, media);
+    t.conversas.push({ id: 9, wa_id: '5521999369814', nao_lidas: 0, lead_id: null });
+    t.msgs.push({ id: 1, conversa_id: 9, wamid: 'w-m', media_status: 'falhou', criado_em: new Date() });
+    t.prisma.crm_WhatsApp_Mensagens.findUnique.mockImplementationOnce(async () => null);
+    t.prisma.crm_WhatsApp_Mensagens.create.mockImplementationOnce(async () => {
+      throw p2002();
+    });
+
+    await t.svc.registrarEntrada(entrada({ wamid: 'w-m', tipo: 'image', mediaId: 'mid', mime: 'image/jpeg' }));
+
+    expect(media.guardarEntrada).toHaveBeenCalledTimes(1);
+  });
+
+  it('erro que não é P2002 continua subindo', async () => {
+    const t = montar();
+    t.prisma.crm_WhatsApp_Mensagens.create.mockImplementationOnce(async () => {
+      throw new Error('banco fora');
+    });
+    await expect(t.svc.registrarEntrada(entrada({ wamid: 'w-x' }))).rejects.toThrow('banco fora');
+  });
+});

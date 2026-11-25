@@ -74,6 +74,11 @@ function blocoGravavel(bloco: string | null | undefined): string {
 /** Retirada em lote: as encomendas seguintes reaproveitam a assinatura/foto da 1ª nesta janela. */
 const JANELA_LOTE_RETIRADA_MS = 15 * 60_000;
 
+/** Rastreio: só encomendas criadas nos últimos 30 dias. */
+const RASTREIO_IDADE_MAXIMA_MS = 30 * 24 * 60 * 60 * 1000;
+/** Rastreio: teto de consultas por passada (5 s de timeout cada). */
+const RASTREIO_LOTE = 200;
+
 @Injectable()
 export class EncomendasService implements OnModuleInit {
   constructor(
@@ -953,95 +958,47 @@ export class EncomendasService implements OnModuleInit {
   // Serviço periódico para buscar atualizações dos correios/transportadoras
   async tickTrackingJob() {
     if (!this.prisma.isConnected) return;
+    const producao = process.env['NODE_ENV'] === 'production';
     try {
+      // Teto de idade e de itens por passada: sem eles, toda encomenda
+      // 'Esperando' com código, de todos os condomínios e de qualquer idade,
+      // era consultada uma a uma (timeout de 5 s cada) a cada 2 h — a passada
+      // podia passar de 1 h e perder o lock.
       const activeTracking = await this.prisma.encomendas.findMany({
         where: {
           status: 'Esperando',
           codigo_rastreio: { not: null },
+          notificado: 0,
+          created_at: { gte: new Date(Date.now() - RASTREIO_IDADE_MAXIMA_MS) },
         },
+        orderBy: { created_at: 'desc' },
+        take: RASTREIO_LOTE,
       });
 
       for (const enc of activeTracking) {
         if (!enc.codigo_rastreio) continue;
 
         try {
-          // Simulação para códigos de teste (ex: TEST1234)
+          // Simulação para códigos de teste (ex: TEST1234) — nunca em
+          // produção: qualquer código que começasse com TEST gerava um push
+          // falso de "saiu para entrega" 3 min depois.
           if (enc.codigo_rastreio.toUpperCase().startsWith('TEST')) {
+            if (producao) continue;
             const ageMinutes = (Date.now() - new Date(enc.created_at).getTime()) / (1000 * 60);
             // Simular alteração após 3 minutos
-            if (ageMinutes > 3.0 && enc.notificado === 0) {
-              const moradores = await this.prisma.users.findMany({
-                where: {
-                  moradores: {
-                    some: {
-                      id_condominio: enc.id_condominio,
-                      apartamento: enc.destinatario_apto,
-                      ...(enc.destinatario_bloco ? { bloco: enc.destinatario_bloco } : {}),
-                    },
-                  },
-                  fcm_token: { not: null },
-                  notif_encomendas: 1,
-                },
-                select: { fcm_token: true },
-              });
-
-              for (const morador of moradores) {
-                if (morador.fcm_token) {
-                  await this.notifications.sendPushNotification(
-                    morador.fcm_token,
-                    'Encomenda a Caminho!',
-                    `Sua encomenda "${enc.descricao}" (${enc.codigo_rastreio}) saiu para entrega!`,
-                    { id: enc.id.toString(), type: 'encomenda' },
-                  );
-                }
-              }
-
-              await this.prisma.encomendas.update({
-                where: { id: enc.id },
-                data: { notificado: 2 }, // 2 = saiu para entrega
-              });
-            }
+            if (ageMinutes > 3.0 && enc.notificado === 0) await this.avisarSaiuParaEntrega(enc);
             continue;
           }
 
           // Consulta real na Linketrack pública
-          const url = `https://api.linketrack.com/v1/track?user=teste&token=1abcd09f9a73867d05c747731051b22e11afd590&codigo=${enc.codigo_rastreio}`;
+          const url = `https://api.linketrack.com/v1/track?user=teste&token=1abcd09f9a73867d05c747731051b22e11afd590&codigo=${encodeURIComponent(enc.codigo_rastreio)}`;
           const response = await axios.get(url, { timeout: 5000 });
           if (response.status === 200 && response.data?.eventos?.length > 0) {
             const lastEvent = response.data.eventos[0];
             const eventStatus = lastEvent.status || '';
 
             if (eventStatus.toLowerCase().includes('saiu para entrega') && enc.notificado === 0) {
-              const moradores = await this.prisma.users.findMany({
-                where: {
-                  moradores: {
-                    some: {
-                      id_condominio: enc.id_condominio,
-                      apartamento: enc.destinatario_apto,
-                      ...(enc.destinatario_bloco ? { bloco: enc.destinatario_bloco } : {}),
-                    },
-                  },
-                  fcm_token: { not: null },
-                  notif_encomendas: 1,
-                },
-                select: { fcm_token: true },
-              });
-
-              for (const morador of moradores) {
-                if (morador.fcm_token) {
-                  await this.notifications.sendPushNotification(
-                    morador.fcm_token,
-                    'Encomenda a Caminho!',
-                    `Sua encomenda "${enc.descricao}" (${enc.codigo_rastreio}) saiu para entrega!`,
-                    { id: enc.id.toString(), type: 'encomenda' },
-                  );
-                }
-              }
-
-              await this.prisma.encomendas.update({
-                where: { id: enc.id },
-                data: { notificado: 2 },
-              });
+              await this.avisarSaiuParaEntrega(enc);
             }
           }
         } catch (err: any) {
@@ -1050,6 +1007,54 @@ export class EncomendasService implements OnModuleInit {
       }
     } catch (e) {
       console.error('Falha no job de rastreamento de encomendas:', e);
+    }
+  }
+
+  /**
+   * Push "saiu para entrega", uma vez só: marca `notificado` 0→2 com UPDATE
+   * condicional ANTES do push e só envia quem ganhou (count === 1). Antes o
+   * push saía e só depois o update — se o update falhasse, ou duas passadas
+   * se cruzassem, o morador recebia de novo a cada 2 h.
+   */
+  private async avisarSaiuParaEntrega(enc: {
+    id: number;
+    id_condominio: number | null;
+    destinatario_apto: string | null;
+    destinatario_bloco: string | null;
+    descricao: string | null;
+    codigo_rastreio: string | null;
+  }): Promise<void> {
+    const marcado = await this.prisma.encomendas.updateMany({
+      where: { id: enc.id, notificado: 0 },
+      data: { notificado: 2 }, // 2 = saiu para entrega
+    });
+    if (marcado.count !== 1) return;
+
+    const moradores = await this.prisma.users.findMany({
+      where: {
+        moradores: {
+          some: {
+            id_condominio: enc.id_condominio,
+            apartamento: enc.destinatario_apto,
+            ...(enc.destinatario_bloco ? { bloco: enc.destinatario_bloco } : {}),
+          },
+        },
+        fcm_token: { not: null },
+        notif_encomendas: 1,
+      },
+      select: { fcm_token: true },
+    });
+
+    for (const morador of moradores) {
+      if (!morador.fcm_token) continue;
+      await this.notifications
+        .sendPushNotification(
+          morador.fcm_token,
+          'Encomenda a Caminho!',
+          `Sua encomenda "${enc.descricao}" (${enc.codigo_rastreio}) saiu para entrega!`,
+          { id: enc.id.toString(), type: 'encomenda' },
+        )
+        .catch((err: any) => console.error(`Push de rastreio da encomenda ${enc.id} falhou:`, err?.message ?? err));
     }
   }
 }

@@ -56,6 +56,16 @@ describe('AreasSociaisService — confirmação de reserva', () => {
       areas_Sociais_Agendamentos: {
         findMany: findManyHonrandoWhere(opts.agendamentos ?? []),
         update: jest.fn(async ({ where, data }: any) => ({ id: where.id, ...data })),
+        // UPDATE condicional (cancelamento por não confirmação): só casa se a
+        // reserva ainda está como o where diz.
+        updateMany: jest.fn(async ({ where, data }: any) => {
+          const ag = (opts.agendamentos ?? []).find((a) => a.id === where.id);
+          if (!ag) return { count: 0 };
+          if (where.status && ag.status !== where.status) return { count: 0 };
+          if ('confirmada_em' in where && where.confirmada_em === null && ag.confirmada_em != null) return { count: 0 };
+          Object.assign(ag, data);
+          return { count: 1 };
+        }),
         findUnique: jest.fn(async ({ where }: any) =>
           (opts.agendamentos ?? []).find((a) => a.id === where.id)
             ? {
@@ -177,8 +187,8 @@ describe('AreasSociaisService — confirmação de reserva', () => {
       const { svc, prisma, facial, notifications } = build({ agendamentos: [ag] });
       await (svc as any).cancelarReservasNaoConfirmadas(agora);
 
-      expect(prisma.areas_Sociais_Agendamentos.update).toHaveBeenCalledWith({
-        where: { id: 1 },
+      expect(prisma.areas_Sociais_Agendamentos.updateMany).toHaveBeenCalledWith({
+        where: { id: 1, status: 'aprovado', confirmada_em: null },
         data: { status: 'cancelado' },
       });
       expect(facial.syncReservaArea).toHaveBeenCalledWith(1);
@@ -192,7 +202,7 @@ describe('AreasSociaisService — confirmação de reserva', () => {
       const ag = reservaVencidaCancelavel({ area: { ...areaSemOptIn } });
       const { svc, prisma, facial } = build({ agendamentos: [ag] });
       await (svc as any).cancelarReservasNaoConfirmadas(agora);
-      expect(prisma.areas_Sociais_Agendamentos.update).not.toHaveBeenCalled();
+      expect(prisma.areas_Sociais_Agendamentos.updateMany).not.toHaveBeenCalled();
       expect(facial.syncReservaArea).not.toHaveBeenCalled();
     });
 
@@ -200,21 +210,21 @@ describe('AreasSociaisService — confirmação de reserva', () => {
       const ag = reservaVencidaCancelavel({ lembrete_enviado_em: null });
       const { svc, prisma } = build({ agendamentos: [ag] });
       await (svc as any).cancelarReservasNaoConfirmadas(agora);
-      expect(prisma.areas_Sociais_Agendamentos.update).not.toHaveBeenCalled();
+      expect(prisma.areas_Sociais_Agendamentos.updateMany).not.toHaveBeenCalled();
     });
 
     it('NÃO cancela reserva já confirmada', async () => {
       const ag = reservaVencidaCancelavel({ confirmada_em: new Date(2026, 5, 10, 8, 40, 0) });
       const { svc, prisma } = build({ agendamentos: [ag] });
       await (svc as any).cancelarReservasNaoConfirmadas(agora);
-      expect(prisma.areas_Sociais_Agendamentos.update).not.toHaveBeenCalled();
+      expect(prisma.areas_Sociais_Agendamentos.updateMany).not.toHaveBeenCalled();
     });
 
     it('NÃO cancela reserva cujo início ainda não chegou', async () => {
       const ag = reservaVencidaCancelavel({ hora_de: new Date(1970, 0, 1, 10, 30, 0), hora_ate: new Date(1970, 0, 1, 12, 0, 0) });
       const { svc, prisma } = build({ agendamentos: [ag] });
       await (svc as any).cancelarReservasNaoConfirmadas(agora);
-      expect(prisma.areas_Sociais_Agendamentos.update).not.toHaveBeenCalled();
+      expect(prisma.areas_Sociais_Agendamentos.updateMany).not.toHaveBeenCalled();
     });
 
     it('falha de push não impede o cancelamento nem lança', async () => {
@@ -222,10 +232,31 @@ describe('AreasSociaisService — confirmação de reserva', () => {
       const { svc, prisma, notifications } = build({ agendamentos: [ag] });
       notifications.sendPushNotification.mockRejectedValueOnce(new Error('fcm indisponível'));
       await expect((svc as any).cancelarReservasNaoConfirmadas(agora)).resolves.toBeUndefined();
-      expect(prisma.areas_Sociais_Agendamentos.update).toHaveBeenCalledWith({
-        where: { id: 1 },
+      expect(prisma.areas_Sociais_Agendamentos.updateMany).toHaveBeenCalledWith({
+        where: { id: 1, status: 'aprovado', confirmada_em: null },
         data: { status: 'cancelado' },
       });
+    });
+
+    // J19 da revisão dos ciclos: o morador confirmou entre o findMany e o
+    // update; o update incondicional cancelava mesmo assim e ele recebia
+    // "cancelada por falta de confirmação".
+    it('morador confirmou no meio da passada: não cancela, não avisa, não mexe no facial', async () => {
+      const ag = reservaVencidaCancelavel();
+      const { svc, prisma, facial, notifications } = build({ agendamentos: [ag] });
+      const findMany = prisma.areas_Sociais_Agendamentos.findMany;
+      prisma.areas_Sociais_Agendamentos.findMany = jest.fn(async (args: any) => {
+        const lista = await findMany(args);
+        ag.confirmada_em = new Date(2026, 5, 10, 9, 59, 0); // confirmou agora
+        return lista.map((x: any) => ({ ...x, confirmada_em: null }));
+      });
+
+      await (svc as any).cancelarReservasNaoConfirmadas(agora);
+
+      expect(prisma.areas_Sociais_Agendamentos.updateMany).toHaveBeenCalledTimes(1);
+      expect(ag.status).toBe('aprovado');
+      expect(notifications.sendPushNotification).not.toHaveBeenCalled();
+      expect(facial.syncReservaArea).not.toHaveBeenCalled();
     });
   });
 

@@ -223,6 +223,30 @@ describe('DeliveryPortaoService — rotina', () => {
     expect(lotes.every((t: number) => t === 500)).toBe(true);
   });
 
+  // J6: o pedido vence em 5 min, mas a rotina rodava a cada 5 min — o morador
+  // via AGUARDANDO com botões por até 10 min. O vencimento tem agora um tick
+  // próprio de 1 min (barato: índice status+expira_em, lote de 200).
+  it('J6: fora de teste, o vencimento dos pedidos tem tick próprio de no máximo 1 min', async () => {
+    const pedidos = [pedido(1, 99, { criado_em: em(-6 * M), expira_em: em(-30_000) })];
+    const { svc, tabela } = montarPortao({ atendimentos: [atendimento(99, { id_pedido_portao: 1 })], pedidos });
+    const nodeEnv = process.env['NODE_ENV'];
+    process.env['NODE_ENV'] = 'production';
+    const espiao = jest.spyOn(global, 'setInterval');
+    try {
+      svc.onModuleInit();
+      const curtos = espiao.mock.calls.filter((c) => Number(c[1]) <= 60_000);
+      expect(curtos).toHaveLength(1);
+      // O tick curto vence o pedido vencido.
+      (curtos[0][0] as () => void)();
+      await new Promise((r) => setTimeout(r, 50));
+      expect(tabela('deliveryPedidosPortao').find((p: any) => p.id === 1).status).toBe('expirado');
+    } finally {
+      espiao.mockRestore();
+      svc.onModuleDestroy();
+      process.env['NODE_ENV'] = nodeEnv;
+    }
+  });
+
   it('em teste a rotina não agenda nada', () => {
     const { svc } = montarPortao();
     const espiao = jest.spyOn(global, 'setInterval');

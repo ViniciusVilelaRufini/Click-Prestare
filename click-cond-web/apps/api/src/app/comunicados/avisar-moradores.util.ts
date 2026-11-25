@@ -1,6 +1,18 @@
 import type { Logger } from '@nestjs/common';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { NotificationsService } from '../notifications/notifications.service';
+import { limitarConcorrencia } from '../common/limitar-concorrencia';
+
+/**
+ * Pushes em voo ao mesmo tempo (por instância, somando todos os avisos em
+ * andamento). Antes era um await por morador: num condomínio de 500 unidades
+ * levava minutos, e um deploy no meio deixava parte sem aviso. A fila é longa
+ * de propósito: o aviso de um condomínio inteiro entra de uma vez.
+ */
+const limitarPushAvisos = limitarConcorrencia('push-avisos-condominio', 5, {
+  filaMaxima: 20_000,
+  esperaMaximaMs: 15 * 60 * 1000,
+});
 
 /**
  * Push para os moradores do condomínio que deixaram ligada a preferência de
@@ -14,7 +26,13 @@ import type { NotificationsService } from '../notifications/notifications.servic
 export async function avisarMoradoresDoCondominio(
   deps: { prisma: PrismaService; notifications?: NotificationsService | null; logger: Logger },
   idCondominio: number,
-  aviso: { titulo: string; corpo: string; data: Record<string, string> },
+  aviso: {
+    titulo: string;
+    corpo: string;
+    data: Record<string, string>;
+    /** Users.id de quem publicou: não é avisado do que ele mesmo fez. */
+    excluirUserId?: number | null;
+  },
 ): Promise<void> {
   if (!deps.notifications) return;
   try {
@@ -26,16 +44,18 @@ export async function avisarMoradoresDoCondominio(
         notif_comunicados: 1,
         fcm_token: { not: null },
         apartamentosUsers: { some: { apartamento: { id_condominio: idCondominio } } },
+        ...(aviso.excluirUserId ? { id: { not: aviso.excluirUserId } } : {}),
       },
       select: { fcm_token: true },
     });
-    for (const u of users) {
-      try {
-        await deps.notifications.sendPushNotification(u.fcm_token!, aviso.titulo, aviso.corpo, aviso.data);
-      } catch (e: any) {
-        deps.logger.error(`[push.${aviso.data['type'] ?? 'aviso'}] ${e?.message ?? e}`);
-      }
-    }
+    const notifications = deps.notifications;
+    await Promise.all(
+      users.map((u) =>
+        limitarPushAvisos(() => notifications.sendPushNotification(u.fcm_token!, aviso.titulo, aviso.corpo, aviso.data)).catch(
+          (e: any) => deps.logger.error(`[push.${aviso.data['type'] ?? 'aviso'}] ${e?.message ?? e}`),
+        ),
+      ),
+    );
   } catch (e: any) {
     deps.logger.error(`[push.${aviso.data['type'] ?? 'aviso'}] ${e?.message ?? e}`);
   }

@@ -2,6 +2,7 @@ import { hojeBrasilia, horaBrasilia } from '../common/hora-brasilia.util';
 import { Injectable, NotFoundException, OnModuleInit, Logger, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { executarComLock } from '../common/lock-distribuido';
+import { EstadoCompartilhado } from '../common/estado-compartilhado';
 
 /** Horas, a partir da hora-gatilho, em que um tick ainda pode fazer a passada do dia. */
 const JANELA_LEMBRETES_HORAS = 3;
@@ -14,6 +15,12 @@ const JANELA_LEMBRETES_HORAS = 3;
  * exata podia deixar o dia sem lembrete; a chave por data impede a passada
  * em dobro. Fora da janela devolve null (não roda, não marca).
  */
+/**
+ * Validade da marca de "já avisei" (fatura+tipo+dia) no estado compartilhado.
+ * A chave já carrega o dia; 3 dias só garantem que a linha some sozinha.
+ */
+const MARCA_LEMBRETE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+
 export function cicloLembretesCobranca(agora: Date = new Date()): string | null {
   const gatilho = Number(process.env.BILLING_REMINDER_HOUR ?? 9);
   const hora = horaBrasilia(agora);
@@ -58,11 +65,22 @@ export class FinanceiroService implements OnModuleInit {
   // a uma execução lenta, ou se Nest emitir múltiplos onModuleInit em algum caso edge).
   private billingJobRunning = false;
 
-  // Dedup em memória para evitar reenvio de lembrete no mesmo dia.
-  // Key: `${faturaId}:${tipo}:${YYYY-MM-DD}`. Reseta no reboot.
-  // Sem isso, reiniciar o backend = todos os moradores recebem push de novo
-  // das mesmas faturas (UX horrível, motivo de desinstalar o app).
-  private lembretesEnviados = new Set<string>();
+  // Dedup dos lembretes e da régua: 1 aviso por fatura+tipo+dia NO CLUSTER.
+  // Era um Set do processo: um deploy no meio do job (o ciclo do dia ainda
+  // não marcado) fazia a instância nova, com o Set vazio, reenviar push,
+  // e-mail e WhatsApp pago para quem já tinha recebido. A marca agora fica em
+  // estado_compartilhado e é gravada ANTES de enviar (marca-e-envia): se o
+  // processo morrer entre a marca e o envio, aquele aviso se perde, mas nunca
+  // sai em dobro.
+  private _estado?: EstadoCompartilhado;
+  private get estado(): EstadoCompartilhado {
+    return (this._estado ??= new EstadoCompartilhado(this.prisma as any));
+  }
+
+  /** true = esta passada é a dona do aviso `fatura:tipo:dia` (ninguém enviou ainda). */
+  private marcarLembrete(idFatura: number, tipo: string, dia: string): Promise<boolean> {
+    return this.estado.criarSeAusente(`financeiro:aviso:${idFatura}:${tipo}:${dia}`, true, MARCA_LEMBRETE_TTL_MS);
+  }
 
   onModuleInit() {
     // 1h após startup roda a primeira vez (não 30s — evita rodar durante o
@@ -82,10 +100,12 @@ export class FinanceiroService implements OnModuleInit {
    * janela do dia, e nunca dispara push fora do horário comercial.
    */
   /**
-   * true = a passada do dia foi feita (mesmo com erro interno: repetir no
-   * mesmo dia reenviaria os lembretes que já saíram antes da falha, porque o
-   * dedup `lembretesEnviados` é por instância). false = fora da janela ou já
-   * rodando — não marca o ciclo do dia.
+   * true = os três passos do dia rodaram sem exceção (marca o ciclo do dia).
+   * false = fora da janela, já rodando, ou algum passo falhou: o ciclo não é
+   * marcado e o próximo tick da janela roda os três de novo. Repetir é seguro:
+   * lembretes e régua têm a marca por fatura+tipo+dia no estado compartilhado
+   * (quem já recebeu não recebe de novo) e o faturamento recorrente é
+   * idempotente.
    */
   private async tickBillingJob(): Promise<boolean> {
     if (this.billingJobRunning) {
@@ -100,33 +120,38 @@ export class FinanceiroService implements OnModuleInit {
       return false;
     }
 
-    // Limpa cache de dedup mais antigo que 3 dias (em produção longa, evita
-    // o Set crescer indefinidamente).
-    this.purgarCacheLembretesAntigos();
-
+    // Um try por passo: exceção nos lembretes não pode pular a recorrência
+    // nem a régua do dia (a régua casa `diffDays` exato — o aviso daquele dia
+    // não volta).
     this.billingJobRunning = true;
+    let tudoOk = true;
+    // As marcas de aviso têm o dia na chave e nunca são recriadas, então o
+    // `criarSeAusente` não as apaga: a faxina das vencidas fica aqui.
     try {
-      await this.runBillingRemindersJob();
-      await this.runRecurringBillingJob();
-      await this.runAutoWhatsAppDunningJob();
+      await (this.prisma as any).estado_Compartilhado?.deleteMany?.({
+        where: { chave: { startsWith: 'financeiro:aviso:' }, expira_em: { lte: new Date() } },
+      });
     } catch (err: any) {
-      this.logger.error(`Job de lembretes falhou: ${err?.message ?? err}`);
+      this.logger.warn(`Faxina das marcas de aviso falhou: ${err?.message ?? err}`);
+    }
+    try {
+      const passos: Array<[string, () => Promise<unknown>]> = [
+        ['lembretes', () => this.runBillingRemindersJob()],
+        ['faturamento recorrente', () => this.runRecurringBillingJob()],
+        ['régua de cobrança WhatsApp', () => this.runAutoWhatsAppDunningJob()],
+      ];
+      for (const [nome, passo] of passos) {
+        try {
+          await passo();
+        } catch (err: any) {
+          tudoOk = false;
+          this.logger.error(`Job de cobrança: passo "${nome}" falhou: ${err?.message ?? err}`);
+        }
+      }
     } finally {
       this.billingJobRunning = false;
     }
-    return true;
-  }
-
-  private purgarCacheLembretesAntigos() {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 3);
-    const cutoffStr = cutoff.toISOString().slice(0, 10);
-    for (const k of this.lembretesEnviados) {
-      const datePart = k.split(':')[2];
-      if (datePart && datePart < cutoffStr) {
-        this.lembretesEnviados.delete(k);
-      }
-    }
+    return tudoOk;
   }
 
   /**
@@ -2546,14 +2571,6 @@ export class FinanceiroService implements OnModuleInit {
         continue;
       }
 
-      // Dedup: garante 1 lembrete por fatura por tipo por dia. Sem isso,
-      // reboot do backend = todo mundo recebe push de novo.
-      const dedupKey = `${fat.id}:${tipo}:${hojeStr}`;
-      if (this.lembretesEnviados.has(dedupKey)) {
-        stats.deduplicados++;
-        continue;
-      }
-
       // A unidade da fatura sai do MESMO casador que decide quem vê a cobrança
       // no app (`nomeFaturaDeApto`), e não de um regex próprio.
       //
@@ -2589,6 +2606,15 @@ export class FinanceiroService implements OnModuleInit {
         where: this.whereUsuariosDaUnidade(fat.id_condominio, unidade.apto, unidade.bloco),
         select: { fcm_token: true, email: true, name: true },
       });
+      if (moradores.length === 0) continue;
+
+      // Dedup no cluster: 1 lembrete por fatura+tipo+dia. Marca ANTES de
+      // enviar — outra instância, ou a instância nova depois de um deploy no
+      // meio do job, não reenvia.
+      if (!(await this.marcarLembrete(fat.id, tipo, hojeStr))) {
+        stats.deduplicados++;
+        continue;
+      }
 
       const body = tipo === 'antecipado'
         ? `Olá! A fatura "${fat.nome}" (${valorFmt}) vence em 5 dias (${venc.toLocaleDateString('pt-BR')}).`
@@ -2625,9 +2651,6 @@ export class FinanceiroService implements OnModuleInit {
         }
       }
 
-      // Marca como enviado APÓS o envio (se quebrou no meio, pode reenviar
-      // — aceitável: mensagem duplicada vs. mensagem perdida em fatura crítica).
-      this.lembretesEnviados.add(dedupKey);
       stats.faturasProcessadas++;
     }
 
@@ -3361,10 +3384,11 @@ export class FinanceiroService implements OnModuleInit {
     if (!this.prisma.isConnected) return;
     this.logger.log('Iniciando Job de Faturamento Recorrente...');
 
-    const hoje = new Date();
-    const diaAtual = hoje.getDate();
-    const mesAtual = hoje.getMonth() + 1;
-    const anoAtual = hoje.getFullYear();
+    // Calendário de Brasília (o servidor roda em UTC).
+    const hoje = hojeBrasilia();
+    const diaAtual = hoje.getUTCDate();
+    const mesAtual = hoje.getUTCMonth() + 1;
+    const anoAtual = hoje.getUTCFullYear();
 
     // Condomínio espelhado da Superlógica NÃO entra no faturamento
     // recorrente: quem emite a taxa dele é o ERP, e o sync traz a cobrança
@@ -3628,6 +3652,10 @@ export class FinanceiroService implements OnModuleInit {
     });
 
     for (const cond of condominios) {
+      // Apartamentos do condomínio, carregados uma vez só (a unidade da fatura
+      // sai do mesmo casador que decide quem vê a cobrança no app).
+      let aptosDoCondominio: { apto: string | null; bloco: string | null }[] | null = null;
+
       // Busca faturas vencidas em aberto deste condomínio
       const faturas = await this.prisma.financeiro.findMany({
         where: {
@@ -3668,24 +3696,28 @@ export class FinanceiroService implements OnModuleInit {
 
         if (!avisoTipo) continue;
 
-        // Dedup: evita reenvio no mesmo dia
-        const dedupKey = `${fat.id}:${avisoTipo}:${hojeStr}`;
-        if (this.lembretesEnviados.has(dedupKey)) {
-          continue;
-        }
+        // A unidade sai de `nomeFaturaDeApto` (o mesmo critério dos
+        // lembretes e da tela do morador), não do regex antigo
+        // "Apto X Bloco Y": fatura sem bloco ("Apto 5 - Ref. 08/2026") e apto
+        // com espaço nunca casavam, e o condomínio ficava sem régua.
+        aptosDoCondominio ??= await this.prisma.apartamentos.findMany({
+          where: { id_condominio: cond.id },
+          select: { apto: true, bloco: true },
+        });
+        const unidade = aptosDoCondominio.find((a) => this.nomeFaturaDeApto(fat.nome, a.apto, a.bloco));
+        if (!unidade || !unidade.apto) continue;
 
-        const aptoMatch = fat.nome?.match(/Apto\s+(\S+)\s+Bloco\s+(\S+)/i);
-        if (!aptoMatch) continue;
-        const [, apto, bloco] = aptoMatch;
-
+        // Os dois vínculos da unidade (Moradores e Apartamentos_Users), com
+        // bloco vazio e nulo tratados como o mesmo.
         const moradores = await this.prisma.users.findMany({
-          where: {
-            moradores: {
-              some: { id_condominio: cond.id, apartamento: apto, bloco: bloco },
-            },
-          },
+          where: this.whereUsuariosDaUnidade(cond.id, unidade.apto, unidade.bloco),
           select: { name: true, phone: true },
         });
+        if (moradores.length === 0) continue;
+
+        // Dedup no cluster, marcado ANTES do WhatsApp (pago e visível ao
+        // morador): deploy no meio do job não reenvia.
+        if (!(await this.marcarLembrete(fat.id, avisoTipo, hojeStr))) continue;
 
         const valorFmt = Number(fat.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         const textMessage = avisoTipo === 'aviso_1'
@@ -3708,8 +3740,6 @@ export class FinanceiroService implements OnModuleInit {
             }
           }
         }
-
-        this.lembretesEnviados.add(dedupKey);
       }
     }
   }
