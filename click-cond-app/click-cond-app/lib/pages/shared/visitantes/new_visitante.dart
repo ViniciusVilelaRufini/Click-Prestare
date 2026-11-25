@@ -515,11 +515,25 @@ class _NewVisitantePageState extends State<NewVisitante> {
                       onTap: _selectPhoto,
                       child: Stack(
                         children: [
-                          CircleAvatar(
-                            radius: 52,
-                            backgroundColor:
-                                AppColors.primary.withValues(alpha: 0.1),
-                            backgroundImage: _getAvatarImageProvider(),
+                          Container(
+                            width: 104,
+                            height: 104,
+                            decoration: BoxDecoration(
+                              color: AppColors.surface(context),
+                              borderRadius: BorderRadius.zero,
+                              border: Border.all(
+                                  color: AppColors.border(context)),
+                              image: _getAvatarImageProvider() is AssetImage
+                                  ? null
+                                  : DecorationImage(
+                                      image: _getAvatarImageProvider(),
+                                      fit: BoxFit.cover),
+                            ),
+                            child: _getAvatarImageProvider() is AssetImage
+                                ? Icon(PhosphorIcons.user,
+                                    size: 48,
+                                    color: AppColors.textTertiary(context))
+                                : null,
                           ),
                           Positioned(
                             bottom: 0,
@@ -529,7 +543,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
                               height: 30,
                               decoration: BoxDecoration(
                                 color: AppColors.primary,
-                                shape: BoxShape.circle,
+                                borderRadius: BorderRadius.zero,
                                 border: Border.all(
                                     color: AppColors.bg(context), width: 2),
                               ),
@@ -640,12 +654,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
                   // Seletor de Tipo (Visitante vs Prestador de Serviços)
                   ...[
                     const SizedBox(height: AppSpacing.md),
-                    Text(
-                      getText('lb_tipo'),
-                      style: AppTypography.captionMedium(context)
-                          .copyWith(color: AppColors.textSecondary(context)),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
+                    _section(getText('lb_tipo')),
                     _TipoPicker(
                       currentTipo: currentTipo,
                       onChanged: (v) {
@@ -744,7 +753,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
                   AppInput(
                     label: getText('lb_observacoes'),
                     controller: txtObs,
-                    prefixIcon: PhosphorIcons.notepad,
+                    prefixIcon: PhosphorIcons.textAlignLeft,
                     keyboard: TextInputType.multiline,
                     maxLines: 3,
                   ),
@@ -782,14 +791,15 @@ class _NewVisitantePageState extends State<NewVisitante> {
   }
 
   Widget _buildDiasSemana() {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+    return Row(
       children: _diasOrdem.map((d) {
         final key = d['key']!;
         final label = d['label']!;
         final sel = diasSemana.contains(key);
-        return GestureDetector(
+        return Expanded(
+            child: Padding(
+          padding: EdgeInsets.only(right: d == _diasOrdem.last ? 0 : 6),
+          child: GestureDetector(
           onTap: () => setState(() {
             if (sel) {
               diasSemana.remove(key);
@@ -798,7 +808,6 @@ class _NewVisitantePageState extends State<NewVisitante> {
             }
           }),
           child: Container(
-            width: 44,
             height: 44,
             alignment: Alignment.center,
             decoration: BoxDecoration(
@@ -815,7 +824,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
               ),
             ),
           ),
-        );
+        )));
       }).toList(),
     );
   }
@@ -823,8 +832,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
   Widget _section(String title) => Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.sm),
         child: Text(title.toUpperCase(),
-            style: AppTypography.captionMedium(context)
-                .copyWith(color: AppColors.primary, letterSpacing: 0.8)),
+            style: AppTypography.section(context)),
       );
 }
 

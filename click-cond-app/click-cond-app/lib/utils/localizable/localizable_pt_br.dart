@@ -502,7 +502,7 @@ class Localizable_PtBr {
     LocalizableModel(key: 'visitantes_list', text: 'Lista de Visitantes'),  
     LocalizableModel(key: 'visitantes_nav_new', text: 'Cadastrar novo visitante'),
     LocalizableModel(key: 'visitantes_nav_edit', text: 'Editar Visitante'),
-    LocalizableModel(key: 'visitantes_infos', text: 'INFORMAÇÕES REFERENTE A VISITA'),
+    LocalizableModel(key: 'visitantes_infos', text: 'INFORMAÇÕES DA VISITA'),
     LocalizableModel(key: 'visitantes_data_hora_inicio', text: 'Data e hora de início da liberação'),
     LocalizableModel(key: 'visitantes_data_hora_termino', text: 'Data e hora de término da liberação'),
     LocalizableModel(key: 'visitante', text: 'Visitante'),
