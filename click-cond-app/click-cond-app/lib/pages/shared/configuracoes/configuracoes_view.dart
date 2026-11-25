@@ -19,6 +19,23 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:click/pages/settings/qr_web_access_page.dart';
 
+/// Nome do idioma salvo, na lista de opções do seletor.
+String nomeIdiomaPorCodigo(String? code) {
+  switch (code) {
+    case 'en':
+      return getText('language_en');
+    case 'es':
+      return getText('language_es');
+    case 'pt_PT':
+      return getText('language_pt_pt');
+    case 'de':
+      return getText('language_al');
+    default:
+      return getText('language_pt_br');
+  }
+}
+
+
 class ConfiguracoesView extends StatefulWidget {
   final dynamic condominio;
   const ConfiguracoesView({super.key, required this.condominio});
@@ -267,6 +284,8 @@ class _ConfiguracoesViewState extends State<ConfiguracoesView> {
             _SettingsTile(
               icon: PhosphorIcons.translate,
               label: getText('language_idioma'),
+              trailingText: nomeIdiomaPorCodigo(
+                  LocalStorageConfig.instance.getPreferenceLanguage()),
               onTap: _changeLanguage,
             ),
             if (type == 'sindico')
