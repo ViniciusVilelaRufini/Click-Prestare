@@ -11,6 +11,7 @@ O app e o console precisam de internet para registrar. Só o terminal facial gua
 - [Visão geral do sistema](https://www.prestarecondominios.com.br/sobre/): módulos, telas, simulador de preço e dúvidas frequentes
 - [App e sistema para síndico](https://www.prestarecondominios.com.br/sindico/): o que o síndico acompanha, relatórios e preço
 - [Preços](https://www.prestarecondominios.com.br/precos/): tabela por faixa de unidades e exemplos de cálculo
+- [Controle de acesso em condomínio](https://www.prestarecondominios.com.br/controle-de-acesso-condominio/): tipos de controle de acesso, como escolher e como funciona com a Prestare
 - [Controle de visitantes](https://www.prestarecondominios.com.br/controle-de-visitantes-condominio/): cadastro pelo morador, PIN na portaria, relatório de visitantes
 - [Livro de portaria digital](https://www.prestarecondominios.com.br/livro-de-portaria-digital/): o que fica registrado, quem altera e como exportar
 - [Reconhecimento facial e LGPD](https://www.prestarecondominios.com.br/reconhecimento-facial-condominio/): consentimento, alternativa para quem recusa e terminais

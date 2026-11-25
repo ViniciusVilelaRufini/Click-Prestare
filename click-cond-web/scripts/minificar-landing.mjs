@@ -45,6 +45,7 @@ const PAGINAS = [
   '404.html',
   'precos/index.html',
   'quem-somos/index.html',
+  'controle-de-acesso-condominio/index.html',
   'controle-de-visitantes-condominio/index.html',
   'livro-de-portaria-digital/index.html',
   'reconhecimento-facial-condominio/index.html',

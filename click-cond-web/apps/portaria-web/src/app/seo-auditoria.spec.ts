@@ -6,7 +6,7 @@ const sobre = () => readFileSync(pub('sobre/index.html'), 'utf8');
 const sindico = () => readFileSync(pub('sindico/index.html'), 'utf8');
 const texto = (html: string) => html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 const jsonLd = () => JSON.parse(sobre().match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)![1]);
-const NOVAS = ['/quem-somos/', '/precos/', '/controle-de-visitantes-condominio/', '/livro-de-portaria-digital/', '/reconhecimento-facial-condominio/', '/aplicativo-para-condominio/'];
+const NOVAS = ['/quem-somos/', '/controle-de-acesso-condominio/', '/precos/', '/controle-de-visitantes-condominio/', '/livro-de-portaria-digital/', '/reconhecimento-facial-condominio/', '/aplicativo-para-condominio/'];
 const pagina = (rota: string) => readFileSync(pub(rota.slice(1) + 'index.html'), 'utf8');
 const regras = () => JSON.parse(readFileSync(join(process.cwd(), '../docs/operacao/amplify-regras.json'), 'utf8')) as { source: string; target: string; status: string }[];
 
@@ -431,6 +431,7 @@ describe('rodada 5: imagem de compartilhamento, foto do escritório e perguntas 
     ['/livro-de-portaria-digital/', 'og-livro-de-portaria.jpg'],
     ['/reconhecimento-facial-condominio/', 'og-reconhecimento-facial.jpg'],
     ['/aplicativo-para-condominio/', 'og-institucional.jpg'],
+    ['/controle-de-acesso-condominio/', 'og-controle-de-acesso.jpg'],
   ];
   it.each(OG)('%s usa a própria OG de 1200x630', (rota, arq) => {
     const html = pagina(rota);
@@ -586,5 +587,25 @@ describe('conversão nas páginas de destino dos anúncios', () => {
     expect(js).toContain("'oppref'");
     expect(js).toContain('/api/public/leads');
     expect(js).toContain("sessionStorage.getItem('psClique_' + canal)");
+  });
+});
+
+describe('página de controle de acesso', () => {
+  const html = () => pagina('/controle-de-acesso-condominio/');
+  it('title e H1 trazem o termo e não repetem o title da /sobre', () => {
+    const titulo = html().match(/<title>([^<]+)<\/title>/)![1];
+    expect(titulo).toMatch(/^Controle de acesso em condomínio/);
+    expect(titulo).not.toBe(sobre().match(/<title>([^<]+)<\/title>/)![1]);
+    expect(html().match(/<h1>([^<]+)<\/h1>/)![1]).toContain('Controle de acesso em condomínio');
+  });
+  it('description sem preço e "remota" só na negação', () => {
+    expect(html().match(/<meta name="description" content="([^"]+)"/)![1]).not.toContain('R$');
+    const t = texto(html());
+    expect(t).toContain('A Prestare é portaria remota? Não.');
+    expect(t.toLowerCase().replace('a prestare é portaria remota? não.', '')).not.toContain('remota');
+  });
+  it('todas as páginas de conteúdo, a /sobre e a 404 levam a ela', () => {
+    ['/sobre/', '/sindico/', ...NOVAS.filter((r) => r !== '/controle-de-acesso-condominio/')].forEach((r) => expect(pagina(r)).toContain('href="/controle-de-acesso-condominio/"'));
+    expect(readFileSync(pub('404.html'), 'utf8')).toContain('href="/controle-de-acesso-condominio/"');
   });
 });

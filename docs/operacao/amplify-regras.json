@@ -85,6 +85,16 @@
     "status": "200"
   },
   {
+    "source": "/controle-de-acesso-condominio",
+    "target": "/controle-de-acesso-condominio/",
+    "status": "301"
+  },
+  {
+    "source": "/controle-de-acesso-condominio/",
+    "target": "/controle-de-acesso-condominio/index.html",
+    "status": "200"
+  },
+  {
     "source": "/politica-de-privacidade",
     "target": "/politica-de-privacidade.html",
     "status": "301"
