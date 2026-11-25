@@ -1635,19 +1635,35 @@ class _ChatIaPageState extends State<ChatIaPage> {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      GestureDetector(
-                        onTap: _isSending ? null : () => _enviar(),
-                        // Ação principal da tela: amarelo da marca, cantos retos.
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: _isSending
-                                ? AppColors.brand.withValues(alpha: 0.5)
-                                : AppColors.brand,
-                          ),
-                          child: Icon(PhosphorIcons.paperPlaneRight,
-                              color: AppColors.onBrand, size: 20),
-                        ),
+                      // Só habilita com texto ou anexo; vazio fica apagado.
+                      ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: _msgController,
+                        builder: (context, valor, _) {
+                          final podeEnviar = !_isSending &&
+                              (valor.text.trim().isNotEmpty ||
+                                  _anexoPendente != null);
+                          return GestureDetector(
+                            key: const ValueKey('chat_ia_enviar'),
+                            onTap: podeEnviar ? () => _enviar() : null,
+                            // Ação principal da tela: amarelo da marca quando
+                            // há o que enviar; sem isso, apagado e sem toque.
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: podeEnviar
+                                    ? AppColors.brand
+                                    : (_isSending
+                                        ? AppColors.brand.withValues(alpha: 0.5)
+                                        : AppColors.border(context)),
+                              ),
+                              child: Icon(PhosphorIcons.paperPlaneRight,
+                                  color: podeEnviar || _isSending
+                                      ? AppColors.onBrand
+                                      : AppColors.textTertiary(context),
+                                  size: 20),
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),
