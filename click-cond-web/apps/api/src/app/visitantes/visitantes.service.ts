@@ -1,5 +1,6 @@
 import { diaSemanaBrasilia, formatarDataHoraBrasilia } from '../common/hora-brasilia.util';
 import { rotuloBloco } from '../common/rotulo-bloco.util';
+import { rotuloAptoBloco } from './rotulo-apto-bloco.util';
 import {
   Injectable,
   Logger,
@@ -4276,7 +4277,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         confianca: a.confianca ?? undefined,
         terminalNome: deviceNomePor.get(a.id_device) ?? `Terminal #${a.id_device}`,
         idApartamento: apto?.id,
-        blocoApto: apto ? `${apto.apto ?? ''}${apto.bloco ?? ''}`.trim() : undefined,
+        blocoApto: apto ? rotuloAptoBloco(apto.apto, apto.bloco) || undefined : undefined,
         idVisitanteRegistro: a.id_pessoa,
         observacao: obs,
       });
@@ -4284,7 +4285,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
     for (const reg of todasVisitas) {
       const apto = reg.apartamento;
-      const blocoApto = apto ? `${apto.apto ?? ''}${apto.bloco ?? ''}`.trim() : undefined;
+      const blocoApto = apto ? rotuloAptoBloco(apto.apto, apto.bloco) || undefined : undefined;
       if (reg.data_entrada && !isDup('entrada', reg.data_entrada)) {
         timeline.push({
           evento: 'entrada',
@@ -4342,7 +4343,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       if (!reg.apartamento) continue;
       const a = reg.apartamento;
       const key = a.id;
-      const blocoApto = `${a.apto ?? ''}${a.bloco ?? ''}`.trim();
+      const blocoApto = rotuloAptoBloco(a.apto, a.bloco);
       const dateReg = reg.data_entrada ?? reg.created_at;
       const autorizador =
         reg.criadoPor?.name ||
@@ -4416,7 +4417,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         is_prestador: v.is_prestador,
         id_apartamento: v.id_apartamento,
         blocoAptoAtual: v.apartamento
-          ? `${v.apartamento.apto ?? ''}${v.apartamento.bloco ?? ''}`.trim()
+          ? rotuloAptoBloco(v.apartamento.apto, v.apartamento.bloco)
           : null,
         face_id: v.pessoa.face_id,
         face_sync_status: v.pessoa.face_sync_status,
@@ -5009,7 +5010,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         confianca: a.confianca ?? undefined,
         terminalNome: deviceNomePor.get(a.id_device) ?? `Terminal #${a.id_device}`,
         idApartamento: apto?.id,
-        blocoApto: apto ? `${apto.apto ?? ''}${apto.bloco ?? ''}`.trim() : undefined,
+        blocoApto: apto ? rotuloAptoBloco(apto.apto, apto.bloco) || undefined : undefined,
         idVisitanteRegistro: a.id_pessoa!,
         observacao: obs,
       });
@@ -5018,7 +5019,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // Entradas/Saídas por PIN/Manual (que não casam com acesso facial)
     for (const reg of todasVisitas) {
       const apto = reg.apartamento;
-      const blocoApto = apto ? `${apto.apto ?? ''}${apto.bloco ?? ''}`.trim() : undefined;
+      const blocoApto = apto ? rotuloAptoBloco(apto.apto, apto.bloco) || undefined : undefined;
       if (reg.data_entrada && !isDup(reg.id, 'entrada', reg.data_entrada)) {
         timeline.push({
           evento: 'entrada',
@@ -5094,7 +5095,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       if (!reg.apartamento) continue;
       const a = reg.apartamento;
       const key = a.id;
-      const blocoApto = `${a.apto ?? ''}${a.bloco ?? ''}`.trim();
+      const blocoApto = rotuloAptoBloco(a.apto, a.bloco);
       const dateReg = reg.data_entrada ?? reg.created_at;
       const autorizador =
         reg.criadoPor?.name ||
@@ -5166,7 +5167,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         is_prestador: v.is_prestador,
         id_apartamento: v.id_apartamento,
         blocoAptoAtual: v.apartamento
-          ? `${v.apartamento.apto ?? ''}${v.apartamento.bloco ?? ''}`.trim()
+          ? rotuloAptoBloco(v.apartamento.apto, v.apartamento.bloco)
           : null,
         face_id: v.face_id,
         face_sync_status: v.face_sync_status,
