@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
-import { csvCelula } from '../common/csv.util';
+import { linhaCsv } from '../common/csv.util';
+import type { AuditoriaAutorTipo } from '../auditoria/auditoria.service';
 
 const AdmZip = require('adm-zip');
 
@@ -9,6 +10,9 @@ export interface SolicitanteExportacao {
   nome?: string;
   email?: string;
   ip?: string;
+  /** Autor do rastro EXPORT (autorDoToken). */
+  autor_id?: number | null;
+  autor_tipo?: AuditoriaAutorTipo | null;
 }
 
 @Injectable()
@@ -53,6 +57,8 @@ export class CondominiosExportService {
             id_condominio: idCondominio,
             usuario_nome: solicitante?.nome || 'Síndico',
             usuario_email: solicitante?.email ?? null,
+            autor_id: solicitante?.autor_id ?? null,
+            autor_tipo: solicitante?.autor_tipo ?? null,
             acao: 'EXPORT',
             modulo: 'condominios',
             descricao: 'Exportação completa de dados do condomínio gerada pelo síndico (LGPD)',
@@ -310,16 +316,13 @@ export class CondominiosExportService {
   }
 
   private formatCsv(header: string[], rows: string[][]): string {
-    const lines = [header.map(this.csvEscape).join(',')];
+    // `;`: o Excel em pt-BR abre CSV com vírgula com tudo numa coluna só.
+    const lines = [linhaCsv(header)];
     for (const row of rows) {
-      lines.push(row.map(this.csvEscape).join(','));
+      lines.push(linhaCsv(row));
     }
     // Prefixo BOM (\uFEFF) para garantir abertura correta em UTF-8 no Excel
     return '\uFEFF' + lines.join('\n');
-  }
-
-  private csvEscape(value: any): string {
-    return csvCelula(value);
   }
 
   private getTimestamp(): string {

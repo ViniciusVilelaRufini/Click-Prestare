@@ -119,24 +119,27 @@ function faixa(coluna: Prisma.Sql, f: FiltroEspinha): Prisma.Sql {
  * evento poderia sumir da lista por completo (manual descartado e facial fora
  * do filtro).
  *
- * `idsPessoa`: no caminho migrado `Acessos_Facial.id_pessoa` grava ora o id
- * da Visita, ora o da Pessoa (ver acesso-facial-visitante-lookup.util.ts) —
- * os dois espaços são conferidos.
+ * Mesma pessoa = mesmo id E mesmo tipo, exatamente como o facial.service grava
+ * a entrada/saída de visitante (runWebhook): `tipo_pessoa` = 'prestador' se a
+ * visita tem `is_prestador = 1`, senão 'visitante'; `id_pessoa` = `v.id` —
+ * Visitantes.id no legado, Visitas.id no migrado. O id da Pessoa só aparece
+ * em negado/acionamento, que não entram aqui. Comparar também com
+ * `v.id_pessoa` misturava os espaços de Visita e Pessoa: a entrada manual de
+ * uma visita sumia por causa do facial de OUTRA visita com id igual.
  */
 function semFacialEquivalente(
   f: FiltroEspinha,
   like: string | null,
   evento: 'entrada' | 'saida',
   coluna: Prisma.Sql,
-  idsPessoa: Prisma.Sql,
 ): Prisma.Sql {
   return Prisma.sql`
       AND NOT EXISTS (
         SELECT 1
         FROM Acessos_Facial af
         WHERE af.id_condominio = ${f.idCondominio}
-          AND af.id_pessoa IN (${idsPessoa})
-          AND af.tipo_pessoa IN ('visitante', 'prestador')
+          AND af.id_pessoa = v.id
+          AND af.tipo_pessoa = (CASE WHEN v.is_prestador = 1 THEN 'prestador' ELSE 'visitante' END)
           AND af.evento = ${evento}
           AND af.timestamp >= (${coluna} - INTERVAL ${JANELA} SECOND)
           AND af.timestamp <= (${coluna} + INTERVAL ${JANELA} SECOND)${faixa(Prisma.sql`af.timestamp`, f)}${
@@ -169,7 +172,7 @@ function ramos(f: FiltroEspinha): Ramo[] {
           like
             ? Prisma.sql` AND (p.nome LIKE ${like} ESCAPE '!' OR p.doc_identificacao LIKE ${like} ESCAPE '!')`
             : E
-        }${semFacialEquivalente(f, like, evento, coluna, Prisma.sql`v.id, v.id_pessoa`)}`
+        }${semFacialEquivalente(f, like, evento, coluna)}`
       : Prisma.sql`
       FROM Visitantes v
       WHERE v.id_condominio = ${f.idCondominio}
@@ -177,7 +180,7 @@ function ramos(f: FiltroEspinha): Ramo[] {
           like
             ? Prisma.sql` AND (v.nome LIKE ${like} ESCAPE '!' OR v.doc_identificacao LIKE ${like} ESCAPE '!')`
             : E
-        }${semFacialEquivalente(f, like, evento, coluna, Prisma.sql`v.id`)}`;
+        }${semFacialEquivalente(f, like, evento, coluna)}`;
     return {
       fonte: evento === 'entrada' ? 'visita_entrada' : 'visita_saida',
       ord: evento === 'entrada' ? 1 : 2,

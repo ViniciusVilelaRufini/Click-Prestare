@@ -314,6 +314,8 @@ describe('RelatoriosService — auditoria e eventos', () => {
         id_condominio: 1,
         usuario_nome: 'Síndico Teste',
         usuario_email: 's@x.com',
+        autor_id: null,
+        autor_tipo: null,
         acao: 'EXPORT',
         modulo: 'auditoria',
         descricao: 'Exportação do log de auditoria em CSV (2 linhas)',

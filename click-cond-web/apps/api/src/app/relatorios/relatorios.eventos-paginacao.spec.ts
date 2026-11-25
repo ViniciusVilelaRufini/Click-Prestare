@@ -49,8 +49,8 @@ function criarBanco() {
   const db = new DatabaseSync(':memory:');
   db.exec(`
     CREATE TABLE pessoas (id INTEGER PRIMARY KEY, id_condominio INT, nome TEXT, doc_identificacao TEXT);
-    CREATE TABLE visitas (id INTEGER PRIMARY KEY, id_pessoa INT, id_condominio INT, data_entrada TEXT, data_saida TEXT);
-    CREATE TABLE Visitantes (id INTEGER PRIMARY KEY, id_condominio INT, nome TEXT, doc_identificacao TEXT, data_entrada TEXT, data_saida TEXT);
+    CREATE TABLE visitas (id INTEGER PRIMARY KEY, id_pessoa INT, id_condominio INT, data_entrada TEXT, data_saida TEXT, is_prestador INT NOT NULL DEFAULT 0);
+    CREATE TABLE Visitantes (id INTEGER PRIMARY KEY, id_condominio INT, nome TEXT, doc_identificacao TEXT, data_entrada TEXT, data_saida TEXT, is_prestador INT NOT NULL DEFAULT 0);
     CREATE TABLE Encomendas (id INTEGER PRIMARY KEY, id_condominio INT, descricao TEXT, destinatario_apto TEXT, recebido_de TEXT, recebido_em TEXT);
     CREATE TABLE Ocorrencias (id INTEGER PRIMARY KEY, id_condominio INT, descricao TEXT, created_at TEXT);
     CREATE TABLE audit_logs (id INTEGER PRIMARY KEY, id_condominio INT, modulo TEXT, descricao TEXT, created_at TEXT);
@@ -74,22 +74,22 @@ function criarBanco() {
       t.pessoas.push({ id: p.id, nome: p.nome, doc_identificacao: p.doc ?? null, foto_pessoa: 'rosto.jpg', foto_documento: 'rg.jpg', tipo_pessoa: 'visitante' });
       ins('INSERT INTO pessoas VALUES (?,?,?,?)', p.id, p.cond ?? 1, p.nome, p.doc ?? null);
     },
-    visita(v: { id: number; idPessoa: number; entrada?: Date | null; saida?: Date | null; cond?: number }) {
+    visita(v: { id: number; idPessoa: number; entrada?: Date | null; saida?: Date | null; cond?: number; prestador?: boolean }) {
       const pessoa = t.pessoas.find((p) => p.id === v.idPessoa);
       t.visitas.push({
-        id: v.id, id_pessoa: v.idPessoa, id_condominio: v.cond ?? 1, is_prestador: 0,
+        id: v.id, id_pessoa: v.idPessoa, id_condominio: v.cond ?? 1, is_prestador: v.prestador ? 1 : 0,
         data_entrada: v.entrada ?? null, data_saida: v.saida ?? null,
         apartamento: { apto: '101', bloco: 'A' }, criadoPor: { name: 'Morador' }, pessoa,
       });
-      ins('INSERT INTO visitas VALUES (?,?,?,?,?)', v.id, v.idPessoa, v.cond ?? 1, d(v.entrada), d(v.saida));
+      ins('INSERT INTO visitas VALUES (?,?,?,?,?,?)', v.id, v.idPessoa, v.cond ?? 1, d(v.entrada), d(v.saida), v.prestador ? 1 : 0);
     },
-    visitante(v: { id: number; nome: string; doc?: string; entrada?: Date | null; saida?: Date | null; cond?: number }) {
+    visitante(v: { id: number; nome: string; doc?: string; entrada?: Date | null; saida?: Date | null; cond?: number; prestador?: boolean }) {
       t.visitantes.push({
-        id: v.id, id_condominio: v.cond ?? 1, nome: v.nome, doc_identificacao: v.doc ?? null, is_prestador: 0,
+        id: v.id, id_condominio: v.cond ?? 1, nome: v.nome, doc_identificacao: v.doc ?? null, is_prestador: v.prestador ? 1 : 0,
         data_entrada: v.entrada ?? null, data_saida: v.saida ?? null, foto_pessoa: 'rosto.jpg', foto_documento: 'rg.jpg',
         apartamento: { apto: '101', bloco: 'A' }, criadoPor: { name: 'Morador' },
       });
-      ins('INSERT INTO Visitantes VALUES (?,?,?,?,?,?)', v.id, v.cond ?? 1, v.nome, v.doc ?? null, d(v.entrada), d(v.saida));
+      ins('INSERT INTO Visitantes VALUES (?,?,?,?,?,?,?)', v.id, v.cond ?? 1, v.nome, v.doc ?? null, d(v.entrada), d(v.saida), v.prestador ? 1 : 0);
     },
     encomenda(e: { id: number; quando: Date; descricao?: string; status?: string; cond?: number }) {
       t.encomendas.push({
@@ -377,15 +377,56 @@ describeSql('RelatoriosService.getEventos() — paginação no banco', () => {
       expect(r.total).toBe(1);
     });
 
-    it('migrado: facial gravado com o id da PESSOA (segundo espaço de id) também deduplica', async () => {
+    it('migrado: facial com o id da PESSOA não deduplica (o facial grava o id da VISITA na entrada/saída)', async () => {
+      // facial.service.ts (runWebhook, caminho migrado): entrada/saída de visitante grava
+      // `id_pessoa = v.id` (Visita). O id da Pessoa só aparece em negado/acionamento.
       process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
       const b = criarBanco();
       b.banco.pessoa({ id: 700, nome: 'Maria' });
       b.banco.visita({ id: 300, idPessoa: 700, entrada: q });
       b.banco.facial({ id: 1, quando: mais(5), idPessoa: 700, tipo: 'visitante', nome: 'Maria' });
       const r: any = await b.svc.getEventos(1);
-      expect(r.items.map((i: any) => i.id)).toEqual(['facial-access-1']);
-      expect(r.total).toBe(1);
+      expect(r.items.map((i: any) => i.id).sort()).toEqual(['facial-access-1', 'visitante-ent-300']);
+      expect(r.total).toBe(2);
+    });
+
+    it('migrado: facial de OUTRA visita cujo id é igual ao id da pessoa não descarta a entrada manual', async () => {
+      process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
+      const b = criarBanco();
+      b.banco.pessoa({ id: 700, nome: 'Maria' });
+      b.banco.pessoa({ id: 900, nome: 'Joana' });
+      b.banco.visita({ id: 300, idPessoa: 700, entrada: q });
+      // Visita 700 é da Joana: o id dela colide com o da Pessoa da Maria.
+      b.banco.visita({ id: 700, idPessoa: 900, entrada: null });
+      b.banco.facial({ id: 1, quando: mais(5), idPessoa: 700, tipo: 'visitante', nome: 'Joana' });
+      const r: any = await b.svc.getEventos(1);
+      expect(r.items.map((i: any) => i.id)).toContain('visitante-ent-300');
+      expect(r.total).toBe(2);
+    });
+
+    it.each([
+      ['legado', 'false'],
+      ['migrado', 'true'],
+    ])('%s: tipo_pessoa tem de bater com is_prestador da visita', async (_n, flag) => {
+      process.env['PESSOAS_MIGRATION_ENABLED'] = flag;
+      const b = criarBanco();
+      if (flag === 'true') {
+        b.banco.pessoa({ id: 700, nome: 'Maria' });
+        b.banco.pessoa({ id: 701, nome: 'Joana' });
+        b.banco.visita({ id: 30, idPessoa: 700, entrada: q });
+        b.banco.visita({ id: 31, idPessoa: 701, entrada: q, prestador: true });
+      } else {
+        b.banco.visitante({ id: 30, nome: 'Maria', entrada: q });
+        b.banco.visitante({ id: 31, nome: 'Joana', entrada: q, prestador: true });
+      }
+      // 30 é visitante: facial "prestador" com id 30 não é ela. 31 é prestador: o facial "prestador" é ele.
+      b.banco.facial({ id: 1, quando: mais(5), idPessoa: 30, tipo: 'prestador', nome: 'X' });
+      b.banco.facial({ id: 2, quando: mais(5), idPessoa: 31, tipo: 'prestador', nome: 'Joana' });
+      const r: any = await b.svc.getEventos(1);
+      const ids = r.items.map((i: any) => i.id);
+      expect(ids).toContain('visitante-ent-30');
+      expect(ids).not.toContain('visitante-ent-31');
+      expect(r.total).toBe(3);
     });
 
     it('o facial só substitui o manual se ele mesmo está no resultado (período e busca)', async () => {
@@ -420,9 +461,9 @@ describeSql('RelatoriosService.getEventos() — paginação no banco', () => {
         const quando = atras(i * MIN);
         b.banco.pessoa({ id: 1000 + i, nome: `P${i}` });
         b.banco.visita({ id: i, idPessoa: 1000 + i, entrada: quando });
-        // Um terço tem o par facial (alternando o espaço de id).
+        // Um terço tem o par facial (gravado com o id da Visita, como o facial.service).
         if (i % 3 === 0) {
-          b.banco.facial({ id: i, quando, idPessoa: i % 2 ? i : 1000 + i, tipo: 'visitante', nome: `P${i}` });
+          b.banco.facial({ id: i, quando, idPessoa: i, tipo: 'visitante', nome: `P${i}` });
         }
       }
       const vistos: string[] = [];
@@ -557,7 +598,7 @@ describeSql('RelatoriosService.getEventos() — paginação no banco', () => {
     expect(por('visitante-sai-1')).toMatchObject({ direcao: 'saida', detalhes: { status: 'Saiu', fotoPessoa: 'rosto.jpg' } });
     expect(por('encomenda-2').detalhes.dataEntrada).toBeNull();
     expect(por('dispositivo-4')).toMatchObject({ direcao: 'offline', detalhes: { status: 'Offline' } });
-    expect(por('dispositivo-5')).toMatchObject({ direcao: 'online', detalhes: { status: 'Resolvido' } });
+    expect(por('dispositivo-5')).toMatchObject({ tipo: 'Dispositivo', direcao: 'online', detalhes: { status: 'Online' } });
     expect(por('facial-access-6')).toMatchObject({ tipo: 'Acesso Facial', direcao: 'entrada', detalhes: { terminalNome: 'Portão', terminalIp: '10.0.0.9' } });
     expect(r).toMatchObject({ page: 1, pageSize: 50, total: 7, truncado: false });
   });
@@ -599,13 +640,17 @@ describe('eventos-espinha — montagem do SQL', () => {
     expect(on).toMatch(/FROM visitas v/);
     expect(on).toMatch(/JOIN pessoas p ON p\.id = v\.id_pessoa/);
     expect(on).not.toMatch(/Visitantes/);
-    expect(on).toMatch(/af\.id_pessoa IN \(v\.id, v\.id_pessoa\)/);
+    // Só o id da Visita (é o que o facial grava na entrada/saída) e o tipo pela visita.
+    expect(on).toMatch(/af\.id_pessoa = v\.id\b/);
+    expect(on).not.toMatch(/af\.id_pessoa IN/);
+    expect(on).toMatch(/af\.tipo_pessoa = \(CASE WHEN v\.is_prestador = 1 THEN 'prestador' ELSE 'visitante' END\)/);
 
     const legado = { ...base, migrado: false };
     const off = montarSqlEspinha(legado).sql + montarSqlTotal(legado).sql;
     expect(off).toMatch(/FROM Visitantes v/);
     expect(off).not.toMatch(/\bvisitas\b|\bpessoas\b/);
-    expect(off).toMatch(/af\.id_pessoa IN \(v\.id\)/);
+    expect(off).toMatch(/af\.id_pessoa = v\.id\b/);
+    expect(off).toMatch(/af\.tipo_pessoa = \(CASE WHEN v\.is_prestador = 1 THEN 'prestador' ELSE 'visitante' END\)/);
   });
 
   it('usa os nomes físicos das tabelas do schema', () => {

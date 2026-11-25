@@ -108,6 +108,9 @@ describe('RelatoriosController — só operador/síndico', () => {
     expect(exportService.gerarPacoteExportacao).toHaveBeenCalledWith(1, {
       nome: 'Síndico',
       email: undefined,
+      autor_id: 11,
+      autor_tipo: 'user',
+      ip: undefined,
     });
     expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/zip');
     expect(res.end).toHaveBeenCalled();

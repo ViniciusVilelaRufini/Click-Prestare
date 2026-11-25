@@ -57,3 +57,14 @@ describe('RelatoriosService.getAuditoria — módulo pedido x colação do banco
     expect(await whereDe('ocorrências', true, false)).toEqual({ id_condominio: 1, modulo: 'ocorrências' });
   });
 });
+
+/** wallet.service grava modulo 'wallet' e o PUT /entrega/config cai em 'entrega': o filtro da tela agrupa. */
+describe('RelatoriosService.getAuditoria — grupos de módulo (credenciais e delivery)', () => {
+  it('"credenciais" inclui as linhas gravadas como wallet', async () => {
+    expect((await whereDe('credenciais', true, false)).modulo).toEqual({ in: ['credenciais', 'wallet'] });
+  });
+
+  it('"delivery" inclui as linhas gravadas como entrega', async () => {
+    expect((await whereDe('delivery', true, false)).modulo).toEqual({ in: ['delivery', 'entrega'] });
+  });
+});

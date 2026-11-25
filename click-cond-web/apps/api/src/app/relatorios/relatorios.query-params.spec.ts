@@ -147,6 +147,8 @@ describe('RelatoriosController — parâmetros de auditoria/eventos', () => {
     expect(service.exportAuditoriaCsv).toHaveBeenCalledWith(1, 'visitantes', '2026-09-01', '2026-09-30', {
       nome: 'Síndico',
       email: 's@x.com',
+      autor_id: 11,
+      autor_tipo: 'user',
     });
   });
 });

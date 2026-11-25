@@ -4,10 +4,16 @@ import * as xlsx from 'xlsx';
 import { TDocumentDefinitions } from 'pdfmake/interfaces';
 import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 import { resolverInfoVisitantesPorIdAcessoFacial } from '../common/acesso-facial-visitante-lookup.util';
-import { csvCelula } from '../common/csv.util';
+import { csvCelula, linhaCsv } from '../common/csv.util';
+import {
+  mascararDocumento,
+  redigirDetalhesAuditoriaCsv,
+  rotuloAcaoAuditoria,
+  rotuloModuloAuditoria,
+} from './auditoria-rotulos.util';
 import { autorOcorrencia } from '../ocorrencias/autor-ocorrencia.util';
 import { formatarApto } from '../common/formatar-apto.util';
-import { normalizarBloco } from '../common/rotulo-bloco.util';
+import { normalizarBloco, rotuloBloco } from '../common/rotulo-bloco.util';
 import { AuditoriaService, type AuditoriaAutorTipo } from '../auditoria/auditoria.service';
 import { ocorrenciaSolucionada as solucionada } from '../common/status-ocorrencia.util';
 import {
@@ -27,6 +33,14 @@ import {
   lancamentoRenegociado,
   valorNoLivroCaixa,
 } from '../financeiro/livro-caixa-criterio.util';
+
+/** Quem exporta o log de auditoria (vai para o rastro EXPORT). */
+export interface SolicitanteExportAuditoria {
+  nome?: string;
+  email?: string;
+  autor_id?: number | null;
+  autor_tipo?: AuditoriaAutorTipo | null;
+}
 
 /** Opções do relatório financeiro. Todas opcionais: o app publicado não manda nenhuma. */
 export interface OpcoesRelatorioFinanceiro {
@@ -59,6 +73,8 @@ const GRUPOS_MODULO_AUDITORIA: Record<string, string[]> = {
   visitantes: ['visitantes', 'visitas', 'pessoas'],
   facial: ['facial', 'facial-health', 'dispositivos'],
   auth: ['auth', 'AUTH'],
+  credenciais: ['credenciais', 'wallet'],
+  delivery: ['delivery', 'entrega'],
 };
 
 const pdfmake = require('pdfmake');
@@ -229,7 +245,7 @@ export class RelatoriosService {
 
     const cleanBloco = bloco?.trim() || undefined;
     const cleanApto = apto?.trim() || undefined;
-    const blocoLabel = cleanBloco ? (/^bloco/i.test(cleanBloco) ? cleanBloco : `Bloco ${cleanBloco}`) : '';
+    const blocoLabel = rotuloBloco(cleanBloco);
     const aptoLabel = cleanApto ? (/^apto/i.test(cleanApto) ? cleanApto : `Apto ${cleanApto}`) : '';
     const unidadeDesc = (cleanBloco || cleanApto)
       ? [blocoLabel, aptoLabel].filter(Boolean).join(' - ')
@@ -911,7 +927,7 @@ export class RelatoriosService {
     modulo?: string,
     dataInicio?: string,
     dataFim?: string,
-    solicitante?: { nome?: string; email?: string },
+    solicitante?: SolicitanteExportAuditoria,
   ): Promise<{ buffer: Buffer; filename: string }> {
     if (!this.prisma.isConnected) {
       return { buffer: Buffer.from('Data\n'), filename: 'auditoria_vazia.csv' };
@@ -928,23 +944,23 @@ export class RelatoriosService {
     const rows = truncado ? lidas.slice(0, LIMITE_CSV_AUDITORIA) : lidas;
 
     const header = ['Data', 'Usuário', 'E-mail', 'Ação', 'Módulo', 'Entidade', 'Descrição', 'IP', 'Detalhes'];
-    const lines = [header.map(this.csvEscape).join(',')];
+    // `;`: o Excel em pt-BR abre CSV com vírgula com tudo numa coluna só.
+    const lines = [linhaCsv(header)];
 
     for (const r of rows) {
       lines.push(
-        [
+        linhaCsv([
           formatDateTimeSegundos(r.created_at),
           r.usuario_nome ?? '',
           r.usuario_email ?? '',
-          r.acao ?? '',
-          r.modulo ?? '',
+          rotuloAcaoAuditoria(r.acao),
+          rotuloModuloAuditoria(r.modulo),
           r.entidade_id != null ? String(r.entidade_id) : '',
           r.descricao ?? '',
           r.ip ?? '',
-          r.detalhes ?? '',
-        ]
-          .map(this.csvEscape)
-          .join(','),
+          // Linhas antigas trazem o PIN (`codigoAcesso`) e o CPF inteiro: a tela os esconde, o CSV também.
+          redigirDetalhesAuditoriaCsv(r.detalhes),
+        ]),
       );
     }
 
@@ -1014,7 +1030,7 @@ export class RelatoriosService {
    */
   private async registrarExportAuditoria(
     idCondominio: number,
-    solicitante: { nome?: string; email?: string } | undefined,
+    solicitante: SolicitanteExportAuditoria | undefined,
     filtros: { modulo?: string; dataInicio?: string; dataFim?: string },
     linhas: number,
   ): Promise<void> {
@@ -1035,6 +1051,8 @@ export class RelatoriosService {
           id_condominio: idCondominio,
           usuario_nome,
           usuario_email: solicitante?.email,
+          autor_id: solicitante?.autor_id ?? null,
+          autor_tipo: solicitante?.autor_tipo ?? null,
           acao: 'EXPORT',
           modulo: 'auditoria',
           descricao,
@@ -1046,6 +1064,8 @@ export class RelatoriosService {
             id_condominio: idCondominio,
             usuario_nome,
             usuario_email: solicitante?.email ?? null,
+            autor_id: solicitante?.autor_id ?? null,
+            autor_tipo: solicitante?.autor_tipo ?? null,
             acao: 'EXPORT',
             modulo: 'auditoria',
             descricao,
@@ -1058,9 +1078,6 @@ export class RelatoriosService {
     }
   }
 
-  private csvEscape(value: string): string {
-    return csvCelula(value);
-  }
 
   /**
    * Log de Eventos: linha do tempo de 6 fontes, paginada no banco.
@@ -1081,6 +1098,7 @@ export class RelatoriosService {
     search?: string,
     ocorrenciasSoPublicasOuDe: number | null = null,
   ) {
+    // Documento sempre só com os 4 últimos dígitos, para qualquer papel (a tela não tem "revelar").
     const safeSize = Math.min(Math.max(pageSize, 1), 200);
     const safePage = Math.max(page, 1);
     const periodoAplicado = resolverPeriodoEventos(dataInicio, dataFim);
@@ -1138,8 +1156,13 @@ export class RelatoriosService {
    * Linha que sumiu entre a espinha e a hidratação (excluída no meio) é
    * simplesmente omitida.
    */
-  private async hidratarEventos(idCondominio: number, linhas: LinhaEspinha[], migrado: boolean): Promise<any[]> {
+  private async hidratarEventos(
+    idCondominio: number,
+    linhas: LinhaEspinha[],
+    migrado: boolean,
+  ): Promise<any[]> {
     if (linhas.length === 0) return [];
+    const doc = (d: string | null | undefined): string | undefined => mascararDocumento(d);
 
     const idsDe = (...fontes: FonteEvento[]) => [
       ...new Set(linhas.filter((l) => fontes.includes(l.fonte)).map((l) => l.id)),
@@ -1227,7 +1250,7 @@ export class RelatoriosService {
           detalhes: {
             id: v.id,
             nome: v.nome,
-            documento: v.doc_identificacao || 'Não informado',
+            documento: doc(v.doc_identificacao) || 'Não informado',
             blocoApto: aptoStr || 'Não informado',
             tipoPessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
             dataEntrada: v.data_entrada ? v.data_entrada.toISOString() : undefined,
@@ -1250,7 +1273,7 @@ export class RelatoriosService {
           detalhes: {
             id: v.id,
             nome: v.nome,
-            documento: v.doc_identificacao || 'Não informado',
+            documento: doc(v.doc_identificacao) || 'Não informado',
             blocoApto: aptoStr || 'Não informado',
             tipoPessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
             dataEntrada: v.data_entrada ? v.data_entrada.toISOString() : undefined,
@@ -1319,7 +1342,8 @@ export class RelatoriosService {
       const isOffline = a.acao === 'OFFLINE';
       porChave.set(`dispositivo:${a.id}`, {
         id: `dispositivo-${a.id}`,
-        tipo: 'Ocorrência',
+        // Status de aparelho não é ocorrência: tipo próprio (card/cor no front).
+        tipo: 'Dispositivo',
         descricao: a.descricao,
         quando: a.created_at.toISOString(),
         // Evento de status de dispositivo (não é entrada/saída de pessoa):
@@ -1327,9 +1351,11 @@ export class RelatoriosService {
         direcao: isOffline ? 'offline' : 'online',
         detalhes: {
           id: a.id,
-          nome: 'Dispositivos',
+          // O monitor grava o nome do aparelho em usuario_nome (é quem "fala" no registro).
+          nome: a.usuario_nome || 'Dispositivo',
+          terminalNome: a.usuario_nome || undefined,
           descricao: a.descricao,
-          status: isOffline ? 'Offline' : 'Resolvido',
+          status: isOffline ? 'Offline' : 'Online',
           dataEntrada: a.created_at.toISOString(),
           autorizadoPor: 'Monitor de Dispositivos',
           ip: a.ip || undefined,
@@ -1427,7 +1453,7 @@ export class RelatoriosService {
         } else if (a.tipo_pessoa === 'visitante' || a.tipo_pessoa === 'prestador') {
           const v = visitanteById.get(idPessoa);
           foto = v?.foto_pessoa ?? undefined;
-          documento = v?.doc_identificacao ?? undefined;
+          documento = doc(v?.doc_identificacao);
           if (v?.apartamento) {
             aptoStr = formatarApto(v.apartamento.apto, v.apartamento.bloco);
           }
@@ -1447,7 +1473,7 @@ export class RelatoriosService {
           tipo: 'Acesso Facial',
           descricao: `${a.nome_pessoa.toUpperCase()} ${acao} ${dispLabel} "${terminalNome}"${confiancaPct}`,
           quando: a.timestamp.toISOString(),
-          direcao: a.evento === 'saida' ? 'saida' : a.evento === 'negado' ? 'bloqueado' : 'entrada',
+          direcao: direcaoDoEventoFacial(a.evento),
           detalhes: {
             id: a.id,
             nome: a.nome_pessoa,
@@ -1470,6 +1496,20 @@ export class RelatoriosService {
     return linhas
       .map((l) => porChave.get(`${l.fonte}:${l.id}`))
       .filter((item) => item !== undefined);
+  }
+}
+
+/**
+ * Direção do item de acesso facial no Log de Eventos. Abertura manual pelo
+ * porteiro e falha ao acionar o relé não são entrada de ninguém.
+ */
+function direcaoDoEventoFacial(evento?: string | null): 'entrada' | 'saida' | 'bloqueado' | 'manual' | 'falha' {
+  switch (evento) {
+    case 'saida': return 'saida';
+    case 'negado': return 'bloqueado';
+    case 'acionado_manual': return 'manual';
+    case 'falha_acionamento': return 'falha';
+    default: return 'entrada';
   }
 }
 

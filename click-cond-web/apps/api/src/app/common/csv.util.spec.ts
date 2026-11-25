@@ -1,4 +1,4 @@
-import { csvCelula } from './csv.util';
+import { csvCelula, linhaCsv, SEPARADOR_CSV } from './csv.util';
 
 /**
  * Nome de visitante, descrição de lançamento etc. são digitados por terceiros
@@ -30,5 +30,11 @@ describe('csvCelula', () => {
     expect(csvCelula('a,"b"\nc')).toBe('"a,""b""\nc"');
     expect(csvCelula(null)).toBe('');
     expect(csvCelula(10)).toBe('10');
+  });
+
+  it('cita valor com ";" (separador do CSV para o Excel em pt-BR)', () => {
+    expect(csvCelula('Porteiro; Turno A')).toBe('"Porteiro; Turno A"');
+    expect(SEPARADOR_CSV).toBe(';');
+    expect(linhaCsv(['a;b', 'c', null])).toBe('"a;b";c;');
   });
 });

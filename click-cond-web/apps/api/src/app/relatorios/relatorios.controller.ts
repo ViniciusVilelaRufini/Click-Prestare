@@ -55,6 +55,7 @@ export class RelatoriosController {
     const { buffer, filename } = await this.exportService.gerarPacoteExportacao(idCondominio, {
       nome: payload.nome || payload.email,
       email: payload.email,
+      ...autorDoToken(payload),
       ip: ipDaRequisicao(),
     });
 
@@ -157,7 +158,7 @@ export class RelatoriosController {
       textoUnico(modulo),
       dataIsoOuErro(dataInicio, 'dataInicio'),
       dataIsoOuErro(dataFim, 'dataFim'),
-      { nome: payload.nome || payload.email, email: payload.email },
+      { nome: payload.nome || payload.email, email: payload.email, ...autorDoToken(payload) },
     );
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -185,6 +186,7 @@ export class RelatoriosController {
       inteiroPositivoOuPadrao(pageStr, 1),
       inteiroPositivoOuPadrao(pageSizeStr, 50),
       textoUnico(search),
+      // Documento sempre com os 4 últimos dígitos, para qualquer papel: a tela não tem "revelar".
       await this.recorteOcorrencias(idCondominio, payload),
     );
   }
@@ -208,6 +210,7 @@ export class CondominiosExportController {
     const { buffer, filename } = await this.exportService.gerarPacoteExportacao(idCondominio, {
       nome: payload.nome || payload.email,
       email: payload.email,
+      ...autorDoToken(payload),
       ip: ipDaRequisicao(),
     });
 
