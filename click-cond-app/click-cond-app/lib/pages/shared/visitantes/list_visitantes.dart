@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:click/controllers/controller_visitantes.dart';
 import 'package:click/pages/shared/visitantes/acessos_facial_list.dart';
 import 'package:click/pages/shared/visitantes/new_visitante.dart';
+import 'package:click/pages/shared/visitantes/cadastro_visitante_flow.dart';
 import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
 import 'package:click/pages/shared/visitantes/convites_visita.dart';
 import 'package:click/pages/shared/visitantes/compartilhar_passe.dart';
@@ -33,11 +34,18 @@ class ListVisitantes extends StatefulWidget {
   final bool allCondos;
   final bool hideAppBar;
   final bool showFab;
+  /// Altura da barra inferior da aba (a ilha sobrepõe a tela).
+  final double fabBottomInset;
+  /// Abre o fluxo de novo visitante assim que a tela aparece (atalho LIBERAR
+  /// da home).
+  final bool abrirCadastro;
   const ListVisitantes({
     super.key,
     this.allCondos = false,
     this.hideAppBar = false,
     this.showFab = true,
+    this.fabBottomInset = 0,
+    this.abrirCadastro = false,
   });
   @override
   ListVisitantesPageState createState() => ListVisitantesPageState();
@@ -71,6 +79,17 @@ class ListVisitantesPageState extends State<ListVisitantes> {
     });
     loadList();
     _loadPendentes();
+    if (widget.abrirCadastro) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final podeCadastrar = getUserType() != 'funcionario' ||
+            getUserPermission('cadastrar_visitante') == 1;
+        if (podeCadastrar) {
+          abrirCadastroVisitante(context,
+              onDone: () => loadList(avisarErro: false));
+        }
+      });
+    }
   }
 
   Future<void> _loadPendentes() async {
@@ -1018,6 +1037,14 @@ class ListVisitantesPageState extends State<ListVisitantes> {
   Widget build(BuildContext context) {
     final canAdd = (getUserType() != 'funcionario') ||
         getUserPermission('cadastrar_visitante') == 1;
+    // Como aba, o botão segue a regra que a ilha usava: síndico, funcionário
+    // ou quem tem unidade vinculada.
+    final tipoUsuario = getUserType();
+    final podeCadastrarNaAba = tipoUsuario == 'sindico' ||
+        tipoUsuario == 'funcionario' ||
+        _temUnidadeVinculada;
+    final mostrarFab =
+        canAdd && widget.showFab && (!widget.hideAppBar || podeCadastrarNaAba);
 
     // Lista conjunta: visitantes + prestadores. O chip escolhe o recorte e é
     // aplicado antes das abas, para os contadores refletirem o filtro.
@@ -1111,8 +1138,11 @@ class ListVisitantesPageState extends State<ListVisitantes> {
             ),
           ),
         ],
-        floatingActionButton: canAdd && widget.showFab
-            ? Container(
+        balanceLeadingWidth: 48.0 * (_temUnidadeVinculada ? 2 : 1),
+        floatingActionButton: mostrarFab
+            ? Padding(
+                padding: EdgeInsets.only(bottom: widget.fabBottomInset),
+                child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.zero,
                 ),
@@ -1136,12 +1166,10 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                       child: Material(
                         color: Colors.transparent,
                         child: InkWell(
-                          onTap: () => Navigator.push(
+                          onTap: () => abrirCadastroVisitante(
                             context,
-                            MaterialPageRoute(
-                              builder: (_) => NewVisitante(isEdit: false),
-                            ),
-                          ).then((_) => loadList(avisarErro: false)),
+                            onDone: () => loadList(avisarErro: false),
+                          ),
                           borderRadius: BorderRadius.zero,
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1182,7 +1210,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                     ),
                   ),
                 ),
-              )
+              ))
             : null,
         body: NotificationListener<ScrollNotification>(
           onNotification: (ScrollNotification notification) {
@@ -1298,7 +1326,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                           left: AppSpacing.lg,
                           right: AppSpacing.lg,
                           top: AppSpacing.lg,
-                          bottom: fabClearance(context),
+                          bottom: fabClearance(context) + widget.fabBottomInset,
                         ),
                         itemCount: 8,
                         separatorBuilder: (_, __) =>
@@ -1323,7 +1351,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                       left: AppSpacing.lg,
                                       right: AppSpacing.lg,
                                       top: AppSpacing.lg,
-                                      bottom: fabClearance(context),
+                                      bottom: fabClearance(context) + widget.fabBottomInset,
                                     ),
                                     itemCount: listInside.length,
                                     separatorBuilder: (_, __) =>
@@ -1355,7 +1383,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                       left: AppSpacing.lg,
                                       right: AppSpacing.lg,
                                       top: AppSpacing.lg,
-                                      bottom: fabClearance(context),
+                                      bottom: fabClearance(context) + widget.fabBottomInset,
                                     ),
                                     itemCount: listCadastrados.length + (_temMais ? 1 : 0),
                                     separatorBuilder: (_, __) =>

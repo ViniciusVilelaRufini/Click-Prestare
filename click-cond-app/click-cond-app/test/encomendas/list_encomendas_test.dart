@@ -97,7 +97,7 @@ void main() {
     await abrir(tester);
 
     expect(find.text('AGUARDANDO RETIRADA'), findsOneWidget);
-    expect(find.text('02'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
     expect(find.text('Na portaria há 2 dias'), findsOneWidget);
     expect(find.text('Na portaria há 3 h'), findsOneWidget);
     expect(find.textContaining('Amazon · chegou'), findsOneWidget);
@@ -114,7 +114,7 @@ void main() {
     expect(find.text('Retirada por Maria'), findsOneWidget);
     expect(find.textContaining('ontem às '), findsOneWidget);
     expect(find.text('ENTREGUES'), findsOneWidget);
-    expect(find.text('01'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
     expect(find.text('ONTEM'), findsOneWidget);
     expect(tester.getTopLeft(find.text('ENTREGUES')).dy,
         lessThan(tester.getTopLeft(find.text('ONTEM')).dy));

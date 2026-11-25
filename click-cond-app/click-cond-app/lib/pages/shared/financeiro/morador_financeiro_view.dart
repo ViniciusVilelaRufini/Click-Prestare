@@ -30,6 +30,8 @@ enum FinanceiroViewMode { morador, condominio }
 class MoradorFinanceiroView extends StatefulWidget {
   final bool hideAppBar;
   final bool showFab;
+  /// Altura da barra inferior da aba (a ilha sobrepõe a tela).
+  final double fabBottomInset;
   /// Condomínio do push 'financeiro' tocado (com o app fechado não há
   /// condomínio aberto e a API dava 403). Não troca o condomínio aberto.
   /// Null = o condomínio aberto.
@@ -38,6 +40,7 @@ class MoradorFinanceiroView extends StatefulWidget {
     super.key, 
     this.hideAppBar = false,
     this.showFab = true,
+    this.fabBottomInset = 0,
     this.idCondominio,
   });
 
@@ -275,7 +278,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
           : RefreshIndicator(
               onRefresh: () => _loadData(),
               child: ListView(
-                padding: EdgeInsets.only(left: 16, right: 16, top: 2, bottom: fabClearance(context)),
+                padding: EdgeInsets.only(left: 16, right: 16, top: 2, bottom: fabClearance(context) + widget.fabBottomInset),
                 children: [
                   _buildViewToggle(),
                   _buildMonthSelector(),
@@ -325,10 +328,8 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
             ),
       ),
       floatingActionButton: widget.showFab && _viewMode == FinanceiroViewMode.morador
-        ? Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.zero,
-            ),
+        ? Padding(
+            padding: EdgeInsets.only(bottom: widget.fabBottomInset),
             child: FloatingActionButton.extended(
               heroTag: null,
               elevation: 0,

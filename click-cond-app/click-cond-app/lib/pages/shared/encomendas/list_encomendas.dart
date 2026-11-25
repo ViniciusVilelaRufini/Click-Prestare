@@ -26,12 +26,16 @@ class ListEncomendas extends StatefulWidget {
   final bool allCondos;
   final bool hideAppBar;
   final bool showFab;
+  /// Altura da barra inferior da aba (a ilha sobrepõe a tela): o botão
+  /// flutuante e o fim da lista sobem esse tanto.
+  final double fabBottomInset;
   final int? destacarId;
   const ListEncomendas({
     super.key,
     this.allCondos = false,
     this.hideAppBar = false,
     this.showFab = true,
+    this.fabBottomInset = 0,
     this.destacarId,
   });
 
@@ -171,7 +175,9 @@ class ListEncomendasState extends State<ListEncomendas> {
       showBackButton: !widget.hideAppBar,
       safeAreaBottom: !widget.hideAppBar,
       floatingActionButton: widget.showFab
-          ? FloatingActionButton.extended(
+          ? Padding(
+              padding: EdgeInsets.only(bottom: widget.fabBottomInset),
+              child: FloatingActionButton.extended(
               heroTag: 'register_tracking_fab',
               backgroundColor: AppColors.brand,
               foregroundColor: AppColors.onBrand,
@@ -179,10 +185,15 @@ class ListEncomendasState extends State<ListEncomendas> {
               onPressed: () => openAddEncomenda(context),
               icon: Icon(PhosphorIcons.plus, color: AppColors.onBrand, size: 20),
               label: Text(
-                (_isStaff ? 'Nova Encomenda' : 'Avisar Encomenda').toUpperCase(),
+                (widget.hideAppBar
+                    ? 'Registrar encomenda'
+                    : _isStaff
+                        ? 'Nova Encomenda'
+                        : 'Avisar Encomenda')
+                .toUpperCase(),
                 style: AppTypography.button(context).copyWith(color: AppColors.onBrand),
               ),
-            )
+            ))
           : null,
       body: Column(
         children: [
@@ -245,7 +256,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                       left: AppSpacing.lg,
                       right: AppSpacing.lg,
                       top: AppSpacing.sm,
-                      bottom: fabClearance(context),
+                      bottom: fabClearance(context) + widget.fabBottomInset,
                     ),
                     itemCount: 6,
                     separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.md),
@@ -275,7 +286,7 @@ class ListEncomendasState extends State<ListEncomendas> {
         left: AppSpacing.lg,
         right: AppSpacing.lg,
         top: AppSpacing.sm,
-        bottom: fabClearance(context),
+        bottom: fabClearance(context) + widget.fabBottomInset,
       ),
       children: [
         for (final section in sections) ...[
@@ -1437,10 +1448,10 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 'Aguardando retirada (3)' vira título + contador com zero à esquerda.
+    // 'Aguardando retirada (3)' vira título + contador .
     final m = RegExp(r'^(.*) \((\d+)\)$').firstMatch(text);
     final titulo = (m != null ? m.group(1)! : text).toUpperCase();
-    final contador = m != null ? m.group(2)!.padLeft(2, '0') : null;
+    final contador = m != null ? (int.tryParse(m.group(2)!) ?? 0).toString() : null;
     return Padding(
       padding: major
           ? const EdgeInsets.only(top: AppSpacing.xl, bottom: AppSpacing.md)

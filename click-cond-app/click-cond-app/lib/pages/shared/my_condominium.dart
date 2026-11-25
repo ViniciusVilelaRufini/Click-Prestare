@@ -25,9 +25,7 @@ import 'package:click/pages/sindico/relatorios_page.dart';
 import 'package:click/controllers/controller_visitantes.dart';
 import 'package:click/pages/shared/prestador%20de%20servico/list_prestadores.dart';
 import 'package:click/pages/shared/prestador%20de%20servico/list_prestadores_cadastro.dart';
-import 'package:click/pages/shared/prestador%20de%20servico/new_prestador.dart';
 import 'package:click/pages/shared/visitantes/list_visitantes.dart';
-import 'package:click/pages/shared/visitantes/new_visitante.dart';
 import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
 import 'package:click/pages/shared/encomendas/list_encomendas.dart';
 import 'package:click/pages/shared/delivery/list_delivery.dart';
@@ -108,7 +106,7 @@ class _MyCondominiumState extends State<MyCondominium> {
     if (widget.initialCond != null) {
       _cond = widget.initialCond;
       _summary = widget.initialSummary ?? cached?.summary;
-      _saldo = cached?.saldo ??
+      _saldo = _saldoExibido(cached?.saldo) ??
           (widget.initialCond!['saldo'] != null ? _formatMoeda(widget.initialCond!['saldo'].toString()) : '');
       _ocorrenciasAbertas = cached?.ocorrenciasAbertas ?? 0;
       _temp = cached?.temp;
@@ -117,7 +115,7 @@ class _MyCondominiumState extends State<MyCondominium> {
     } else if (cached != null) {
       _cond = cached.cond;
       _summary = cached.summary;
-      _saldo = cached.saldo;
+      _saldo = _saldoExibido(cached.saldo) ?? '';
       _ocorrenciasAbertas = cached.ocorrenciasAbertas;
       _temp = cached.temp;
       _weatherDesc = cached.weatherDesc;
@@ -168,6 +166,13 @@ class _MyCondominiumState extends State<MyCondominium> {
     final valor = double.tryParse(cleaned) ?? 0;
     final nf = NumberFormat('#,##0.00', 'pt_BR');
     return '$moeda ${nf.format(valor)}';
+  }
+
+  /// Saldo guardado no cache (cru da API ou já formatado) pronto para exibir;
+  /// null quando ainda não há valor. `_formatMoeda` é idempotente.
+  String? _saldoExibido(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return null;
+    return _formatMoeda(raw);
   }
 
   String _normalize(String str) {
@@ -422,18 +427,22 @@ class _MyCondominiumState extends State<MyCondominium> {
     );
   }
 
+  /// Altura da ilha de navegação (58 + filete): o botão flutuante de cada aba
+  /// sobe esse tanto para não ficar por baixo dela.
+  static const double _tabFabInset = 58;
+
   @override
   Widget build(BuildContext context) {
     final financeiroPage = getUserType() == 'morador'
-        ? MoradorFinanceiroView(key: _moradorFinanceiroKey, hideAppBar: true, showFab: false)
+        ? MoradorFinanceiroView(key: _moradorFinanceiroKey, hideAppBar: true, fabBottomInset: _tabFabInset)
         : ListFinanceiro(key: _financeiroKey, hideAppBar: true, showFab: false);
 
     // O PRESTARE IA saiu daqui: virou página empurrada pelo botão central, para
     // não ficar com a ilha sobreposta ao campo de digitar.
     final tabs = [
       _buildHomeTab(context),
-      ListEncomendas(key: _encomendasKey, hideAppBar: true, showFab: false),
-      ListVisitantes(key: _visitantesKey, hideAppBar: true, showFab: false),
+      ListEncomendas(key: _encomendasKey, hideAppBar: true, fabBottomInset: _tabFabInset),
+      ListVisitantes(key: _visitantesKey, hideAppBar: true, fabBottomInset: _tabFabInset),
       financeiroPage,
     ];
 
@@ -511,299 +520,34 @@ class _MyCondominiumState extends State<MyCondominium> {
     );
   }
 
-  void _showCadastrarVisitanteOuPrestadorSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return Container(
-          decoration: BoxDecoration(
-            color: AppColors.surface(context),
-            borderRadius: BorderRadius.zero,
-          ),
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 3,
-                  decoration: BoxDecoration(
-                    color: AppColors.textTertiary(context)
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                'Novo Cadastro'.toUpperCase(),
-                style: AppTypography.title(context),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Escolha o tipo de liberação para registrar no condomínio:',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary(context),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const NewVisitante(isEdit: false)),
-                    ).then((_) {
-                      _visitantesKey.currentState?.loadList();
-                    });
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: AppColors.border(context),
-                      ),
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: AppColors.brandSoft,
-                            borderRadius: BorderRadius.circular(AppRadius.md),
-                          ),
-                          child: Icon(PhosphorIcons.userPlus, color: AppColors.brandInkOf(context), size: 22),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Cadastrar Visitante',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.textPrimary(context),
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Visita avulsa, familiar ou convidado para uma unidade',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textSecondary(context),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(
-                          PhosphorIcons.caretRightBold,
-                          size: 16,
-                          color: AppColors.textTertiary(context),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const NewPrestador(isEdit: false)),
-                    ).then((_) {
-                      _visitantesKey.currentState?.loadList();
-                    });
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: AppColors.border(context),
-                      ),
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryLight,
-                            borderRadius: BorderRadius.circular(AppRadius.md),
-                          ),
-                          child: Icon(PhosphorIcons.wrench, color: AppColors.textPrimary(context), size: 22),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Cadastrar Prestador de Serviço',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.textPrimary(context),
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Técnicos, diaristas, reformas, entregadores ou obras',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textSecondary(context),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(
-                          PhosphorIcons.caretRightBold,
-                          size: 16,
-                          color: AppColors.textTertiary(context),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   List<Widget> _buildNavItems(BuildContext context) {
-    // O síndico tinha, na aba Financeiro, três atalhos de ação na ilha
-    // (Despesa, Receita, Cobrança). O financeiro do condomínio virou somente
-    // leitura — os lançamentos vêm do ERP Superlógica —, então a ilha dele
-    // mantém a navegação normal. A "Nova Conta" do morador continua: conta
-    // pessoal não faz parte dessa restrição.
-    final showMoradorFinanceAction = _currentTab == 3 && getUserType() == 'morador';
-    final showEncomendasAction = _currentTab == 1;
-
-    final isSindico = getUserType() == 'sindico';
-    final isFuncionario = getUserType() == 'funcionario';
-    final canAddVisitante = isSindico || isFuncionario || _temApto;
-    final showVisitantesAction = _currentTab == 2 && canAddVisitante;
-
-    return [
-      _buildAnimatedNavItem(
-        key: const ValueKey('nav_home'),
-        index: 0,
-        icon: PhosphorIcons.house,
-        activeIcon: PhosphorIcons.houseFill,
-        label: 'Início',
+    // As quatro abas ficam sempre como abas, com o estado ativo visível. As
+    // ações de cada tela (Registrar encomenda, Cadastrar visitante, Nova conta)
+    // viraram botão flutuante dentro da própria aba. O financeiro do síndico é
+    // somente leitura (lançamentos vêm do ERP Superlógica).
+    Widget tab(String key, int index, IconData icon, IconData activeIcon, String label) {
+      return _buildAnimatedNavItem(
+        key: ValueKey(key),
+        index: index,
+        icon: icon,
+        activeIcon: activeIcon,
+        label: label,
         onTap: () {
           setState(() {
-            _currentTab = 0;
+            _currentTab = index;
             _isNavBarVisible = true;
           });
         },
-      ),
-      showEncomendasAction
-          ? _buildAnimatedNavItem(
-              key: const ValueKey('nav_encomendas_action'),
-              index: -1,
-              icon: PhosphorIcons.plus,
-              activeIcon: PhosphorIcons.plus,
-              label: 'Registrar',
-              onTap: () {
-                _encomendasKey.currentState?.openAddEncomenda(context);
-              },
-              isAction: true,
-            )
-          : _buildAnimatedNavItem(
-              key: const ValueKey('nav_encomendas'),
-              index: 1,
-              icon: PhosphorIcons.package,
-              activeIcon: PhosphorIcons.packageFill,
-              label: 'Encomendas',
-              onTap: () {
-                setState(() {
-                  _currentTab = 1;
-                  _isNavBarVisible = true;
-                });
-              },
-            ),
+      );
+    }
+
+    return [
+      tab('nav_home', 0, PhosphorIcons.house, PhosphorIcons.houseFill, 'Início'),
+      tab('nav_encomendas', 1, PhosphorIcons.package, PhosphorIcons.packageFill, 'Encomendas'),
       // Botão circular central: abre o PRESTARE IA.
       _buildAiNavButton(context),
-      showVisitantesAction
-          ? _buildAnimatedNavItem(
-              key: const ValueKey('nav_visitantes_action'),
-              index: -1,
-              icon: PhosphorIcons.userPlus,
-              activeIcon: PhosphorIcons.userPlus,
-              label: 'Cadastrar',
-              onTap: () {
-                if (isFuncionario || isSindico) {
-                  _showCadastrarVisitanteOuPrestadorSheet(context);
-                } else {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const NewVisitante(isEdit: false)),
-                  ).then((_) {
-                    _visitantesKey.currentState?.loadList();
-                  });
-                }
-              },
-              isAction: true,
-            )
-          : _buildAnimatedNavItem(
-              key: const ValueKey('nav_visitantes'),
-              index: 2,
-              icon: PhosphorIcons.userList,
-              activeIcon: PhosphorIcons.userListFill,
-              label: 'Visitantes',
-              onTap: () {
-                setState(() {
-                  _currentTab = 2;
-                  _isNavBarVisible = true;
-                });
-              },
-            ),
-      showMoradorFinanceAction
-          ? _buildAnimatedNavItem(
-              key: const ValueKey('nav_morador_financeiro_action'),
-              index: -1,
-              icon: PhosphorIcons.plus,
-              activeIcon: PhosphorIcons.plus,
-              label: 'Nova Conta',
-              onTap: () {
-                _moradorFinanceiroKey.currentState?.showContaFormModal();
-              },
-              isAction: true,
-            )
-          : _buildAnimatedNavItem(
-              key: const ValueKey('nav_financeiro'),
-              index: 3,
-              icon: PhosphorIcons.wallet,
-              activeIcon: PhosphorIcons.walletFill,
-              label: 'Financeiro',
-              onTap: () {
-                setState(() {
-                  _currentTab = 3;
-                  _isNavBarVisible = true;
-                });
-              },
-            ),
+      tab('nav_visitantes', 2, PhosphorIcons.userList, PhosphorIcons.userListFill, 'Visitantes'),
+      tab('nav_financeiro', 3, PhosphorIcons.wallet, PhosphorIcons.walletFill, 'Financeiro'),
     ];
   }
 
@@ -1566,7 +1310,7 @@ class _AlertItem extends StatelessWidget {
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    contador2(count),
+                    contadorSimples(count),
                     style: AppTypography.headline(context).copyWith(color: AppColors.textPrimary(context)),
                   ),
                 ),

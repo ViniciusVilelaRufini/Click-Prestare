@@ -16,6 +16,10 @@ class AppScaffold extends StatelessWidget {
   final bool extendBodyBehindAppBar;
   final bool safeAreaBottom;
 
+  /// Sem botão de voltar, reserva esta largura à esquerda para o título ficar
+  /// centrado quando há ícones em `actions` (largura = soma dos ícones).
+  final double? balanceLeadingWidth;
+
   const AppScaffold({
     super.key,
     this.title,
@@ -28,6 +32,7 @@ class AppScaffold extends StatelessWidget {
     this.backgroundColor,
     this.extendBodyBehindAppBar = false,
     this.safeAreaBottom = true,
+    this.balanceLeadingWidth,
   });
 
   @override
@@ -56,7 +61,10 @@ class AppScaffold extends StatelessWidget {
                       ),
                       onPressed: onBack ?? () => Navigator.pop(context),
                     )
-                  : null,
+                  : (!showBackButton && balanceLeadingWidth != null
+                      ? SizedBox(width: balanceLeadingWidth)
+                      : null),
+              leadingWidth: !showBackButton ? balanceLeadingWidth : null,
               automaticallyImplyLeading: false,
               actions: actions,
             ),

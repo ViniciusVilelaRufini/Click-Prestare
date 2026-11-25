@@ -283,6 +283,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           : const ListFinanceiro();
     } else if (module == 'occurrences') {
       page = const ListOcorrencias();
+    } else if (module == 'novo_visitante') {
+      page = ListVisitantes(allCondos: _list.isEmpty, abrirCadastro: true);
     } else if (module == 'visits' || module == 'inside_condo') {
       page = ListVisitantes(allCondos: _list.isEmpty);
     } else if (module == 'packages') {
@@ -1034,7 +1036,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         : atalho(
             icone: PhosphorIcons.wallet,
             titulo: type == 'morador' ? 'Pagar' : 'Financeiro',
-            apoio: type == 'morador' ? 'Boletos e contas' : 'Contas do condomínio',
+            apoio: type == 'morador' ? 'Boletos e contas' : 'Contas e saldo',
             modulo: 'debts',
           );
 
@@ -1046,7 +1048,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               icone: PhosphorIcons.userPlus,
               titulo: 'Liberar',
               apoio: 'Novo visitante',
-              modulo: 'visits',
+              modulo: 'novo_visitante',
               destaque: true,
             ),
             const SizedBox(width: 8),
@@ -1077,6 +1079,15 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     );
   }
 
+  /// Cor do ponto de um indicador de problema: a de alerta só quando há algo
+  /// pendente; com zero, o verde de "tudo certo".
+  Color _sinalOuOk(dynamic quantidade, Color alerta) {
+    final n = quantidade is num
+        ? quantidade.toInt()
+        : int.tryParse('${quantidade ?? ''}') ?? 0;
+    return n > 0 ? alerta : AppColors.success;
+  }
+
   Widget _buildDashboard(BuildContext context) {
     if (_summary == null && _pendentesCount == 0) return const SizedBox.shrink();
     final type = getUserType();
@@ -1095,7 +1106,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
             _kpiGrid(context, [
               _DashboardCard(
                 title: 'Encomendas',
-                value: contador2(_summary?['packages'] ?? 0),
+                value: contadorSimples(_summary?['packages'] ?? 0),
                 subtitle: 'Aguardando retirada',
                 icon: PhosphorIcons.package,
                 color: AppColors.warning,
@@ -1103,7 +1114,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               ),
               _DashboardCard(
                 title: 'Visitantes Hoje',
-                value: contador2(_summary?['visits_today'] ?? _summary?['visits'] ?? 0),
+                value: contadorSimples(_summary?['visits_today'] ?? _summary?['visits'] ?? 0),
                 subtitle: 'Liberados hoje',
                 icon: PhosphorIcons.userList,
                 color: AppColors.primary,
@@ -1111,7 +1122,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               ),
               _DashboardCard(
                 title: 'No Condomínio',
-                value: contador2(_summary?['inside_condo'] ?? 0),
+                value: contadorSimples(_summary?['inside_condo'] ?? 0),
                 subtitle: 'Presentes agora',
                 icon: PhosphorIcons.door,
                 color: AppColors.success,
@@ -1119,10 +1130,10 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               ),
               _DashboardCard(
                 title: 'Ocorrências',
-                value: contador2(_summary?['occurrences'] ?? 0),
+                value: contadorSimples(_summary?['occurrences'] ?? 0),
                 subtitle: 'Abertas / Ativas',
                 icon: PhosphorIcons.warningCircle,
-                color: AppColors.error,
+                color: _sinalOuOk(_summary?['occurrences'], AppColors.error),
                 onTap: () => _onDashboardTap('occurrences'),
               ),
             ])
@@ -1133,15 +1144,15 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 value: 'R\$ ${formatMoeda(_summary?['debts']?['total'])}',
                 subtitle: '${_summary?['debts']?['count'] ?? 0} pendências',
                 icon: PhosphorIcons.money,
-                color: AppColors.error,
+                color: _sinalOuOk(_summary?['debts']?['count'], AppColors.error),
                 onTap: () => _onDashboardTap('debts'),
               ),
               _DashboardCard(
                 title: 'Ocorrências',
-                value: contador2(_summary?['occurrences'] ?? 0),
+                value: contadorSimples(_summary?['occurrences'] ?? 0),
                 subtitle: 'Em aberto',
                 icon: PhosphorIcons.warningCircle,
-                color: AppColors.warning,
+                color: _sinalOuOk(_summary?['occurrences'], AppColors.warning),
                 onTap: () => _onDashboardTap('occurrences'),
               ),
             ])
@@ -1149,7 +1160,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
             _kpiGrid(context, [
               _DashboardCard(
                 title: 'Visitas Hoje',
-                value: contador2(_summary?['visits'] ?? 0),
+                value: contadorSimples(_summary?['visits'] ?? 0),
                 subtitle: 'Agendadas para hoje',
                 icon: PhosphorIcons.userList,
                 color: AppColors.primary,
@@ -1157,7 +1168,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               ),
               _DashboardCard(
                 title: 'Encomendas',
-                value: contador2(_summary?['packages'] ?? 0),
+                value: contadorSimples(_summary?['packages'] ?? 0),
                 subtitle: 'Aguardando retirada',
                 icon: PhosphorIcons.package,
                 color: AppColors.primary,

@@ -28,6 +28,17 @@ void main() {
     expect(g.single.rotuloDireito, '9 de novembro');
   });
 
+  test('até 6 dias atrás usa o dia da semana; mais antigo mostra só a data', () {
+    final g = agruparEventosPorDia([
+      ev(1, DateTime(2026, 11, 5, 9)),
+      ev(2, DateTime(2026, 10, 30, 9)),
+    ], agora: agora);
+    expect(g[0].rotuloEsquerdo, 'QUINTA');
+    expect(g[0].rotuloDireito, '5 de novembro');
+    expect(g[1].rotuloEsquerdo, '30 DE OUTUBRO');
+    expect(g[1].rotuloDireito, '');
+  });
+
   test('virada de ano: 31/12 é ONTEM em 1º de janeiro', () {
     final g = agruparEventosPorDia([
       ev(1, DateTime(2027, 1, 1, 0, 5)),

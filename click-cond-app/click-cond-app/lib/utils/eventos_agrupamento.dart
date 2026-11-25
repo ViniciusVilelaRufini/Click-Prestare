@@ -2,10 +2,11 @@ import 'package:click/utils/datas.dart';
 
 /// Grupo de eventos de um mesmo dia local, com os rótulos do cabeçalho.
 class GrupoEventosDia {
-  /// "HOJE", "ONTEM" ou dia da semana em maiúsculas; vazio sem data válida.
+  /// "HOJE", "ONTEM", dia da semana (até 6 dias atrás) ou a data ("13 DE
+  /// NOVEMBRO") em maiúsculas; vazio sem data válida.
   final String rotuloEsquerdo;
 
-  /// "11 de novembro"; vazio sem data válida.
+  /// "11 de novembro"; vazio sem data válida ou quando a data já está à esquerda.
   final String rotuloDireito;
   final List<dynamic> eventos;
 
@@ -57,9 +58,13 @@ List<GrupoEventosDia> agruparEventosPorDia(
         ? 'HOJE'
         : diff == 1
             ? 'ONTEM'
-            : _diasSemana[dia.weekday - 1];
-    grupos.add(GrupoEventosDia(
-        esquerdo, '${dia.day} de ${_meses[dia.month - 1]}', porDia[dia]!));
+            : diff <= 6
+                ? _diasSemana[dia.weekday - 1]
+                // Mais antigo que uma semana: o dia da semana engana ("SEXTA"
+                // para um evento de 12 dias atrás), então a data vai à esquerda.
+                : '${dia.day} DE ${_meses[dia.month - 1].toUpperCase()}';
+    final direito = diff <= 6 ? '${dia.day} de ${_meses[dia.month - 1]}' : '';
+    grupos.add(GrupoEventosDia(esquerdo, direito, porDia[dia]!));
   }
   if (semData.isNotEmpty) grupos.add(GrupoEventosDia('', '', semData));
   return grupos;

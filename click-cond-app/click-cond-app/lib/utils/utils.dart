@@ -218,6 +218,12 @@ double navBarBottomPadding(BuildContext context) {
   return inset < 14 ? inset : 14;
 }
 
+/// Contador inteiro simples (3 -> "3"); não-numéricos viram "0".
+String contadorSimples(dynamic valor) {
+  final n = valor is num ? valor.toInt() : int.tryParse('${valor ?? ''}') ?? 0;
+  return n.toString();
+}
+
 /// Contador inteiro com zero à esquerda (3 -> "03"); não-numéricos viram "00".
 String contador2(dynamic valor) {
   final n = valor is num ? valor.toInt() : int.tryParse('${valor ?? ''}') ?? 0;
