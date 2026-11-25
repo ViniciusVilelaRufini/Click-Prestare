@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, Logger } from '@nestjs/common';
 import { lastValueFrom, of } from 'rxjs';
 import { AuditInterceptor, redigirSegredos } from './audit.interceptor';
 
@@ -260,5 +260,129 @@ describe('AuditInterceptor — autor do registro', () => {
     expect(data.id_condominio).toBe(7);
     expect(data.autor_id).toBeNull();
     expect(data.autor_tipo).toBeNull();
+  });
+});
+
+/**
+ * Produção: POST /credenciais/wallet/cancelar e PUT /entrega/config gravavam módulo 'sistema';
+ * /condominios/:id/apartamentos/:id/vagas parava no primeiro segmento conhecido ('apartamentos');
+ * POST de comando (/cancelar, /aprovar) virava "Criação em ...".
+ */
+describe('AuditInterceptor — módulo mais específico e POST de comando', () => {
+  const porteiro = { sub: 3, nome: 'Porteiro', id_condominio: 7, tipo_sub: 'funcionario_portaria' };
+
+  async function gravar(req: any, prisma: any = { isConnected: true, auditLog: { create: jest.fn(async () => ({})) } }) {
+    const reflector: any = { getAllAndOverride: () => false };
+    const interceptor = new AuditInterceptor(prisma, reflector);
+    const ctx: any = {
+      switchToHttp: () => ({
+        getRequest: () => ({ method: 'POST', url: '/api/x', params: {}, body: {}, ip: '10.0.0.1', user: porteiro, ...req }),
+      }),
+      getHandler: () => ({}),
+      getClass: () => ({}),
+    };
+    await lastValueFrom(interceptor.intercept(ctx, { handle: () => of({ ok: true }) }));
+    for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
+    return prisma.auditLog.create.mock.calls[0]?.[0]?.data;
+  }
+
+  it.each([
+    ['/api/credenciais/qr', 'credenciais'],
+    ['/api/credenciais/wallet/cancelar', 'credenciais'],
+    ['/api/passes/9', 'credenciais'],
+    ['/api/wallet/apple/v1/devices', 'credenciais'],
+    ['/api/entrega/config', 'delivery'],
+    ['/api/card-ao-vivo/registrar', 'portaria-remota'],
+    ['/api/condominios/7/guarita/2/dispositivos/3/aprovar', 'guarita'],
+    ['/api/condominios/7/portaria/equipe', 'portaria-equipe'],
+    ['/api/condominios/7', 'condominios'],
+    ['/api/condominios/7/apartamentos/4/vagas', 'vagas'],
+    ['/api/condominios/7/apartamentos/4', 'apartamentos'],
+  ])('%s → %s', async (url, modulo) => {
+    const data = await gravar({ url });
+    expect(data.modulo).toBe(modulo);
+    expect(data.descricao).not.toMatch(/Sistema/);
+  });
+
+  it('PUT /entrega/config: Atualização em Delivery', async () => {
+    const data = await gravar({ method: 'PUT', url: '/api/entrega/config' });
+    expect(data).toMatchObject({ modulo: 'delivery', acao: 'UPDATE', descricao: 'Atualização em Delivery' });
+  });
+
+  it('POST /credenciais/wallet/cancelar é comando, não criação', async () => {
+    const data = await gravar({ url: '/api/credenciais/wallet/cancelar' });
+    expect(data.acao).toBe('STATUS');
+    expect(data.descricao).toBe("Ação 'cancelar' em Credenciais");
+  });
+
+  it('POST /condominios/1/guarita/2/dispositivos/3/aprovar é comando', async () => {
+    const data = await gravar({ url: '/api/condominios/1/guarita/2/dispositivos/3/aprovar' });
+    expect(data.acao).toBe('STATUS');
+    expect(data.descricao).toBe("Ação 'aprovar' em Guarita");
+  });
+
+  it.each(['trigger', 'vincular', 'regravar', 'abrir', 'sair', 'reenviar', 'revogar', 'enviar'])(
+    'POST .../%s vira STATUS',
+    async (verbo) => {
+      const data = await gravar({ url: `/api/condominios/7/visitas/9/${verbo}` });
+      expect(data.acao).toBe('STATUS');
+      expect(data.descricao).toBe(`Ação '${verbo}' em Visitas`);
+    },
+  );
+
+  it('POST /consentimentos/moradores/:id/revogar-biometria: Consentimentos, como comando', async () => {
+    const data = await gravar({ url: '/api/consentimentos/moradores/12/revogar-biometria' });
+    expect(data).toMatchObject({
+      modulo: 'consentimentos',
+      acao: 'STATUS',
+      descricao: "Ação 'revogar-biometria' em Consentimentos",
+    });
+  });
+
+  it('verbo revogar-* em geral vira STATUS', async () => {
+    const data = await gravar({ url: '/api/condominios/7/visitas/9/revogar-acesso' });
+    expect(data.acao).toBe('STATUS');
+  });
+
+  it('POST de criação continua CREATE', async () => {
+    const data = await gravar({ url: '/api/condominios/7/visitantes', body: { nome: 'Ana' } });
+    expect(data).toMatchObject({ acao: 'CREATE', descricao: 'Criação em Visitantes: "Ana"' });
+  });
+
+  it('mascara CPF do corpo nos detalhes', async () => {
+    const data = await gravar({ url: '/api/condominios/7/visitantes', body: { nome: 'Ana', documento: '45346648852' } });
+    expect(data.detalhes).not.toContain('45346648852');
+    expect(JSON.parse(data.detalhes).documento).toBe('***.***.*88-52');
+  });
+
+  it('nome enorme no corpo não estoura as colunas', async () => {
+    const data = await gravar({ url: '/api/condominios/7/visitantes', body: { nome: 'n'.repeat(5000) } });
+    expect(data.descricao.length).toBeLessThanOrEqual(2000);
+  });
+
+  it('banco desconectado: loga AUDITORIA_FALHA em ERROR em vez de sumir calado', async () => {
+    const erro = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const antes = process.env['DATABASE_URL'];
+    process.env['DATABASE_URL'] = 'mysql://teste';
+    const prisma: any = { isConnected: false, auditLog: { create: jest.fn() } };
+    try {
+      await gravar({ url: '/api/condominios/7/visitantes' }, prisma);
+    } finally {
+      if (antes === undefined) delete process.env['DATABASE_URL'];
+      else process.env['DATABASE_URL'] = antes;
+    }
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
+    expect(String(erro.mock.calls[0]?.[0])).toMatch(/^AUDITORIA_FALHA modulo=visitantes acao=CREATE: /);
+    erro.mockRestore();
+  });
+
+  it('falha do INSERT: loga AUDITORIA_FALHA sem os detalhes', async () => {
+    const erro = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const prisma: any = { isConnected: true, auditLog: { create: jest.fn(async () => { throw new Error('boom'); }) } };
+    await gravar({ url: '/api/condominios/7/visitantes', body: { observacao: 'MARCADOR123' } }, prisma);
+    const msg = String(erro.mock.calls[0]?.[0]);
+    expect(msg).toMatch(/^AUDITORIA_FALHA modulo=visitantes acao=CREATE: boom/);
+    expect(msg).not.toContain('MARCADOR123');
+    erro.mockRestore();
   });
 });

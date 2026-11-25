@@ -24,7 +24,7 @@ import { carregarSegredosSsm } from './app/common/segredos-ssm';
 import { AllExceptionsFilter } from './app/common/filters/all-exceptions.filter';
 import { parserDeCorpo } from './app/common/limite-corpo';
 import { resolveJwtSecret } from './app/auth/jwt-secret';
-import { requestContext, extractClientIp } from './app/common/context/request-context';
+import { requestContext, contextoDaRequisicao } from './app/common/context/request-context';
 import { caminhoEstaticoBloqueado } from './app/common/assets-estaticos.util';
 import { paginaSimuladorBloqueada } from './app/common/simulador-estatico.util';
 import { ROTAS_HARDWARE, origensConfiaveis } from './app/common/cors-origins';
@@ -59,10 +59,11 @@ async function bootstrap() {
   // ALB nas instâncias, então o XFF à esquerda desses 3 saltos não é forjável.
   app.set('trust proxy', 3);
 
-  // Armazena o IP da máquina do cliente no AsyncLocalStorage para logs de auditoria automáticos
+  // Armazena o IP da máquina do cliente e a referência do `req` no AsyncLocalStorage para os logs de
+  // auditoria: o passport preenche req.user depois, no mesmo objeto, e AuditoriaService.registrar
+  // deriva o autor dele quando o chamador não informa.
   app.use((req: any, _res: any, next: any) => {
-    const ip = extractClientIp(req);
-    requestContext.run({ ip, userAgent: req.headers?.['user-agent'] }, () => {
+    requestContext.run(contextoDaRequisicao(req), () => {
       next();
     });
   });
@@ -147,7 +148,9 @@ async function bootstrap() {
     // usuário está errado e mostrar a hora certa mesmo assim — o PC da portaria
     // costuma rodar sem sincronização de horário (visto em produção: 91s
     // adiantado). Ver ServerClockService.
-    const exposedHeaders = ['Date'];
+    // `Content-Disposition`: a Central de Relatórios tira dele o nome do arquivo
+    // baixado (CSV da auditoria, zip LGPD); sem expor, o navegador o esconde.
+    const exposedHeaders = ['Date', 'Content-Disposition'];
 
     // Sem header Origin: app Flutter, curl, hardware e chamada servidor-a-servidor.
     // Não é requisição de navegador, logo não há origem cross-site para barrar.

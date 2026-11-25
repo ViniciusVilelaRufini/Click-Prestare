@@ -1,4 +1,4 @@
-import { Injectable, NestInterceptor, ExecutionContext, CallHandler, Optional } from '@nestjs/common';
+import { Injectable, NestInterceptor, ExecutionContext, CallHandler, Optional, Logger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
@@ -7,67 +7,16 @@ import { SKIP_AUDIT_KEY } from './skip-audit.decorator';
 import { extractClientIp } from '../context/request-context';
 import { TenantAccessService } from '../../auth/tenant-access.service';
 import { autorDoToken, idUsuarioDoToken } from '../../auth/usuario-do-token.util';
+import {
+  LIMITES_AUDITORIA,
+  cortar,
+  redigirSegredos,
+  serializarDetalhes,
+} from '../auditoria-redacao.util';
 
-/** Chaves cujo valor nunca deve ir para AuditLog.detalhes (legível por operadores do condomínio). */
-const CHAVE_SENSIVEL = /(senha|password|passwd|secret|token|api_?(user|key|password)|photo|foto|assinatura|codigo_?acesso)/i;
-
-/** Credenciais curtas que só valem como PALAVRA inteira da chave (`pin`, `novo_pin`, `codigoOtp`), não dentro de outra (`shipping`). */
-const PALAVRA_SENSIVEL = new Set(['pin', 'otp']);
-
-function chaveSensivel(chave: string): boolean {
-  if (CHAVE_SENSIVEL.test(chave)) return true;
-  const palavras = chave.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase().split(/[^a-z0-9]+/);
-  return palavras.some((p) => PALAVRA_SENSIVEL.has(p));
-}
-
-/** Limites acima dos quais o conteúdo de uma string não vai para o log, só o tamanho. */
-const MAX_BASE64 = 256;
-const MAX_TEXTO = 1000;
-
-/** Conteúdo binário (data: URL, base64) ou texto longo demais vira um marcador curto com o tamanho. */
-function redigirTexto(texto: string): string {
-  if (/^data:[^,]*,/i.test(texto)) return `[data-url omitida: ${texto.length} caracteres]`;
-  if (texto.length >= MAX_BASE64 && /^[A-Za-z0-9+/_=\r\n-]+$/.test(texto)) {
-    return `[base64 omitido: ${texto.length} caracteres]`;
-  }
-  if (texto.length > MAX_TEXTO) return `[texto omitido: ${texto.length} caracteres]`;
-  return texto;
-}
-
-/** Copia o valor descartando, recursivamente, qualquer chave sensível. */
-export function redigirSegredos(valor: unknown, profundidade = 0): unknown {
-  if (typeof valor === 'string') return redigirTexto(valor);
-  if (valor === null || typeof valor !== 'object' || profundidade > 6) return valor;
-  if (Array.isArray(valor)) return valor.map((v) => redigirSegredos(v, profundidade + 1));
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(valor as Record<string, unknown>)) {
-    if (chaveSensivel(k)) continue;
-    out[k] = redigirSegredos(v, profundidade + 1);
-  }
-  return out;
-}
-
-/** Limite de AuditLog.detalhes. */
-const MAX_DETALHES = 2000;
-
-/**
- * Serializa os detalhes sempre como JSON válido dentro do limite (a tela faz JSON.parse). Quando
- * não cabe, grava um resumo com marcador de truncamento e as chaves de primeiro nível que couberem.
- */
-function serializarDetalhes(valor: unknown): string {
-  const json = JSON.stringify(valor ?? {}) ?? '{}';
-  if (json.length <= MAX_DETALHES) return json;
-  const chaves = valor && typeof valor === 'object' && !Array.isArray(valor) ? Object.keys(valor) : [];
-  for (let n = chaves.length; ; n--) {
-    const resumo = JSON.stringify({
-      _truncado: true,
-      tamanho: json.length,
-      chaves: chaves.slice(0, n),
-      chaves_omitidas: chaves.length - n,
-    });
-    if (resumo.length <= MAX_DETALHES || n === 0) return resumo;
-  }
-}
+// Mantido para quem importava daqui (a implementação mora em common/auditoria-redacao.util.ts,
+// compartilhada com AuditoriaService.registrar).
+export { redigirSegredos } from '../auditoria-redacao.util';
 
 /** Id para AuditLog.entidade_id (Int): o primeiro candidato que for inteiro positivo; senão null. */
 function idInteiro(...candidatos: unknown[]): number | null {
@@ -97,6 +46,7 @@ const MODULOS_POR_SEGMENTO: Record<string, string> = {
   comunicados: 'comunicados',
   prestadores: 'prestadores',
   delivery: 'delivery',
+  entrega: 'delivery',
   convites: 'convites',
   financeiro: 'financeiro',
   assembleias: 'assembleias',
@@ -112,6 +62,14 @@ const MODULOS_POR_SEGMENTO: Record<string, string> = {
   sindico: 'sindico',
   users: 'users',
   condominio: 'condominios',
+  condominios: 'condominios',
+  credenciais: 'credenciais',
+  passes: 'credenciais',
+  wallet: 'credenciais',
+  'card-ao-vivo': 'portaria-remota',
+  guarita: 'guarita',
+  // Equipe da portaria: mesmo slug que mobile-auth.service grava.
+  portaria: 'portaria-equipe',
   agenda: 'agenda',
   contatos: 'contatos',
   notificacoes: 'notificacoes',
@@ -122,6 +80,48 @@ const MODULOS_POR_SEGMENTO: Record<string, string> = {
   crm: 'crm',
 };
 
+/** Módulo-contêiner: quase toda rota passa por /condominios/:id; só vale quando nada mais específico casa. */
+const MODULO_CONTEINER = 'condominios';
+
+/**
+ * Último segmento literal de um POST que executa um comando sobre algo que já existe (não cria
+ * registro). Gravado como STATUS com "Ação '<verbo>' em <Módulo>" em vez de "Criação em ...".
+ */
+const VERBOS_DE_COMANDO = new Set([
+  'trigger',
+  'cancelar',
+  'aprovar',
+  'rejeitar',
+  'recusar',
+  'vincular',
+  'desvincular',
+  'regravar',
+  'abrir',
+  'sair',
+  'reenviar',
+  'revogar',
+  'enviar',
+  'reabrir',
+  'encerrar',
+  'autorizar',
+  'negar',
+  'test',
+  'testar',
+]);
+
+/** Prefixos de verbo de comando: `revogar-biometria`, `revogar-acesso`… */
+const PREFIXOS_DE_COMANDO = ['revogar-'];
+
+function verboDeComando(segmento: string): boolean {
+  return VERBOS_DE_COMANDO.has(segmento) || PREFIXOS_DE_COMANDO.some((p) => segmento.startsWith(p));
+}
+
+/**
+ * Segmentos "âncora": quando aparecem no caminho, o módulo é o deles, mesmo havendo outro
+ * reconhecido depois (/consentimentos/moradores/:id/revogar-biometria é Consentimentos, não Moradores).
+ */
+const SEGMENTOS_ANCORA = new Set(['consentimentos']);
+
 /** Rota para a descrição: sem query string; segmento que não é palavra de rota nem número vira `:valor`. */
 function rotaSemValores(segments: string[]): string {
   const rota = segments
@@ -130,8 +130,29 @@ function rotaSemValores(segments: string[]): string {
   return `/${rota}`.substring(0, 120);
 }
 
+/**
+ * Módulo da rota: o segmento reconhecido MAIS ESPECÍFICO (o último no caminho), para
+ * /condominios/:id/apartamentos/:id/vagas ser 'vagas' e não 'apartamentos'. 'condominios' só
+ * quando é o único reconhecido. Igualdade de segmento (não prefixo): `auth` não casa `authorize-…`.
+ */
+function moduloDaRota(segments: string[]): string {
+  let module = 'sistema';
+  let conteiner = false;
+  const ancora = segments.find((s) => SEGMENTOS_ANCORA.has(s.toLowerCase()));
+  if (ancora) return MODULOS_POR_SEGMENTO[ancora.toLowerCase()];
+  for (const seg of segments) {
+    const m = MODULOS_POR_SEGMENTO[seg.toLowerCase()];
+    if (!m) continue;
+    if (m === MODULO_CONTEINER) conteiner = true;
+    else module = m;
+  }
+  return module === 'sistema' && conteiner ? MODULO_CONTEINER : module;
+}
+
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
+  private readonly logger = new Logger(AuditInterceptor.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly reflector: Reflector,
@@ -161,8 +182,9 @@ export class AuditInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap({
         next: async (response) => {
+          let auditInfo: ReturnType<AuditInterceptor['parseRequest']> | undefined;
           try {
-            if (!this.prisma.isConnected) return;
+            auditInfo = this.parseRequest(method, url, body, params, response);
 
             const clientIp = extractClientIp(request);
 
@@ -177,28 +199,39 @@ export class AuditInterceptor implements NestInterceptor {
             // role e typeAccess ficam na raiz.
             const autor = autorDoToken(user);
 
-            const auditInfo = this.parseRequest(method, url, body, params, response);
-
             // Só grava se tiver condomínio identificado e entidade relevante
             if (!idCondominio) return;
+
+            if (!this.prisma.isConnected) {
+              // Sem DATABASE_URL é o modo offline de desenvolvimento (mocks): não é falha.
+              if (process.env['DATABASE_URL']) {
+                this.logger.error(
+                  `AUDITORIA_FALHA modulo=${auditInfo.module} acao=${auditInfo.action}: banco desconectado, registro perdido`,
+                );
+              }
+              return;
+            }
 
             await this.prisma.auditLog.create({
               data: {
                 id_condominio: idCondominio,
-                usuario_nome: usuarioNome,
-                usuario_email: usuarioEmail ?? null,
+                usuario_nome: cortar(usuarioNome, LIMITES_AUDITORIA.usuario_nome) as string,
+                usuario_email: cortar(usuarioEmail, LIMITES_AUDITORIA.usuario_email),
                 autor_id: autor.autor_id,
                 autor_tipo: autor.autor_tipo,
                 acao: auditInfo.action,
                 modulo: auditInfo.module,
                 entidade_id: auditInfo.entityId,
-                descricao: auditInfo.descricao,
+                descricao: cortar(auditInfo.descricao, LIMITES_AUDITORIA.descricao) as string,
                 detalhes: auditInfo.details,
-                ip: clientIp || null,
+                ip: cortar(clientIp || null, LIMITES_AUDITORIA.ip),
               },
             });
-          } catch (err) {
-            console.error('[AuditInterceptor] Erro ao gravar log:', err);
+          } catch (err: any) {
+            // Nunca lança para o chamador, mas alerta (o alarme conta linhas ERROR). Sem detalhes.
+            this.logger.error(
+              `AUDITORIA_FALHA modulo=${auditInfo?.module ?? '?'} acao=${auditInfo?.action ?? '?'}: ${err?.message ?? err}`,
+            );
           }
         },
       }),
@@ -231,18 +264,14 @@ export class AuditInterceptor implements NestInterceptor {
     const cleanUrl = url.split('?')[0];
     const segments = cleanUrl.split('/').filter((s) => s && s !== 'api');
 
-    let module = 'sistema';
-    let action = 'EXECUTE';
-    let descricao = 'Ação realizada no sistema';
-
-    // Identifica o módulo a partir da URL
     // Exemplos: /api/condominios/7/visitantes → visitantes
+    //           /api/condominios/7/apartamentos/4/vagas → vagas
     //           /api/encomendas/retirar → encomendas
-    // Igualdade de segmento (não prefixo): `auth` não pode casar `authorize-…`.
-    for (const seg of segments) {
-      const m = MODULOS_POR_SEGMENTO[seg.toLowerCase()];
-      if (m) { module = m; break; }
-    }
+    const module = moduloDaRota(segments);
+
+    let action = 'EXECUTE';
+    // Verbo de comando no fim da rota de um POST (ex.: /wallet/cancelar, /dispositivos/3/aprovar).
+    let comando: string | null = null;
 
     // Identifica a ação
     if (method === 'DELETE') {
@@ -256,6 +285,11 @@ export class AuditInterceptor implements NestInterceptor {
       if (cleanUrl.includes('/retirar') || cleanUrl.includes('/entregar')) action = 'RETIRADA';
       if (cleanUrl.includes('/responder') || cleanUrl.includes('/resposta')) action = 'RESPOSTA';
       if (cleanUrl.includes('/status') || cleanUrl.includes('/update-status')) action = 'STATUS';
+      const ultimo = (segments[segments.length - 1] ?? '').toLowerCase();
+      if (action === 'CREATE' && verboDeComando(ultimo)) {
+        action = 'STATUS';
+        comando = ultimo;
+      }
     } else if (method === 'PUT' || method === 'PATCH') {
       action = 'UPDATE';
     }
@@ -266,14 +300,13 @@ export class AuditInterceptor implements NestInterceptor {
     const nome = body?.nome ?? body?.descricao ?? body?.titulo ?? response?.nome ?? response?.descricao ?? '';
     // Módulo desconhecido: método e rota são a única pista do que foi feito.
     const onde = module === 'sistema' ? `${moduleLabel} (${method} ${rotaSemValores(segments)})` : moduleLabel;
-    descricao = nome
-      ? `${actionLabel} em ${onde}: "${nome}"`
-      : `${actionLabel} em ${onde}`;
+    const oQue = comando ? `Ação '${comando}' em ${onde}` : `${actionLabel} em ${onde}`;
+    const descricao = nome ? `${oQue}: "${nome}"` : oQue;
 
     // Entity ID — nunca NaN: o Prisma rejeita e o log inteiro se perde.
     const entityId = idInteiro(response?.id, body?.id, params?.id);
 
-    // Detalhes (sem dados sensíveis)
+    // Detalhes (sem segredos; documento e telefone mascarados)
     const cleanDetails = redigirSegredos(body);
 
     return {
@@ -315,6 +348,10 @@ export class AuditInterceptor implements NestInterceptor {
       sindico: 'Síndico',
       users: 'Conta do Usuário',
       condominios: 'Condomínio',
+      credenciais: 'Credenciais',
+      'portaria-remota': 'Portaria Remota',
+      guarita: 'Guarita',
+      'portaria-equipe': 'Equipe da Portaria',
       agenda: 'Agenda',
       contatos: 'Contatos',
       notificacoes: 'Notificações',

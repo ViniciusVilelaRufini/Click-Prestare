@@ -13,6 +13,7 @@ import type { CreateRegraAcessoDto } from './regras-acesso.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador } from '../auth/tenant.util';
+import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 
 /**
  * Regras de acesso: quem passa em qual leitor, em que dia e horário. É a
@@ -47,6 +48,7 @@ export class RegrasAcessoController {
     return this.service.findOne(id, idCondominio);
   }
 
+  @SkipAudit()
   @Post()
   create(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
@@ -57,6 +59,7 @@ export class RegrasAcessoController {
     return this.service.create(idCondominio, dto, user);
   }
 
+  @SkipAudit()
   @Put(':id')
   update(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
@@ -68,6 +71,7 @@ export class RegrasAcessoController {
     return this.service.update(id, dto, idCondominio, user);
   }
 
+  @SkipAudit()
   @Delete(':id')
   remove(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,

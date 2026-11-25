@@ -31,6 +31,7 @@ import { AgentBridgeService, VERSAO_AGENTE_COM_ATUALIZAR_AGORA } from './agent-b
 import { AgentVersionService, compararVersoesAgente } from './agent-version.service';
 import { DescobertaService } from './descoberta.service';
 import { listarFabricantes } from './fabricantes';
+import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 
 /**
  * Confere o token compartilhado das rotas server-to-server (`internal/*`).
@@ -143,6 +144,7 @@ export class FacialController {
     return semSegredosSeNaoSindico(device, user);
   }
 
+  @SkipAudit()
   @Post('devices')
   create(@Body() body: CreateDeviceDto, @ReqUser() user: JwtPayload) {
     assertTenantStrict(body.id_condominio, user, `criação de dispositivo`);
@@ -150,6 +152,7 @@ export class FacialController {
     return this.service.createDevice(body, user).then((d) => semPalavraDoGuarita(d));
   }
 
+  @SkipAudit()
   @Put('devices/:id')
   async update(
     @Param('id', ParseIntPipe) id: number,
@@ -162,6 +165,7 @@ export class FacialController {
     return this.service.updateDevice(id, body, user).then((d) => semPalavraDoGuarita(d));
   }
 
+  @SkipAudit()
   @Delete('devices/:id')
   async remove(
     @Param('id', ParseIntPipe) id: number,
@@ -179,6 +183,7 @@ export class FacialController {
    * o Agente Local configurado com o token antigo para de autenticar —
    * atualize o token no agente após a rotação.
    */
+  @SkipAudit()
   @Post('devices/:id/rotate-token')
   async rotateToken(
     @Param('id', ParseIntPipe) id: number,
@@ -225,6 +230,7 @@ export class FacialController {
     return this.service.captureSnapshotForCondominio(idCondominio);
   }
 
+  @SkipAudit()
   @Post('devices/:id/trigger')
   async trigger(
     @Param('id', ParseIntPipe) id: number,

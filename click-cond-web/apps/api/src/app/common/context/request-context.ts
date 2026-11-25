@@ -3,9 +3,28 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 export interface RequestContextData {
   ip?: string;
   userAgent?: string;
+  /**
+   * Referência FRACA ao `req` do Express. O middleware de main.ts roda ANTES do passport, então
+   * req.user ainda não existe quando o contexto nasce; guardar a referência (e não o user) faz quem
+   * lê depois — ex.: AuditoriaService.registrar — enxergar o usuário que o JwtAuthGuard preencheu no
+   * mesmo objeto. Fraca porque o contexto acompanha todo recurso assíncrono criado na requisição
+   * (timers, filas, promessas longas): uma referência forte prenderia o corpo (até 35 MB) na memória
+   * enquanto eles vivessem. Durante a requisição o Express segura o `req`, então `deref()` funciona.
+   * Fora de requisição (job, tick, fila) o contexto não existe.
+   */
+  reqRef?: WeakRef<{ user?: any } & Record<string, any>>;
 }
 
 export const requestContext = new AsyncLocalStorage<RequestContextData>();
+
+/** Contexto que o middleware de main.ts abre para cada requisição (ip, user-agent, req fraco). */
+export function contextoDaRequisicao(req: any): RequestContextData {
+  return {
+    ip: extractClientIp(req),
+    userAgent: req?.headers?.['user-agent'],
+    reqRef: req && typeof req === 'object' ? new WeakRef(req) : undefined,
+  };
+}
 
 export function normalizeIp(ip?: string | null): string {
   if (!ip) return '';

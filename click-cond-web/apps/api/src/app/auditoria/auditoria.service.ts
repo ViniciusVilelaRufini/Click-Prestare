@@ -1,6 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { requestContext, normalizeIp } from '../common/context/request-context';
+import { autorDoToken } from '../auth/usuario-do-token.util';
+import {
+  LIMITES_AUDITORIA,
+  cortar,
+  identidadeDoToken,
+  nomeGenerico,
+  redigirSegredos,
+  serializarDetalhes,
+} from '../common/auditoria-redacao.util';
 
 export type AuditoriaAcao =
   | 'CREATE'
@@ -54,36 +63,71 @@ export interface RegistrarAuditoriaDto {
   descricao: string;
   detalhes?: object;
   ip?: string;
+  /**
+   * `usuario_nome` é o nome de um APARELHO (terminal facial chamado "Portaria", por exemplo) e não
+   * um rótulo genérico de autor: não troca pelo nome de quem está logado.
+   */
+  manterNome?: true;
 }
 
 @Injectable()
 export class AuditoriaService {
+  private readonly logger = new Logger(AuditoriaService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Grava uma linha em audit_logs. Nunca lança: falha vira uma linha ERROR com o prefixo
+   * `AUDITORIA_FALHA` (o alarme prestare-api-erros conta linhas ERROR), sem os detalhes.
+   *
+   * Autor: quando o chamador não informa `autor_id`/`autor_tipo`, vem do token da requisição em
+   * curso (`requestContext` guarda uma referência fraca ao `req`; o passport preenche req.user depois). Fora de
+   * requisição (job/tick) é 'sistema'. Rótulo genérico de nome ("Sistema / Portaria", ...) vira o
+   * nome real de quem está logado.
+   *
+   * Detalhes: mesma redação e limite do AuditInterceptor (segredos omitidos, documento e telefone
+   * mascarados, JSON válido de até 2000 caracteres). Campos de texto cortados no tamanho da coluna.
+   */
   async registrar(data: RegistrarAuditoriaDto): Promise<void> {
     try {
       const ctx = requestContext.getStore();
       const rawIp = data.ip || ctx?.ip || null;
       const resolvedIp = rawIp ? normalizeIp(rawIp) : null;
 
+      const user = ctx?.reqRef?.deref()?.user;
+      const explicito = data.autor_id !== undefined || data.autor_tipo !== undefined;
+      const autor = explicito
+        ? { autor_id: data.autor_id ?? null, autor_tipo: data.autor_tipo ?? null }
+        : autorDoToken(user);
+
+      let usuarioNome = data.usuario_nome;
+      let usuarioEmail = data.usuario_email;
+      if (user && !data.manterNome) {
+        const doToken = identidadeDoToken(user);
+        if (doToken.nome && nomeGenerico(usuarioNome)) usuarioNome = doToken.nome;
+        // E-mail do token só quando o nome gravado é o de quem está logado (nome específico de
+        // outra pessoa, ex.: o visitante, não leva o e-mail do porteiro).
+        if (!usuarioEmail && doToken.email && usuarioNome === doToken.nome) usuarioEmail = doToken.email;
+      }
+
       await this.prisma.auditLog.create({
         data: {
           id_condominio: data.id_condominio,
-          usuario_nome: data.usuario_nome,
-          usuario_email: data.usuario_email ?? null,
-          autor_id: data.autor_id ?? null,
-          autor_tipo: data.autor_tipo ?? null,
-          acao: data.acao,
-          modulo: data.modulo,
+          usuario_nome: cortar(usuarioNome || 'Sistema', LIMITES_AUDITORIA.usuario_nome) as string,
+          usuario_email: cortar(usuarioEmail, LIMITES_AUDITORIA.usuario_email),
+          autor_id: autor.autor_id,
+          autor_tipo: autor.autor_tipo,
+          acao: cortar(data.acao, LIMITES_AUDITORIA.acao) as string,
+          modulo: cortar(data.modulo, LIMITES_AUDITORIA.modulo) as string,
           entidade_id: data.entidade_id ?? null,
-          descricao: data.descricao,
-          detalhes: data.detalhes ? JSON.stringify(data.detalhes) : null,
-          ip: resolvedIp || null,
+          descricao: cortar(data.descricao ?? '', LIMITES_AUDITORIA.descricao) as string,
+          detalhes: data.detalhes ? serializarDetalhes(redigirSegredos(data.detalhes)) : null,
+          ip: cortar(resolvedIp || null, LIMITES_AUDITORIA.ip),
         },
       });
-    } catch (e) {
-      // Nunca bloquear o fluxo principal por falha de auditoria
-      console.error('[AuditoriaService] Erro ao registrar log:', e);
+    } catch (e: any) {
+      // Nunca bloquear o fluxo principal por falha de auditoria — mas alertar.
+      this.logger.error(`AUDITORIA_FALHA modulo=${data?.modulo} acao=${data?.acao}: ${e?.message ?? e}`);
     }
   }
 }

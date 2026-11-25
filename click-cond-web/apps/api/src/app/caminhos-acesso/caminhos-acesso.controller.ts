@@ -15,6 +15,7 @@ import type { CreateCaminhoDto } from './caminhos-acesso.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador } from '../auth/tenant.util';
+import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 
 /**
  * Caminho de leitores: a sequência de etapas que a pessoa percorre para entrar.
@@ -49,6 +50,7 @@ export class CaminhosAcessoController {
     return this.service.findOne(id, idCondominio);
   }
 
+  @SkipAudit()
   @Post()
   create(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
@@ -59,6 +61,7 @@ export class CaminhosAcessoController {
     return this.service.create(idCondominio, dto, user);
   }
 
+  @SkipAudit()
   @Put(':id')
   update(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
@@ -70,6 +73,7 @@ export class CaminhosAcessoController {
     return this.service.update(id, idCondominio, dto, user);
   }
 
+  @SkipAudit()
   @Delete(':id')
   remove(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,

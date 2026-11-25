@@ -1137,6 +1137,7 @@ export class FacialService {
         await this.auditoria.registrar({
           id_condominio: device.id_condominio,
           usuario_nome: device.nome,
+          manterNome: true,
           acao: 'OFFLINE',
           modulo: 'dispositivos',
           entidade_id: device.id,
@@ -1195,6 +1196,7 @@ export class FacialService {
         await this.auditoria.registrar({
           id_condominio: device.id_condominio,
           usuario_nome: device.nome,
+          manterNome: true,
           acao: 'ONLINE',
           modulo: 'dispositivos',
           entidade_id: device.id,
