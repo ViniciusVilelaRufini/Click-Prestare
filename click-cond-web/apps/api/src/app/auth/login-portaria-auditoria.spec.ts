@@ -178,7 +178,8 @@ describe('AuthService — login do console no log de auditoria', () => {
           usuario_nome: 'Porteiro Zé',
           autor_id: 3,
           autor_tipo: 'funcionario_portaria',
-          detalhes: { metodo: 'senha', login: 'conta@demo.com' },
+          // Login mascarado na falha: quem digita a senha no campo de login não a deixa no log.
+          detalhes: { metodo: 'senha', login: 'co***@demo.com' },
         }),
       ]);
       expect(JSON.stringify(linhas())).not.toContain('senha-ERRADA-xyz');

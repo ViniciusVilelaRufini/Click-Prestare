@@ -7,6 +7,7 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
   let service: MobileAuthService;
   let prisma: any;
   let mail: any;
+  let auditoria: { registrar: jest.Mock };
 
   beforeEach(() => {
     prisma = {
@@ -18,6 +19,7 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
       },
       sindicos_Condominios: {
         findFirst: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       moradores: {
         findFirst: jest.fn(),
@@ -28,6 +30,7 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
       },
       apartamentos_Users: {
         findFirst: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       funcionarios_Portaria: {
         findFirst: jest.fn(),
@@ -51,6 +54,7 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
       sendForgotPassword: jest.fn().mockResolvedValue(undefined),
     };
 
+    auditoria = { registrar: jest.fn().mockResolvedValue(undefined) };
     service = new MobileAuthService(
       prisma,
       { sign: jest.fn().mockReturnValue('mock-jwt-token') } as any,
@@ -62,6 +66,10 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
       {} as any,
       {} as any,
       {} as any,
+      undefined,
+      undefined,
+      undefined,
+      auditoria as any,
     );
   });
 
@@ -255,7 +263,9 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
       });
 
       prisma.users.update.mockResolvedValue({ id: 55 });
-      prisma.moradores.findMany.mockResolvedValue([{ id: 3 }]);
+      prisma.moradores.findMany.mockResolvedValue([{ id: 3, id_condominio: 15 }]);
+      // Também mora em outra unidade de outro condomínio: a redefinição fica nos dois.
+      prisma.apartamentos_Users.findMany.mockResolvedValue([{ apartamento: { id_condominio: 16 } }]);
 
       const res = await service.confirmarRedefinicaoSenha(rawToken, 'MinhaNovaSenha@2026');
 
@@ -281,16 +291,24 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
       const isMatch = await bcrypt.compare('MinhaNovaSenha@2026', savedHash);
       expect(isMatch).toBe(true);
 
-      // Valida auditoria com id_condominio real
-      expect(prisma.auditLog.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+      // Auditoria pelo AuditoriaService em cada condomínio do vínculo, sem o IP do pedido do código.
+      const linhas = auditoria.registrar.mock.calls.map((c: any[]) => c[0]);
+      expect(linhas).toEqual([
+        expect.objectContaining({
           id_condominio: 15,
           usuario_nome: 'Morador João',
           usuario_email: 'joao@morador.com',
+          autor_id: 55,
+          autor_tipo: 'user',
+          acao: 'UPDATE',
+          modulo: 'auth',
           entidade_id: 55,
-          ip: '189.10.20.30',
+          descricao: 'Senha redefinida pelo link de e-mail',
         }),
-      });
+        expect.objectContaining({ id_condominio: 16, entidade_id: 55 }),
+      ]);
+      for (const l of linhas) expect(l.ip).toBeUndefined();
+      expect(prisma.auditLog.create).not.toHaveBeenCalled();
     });
 
     it('redefine senha de Funcionário com hash bcrypt na tabela Funcionarios_Portaria e grava auditoria', async () => {
@@ -326,15 +344,17 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
           password: expect.stringMatching(/^\$2[aby]\$/),
         },
       });
-      expect(prisma.auditLog.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+      expect(auditoria.registrar.mock.calls.map((c: any[]) => c[0])).toEqual([
+        expect.objectContaining({
           id_condominio: 8,
           usuario_nome: 'Porteiro Marcos',
           usuario_email: 'marcos@portaria.com',
+          autor_id: 77,
+          autor_tipo: 'funcionario_portaria',
           entidade_id: 77,
-          ip: '200.50.60.70',
         }),
-      });
+      ]);
+      expect(auditoria.registrar.mock.calls[0][0].ip).toBeUndefined();
     });
 
     it('redefine senha de Síndico e registra id_condominio real na auditoria', async () => {
@@ -351,7 +371,8 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
         usado_em: new Date(),
         ip: '177.10.20.30',
       });
-      prisma.sindicos_Condominios.findFirst.mockResolvedValue({ id_condominio: 99 });
+      // Síndico de dois condomínios: antes só o primeiro ganhava a linha.
+      prisma.sindicos_Condominios.findMany.mockResolvedValue([{ id_condominio: 99 }, { id_condominio: 100 }]);
       prisma.users.findUnique.mockResolvedValue({ name: 'Síndico Fernando', email: 'fernando@sindico.com' });
       prisma.users.update.mockResolvedValue({ id: 10 });
 
@@ -369,15 +390,41 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
           senha_alterada_em: expect.any(Date),
         },
       });
-      expect(prisma.auditLog.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+      expect(auditoria.registrar.mock.calls.map((c: any[]) => c[0])).toEqual([
+        expect.objectContaining({
           id_condominio: 99,
           usuario_nome: 'Síndico Fernando',
           usuario_email: 'fernando@sindico.com',
           entidade_id: 10,
-          ip: '177.10.20.30',
+          modulo: 'auth',
         }),
+        expect.objectContaining({ id_condominio: 100, entidade_id: 10 }),
+      ]);
+    });
+
+    it('redefinição por código: descrição diz código; conta sem vínculo não grava (nunca id_condominio 0)', async () => {
+      const rawToken = 'reset-do-codigo';
+      const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+      prisma.redefinicoes_Senha.findFirst.mockResolvedValue({
+        id: 104, papel: 'morador', id_conta: 56, token_hash: 'outro', reset_token_hash: tokenHash,
+        expira_em: new Date(Date.now() + 60_000), usado_em: new Date(), ip: '1.1.1.1',
       });
+      prisma.moradores.findFirst.mockResolvedValue(null);
+      prisma.users.findUnique.mockResolvedValue({ name: 'Sem Vinculo', email: 'sv@x.com' });
+      prisma.users.update.mockResolvedValue({ id: 56 });
+
+      await service.confirmarRedefinicaoSenha(rawToken, 'OutraSenha#2026');
+      expect(auditoria.registrar).not.toHaveBeenCalled();
+
+      prisma.moradores.findMany.mockResolvedValue([{ id: 4, id_condominio: 21 }]);
+      prisma.redefinicoes_Senha.findFirst.mockResolvedValue({
+        id: 105, papel: 'morador', id_conta: 56, token_hash: 'outro', reset_token_hash: tokenHash,
+        expira_em: new Date(Date.now() + 60_000), usado_em: new Date(), ip: '1.1.1.1',
+      });
+      await service.confirmarRedefinicaoSenha(rawToken, 'OutraSenha#2026');
+      expect(auditoria.registrar.mock.calls.map((c: any[]) => [c[0].id_condominio, c[0].descricao])).toEqual([
+        [21, 'Senha redefinida por código de e-mail'],
+      ]);
     });
 
     describe('funcionário com conta de app (Users pelo mesmo login)', () => {

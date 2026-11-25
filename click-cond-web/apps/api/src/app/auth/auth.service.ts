@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, Optional, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import { mascararLogin } from './mascarar-login.util';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { createHash, randomUUID } from 'crypto';
@@ -67,7 +68,8 @@ export class AuthService {
     acao: 'LOGIN' | 'LOGIN_FALHA',
     idCondominio: number | null | undefined,
     autor: { id: number | null; tipo: AuditoriaAutorTipo | null; nome?: string | null; email?: string | null },
-    detalhes: { metodo: 'senha' | 'mfa' | 'qr' | 'troca_condominio'; login?: string; id_condominio_origem?: number },
+    detalhes: { metodo: 'senha' | 'mfa' | 'qr' | 'troca_condominio'; login?: string; id_condominio_origem?: number; bloqueado?: true },
+    descricaoFixa?: string,
   ): void {
     if (!this.auditoria || !idCondominio) return;
     const rotulo: Record<string, string> = {
@@ -76,10 +78,10 @@ export class AuthService {
       qr: 'QR Code',
       troca_condominio: 'troca de condomínio',
     };
-    const descricao =
-      acao === 'LOGIN'
+    const descricao = descricaoFixa ??
+      (acao === 'LOGIN'
         ? `Login no console da portaria (${rotulo[detalhes.metodo]})`
-        : `Tentativa de login no console da portaria com ${detalhes.metodo === 'mfa' ? 'código de verificação incorreto' : 'senha incorreta'}`;
+        : `Tentativa de login no console da portaria com ${detalhes.metodo === 'mfa' ? 'código de verificação incorreto' : 'senha incorreta'}`);
     try {
       void this.auditoria
         .registrar({
@@ -120,7 +122,8 @@ export class AuthService {
     }
   }
 
-  private async registrarFalha(loginBruto: string): Promise<void> {
+  /** Devolve true quando ESTA falha travou o login (a auditoria grava o bloqueio uma vez por trava). */
+  private async registrarFalha(loginBruto: string): Promise<boolean> {
     const chave = this.chaveLockout(loginBruto);
     try {
       await this.estadoMfa.definir(`login-falha:${chave}:${randomUUID()}`, 1, this.failureWindowMs);
@@ -128,10 +131,12 @@ export class AuthService {
       if (falhas.length >= this.maxFailures) {
         await this.estadoMfa.definir(`login-trava:${chave}`, 1, this.lockoutMs);
         this.logger.warn(`Login ${chave.slice(0, 8)}… travado por ${this.lockoutMs / 60_000}min após ${falhas.length} falhas`);
+        return true;
       }
     } catch (e: any) {
       this.logger.warn(`Lockout: falha ao registrar tentativa: ${e?.message ?? e}`);
     }
+    return false;
   }
 
   /**
@@ -320,9 +325,21 @@ export class AuthService {
     // Conta(s) que existem para este login e cuja senha não conferiu, por condomínio. Só vira
     // LOGIN_FALHA se a tentativa terminar recusada (o fallback de síndico ainda pode autenticar).
     const falhas = new Map<number, { id: number; tipo: AuditoriaAutorTipo; nome: string; email?: string | null }>();
-    const auditarFalhas = () => {
+    // `travou`: esta falha acionou a trava (registrarFalha). A tentativa travada logo no início (isLocked) não grava:
+    // ela é recusada antes de qualquer consulta (anti-enumeração) e cada tentativa viraria uma linha.
+    const auditarFalhas = (travou = false) => {
       for (const [idCondominio, autor] of falhas) {
-        this.auditarLogin('LOGIN_FALHA', idCondominio, autor, { metodo: 'senha', login });
+        // Login mascarado: se a pessoa digitou a senha no campo de login, ela não fica no log.
+        this.auditarLogin('LOGIN_FALHA', idCondominio, autor, { metodo: 'senha', login: mascararLogin(login) });
+        if (travou) {
+          this.auditarLogin(
+            'LOGIN_FALHA',
+            idCondominio,
+            autor,
+            { metodo: 'senha', login: mascararLogin(login), bloqueado: true },
+            'Login bloqueado por excesso de tentativas',
+          );
+        }
       }
     };
 
@@ -384,8 +401,8 @@ export class AuthService {
     });
 
     if (!user || !user.sindicos || user.sindicos.length === 0) {
-      await this.registrarFalha(login);
-      auditarFalhas();
+      const travou = await this.registrarFalha(login);
+      auditarFalhas(travou);
       throw new UnauthorizedException('Credenciais inválidas.');
     }
 
@@ -413,7 +430,7 @@ export class AuthService {
     }
 
     if (!sindicoMatch) {
-      await this.registrarFalha(login);
+      const travou = await this.registrarFalha(login);
       // A conta de síndico vale em todos os condomínios ativos que ele administra. Onde o mesmo login
       // também é registro de portaria, a linha já está lá (uma por condomínio).
       for (const v of user.sindicosCondominios) {
@@ -421,7 +438,7 @@ export class AuthService {
           falhas.set(v.id_condominio, { id: user.id, tipo: 'user', nome: user.sindicos[0].name, email: user.email });
         }
       }
-      auditarFalhas();
+      auditarFalhas(travou);
       throw new UnauthorizedException('Credenciais inválidas.');
     }
 

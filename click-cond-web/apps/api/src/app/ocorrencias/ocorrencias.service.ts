@@ -5,12 +5,14 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TenantAccessService, ehFuncionarioDoApp } from '../auth/tenant-access.service';
 import { StorageService } from '../common/storage/storage.service';
+import { AuditoriaService } from '../auditoria/auditoria.service';
 import { assertOperador, assertSindicoEstrito, assertStaff, isOperador, isSindicoEstrito } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idFuncionarioPortariaDoToken, idUsuarioDoToken } from '../auth/usuario-do-token.util';
@@ -131,6 +133,9 @@ export class OcorrenciasService {
     private readonly notifications: NotificationsService,
     private readonly tenant: TenantAccessService,
     private readonly storage: StorageService,
+    // Exclusão pelo app (POST /ocorrencias/remove): o token do app não traz id_condominio e o AuditInterceptor
+    // não grava; removerPeloApp grava aqui. AuditoriaModule é @Global.
+    @Optional() private readonly auditoria?: AuditoriaService,
   ) {}
 
   /**
@@ -726,10 +731,28 @@ export class OcorrenciasService {
     const idOc = idValido(id);
     const o = await this.prisma.ocorrencias.findUnique({
       where: { id: idOc },
-      select: { id_condominio: true, user: true, status: true, resposta_at: true },
+      select: { id_condominio: true, user: true, status: true, resposta_at: true, categoria: { select: { nome: true } } },
     });
     if (!o) throw new NotFoundException(`Ocorrência ${idOc} não encontrada`);
     await this.tenant.assertEntidade(o.id_condominio, user, `ocorrência #${idOc}`);
+
+    // Só depois da exclusão feita. Número e categoria, nunca o texto do relato (pode ter dado pessoal).
+    const auditar = async () => {
+      if (!this.auditoria) return;
+      const u: any = user;
+      const categoria = (o as any).categoria?.nome;
+      await this.auditoria
+        .registrar({
+          id_condominio: o.id_condominio,
+          usuario_nome: String(u?.nome || u?.user?.nome || u?.user?.name || 'Usuário do app'),
+          acao: 'DELETE',
+          modulo: 'ocorrencias',
+          entidade_id: idOc,
+          descricao: `Removeu a ocorrência #${idOc}${categoria ? ` (${categoria})` : ''}`,
+          detalhes: { status: o.status, app: true },
+        })
+        .catch((e: any) => this.logger.warn(`Auditoria da exclusão da ocorrência ${idOc} não gravada: ${e?.message ?? e}`));
+    };
 
     const autor = this.ehAutor(o, user);
     if (autor && estaPendente(o.status) && !(await this.equipeJaRespondeu(idOc, o))) {
@@ -742,9 +765,14 @@ export class OcorrenciasService {
       if (r.count === 0) {
         throw new BadRequestException('Esta ocorrência já está em atendimento e não pode mais ser excluída.');
       }
+      await auditar();
       return;
     }
-    if (isSindicoEstrito(user)) return this.remove(idOc, user);
+    if (isSindicoEstrito(user)) {
+      await this.remove(idOc, user);
+      await auditar();
+      return;
+    }
     if (autor) {
       throw new BadRequestException('Esta ocorrência já está em atendimento e não pode mais ser excluída.');
     }

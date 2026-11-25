@@ -1,4 +1,5 @@
 import { diaSemanaBrasilia, formatarDataHoraBrasilia } from '../common/hora-brasilia.util';
+import { rotuloBloco } from '../common/rotulo-bloco.util';
 import {
   Injectable,
   Logger,
@@ -822,8 +823,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             id: v.id_apartamento,
             bloco: v.apartamento.bloco,
             numero: v.apartamento.apto,
+            // rotuloBloco: o cadastro costuma guardar "Bloco A" e o prefixo duplicava.
             label: v.apartamento.bloco
-              ? `Bloco ${v.apartamento.bloco}, Apto ${v.apartamento.apto}`
+              ? `${rotuloBloco(v.apartamento.bloco)}, Apto ${v.apartamento.apto}`
               : `Apto ${v.apartamento.apto}`,
           }
         : null,
@@ -2927,8 +2929,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             id: visita.id_apartamento,
             bloco: visita.apartamento.bloco,
             numero: visita.apartamento.apto,
+            // rotuloBloco: o cadastro costuma guardar "Bloco A" e o prefixo duplicava.
             label: visita.apartamento.bloco
-              ? `Bloco ${visita.apartamento.bloco}, Apto ${visita.apartamento.apto}`
+              ? `${rotuloBloco(visita.apartamento.bloco)}, Apto ${visita.apartamento.apto}`
               : `Apto ${visita.apartamento.apto}`,
           }
         : null,

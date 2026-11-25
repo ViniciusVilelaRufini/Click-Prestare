@@ -1,7 +1,8 @@
 import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import { mascararLogin } from './mascarar-login.util';
 import { JwtService } from '@nestjs/jwt';
 import { hojeBrasilia, intervaloHojeBrasilia } from '../common/hora-brasilia.util';
-import { chaveUnidade, normalizarBloco } from '../common/rotulo-bloco.util';
+import { chaveUnidade, normalizarBloco, rotuloBloco } from '../common/rotulo-bloco.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
 import { MailService } from '../common/mail/mail.service';
@@ -20,7 +21,7 @@ import { contaSoDaEquipeDoCondominio } from './conta-so-de-equipe.util';
 import { contaDoLoginNaEquipe, tirarContaDaEquipe } from './revogacao-conta-equipe.util';
 import { MSG_FUNCIONARIO_DESATIVADO, limparCacheLoginPortariaDesativado, loginPortariaDesativadoNoCondominio } from './login-portaria-desativado.util';
 import { ehLoginDoPrestador, nomeNormalizado } from '../prestadores/login-do-prestador.util';
-import { AuditoriaService } from '../auditoria/auditoria.service';
+import { AuditoriaService, type RegistrarAuditoriaDto } from '../auditoria/auditoria.service';
 import { lerPermissoesSalvas } from '../prestadores/permissoes-salvas.util';
 import { idUsuarioDoToken } from './usuario-do-token.util';
 import { MSG_CONTA_SO_POR_CPF, contaCasaComEmail, contaOrfaAutocriada, contaTemVinculoEmOutroCondominioValido, invalidarPosseDaConta } from '../common/adocao-conta.util';
@@ -137,6 +138,15 @@ export function camposGuaritaParaApp(tag: any): Record<string, string | boolean 
   };
 }
 
+/**
+ * Auditoria das rotas do app: o token do app não traz id_condominio, então o AuditInterceptor não grava
+ * nada nelas. O service grava em cada condomínio do vínculo da pessoa, até este teto (uma conta com
+ * vínculo em muitos prédios não vira uma rajada de INSERTs por login).
+ */
+const MAX_CONDOMINIOS_AUDITORIA_APP = 10;
+
+export { mascararLogin };
+
 @Injectable()
 export class MobileAuthService {
   constructor(
@@ -169,6 +179,93 @@ export class MobileAuthService {
   }
 
   private readonly logger = new Logger(MobileAuthService.name);
+
+  /**
+   * Uma linha de auditoria por condomínio (sem repetir, sem id inválido — audit_logs.id_condominio é
+   * NOT NULL e 0 não é condomínio —, no máximo MAX_CONDOMINIOS_AUDITORIA_APP). Nunca lança: o registrar já
+   * engole erro de banco e o que escapar vira warn. O IP vem do contexto da requisição (registrar).
+   */
+  private async auditarNoApp(
+    condominios: Iterable<number | null | undefined>,
+    dados: Omit<RegistrarAuditoriaDto, 'id_condominio'>,
+  ): Promise<void> {
+    if (!this.auditoria) return;
+    const ids = [...new Set([...condominios].map((c) => Number(c)).filter((c) => Number.isInteger(c) && c > 0))].slice(
+      0,
+      MAX_CONDOMINIOS_AUDITORIA_APP,
+    );
+    await Promise.all(
+      ids.map(async (id) => {
+        try {
+          await this.auditoria!.registrar({ ...dados, id_condominio: id });
+        } catch (e: any) {
+          this.logger.warn(`Auditoria do app não gravada (${dados.acao} ${dados.modulo}, condomínio ${id}): ${e?.message ?? e}`);
+        }
+      }),
+    );
+  }
+
+  /**
+   * Login e senha errada do app. Sem await de propósito (mesmo motivo do auditarLogin do console): a resposta de
+   * "senha errada" não pode demorar mais que a de "conta inexistente" por causa de um INSERT, nem o login falhar
+   * porque o log falhou. Nunca recebe a senha: só o login digitado na falha, mascarado (quem digita a senha no
+   * campo de login não a deixa no log).
+   */
+  private auditarLoginApp(
+    acao: 'LOGIN' | 'LOGIN_FALHA',
+    papel: 'síndico' | 'morador' | 'funcionário',
+    condominios: Iterable<number | null | undefined>,
+    conta: { id: number | null; nome?: string | null; email?: string | null; tipo?: 'user' | 'funcionario_portaria' },
+    login: string,
+  ): void {
+    void this.auditarNoApp(condominios, {
+      usuario_nome: conta.nome?.trim() || 'Usuário do app',
+      usuario_email: conta.email?.trim() || undefined,
+      // Rota pública: não há req.user para o registrar tirar o autor.
+      autor_id: conta.id,
+      autor_tipo: conta.tipo ?? 'user',
+      acao,
+      modulo: 'auth',
+      entidade_id: conta.id ?? undefined,
+      descricao: acao === 'LOGIN' ? `Login no app (${papel})` : 'Tentativa de login com senha incorreta no app',
+      detalhes: acao === 'LOGIN' ? { metodo: 'senha', app: true } : { metodo: 'senha', app: true, login: mascararLogin(login) },
+    }).catch(() => undefined);
+  }
+
+  /** Conta inexistente não tem condomínio para gravar em audit_logs: fica no log do servidor, login mascarado. */
+  private avisarLoginContaInexistente(papel: string, login: string): void {
+    this.logger.warn(`LOGIN_FALHA_CONTA_INEXISTENTE app=${papel} login=${mascararLogin(login)}`);
+  }
+
+  /** Condomínios de todos os vínculos da conta (síndico, morador, unidade, equipe). Leitura com erro conta como vazia. */
+  private async condominiosDaConta(idUser: number): Promise<number[]> {
+    const ler = async (f: () => Promise<any[]>): Promise<any[]> => {
+      try {
+        return (await f()) ?? [];
+      } catch {
+        return [];
+      }
+    };
+    const [s, m, a, f] = await Promise.all([
+      ler(() => this.prisma.sindicos_Condominios.findMany({ where: { id_user: idUser }, select: { id_condominio: true } })),
+      ler(() => this.prisma.moradores.findMany({ where: { id_user: idUser }, select: { id_condominio: true } })),
+      ler(() =>
+        this.prisma.apartamentos_Users.findMany({
+          where: { id_user: idUser },
+          select: { apartamento: { select: { id_condominio: true } } },
+        }),
+      ),
+      ler(() => this.prisma.funcionarios.findMany({ where: { id_user: idUser }, select: { id_condominio: true } })),
+    ]);
+    const ids = [...s, ...m, ...f].map((v) => v?.id_condominio).concat(a.map((v) => v?.apartamento?.id_condominio));
+    return [...new Set(ids.map(Number).filter((c) => Number.isInteger(c) && c > 0))];
+  }
+
+  /** Nome de quem fez a ação, pelo token do app. */
+  private nomeDoToken(user: JwtPayload | undefined, padrao: string): string {
+    const u: any = user;
+    return String(u?.nome || u?.user?.nome || u?.user?.name || padrao);
+  }
 
   /**
    * Normaliza o vínculo (tipo) do morador para o vocabulário canônico:
@@ -279,17 +376,21 @@ export class MobileAuthService {
       where: { login },
       include: {
         sindicos: true,
-        sindicosCondominios: { select: { condominio: { select: { ativo: true, aprovado_em: true } } } },
+        sindicosCondominios: { select: { id_condominio: true, condominio: { select: { ativo: true, aprovado_em: true } } } },
       },
     });
 
     if (!user || !user.sindicos || user.sindicos.length === 0) {
+      this.avisarLoginContaInexistente('sindico', login);
       throw new UnauthorizedException('Login ou Senha incorretos');
     }
 
     const isMatch = await this.verifyPassword(senhaRaw, user.password, user.id);
+    const condominiosDoSindico = (user.sindicosCondominios ?? []).map((v) => v?.id_condominio);
+    const contaSindico = { id: user.id, nome: user.sindicos[0]?.name, email: user.email };
 
     if (!isMatch) {
+      this.auditarLoginApp('LOGIN_FALHA', 'síndico', condominiosDoSindico, contaSindico, login);
       throw new UnauthorizedException('Login ou Senha incorretos');
     }
 
@@ -326,7 +427,11 @@ export class MobileAuthService {
     const userObj = { id: user.id, name: sindico.name, photo: user.photo ?? '' };
     const payload = { sub: user.id, nome: sindico.name, typeAccess: 'Sindico', user: userObj };
 
-    return { token: this.jwt.sign(payload, { expiresIn: '365d' }), user: userObj };
+    const token = this.jwt.sign(payload, { expiresIn: '365d' });
+    // Só com a sessão emitida. Aparelho não confiável cai no desafio de MFA acima: o LOGIN dele seria na
+    // conferência do código: o MfaController (POST /auth/mfa/verify) grava LOGIN/LOGIN_FALHA.
+    this.auditarLoginApp('LOGIN', 'síndico', condominiosDoSindico, contaSindico, login);
+    return { token, user: userObj };
   }
 
   /**
@@ -953,17 +1058,24 @@ export class MobileAuthService {
       where: { OR: [{ login }, { email: login }] },
       include: {
         moradores: { include: { condominio: { select: { ativo: true, aprovado_em: true } } } },
-        apartamentosUsers: { select: { apartamento: { select: { condominio: { select: { ativo: true, aprovado_em: true } } } } } },
+        apartamentosUsers: { select: { apartamento: { select: { id_condominio: true, condominio: { select: { ativo: true, aprovado_em: true } } } } } },
       },
     });
 
     if (!user || !user.moradores || user.moradores.length === 0) {
+      this.avisarLoginContaInexistente('morador', login);
       throw new UnauthorizedException('Login ou Senha incorretos');
     }
 
     const isMatch = await this.verifyPassword(senhaRaw, user.password, user.id);
+    const condominiosDoMorador = [
+      ...user.moradores.map((m) => m?.id_condominio),
+      ...(user.apartamentosUsers ?? []).map((a) => a?.apartamento?.id_condominio),
+    ];
+    const contaMorador = { id: user.id, nome: user.moradores[0]?.nome, email: user.email };
 
     if (!isMatch) {
+      this.auditarLoginApp('LOGIN_FALHA', 'morador', condominiosDoMorador, contaMorador, login);
       throw new UnauthorizedException('Login ou Senha incorretos');
     }
 
@@ -976,7 +1088,9 @@ export class MobileAuthService {
     const userObj = { id: user.id, nome: morador.nome, photo: user.photo ?? '' };
     const payload = { sub: user.id, nome: morador.nome, typeAccess: 'Morador', user: userObj };
 
-    return { token: this.jwt.sign(payload, { expiresIn: '365d' }), user: userObj };
+    const token = this.jwt.sign(payload, { expiresIn: '365d' });
+    this.auditarLoginApp('LOGIN', 'morador', condominiosDoMorador, contaMorador, login);
+    return { token, user: userObj };
   }
 
   async listCondominiosMorador(idUser: number) {
@@ -1095,6 +1209,7 @@ export class MobileAuthService {
       });
 
       if (!portaria) {
+        this.avisarLoginContaInexistente('funcionario', login);
         throw new UnauthorizedException('Login ou Senha incorretos');
       }
 
@@ -1104,6 +1219,15 @@ export class MobileAuthService {
         ? await this.verifyPassword(senhaRaw, user.password, user.id)
         : await this.verifyPassword(senhaRaw, portaria.password, portaria.id, 'funcionarios_Portaria');
       if (!isMatch) {
+        this.auditarLoginApp(
+          'LOGIN_FALHA',
+          'funcionário',
+          [portaria.id_condominio],
+          user
+            ? { id: user.id, nome: portaria.nome, email: user.email }
+            : { id: portaria.id, nome: portaria.nome, email: portaria.email || portaria.login, tipo: 'funcionario_portaria' },
+          login,
+        );
         throw new UnauthorizedException('Login ou Senha incorretos');
       }
 
@@ -1222,7 +1346,15 @@ export class MobileAuthService {
         apartamentos: func.apartamentos ?? 1,
       };
       const payload = { sub: user.id, nome: func.nome, typeAccess: 'Funcionario', user: userObj };
-      return { token: this.jwt.sign(payload, { expiresIn: '365d' }), user: userObj };
+      const token = this.jwt.sign(payload, { expiresIn: '365d' });
+      this.auditarLoginApp(
+        'LOGIN',
+        'funcionário',
+        [func.id_condominio ?? portaria.id_condominio],
+        { id: user.id, nome: func.nome, email: user.email },
+        login,
+      );
+      return { token, user: userObj };
     }
 
     let isMatch = await this.verifyPassword(senhaRaw, user.password, user.id);
@@ -1266,6 +1398,13 @@ export class MobileAuthService {
     }
 
     if (!isMatch) {
+      this.auditarLoginApp(
+        'LOGIN_FALHA',
+        'funcionário',
+        user.funcionarios.map((f) => f.id_condominio),
+        { id: user.id, nome: user.funcionarios[0]?.nome, email: user.email },
+        login,
+      );
       throw new UnauthorizedException('Login ou Senha incorretos');
     }
 
@@ -1296,7 +1435,9 @@ export class MobileAuthService {
     };
     const payload = { sub: user.id, nome: func.nome, typeAccess: 'Funcionario', user: userObj };
 
-    return { token: this.jwt.sign(payload, { expiresIn: '365d' }), user: userObj };
+    const token = this.jwt.sign(payload, { expiresIn: '365d' });
+    this.auditarLoginApp('LOGIN', 'funcionário', vinculos.map((f) => f.id_condominio), { id: user.id, nome: func.nome, email: user.email }, login);
+    return { token, user: userObj };
   }
 
   /**
@@ -2428,15 +2569,18 @@ export class MobileAuthService {
     // que os leva em cascata.
     const user = await this.prisma.users.findUnique({
       where: { id: idUser },
-      select: { login: true, email: true },
+      select: { login: true, email: true, name: true },
     });
     const emails = [...new Set([user?.login, user?.email].filter((e): e is string => !!e))];
+    // Auditoria: os vínculos somem na cascata do DELETE, então os condomínios são lidos antes.
+    const condominiosDaConta: Array<number | null | undefined> = [];
     if (emails.length > 0) {
       const [comoFuncionario, comoSindico] = await Promise.all([
         this.prisma.funcionarios.findMany({ where: { id_user: idUser }, select: { id_condominio: true } }),
         this.prisma.sindicos_Condominios.findMany({ where: { id_user: idUser }, select: { id_condominio: true } }),
       ]);
       const condominios = [...new Set([...comoFuncionario, ...comoSindico].map((v) => v.id_condominio))];
+      condominiosDaConta.push(...condominios);
       if (condominios.length > 0) {
         await this.prisma.funcionarios_Portaria.deleteMany({
           where: { login: { in: emails }, id_condominio: { in: condominios } },
@@ -2463,6 +2607,16 @@ export class MobileAuthService {
     } catch (err: any) {
       this.logger.warn(`Exclusão de conta ${idUser}: não foi possível listar os rostos: ${err?.message ?? err}`);
     }
+    condominiosDaConta.push(...linhasMorador.map((m) => m.id_condominio));
+    try {
+      const unidades = await this.prisma.apartamentos_Users.findMany({
+        where: { id_user: idUser },
+        select: { apartamento: { select: { id_condominio: true } } },
+      });
+      condominiosDaConta.push(...(unidades ?? []).map((u) => u.apartamento?.id_condominio));
+    } catch {
+      // Só a auditoria perde o condomínio da unidade; a exclusão segue.
+    }
     // Cobrança do condomínio (tudo que não é conta pessoal 'D') guarda o morador em id_usuario e
     // fk_fin_user é ON DELETE CASCADE: a exclusão apagava a taxa condominial da unidade. Desvincula antes,
     // na mesma transação do DELETE. Votos de assembleia/enquete FICAM: desde
@@ -2478,6 +2632,17 @@ export class MobileAuthService {
       }),
       this.prisma.$executeRaw`DELETE FROM Users WHERE id = ${idUser}`,
     ]);
+    // Só com a conta apagada (DELETE recusado não vira linha de exclusão). Rota sem id_condominio: o interceptor
+    // não grava. Uma linha em cada condomínio do vínculo; sem vínculo, nada (nunca id_condominio 0).
+    await this.auditarNoApp(condominiosDaConta, {
+      usuario_nome: (user?.name || user?.email || user?.login || `Conta #${idUser}`).toString(),
+      usuario_email: user?.email || undefined,
+      acao: 'DELETE',
+      modulo: 'users',
+      entidade_id: idUser,
+      descricao: 'Conta excluída pelo próprio usuário',
+      detalhes: { id_user: idUser, app: true },
+    });
     // Só aqui, com a conta apagada: rosto, Guarita e carteira (em segundo plano, nunca lançam).
     // Também sem face_id: o terminal de área com reserva matricula sem gravar face_id (F5).
     for (const m of linhasMorador) {
@@ -3509,7 +3674,8 @@ export class MobileAuthService {
 
     const hash = await bcrypt.hash(senhaLimpa, 10);
 
-    let idCondominio = 0;
+    // Condomínios onde a redefinição fica registrada: os do vínculo da conta (sem vínculo, nenhum; nunca 0).
+    let condominios: Array<number | null | undefined> = [];
     let usuarioNome = `Conta #${registro.id_conta} (${registro.papel})`;
     let usuarioEmail: string | null = null;
 
@@ -3525,7 +3691,7 @@ export class MobileAuthService {
           select: { id_condominio: true, nome: true, login: true, email: true },
         });
         if (func) {
-          idCondominio = func.id_condominio ?? 0;
+          condominios = [func.id_condominio];
           usuarioNome = func.nome || func.login || usuarioNome;
           usuarioEmail = func.email || func.login || null;
         }
@@ -3556,20 +3722,16 @@ export class MobileAuthService {
       });
       await this.revogarCredenciaisAposTrocaDeSenha(registro.id_conta);
       try {
-        const rel = await this.prisma.sindicos_Condominios.findFirst({
-          where: { id_user: registro.id_conta },
-          select: { id_condominio: true },
-        });
         const user = await this.prisma.users.findUnique({
           where: { id: registro.id_conta },
           select: { name: true, email: true },
         });
-        idCondominio = rel?.id_condominio ?? 0;
         if (user) {
           usuarioNome = user.name || usuarioNome;
           usuarioEmail = user.email || null;
         }
       } catch (_) {}
+      condominios = await this.condominiosDaConta(registro.id_conta);
     } else {
       // 'morador'
       await this.prisma.users.update({
@@ -3580,18 +3742,12 @@ export class MobileAuthService {
       try {
         const morador = await this.prisma.moradores.findFirst({
           where: { id_user: registro.id_conta },
-          select: { id_condominio: true, nome: true, email: true },
+          select: { nome: true, email: true },
         });
         if (morador) {
-          idCondominio = morador.id_condominio ?? 0;
           usuarioNome = morador.nome || usuarioNome;
           usuarioEmail = morador.email || null;
         } else {
-          const apto = await this.prisma.apartamentos_Users.findFirst({
-            where: { id_user: registro.id_conta },
-            include: { apartamento: { select: { id_condominio: true } } },
-          });
-          idCondominio = apto?.apartamento?.id_condominio ?? 0;
           const user = await this.prisma.users.findUnique({
             where: { id: registro.id_conta },
             select: { name: true, email: true },
@@ -3602,28 +3758,25 @@ export class MobileAuthService {
           }
         }
       } catch (_) {}
+      condominios = await this.condominiosDaConta(registro.id_conta);
     }
 
-    // Auditoria com id_condominio real
-    try {
-      if (this.prisma?.auditLog?.create) {
-        await this.prisma.auditLog.create({
-          data: {
-            id_condominio: idCondominio,
-            usuario_nome: usuarioNome,
-            usuario_email: usuarioEmail,
-            acao: 'UPDATE',
-            modulo: 'AUTH',
-            entidade_id: registro.id_conta,
-            descricao: `Senha redefinida com sucesso para ${registro.papel}`,
-            detalhes: JSON.stringify({ papel: registro.papel, id_conta: registro.id_conta }),
-            ip: registro.ip,
-          },
-        });
-      }
-    } catch (auditErr) {
-      // Falha de auditoria não impede o sucesso da redefinição
-    }
+    // Auditoria em cada condomínio do vínculo. Sem `ip`: o registrar usa o da requisição atual (antes ia o IP
+    // de quando o código foi PEDIDO). Rota pública, sem req.user: o autor vai explícito.
+    await this.auditarNoApp(condominios, {
+      usuario_nome: usuarioNome,
+      usuario_email: usuarioEmail || undefined,
+      autor_id: registro.id_conta,
+      autor_tipo: registro.papel === 'funcionario' ? 'funcionario_portaria' : 'user',
+      acao: 'UPDATE',
+      modulo: 'auth',
+      entidade_id: registro.id_conta,
+      descricao:
+        registro.reset_token_hash === tokenHash
+          ? 'Senha redefinida por código de e-mail'
+          : 'Senha redefinida pelo link de e-mail',
+      detalhes: { papel: registro.papel, app: true },
+    });
 
     // Bootstrapping de sessão de login para auto-login imediato no mobile
     let tokenAuth: string | undefined;
@@ -4311,6 +4464,15 @@ export class MobileAuthService {
         `Não foi possível remover o funcionário. (${err?.code ?? err?.name ?? 'erro'})`,
       );
     }
+    // Rota do app sem id_condominio: o interceptor não grava. `fp` foi lido antes da exclusão.
+    await this.auditarNoApp([fp.id_condominio], {
+      usuario_nome: this.nomeDoToken(requester, 'Síndico'),
+      acao: 'DELETE',
+      modulo: 'funcionarios',
+      entidade_id: fp.id,
+      descricao: `Removeu o funcionário "${fp.nome || fp.login}"`,
+      detalhes: { id_funcionario_portaria: fp.id, app: true },
+    });
     return true;
   }
 
@@ -5371,6 +5533,18 @@ export class MobileAuthService {
         `Não foi possível remover o morador. (${err?.code ?? err?.name ?? 'erro'})`,
       );
     }
+    // Rota do app sem id_condominio: o interceptor não grava. Os dados vêm de `atual`, lido antes da exclusão.
+    const unidade = [rotuloBloco(atual.bloco), atual.apartamento?.trim() ? `Apto ${atual.apartamento.trim()}` : '']
+      .filter(Boolean)
+      .join(', ');
+    await this.auditarNoApp([atual.id_condominio], {
+      usuario_nome: this.nomeDoToken(user, 'Usuário do app'),
+      acao: 'DELETE',
+      modulo: 'moradores',
+      entidade_id: Number(id),
+      descricao: `Removeu o morador "${atual.nome}"${unidade ? ` (${unidade})` : ''}`,
+      detalhes: { id_morador: Number(id), id_user: atual.id_user, app: true },
+    });
     // Passe da carteira: mesmo caminho do remove do painel (MoradoresService.remove). Não
     // bloqueia a exclusão; revogarDoMorador nunca lança.
     if (atual.id_condominio && this.wallet) {
@@ -6022,6 +6196,20 @@ export class MobileAuthService {
       },
     });
     await this.revogarCredenciaisAposTrocaDeSenha(idUser);
+    // Rota do app sem id_condominio: o interceptor não grava. A senha vale em todos os vínculos da conta.
+    if (this.auditoria) {
+      await this.auditarNoApp(await this.condominiosDaConta(idUser), {
+        usuario_nome: String(
+          user.sindicos?.[0]?.name || user.moradores?.[0]?.nome || user.funcionarios?.[0]?.nome || user.name || user.login || `Conta #${idUser}`,
+        ),
+        usuario_email: user.email || undefined,
+        acao: 'UPDATE',
+        modulo: 'auth',
+        entidade_id: idUser,
+        descricao: 'Senha alterada pelo app',
+        detalhes: { app: true },
+      });
+    }
 
     if (typeAccess.toLowerCase() === 'sindico') {
       const sindico = user.sindicos[0];

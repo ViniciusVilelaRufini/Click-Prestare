@@ -51,6 +51,36 @@ export class MfaService {
     return typeof mfaToken === 'string' && MFA_TOKEN_RE.test(mfaToken);
   }
 
+  /**
+   * Conta e condomínios do síndico dono do desafio, lidos ANTES da conferência (no sucesso o desafio é
+   * apagado). Usado pela auditoria do login do app (MfaController). Token inválido ou desafio
+   * inexistente/expirado → null; nunca lança.
+   */
+  async contaDoDesafio(
+    mfaToken: unknown,
+  ): Promise<{ id_user: number; nome: string; email: string | null; condominios: number[] } | null> {
+    if (!this.prisma.isConnected || !this.tokenValido(mfaToken)) return null;
+    try {
+      const desafio: any = await this.prisma.mfa_Challenges.findFirst({
+        where: { token: mfaToken, expires_at: { gt: new Date() } },
+        include: {
+          user: { include: { sindicos: true, sindicosCondominios: { select: { id_condominio: true } } } },
+        },
+      });
+      if (!desafio?.user) return null;
+      return {
+        id_user: desafio.id_user,
+        nome: desafio.user.sindicos?.[0]?.name ?? 'Síndico',
+        email: desafio.user.email ?? null,
+        condominios: (desafio.user.sindicosCondominios ?? [])
+          .map((v: any) => Number(v?.id_condominio))
+          .filter((id: number) => Number.isInteger(id) && id > 0),
+      };
+    } catch {
+      return null;
+    }
+  }
+
   maskEmail(email: string): string {
     if (!email || !email.includes('@')) return 'e-mail';
     const [user, domain] = email.split('@');
