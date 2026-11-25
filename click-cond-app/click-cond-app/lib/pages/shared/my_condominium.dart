@@ -484,7 +484,13 @@ class _MyCondominiumState extends State<MyCondominium> {
           children: [
             IndexedStack(
               index: _currentTab,
-              children: tabs,
+              // As abas escondidas continuam montadas; sem o HeroMode, o botão
+              // flutuante delas (ex.: "Registrar encomenda") entrava na
+              // animação de troca de tela e aparecia "voando" por cima.
+              children: [
+                for (var i = 0; i < tabs.length; i++)
+                  HeroMode(enabled: i == _currentTab, child: tabs[i]),
+              ],
             ),
             Positioned(
               left: 0,
