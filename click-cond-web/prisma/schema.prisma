@@ -997,6 +997,7 @@ model Visitas {
 
   @@index([id_pessoa], map: "idx_visita_pessoa")
   @@index([id_condominio, data_entrada], map: "idx_visita_cond_entrada")
+  @@index([id_condominio, data_saida], map: "idx_visita_cond_saida")
   @@index([id_apartamento], map: "idx_visita_apto")
   @@index([id_condominio, codigo_acesso], map: "idx_visita_cond_pin")
   // PIN único sem condomínio e janelas dos ticks: prisma/sql/2026-11-24-indices-pin-janelas.sql.
@@ -1058,6 +1059,8 @@ model Ocorrencias {
   mensagens     OcorrenciaMensagens[]
 
   @@index([id_condominio])
+  // Log de Eventos: ramo de ocorrências (prisma/sql/2026-11-25-indices-eventos-auditoria.sql).
+  @@index([id_condominio, created_at], map: "idx_oco_cond_created")
   @@index([tipo], map: "fk_oco_cat")
   @@index([user], map: "fk_oco_user")
   @@index([id_funcionario_portaria], map: "fk_oco_func_portaria")
@@ -1154,6 +1157,8 @@ model Encomendas {
   recebidoPor         Users?      @relation("EncomendaRecebidaPor", fields: [recebido_por_user], references: [id], map: "fk_enc_recebido")
 
   @@index([id_condominio, status])
+  // Log de Eventos: ramo de encomendas por condomínio + período (prisma/sql/2026-11-25-indices-eventos-auditoria.sql).
+  @@index([id_condominio, recebido_em], map: "idx_enc_cond_recebido")
   @@index([entregue_por_user], map: "fk_enc_entregue")
   @@index([recebido_por_user], map: "fk_enc_recebido")
 }
@@ -1511,6 +1516,8 @@ model AuditLog {
   // e, pelo prefixo, tudo que o antigo idx_audit_condo (só id_condominio) atendia.
   @@index([id_condominio, created_at], map: "idx_audit_condo_created")
   @@index([created_at], map: "idx_audit_created")
+  // Log de Eventos (ramo dispositivos) e filtro por módulo da auditoria.
+  @@index([id_condominio, modulo, created_at], map: "idx_audit_condo_modulo_created")
   @@map("audit_logs")
 }
 
