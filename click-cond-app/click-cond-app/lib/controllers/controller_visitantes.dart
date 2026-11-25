@@ -6,9 +6,23 @@ import 'package:click/utils/api_config.dart';
 import 'package:click/utils/api_client.dart';
 
 
-apiGetAllVisitantes(String search, {bool allCondos = false}) async {
+/// Visitas por página de `GET /visitantes/get-all` (`take: 30` na API).
+/// Página cheia = pode haver mais: a tela oferece "carregar mais".
+const int visitantesPorPagina = 30;
+
+/// [offset] pula as visitas já carregadas (a API pagina de 30 em 30).
+/// Em falha devolve `[]`; as telas usam [apiGetAllVisitantesOuNull].
+apiGetAllVisitantes(String search, {bool allCondos = false, int offset = 0}) async {
+  return await apiGetAllVisitantesOuNull(search, allCondos: allCondos, offset: offset) ?? [];
+}
+
+/// Igual a [apiGetAllVisitantes], mas devolve `null` quando a busca falha
+/// (status diferente de 200, sem rede, tempo esgotado, corpo inválido): a
+/// recarga depois de check-in/baixa ou o puxar-para-atualizar mantém a lista
+/// que está na tela em vez de esvaziá-la (A2).
+Future<List<dynamic>?> apiGetAllVisitantesOuNull(String search, {bool allCondos = false, int offset = 0}) async {
   final Map<String, String> params = {
-    'offset': '0',
+    'offset': '$offset',
     'search': search,
   };
   if (!allCondos && Singleton.instance.id_condominio != 0) {
@@ -16,23 +30,23 @@ apiGetAllVisitantes(String search, {bool allCondos = false}) async {
     params['id_apto'] = Singleton.instance.getIdApartamento();
   }
   var url = ApiConfig.buildUri('/visitantes/get-all', params);
-  try{
-      logDebug('[apiGetAllVisitantes] allCondos: $allCondos');
-      var response = await ApiClient.get(
-        url,
-      );
-      // O body traz CPF, PIN de portaria e foto de rosto: nunca logar.
-      logDebug('[apiGetAllVisitantes] status ${response.statusCode}');
+  try {
+    logDebug('[apiGetAllVisitantes] allCondos: $allCondos');
+    var response = await ApiClient.get(
+      url,
+    );
+    // O body traz CPF, PIN de portaria e foto de rosto: nunca logar.
+    logDebug('[apiGetAllVisitantes] status ${response.statusCode}');
 
     if (response.statusCode == 200) {
-      var parsed = jsonDecode(response.body);
-      return parsed == "" ? [] : parsed;
-    } else {
-      return [];
+      final parsed = jsonDecode(response.body);
+      if (parsed == null || parsed == "") return [];
+      return parsed is List ? parsed : null;
     }
-  }catch(e){
+    return null;
+  } catch (e) {
     logDebug('[apiGetAllVisitantes] Error: $e');
-    return "Houve um erro, tente novamente!";
+    return null;
   }
 }
 
@@ -72,7 +86,17 @@ apiSaveVisitante(dynamic obj, bool isEdit) async {
 /// Portaria remota: lista as solicitações de autorização PENDENTES dos
 /// apartamentos do morador logado. GET /visitantes/pendentes.
 /// [idCondominio] (o do push tocado) tem precedência sobre o condomínio aberto.
+///
+/// Em falha devolve `[]` (contadores). A tela de pendentes usa
+/// [apiGetPendentesOuNull] para não apagar os cards por uma falha de rede.
 apiGetPendentes({int? idCondominio}) async {
+  return await apiGetPendentesOuNull(idCondominio: idCondominio) ?? [];
+}
+
+/// Igual a [apiGetPendentes], mas devolve `null` quando a busca falha (status
+/// diferente de 200, sem rede, tempo esgotado): quem chama mantém o que já
+/// mostra em vez de um falso "nenhuma solicitação".
+Future<List<dynamic>?> apiGetPendentesOuNull({int? idCondominio}) async {
   final params = <String, String>{};
   final cond = idCondominio ?? Singleton.instance.id_condominio;
   // Sem condomínio aberto (app aberto pela notificação), não manda "null".
@@ -86,12 +110,12 @@ apiGetPendentes({int? idCondominio}) async {
     ).timeout(ApiConfig.timeout);
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body);
-      return parsed is List ? parsed : [];
+      return parsed is List ? parsed : null;
     }
-    return [];
+    return null;
   } catch (e) {
     logDebug('[apiGetPendentes] Error: $e');
-    return [];
+    return null;
   }
 }
 
@@ -109,8 +133,11 @@ apiResponderAutorizacao(int idVisitante, bool autorizar, {bool darEntrada = fals
 /// (`null` = sem resposta: rede ou timeout). O card do Android decide por ele
 /// se fecha quando o servidor recusa o NEGAR (400/409), como no delivery.
 /// `erro` é null em sucesso.
+///
+/// [skip401Handling]: o card do Android responde em segundo plano, sem tela;
+/// ali um 401 não pode deslogar o app em silêncio (quem chama trata).
 Future<({int? statusCode, dynamic erro})> apiResponderAutorizacaoComStatus(
-    int idVisitante, bool autorizar, {bool darEntrada = false}) async {
+    int idVisitante, bool autorizar, {bool darEntrada = false, bool skip401Handling = false}) async {
   final acao = autorizar ? 'autorizar' : 'negar';
   final url = ApiConfig.buildUri('/visitantes/$idVisitante/$acao');
   final headers = {
@@ -125,6 +152,7 @@ Future<({int? statusCode, dynamic erro})> apiResponderAutorizacaoComStatus(
       headers: headers,
       body: json.encode(body),
       encoding: utf8,
+      skip401Handling: skip401Handling,
     ).timeout(ApiConfig.timeout);
   } catch (e) {
     return (statusCode: null, erro: "Falha de comunicação com o servidor.");
@@ -133,12 +161,8 @@ Future<({int? statusCode, dynamic erro})> apiResponderAutorizacaoComStatus(
   if (status >= 200 && status < 300) {
     return (statusCode: status, erro: null);
   }
-  try {
-    final parsed = jsonDecode(response.body);
-    return (statusCode: status, erro: parsed['message'] ?? "Erro ao responder solicitação");
-  } catch (e) {
-    return (statusCode: status, erro: "Falha de comunicação com o servidor.");
-  }
+  // Lista do ValidationPipe, HTML de proxy ou rótulo HTTP não vão crus para a tela.
+  return (statusCode: status, erro: mensagemCurtaDaApi(response.body) ?? "Erro ao responder solicitação");
 }
 
 /// Registra a entrada manual de um visitante (check-in pelo morador ou porteiro).

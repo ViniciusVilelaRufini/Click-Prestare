@@ -17,7 +17,15 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ListAreasSociais extends StatefulWidget {
-  const ListAreasSociais({super.key});
+  /// Abre na aba "Minhas reservas" (morador): o push de reserva
+  /// (`confirmacao_reserva`, `reserva_status`, cancelamentos) leva ao card da
+  /// reserva, onde está o "Confirmar presença".
+  final bool minhasReservas;
+
+  /// Condomínio do push tocado: com o app aberto pelo push não há condomínio
+  /// aberto. Null = o aberto.
+  final int? idCondominio;
+  const ListAreasSociais({super.key, this.minhasReservas = false, this.idCondominio});
   @override
   _ListAreasSociaisPageState createState() => _ListAreasSociaisPageState();
 }
@@ -32,9 +40,13 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
   /// Push de reserva ou volta ao app: recarrega áreas e reservas.
   StreamSubscription<DominioApp>? _atualizacoes;
 
+  /// Índice da aba "Minhas reservas" (a última, só para o morador).
+  int get _abaMinhasReservas => _isSindico ? 2 : 1;
+
   @override
   void initState() {
     super.initState();
+    if (widget.minhasReservas && _isMorador) _currentTab = _abaMinhasReservas;
     _atualizacoes = ouvirAtualizacoes({DominioApp.reserva}, () {
       if (mounted) loadAll(recarga: true);
     });
@@ -53,7 +65,10 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
     // Tela cheia de carregamento só quando ainda não há nada para mostrar.
     if (list.isEmpty) setState(() => _isLoading = true);
     try {
-      final buscar = recarga ? apiGetAllOuNull : apiGetAll;
+      final cond = widget.idCondominio;
+      final extras = cond == null ? null : {'id_condominio': '$cond'};
+      Future<dynamic> buscar(String rota) =>
+          recarga ? apiGetAllOuNull(rota, extras: extras) : apiGetAll(rota, extras: extras);
       final List<Future<dynamic>> futures = [
         buscar("areas-sociais"),
         buscar("areas-sociais/meus-agendamentos"),
@@ -103,6 +118,7 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
 
     return DefaultTabController(
       length: tabs.length,
+      initialIndex: _currentTab < tabs.length ? _currentTab : 0,
       child: AppScaffold(
         title: getText('lb_areas_sociais'),
         floatingActionButton: canAddArea

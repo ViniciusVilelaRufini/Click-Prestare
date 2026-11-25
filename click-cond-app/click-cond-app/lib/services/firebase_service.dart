@@ -2,21 +2,33 @@ import 'package:click/utils/log.dart';
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:click/pages/shared/areas sociais/list_areas_sociais.dart';
+import 'package:click/pages/shared/assembleias/detail_assembleia.dart';
+import 'package:click/pages/shared/assembleias/list_assembleias.dart';
+import 'package:click/pages/shared/comunicados/detail_comunidado.dart';
+import 'package:click/pages/shared/comunicados/list_comunicados.dart';
+import 'package:click/pages/shared/delivery/list_delivery.dart';
 import 'package:click/pages/shared/encomendas/list_encomendas.dart';
+import 'package:click/pages/shared/enquetes/detail_enquete.dart';
+import 'package:click/pages/shared/enquetes/list_enquetes.dart';
 import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart';
 import 'package:click/pages/shared/notificacoes/historico_acessos_page.dart';
+import 'package:click/pages/shared/ocorrencias/detail_ocorrencia.dart';
 import 'package:click/pages/shared/ocorrencias/list_ocorrencias.dart';
+import 'package:click/pages/shared/ocorrencias/ocorrencia_chat.dart';
 import 'package:click/pages/shared/delivery/resposta_delivery.dart';
 import 'package:click/controllers/controller_delivery.dart';
 import 'package:click/controllers/controller_visitantes.dart';
+import 'package:click/pages/shared/visitantes/convites_visita.dart';
 import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
 import 'package:click/services/atualizacoes_app.dart';
 import 'package:click/services/card_ao_vivo/card_android.dart';
 import 'package:click/services/card_ao_vivo/card_ao_vivo_ios.dart';
-import 'package:click/services/push_condominio.dart';
+import 'package:click/services/destino_push.dart';
 import 'package:click/theme/theme_controller.dart';
 import 'package:click/utils/api_client.dart';
 import 'package:click/utils/api_config.dart';
+import 'package:click/utils/autorizacoes_controle.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/navigation_service.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -38,6 +50,10 @@ class FirebaseService {
 
   @visibleForTesting
   Future<void> Function() apagarTokenFcm = () => FirebaseMessaging.instance.deleteToken();
+
+  /// Entrega a sessão ao Swift do card do iPhone (trocado no teste).
+  @visibleForTesting
+  Future<void> Function(String jwt, String baseUrl) definirSessaoCard = CardAoVivoIos.definirSessao;
 
   /// Remoção de push mais recente: o login seguinte espera por ela. Nunca lança.
   Future<void> _desregistro = Future.value();
@@ -146,17 +162,11 @@ class FirebaseService {
 
       final type = message.data['type']?.toString();
       if (type == 'card_portaria') {
-        CardAndroid.exibir(message.data);
+        // Nunca lança; pushes do mesmo card em fila (A8).
+        unawaited(CardAndroid.exibir(message.data));
         // Diálogo de visitante só para a portaria remota; o delivery fica na
         // notificação fixa (RECUSAR/AUTORIZAR nela mesma).
-        if (message.data['fase'] == 'aguardando' && message.data['origem'] != 'delivery') {
-          final id = int.tryParse('${message.data['id_pedido']}');
-          String? nome;
-          try {
-            nome = (jsonDecode('${message.data['conteudo']}') as Map)['nome']?.toString();
-          } catch (_) {}
-          if (id != null) mostrarDialogoAutorizacaoVisitante(id: id, nome: nome);
-        }
+        if (message.data['origem'] != 'delivery') _cardPortariaEmPrimeiroPlano(message.data);
       } else if (type == 'autorizacao_visitante') {
         final idStr = message.data['id']?.toString();
         final id = int.tryParse(idStr ?? '');
@@ -191,9 +201,32 @@ class FirebaseService {
     CardAndroid.tratarAbertura();
   }
 
+  /// Push do card da portaria com o app aberto: `aguardando` abre o diálogo;
+  /// fase final (outro morador respondeu, venceu, a portaria encerrou) fecha
+  /// o diálogo do mesmo pedido, se estiver aberto (F13).
+  void _cardPortariaEmPrimeiroPlano(Map<String, dynamic> data) {
+    final id = int.tryParse('${data['id_pedido']}');
+    if (id == null) return;
+    Map? conteudo;
+    try {
+      conteudo = jsonDecode('${data['conteudo']}') as Map;
+    } catch (_) {}
+    final fase = '${data['fase'] ?? conteudo?['fase'] ?? ''}';
+    final rodada = rodadaDoPedido(conteudo?['chegouEm']);
+    if (fase == 'aguardando') {
+      mostrarDialogoAutorizacaoVisitante(id: id, nome: conteudo?['nome']?.toString(), rodada: rodada);
+    } else if (fasesFinaisDoPedido.contains(fase)) {
+      ControleAutorizacoes.instance.pedidoEncerrado(id, fase, rodada: rodada);
+    }
+  }
+
   /// AUTORIZAR tocado na notificação do card (Android). O app só abre depois
   /// do desbloqueio, que é a exigência de segurança do AUTORIZAR.
-  Future<void> _autorizarPelaNotificacao(int idPedido, String origem) async {
+  ///
+  /// Passa pelo [ControleAutorizacoes] como o diálogo e a tela de pendentes
+  /// (A5): fecha o diálogo do mesmo pedido, não decide duas vezes e marca a
+  /// decisão para a tela de pendentes esconder o card.
+  Future<void> _autorizarPelaNotificacao(int idPedido, String origem, int? rodada) async {
     if (origem == 'delivery') {
       final r = await apiResponderDeliveryPorId(idPedido, autorizar: true);
       _navigateByType('delivery', const {});
@@ -208,13 +241,27 @@ class FirebaseService {
       });
       return;
     }
-    final res = await apiResponderAutorizacao(idPedido, true);
+    final controle = ControleAutorizacoes.instance;
+    controle.fecharDialogoDe(idPedido);
+    if (!controle.assumirDecisao(idPedido, rodada: rodada)) {
+      // Já decidido (ou sendo decidido agora) por outra superfície.
+      _navigateByType('autorizacao_visitante', const {});
+      return;
+    }
+    final r = await apiResponderAutorizacaoComStatus(idPedido, true);
+    if (r.erro == null || respostaRecusadaFechaCard(r.statusCode)) {
+      // 400/409: o pedido já não aceita resposta (respondido, vencido).
+      controle.decidiu(idPedido, rodada: rodada);
+    } else {
+      controle.desistiuDaDecisao(idPedido);
+    }
+    AtualizacoesApp.avisar(DominioApp.visitante);
     _navigateByType('autorizacao_visitante', const {});
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ctx = NavigationService.navigatorKey.currentContext;
       if (ctx == null) return;
       ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(SnackBar(
-        content: Text(res is Map ? 'Entrada autorizada.' : '$res'),
+        content: Text(r.erro == null ? 'Entrada autorizada.' : '${r.erro}'),
       ));
     });
   }
@@ -222,8 +269,9 @@ class FirebaseService {
   /// Navega diretamente para a tela apropriada ao tocar na notificação push.
   void handleNotificationNavigation(RemoteMessage? message) {
     if (message == null) return;
-    final type = message.data['type']?.toString();
-    if (type == null || type.isEmpty) return;
+    // Push comum do delivery vem sem `type` (só id_delivery/status): F9.
+    final type = tipoDoPush(message.data);
+    if (type == null) return;
 
     if (kDebugMode) {
       logDebug('[FCM] handleNotificationNavigation: type=$type, data=${message.data}');
@@ -250,51 +298,54 @@ class FirebaseService {
       return;
     }
 
+    final destino = destinoDoPush(type, data);
+    if (destino == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      switch (type) {
-        case 'autorizacao_visitante':
-          nav.push(
-            MaterialPageRoute(
-              builder: (_) => PendentesVisitantePage(idCondominio: condominioDoPush(data)),
-            ),
-          );
-          break;
-        case 'visitante':
-        case 'visitante_acesso':
-          nav.push(
-            MaterialPageRoute(
-              builder: (_) => const HistoricoAcessosPage(),
-            ),
-          );
-          break;
-        case 'encomenda':
-          nav.push(
-            MaterialPageRoute(
-              builder: (_) => const ListEncomendas(),
-            ),
-          );
-          break;
-        // Card ao vivo do delivery (toque ou AUTORIZAR na notificação fixa).
-        case 'delivery':
-          nav.pushNamed('/delivery');
-          break;
-        case 'ocorrencia_chat':
-        case 'ocorrencia_atribuida':
-          nav.push(
-            MaterialPageRoute(
-              builder: (_) => const ListOcorrencias(),
-            ),
-          );
-          break;
-        case 'financeiro':
-          nav.push(
-            MaterialPageRoute(
-              builder: (_) => MoradorFinanceiroView(idCondominio: condominioDoPush(data)),
-            ),
-          );
-          break;
-        default:
-          break;
+      void abrir(Widget tela, {String? nome}) => nav.push(MaterialPageRoute(
+            settings: nome == null ? null : RouteSettings(name: nome),
+            builder: (_) => tela,
+          ));
+      final id = destino.id;
+      final cond = destino.idCondominio;
+      switch (destino.tela) {
+        case TelaPush.pendentes:
+          abrir(PendentesVisitantePage(idCondominio: cond));
+        case TelaPush.historicoAcessos:
+          abrir(const HistoricoAcessosPage());
+        case TelaPush.encomendas:
+          abrir(ListEncomendas(destacarId: id));
+        // Card ao vivo do delivery (toque ou AUTORIZAR na notificação fixa)
+        // e o push comum do delivery.
+        case TelaPush.delivery:
+          abrir(ListDelivery(idCondominio: cond), nome: '/delivery');
+        // A rota da ocorrência não precisa do condomínio aberto (a API
+        // confere pelo id): abre o item do push, não a lista vazia (F10).
+        case TelaPush.ocorrencia:
+          abrir(DetailOcorrencia(id: id!));
+        case TelaPush.ocorrenciaChat:
+          abrir(DetailOcorrencia(id: id!));
+          abrir(OcorrenciaChatPage(idOcorrencia: id, titulo: 'Ocorrência #$id'));
+        case TelaPush.ocorrencias:
+          abrir(const ListOcorrencias());
+        case TelaPush.financeiro:
+          abrir(MoradorFinanceiroView(idCondominio: cond));
+        case TelaPush.reservas:
+          // Aba "Minhas reservas": o card da reserva tem o "Confirmar presença".
+          abrir(ListAreasSociais(minhasReservas: true, idCondominio: cond));
+        case TelaPush.comunicado:
+          abrir(DetailComunicado(id: id!));
+        case TelaPush.comunicados:
+          abrir(const ListComunicados());
+        case TelaPush.assembleia:
+          abrir(DetailAssembleia(id: id!));
+        case TelaPush.assembleias:
+          abrir(const ListAssembleias());
+        case TelaPush.enquete:
+          abrir(DetailEnquete(id: id!));
+        case TelaPush.enquetes:
+          abrir(const ListEnquetes());
+        case TelaPush.convites:
+          abrir(const ConvitesVisitaPage());
       }
     });
   }
@@ -325,8 +376,7 @@ class FirebaseService {
     if (jwt.isEmpty) return;
 
     // Sessão para os botões do card no iPhone (o Swift chama a API sozinho).
-    final base = ApiConfig.buildUri('').toString().replaceAll(RegExp(r'/+$'), '');
-    await CardAoVivoIos.definirSessao(jwt, base);
+    await atualizarSessaoDoCard(jwt);
     final cardTokenInicio = await CardAoVivoIos.obterTokenInicio();
     final tema = temaDoApp(ThemeController.instance.mode);
 
@@ -350,6 +400,22 @@ class FirebaseService {
       _temaEnviado = tema;
     } catch (e) {
       logDebug('Falha ao registrar token de push: $e');
+    }
+  }
+
+  /// Entrega o token da sessão ao card do iPhone, que guarda a própria cópia
+  /// no keychain e chama a API sozinho (NEGAR/AUTORIZAR, confirmar).
+  ///
+  /// Também roda depois da troca de senha ([atualizarTokenSessao]): a API
+  /// recusa (401) o JWT emitido antes da troca, e o card ficava com o velho —
+  /// os botões paravam e o porteiro esperava (F12). Nunca lança.
+  Future<void> atualizarSessaoDoCard(String jwt) async {
+    if (jwt.isEmpty) return;
+    final base = ApiConfig.buildUri('').toString().replaceAll(RegExp(r'/+$'), '');
+    try {
+      await definirSessaoCard(jwt, base).timeout(limiteFcm);
+    } catch (e) {
+      logDebug('Card ao vivo: sessão do iPhone não atualizada: $e');
     }
   }
 
@@ -417,3 +483,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     await CardAndroid.exibir(message.data);
   }
 }
+
+/// Fases do card da portaria que encerram o pedido para o morador: o diálogo
+/// aberto para ele fecha (F13).
+const Set<String> fasesFinaisDoPedido = {'liberado', 'negado', 'expirado', 'entrou', 'encerrado'};

@@ -50,6 +50,10 @@ class ListVisitantesPageState extends State<ListVisitantes> {
   bool _isLoading = false;
   bool _isFabExpanded = true;
   int _pendentesCount = 0;
+
+  /// A última página veio cheia (30): há visitas mais antigas para buscar.
+  bool _temMais = false;
+  bool _carregandoMais = false;
   // Esta tela mostra visitantes e prestadores no mesmo lugar; o chip escolhe o recorte.
   String _tipoFiltro = 'todos'; // todos | visitantes | prestadores
 
@@ -70,9 +74,10 @@ class ListVisitantesPageState extends State<ListVisitantes> {
   }
 
   Future<void> _loadPendentes() async {
-    final data = await apiGetPendentes();
-    if (!mounted) return;
-    setState(() => _pendentesCount = data is List ? data.length : 0);
+    // Falha devolve null: o contador fica como está em vez de zerar (A3).
+    final data = await apiGetPendentesOuNull();
+    if (!mounted || data == null) return;
+    setState(() => _pendentesCount = data.length);
   }
 
   void _abrirPendentes() {
@@ -105,7 +110,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
           duration: const Duration(seconds: 3),
         ),
       );
-      loadList();
+      loadList(avisarErro: false);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -132,7 +137,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
           duration: const Duration(seconds: 3),
         ),
       );
-      loadList();
+      loadList(avisarErro: false);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -180,21 +185,81 @@ class ListVisitantesPageState extends State<ListVisitantes> {
     );
   }
 
-  /// [avisarErro] falso na recarga automática: sem rede, fica a lista atual.
+  /// Número da última busca. O debounce da busca cancela o timer, não a
+  /// requisição em voo: a resposta de "mar" chegando depois da de "maria"
+  /// mostrava a lista errada (A13). Só a mais recente grava.
+  int _buscaAtual = 0;
+
+  /// [avisarErro] falso na recarga automática e na volta de uma ação
+  /// (check-in, baixa, edição): sem rede, fica a lista atual em silêncio.
+  /// Com ele (abertura, busca, puxar-para-atualizar), a lista também fica,
+  /// mas o erro aparece. Antes a falha virava `[]` e a lista sumia (A2).
   Future<void> loadList({bool avisarErro = true}) async {
+    // Volta de outra tela depois de a sessão expirar: a página já saiu.
+    if (!mounted) return;
+    final minha = ++_buscaAtual;
     try {
       // Stale-while-revalidate: skeleton só sem cache; ao voltar, mantém a lista.
       if (list.isEmpty) setState(() => _isLoading = true);
-      list = await apiGetAllVisitantes(txtSearch.text,
+      final novo = await apiGetAllVisitantesOuNull(txtSearch.text,
           allCondos: widget.allCondos);
-    } catch (e) {
-      if (mounted && avisarErro) {
-        displayMessage(
-            context, getText('alert_error'), getText('alert_generic_error'));
+      if (!mounted || minha != _buscaAtual) return;
+      if (novo == null) {
+        if (avisarErro) {
+          displayMessage(
+              context, getText('alert_error'), getText('alert_generic_error'));
+        }
+        return;
       }
+      list = novo;
+      // Página cheia: pode haver visitas mais antigas além das 30 (F8).
+      _temMais = list.length >= visitantesPorPagina;
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && minha == _buscaAtual) setState(() => _isLoading = false);
     }
+  }
+
+  /// A API manda 30 visitas por vez, das mais recentes para as antigas. Sem
+  /// "carregar mais", o visitante recorrente com início antigo (liberado e
+  /// com PIN ativo) sumia da lista e o morador não conseguia revogar nem ver
+  /// o PIN (F8).
+  Future<void> _carregarMais() async {
+    if (_carregandoMais || !_temMais) return;
+    setState(() => _carregandoMais = true);
+    // Recarga ou busca nova no meio: o offset desta página já não vale.
+    final minha = _buscaAtual;
+    try {
+      final mais = await apiGetAllVisitantesOuNull(txtSearch.text,
+          allCondos: widget.allCondos, offset: list.length);
+      if (!mounted || minha != _buscaAtual) return;
+      if (mais == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Não foi possível carregar mais. Tente de novo.')));
+        return;
+      }
+      final ids = list.map((e) => e is Map ? e['id'] : null).toSet();
+      setState(() {
+        list = [...list, ...mais.where((e) => !(e is Map && ids.contains(e['id'])))];
+        _temMais = mais.length >= visitantesPorPagina;
+      });
+    } finally {
+      if (mounted) setState(() => _carregandoMais = false);
+    }
+  }
+
+  Widget _botaoCarregarMais() {
+    return Center(
+      child: _carregandoMais
+          ? const Padding(
+              padding: EdgeInsets.all(AppSpacing.sm),
+              child: SizedBox(
+                  width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+            )
+          : TextButton(
+              onPressed: _carregarMais,
+              child: const Text('Carregar mais'),
+            ),
+    );
   }
 
   /// Permissão de agir sobre o registro: prestador exige a permissão de
@@ -856,7 +921,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                                 myId: item['id'],
                                               ),
                                             ),
-                                          ).then((_) => loadList());
+                                          ).then((_) => loadList(avisarErro: false));
                                         },
                                         icon: Icon(
                                             PhosphorIcons.pencilSimple,
@@ -1009,7 +1074,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const ConvitesVisitaPage()),
-              ).then((_) => loadList()),
+              ).then((_) => loadList(avisarErro: false)),
               icon: Icon(PhosphorIcons.link,
                   color: AppColors.textPrimary(context)),
             ),
@@ -1076,7 +1141,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                             MaterialPageRoute(
                               builder: (_) => NewVisitante(isEdit: false),
                             ),
-                          ).then((_) => loadList()),
+                          ).then((_) => loadList(avisarErro: false)),
                           borderRadius: BorderRadius.zero,
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1275,7 +1340,9 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                           // ABA 2: Cadastrados (Histórico / Liberar Novamente)
                           RefreshIndicator(
                             onRefresh: loadList,
-                            child: listCadastrados.isEmpty
+                            // Com o filtro de tipo, a página carregada pode
+                            // não ter nenhum: o "carregar mais" continua.
+                            child: listCadastrados.isEmpty && !_temMais
                                 ? _EmptyState(
                                     _tipoFiltro == 'prestadores'
                                         ? 'Nenhum prestador cadastrado.'
@@ -1290,10 +1357,12 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                       top: AppSpacing.lg,
                                       bottom: fabClearance(context),
                                     ),
-                                    itemCount: listCadastrados.length,
+                                    itemCount: listCadastrados.length + (_temMais ? 1 : 0),
                                     separatorBuilder: (_, __) =>
                                         const SizedBox(height: 12),
-                                    itemBuilder: (_, i) => _VisitanteCard(
+                                    itemBuilder: (_, i) => i == listCadastrados.length
+                                        ? _botaoCarregarMais()
+                                        : _VisitanteCard(
                                       item: listCadastrados[i],
                                       onTap: () => _showVisitanteDetails(
                                           context, listCadastrados[i]),
@@ -1314,7 +1383,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                                     defaultType: 'visitante',
                                                   ),
                                                 ),
-                                              ).then((_) => loadList())
+                                              ).then((_) => loadList(avisarErro: false))
                                           : null,
                                     ),
                                   ),

@@ -87,15 +87,17 @@ class _ListCondomiumsState extends State<ListCondomiums> {
 
   Future<void> _carregarNaoLidas() async {
     if (!temSessao()) return;
-    final itens = await apiGetNotificacoes();
-    if (!mounted) return;
+    // Falha (sem rede): o selo fica como está em vez de zerar.
+    final itens = await apiGetNotificacoesOuNull();
+    if (!mounted || itens == null) return;
     setState(() => _naoLidas = contarNaoLidas(itens));
   }
 
   Future<void> _carregarPendentes() async {
     if (getUserType() != 'morador' || !temSessao()) return;
     try {
-      final res = await apiGetPendentes();
+      // Falha devolve null: o selo fica como está em vez de zerar (A3).
+      final res = await apiGetPendentesOuNull();
       if (!mounted) return;
       if (res is List) {
         setState(() => _pendentesCount = res.length);

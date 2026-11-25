@@ -13,8 +13,14 @@ final _storage = LocalStorage('user_data');
 /// permite contar as não lidas para o selo do sino.
 const _kUltimaVisita = 'notif_ultima_visita';
 
-/// Feed unificado de notificações do usuário logado.
-Future<List<dynamic>> apiGetNotificacoes() async {
+/// Feed unificado de notificações do usuário logado. Em falha, `[]` (selo
+/// do sino); a central usa [apiGetNotificacoesOuNull].
+Future<List<dynamic>> apiGetNotificacoes() async => await apiGetNotificacoesOuNull() ?? [];
+
+/// Igual a [apiGetNotificacoes], mas `null` quando a busca falha (status
+/// diferente de 200, sem rede, tempo esgotado): a central mostra erro em vez
+/// de "nenhuma notificação" e não marca nada como visto.
+Future<List<dynamic>?> apiGetNotificacoesOuNull() async {
   final url = ApiConfig.buildUri('/notificacoes/get-all');
   try {
     final response = await ApiClient.get(
@@ -23,12 +29,12 @@ Future<List<dynamic>> apiGetNotificacoes() async {
 
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body);
-      return decoded is List ? decoded : [];
+      return decoded is List ? decoded : null;
     }
-    return [];
+    return null;
   } catch (e) {
     logDebug('[apiGetNotificacoes] Erro: $e');
-    return [];
+    return null;
   }
 }
 
@@ -68,12 +74,33 @@ Future<Map<String, dynamic>> apiTestarPush() async {
   }
 }
 
+/// Ação do próprio usuário ("Você entrou no condomínio"): não é aviso para
+/// ele (F18). A API marca com `categoria: 'voce'`; enquanto o item do feed
+/// não leva a categoria, vale o texto que a API monta para o próprio acesso.
+bool _doProprioUsuario(Map n) {
+  if (n['categoria']?.toString() == 'voce') return true;
+  final descricao = n['descricao']?.toString().trimLeft() ?? '';
+  return n['tipo'] == 'acesso' && descricao.startsWith('Você ');
+}
+
+/// A notificação conta como nova (selo do sino e "NOVA" na central)?
+///
+/// - chegou depois da última visita à central (sem visita: todas);
+/// - timestamp no futuro não conta: a API usa o VENCIMENTO da conta a
+///   vencer, sempre "depois da visita", e o sino nunca zerava (F6);
+/// - ação do próprio usuário não conta (F18).
+bool notificacaoEhNova(dynamic n, DateTime? ultimaVisita, {DateTime? agora}) {
+  if (n is! Map) return false;
+  if (_doProprioUsuario(n)) return false;
+  final ts = DateTime.tryParse(n['timestamp']?.toString() ?? '');
+  if (ts != null && ts.isAfter(agora ?? DateTime.now())) return false;
+  if (ultimaVisita == null) return true;
+  return ts != null && ts.isAfter(ultimaVisita);
+}
+
 /// Quantas notificações chegaram depois da última visita à central.
 int contarNaoLidas(List<dynamic> itens) {
   final ultima = getUltimaVisitaNotificacoes();
-  if (ultima == null) return itens.length;
-  return itens.where((n) {
-    final ts = DateTime.tryParse(n['timestamp']?.toString() ?? '');
-    return ts != null && ts.isAfter(ultima);
-  }).length;
+  final agora = DateTime.now();
+  return itens.where((n) => notificacaoEhNova(n, ultima, agora: agora)).length;
 }

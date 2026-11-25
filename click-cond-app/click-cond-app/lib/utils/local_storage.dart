@@ -132,9 +132,15 @@ String? tokenDaResposta(Map<String, dynamic> parsed) {
 /// funcionário ANINHADO (`user.funcionario`) e sem as flags de permissão, ao
 /// contrário do login. Reaproveitar storageMorador/storageFuncionario ali
 /// zerava as 8 permissões e ainda trocava o loginType do porteiro.
+///
+/// O card ao vivo do iPhone guarda a própria cópia da sessão (keychain) e a
+/// API recusa o JWT emitido antes da troca de senha: sem atualizar a cópia,
+/// NEGAR/AUTORIZAR do card tomavam 401 e o card ficava parado (F12).
 void atualizarTokenSessao(Map<String, dynamic> parsed) {
   final token = tokenDaResposta(parsed);
-  if (token != null) SegredosSessao.gravar('token', token);
+  if (token == null) return;
+  SegredosSessao.gravar('token', token);
+  unawaited(FirebaseService.instance.atualizarSessaoDoCard(token));
 }
 
 storageLogin(Map<String, dynamic> parsed) {

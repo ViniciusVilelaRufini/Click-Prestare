@@ -21,7 +21,7 @@ void main() {
   group('NEGAR da portaria pelo card', () {
     tearDown(ApiClient.restaurarPadroes);
 
-    Future<({bool aceito, bool fecharCard})> negarCom(int status) {
+    Future<({bool aceito, bool fecharCard, bool sessaoVencida})> negarCom(int status) {
       ApiClient.tokenProvider = () => 'sessao';
       ApiClient.client = MockClient((req) async {
         expect(req.url.path, endsWith('/visitantes/77/negar'));
@@ -31,20 +31,21 @@ void main() {
     }
 
     test('aceito: mostra negado, não fecha', () async {
-      expect(await negarCom(200), (aceito: true, fecharCard: false));
-      expect(await negarCom(201), (aceito: true, fecharCard: false));
+      expect(await negarCom(200), (aceito: true, fecharCard: false, sessaoVencida: false));
+      expect(await negarCom(201), (aceito: true, fecharCard: false, sessaoVencida: false));
     });
 
     test('recusado com 400 ou 409: fecha o card', () async {
-      expect(await negarCom(409), (aceito: false, fecharCard: true));
-      expect(await negarCom(400), (aceito: false, fecharCard: true));
+      expect(await negarCom(409), (aceito: false, fecharCard: true, sessaoVencida: false));
+      expect(await negarCom(400), (aceito: false, fecharCard: true, sessaoVencida: false));
     });
 
     test('500, 401 ou sem rede: o card fica para tentar de novo', () async {
-      expect(await negarCom(500), (aceito: false, fecharCard: false));
-      expect(await negarCom(401), (aceito: false, fecharCard: false));
+      expect(await negarCom(500), (aceito: false, fecharCard: false, sessaoVencida: false));
+      // 401: o card fica e pede para abrir o app (F17), sem deslogar.
+      expect(await negarCom(401), (aceito: false, fecharCard: false, sessaoVencida: true));
       ApiClient.client = MockClient((_) async => throw Exception('sem rede'));
-      expect(await negarPortariaDoCard(77), (aceito: false, fecharCard: false));
+      expect(await negarPortariaDoCard(77), (aceito: false, fecharCard: false, sessaoVencida: false));
     });
   });
 

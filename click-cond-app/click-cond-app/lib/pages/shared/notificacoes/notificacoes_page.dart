@@ -29,6 +29,9 @@ class NotificacoesPage extends StatefulWidget {
 class _NotificacoesPageState extends State<NotificacoesPage> {
   List<dynamic> _itens = [];
   bool _isLoading = true;
+
+  /// A última busca falhou (sem rede, 401/5xx).
+  bool _falhou = false;
   DateTime? _ultimaVisita;
   String _filtroSelecionado = 'todas';
 
@@ -40,20 +43,37 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
   }
 
   Future<void> _carregar() async {
-    final lista = await apiGetNotificacoes();
+    final lista = await apiGetNotificacoesOuNull();
     if (!mounted) return;
+    if (lista == null) {
+      // Sem rede: fica o que já estava na tela e NADA é marcado como visto —
+      // antes a central abria vazia e os avisos reais nunca mais contavam
+      // como novos (F7).
+      setState(() {
+        _falhou = true;
+        _isLoading = false;
+      });
+      if (_itens.isNotEmpty) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(content: Text('Não foi possível atualizar. Verifique a conexão.')),
+        );
+      }
+      return;
+    }
     setState(() {
       _itens = lista;
+      _falhou = false;
       _isLoading = false;
     });
     marcarNotificacoesComoVistas();
   }
 
-  bool _isNova(dynamic n) {
-    if (_ultimaVisita == null) return true;
-    final ts = DateTime.tryParse(n['timestamp']?.toString() ?? '');
-    return ts != null && ts.isAfter(_ultimaVisita!);
+  Future<void> _tentarDeNovo() async {
+    setState(() => _isLoading = true);
+    await _carregar();
   }
+
+  bool _isNova(dynamic n) => notificacaoEhNova(n, _ultimaVisita);
 
   ({IconData icon, Color cor, String tag}) _visual(dynamic n) {
     final tipo = n['tipo']?.toString() ?? '';
@@ -231,7 +251,7 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
                   _buildFilterBar(),
                   Expanded(
                     child: exibidos.isEmpty
-                        ? _vazio()
+                        ? (_falhou ? _erro() : _vazio())
                         : ListView.separated(
                             padding: const EdgeInsets.fromLTRB(
                               AppSpacing.lg,
@@ -278,6 +298,43 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _erro() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        SizedBox(height: MediaQuery.of(context).size.height * 0.18),
+        Icon(
+          PhosphorIcons.wifiSlash,
+          size: 52,
+          color: AppColors.textTertiary(context),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Text(
+          'Não foi possível carregar as notificações',
+          textAlign: TextAlign.center,
+          style: AppTypography.bodyMedium(context)
+              .copyWith(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl),
+          child: Text(
+            'Verifique a conexão e tente de novo.',
+            textAlign: TextAlign.center,
+            style: AppTypography.caption(context),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Center(
+          child: TextButton(
+            onPressed: _tentarDeNovo,
+            child: const Text('Tentar de novo'),
+          ),
+        ),
+      ],
     );
   }
 

@@ -234,7 +234,8 @@ class _MyCondominiumState extends State<MyCondominium> {
   Future<void> _carregarPendentes() async {
     if (getUserType() != 'morador' || !temSessao()) return;
     try {
-      final res = await apiGetPendentes();
+      // Falha devolve null: o selo fica como está em vez de zerar (A3).
+      final res = await apiGetPendentesOuNull();
       if (!mounted) return;
       if (res is List) {
         setState(() => _pendentesCount = res.length);

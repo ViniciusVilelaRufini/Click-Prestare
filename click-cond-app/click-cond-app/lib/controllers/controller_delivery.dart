@@ -180,14 +180,17 @@ Future<DeliveryResult> apiResponderDelivery(DeliveryModel delivery,
 
 /// Resposta pelo card ao vivo (notificação fixa do Android): só o id, sem o
 /// modelo — o servidor recusa se o atendimento não estiver aguardando.
+/// [skip401Handling]: botão do card em segundo plano (sem tela), onde um 401
+/// não pode deslogar o app em silêncio; quem chama trata o 401.
 Future<DeliveryResult> apiResponderDeliveryPorId(int id,
-    {required bool autorizar}) async {
+    {required bool autorizar, bool skip401Handling = false}) async {
   try {
     final response = await ApiClient.patch(
       ApiConfig.buildUri('/delivery/$id'),
       body: jsonEncode(autorizar
           ? {'status': 'AUTORIZADA'}
           : {'status': 'RECUSADA', 'motivo': 'Recusada pelo morador.'}),
+      skip401Handling: skip401Handling,
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       return DeliveryResult.error(mensagemDeErroApi(response.body), statusCode: response.statusCode);
@@ -217,11 +220,12 @@ Future<DeliveryResult> apiVouBuscarDelivery(DeliveryModel delivery) async {
 
 /// "Vou buscar" pelo card ao vivo (só o id); devolve o status HTTP da recusa
 /// para o card decidir se fecha (400/409).
-Future<DeliveryResult> apiVouBuscarDeliveryPorId(int id) async {
+Future<DeliveryResult> apiVouBuscarDeliveryPorId(int id, {bool skip401Handling = false}) async {
   try {
     final response = await ApiClient.patch(
       ApiConfig.buildUri('/delivery/$id'),
       body: jsonEncode({'status': 'RETIRADA_NA_PORTARIA'}),
+      skip401Handling: skip401Handling,
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       return DeliveryResult.error(mensagemDeErroApi(response.body),

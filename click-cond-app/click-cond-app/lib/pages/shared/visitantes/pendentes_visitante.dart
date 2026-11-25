@@ -3,6 +3,8 @@ import 'package:click/utils/autorizacoes_controle.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:click/controllers/controller_visitantes.dart';
+import 'package:click/services/atualizacoes_app.dart';
+import 'package:click/services/card_ao_vivo/card_android.dart' show respostaRecusadaFechaCard;
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -132,13 +134,24 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
     with WidgetsBindingObserver {
   List<dynamic> _list = [];
   bool _isLoading = true;
+
+  /// A última busca falhou e não havia nada na tela: o vazio vira "não foi
+  /// possível carregar", não "nenhuma solicitação".
+  bool _falhou = false;
   int? _respondendoId;
   Timer? _poll;
+
+  /// Push de visitante (pedido novo, respondido em outro aparelho, AUTORIZAR
+  /// pela notificação): recarrega sem esperar o poll.
+  StreamSubscription<DominioApp>? _atualizacoes;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _atualizacoes = ouvirAtualizacoes({DominioApp.visitante}, () {
+      if (mounted) _load(silent: true);
+    });
     _load();
     _iniciarPoll();
   }
@@ -164,24 +177,35 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _atualizacoes?.cancel();
     _poll?.cancel();
     super.dispose();
   }
 
   Future<void> _load({bool silent = false}) async {
     if (!silent) setState(() => _isLoading = true);
-    final data = await apiGetPendentes(idCondominio: widget.idCondominio);
+    final data = await apiGetPendentesOuNull(idCondominio: widget.idCondominio);
     if (!mounted) return;
     setState(() {
+      _isLoading = false;
+      // Falha (rede, 401/5xx): fica o que está na tela. Antes virava `[]` e os
+      // cards de Autorizar/Negar sumiam com o visitante no portão (A3).
+      if (data == null) {
+        _falhou = _list.isEmpty;
+        return;
+      }
+      _falhou = false;
       // Filtra o que ja foi decidido: a resposta pode ter saido do servidor
       // ANTES da decisao e, sem isto, o card ressuscita e o morador autoriza
-      // de novo o mesmo visitante.
-      _list = data is List
-          ? data.where((e) => !ControleAutorizacoes.instance.jaDecidido(_idDe(e))).toList()
-          : [];
-      _isLoading = false;
+      // de novo o mesmo visitante. A rodada separa o pedido refeito para o
+      // mesmo id (a API reaproveita a visita), que precisa aparecer (F3).
+      _list = data
+          .where((e) => !ControleAutorizacoes.instance.jaDecidido(_idDe(e), rodada: _rodadaDe(e)))
+          .toList();
     });
   }
+
+  int? _rodadaDe(dynamic item) => item is Map ? rodadaDoPedido(item['auth_solicitado_em']) : null;
 
   int _idDe(dynamic item) {
     final id = item is Map ? item['id'] : null;
@@ -192,19 +216,30 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
   Future<void> _responder(dynamic item, bool autorizar, {bool darEntrada = false}) async {
     final id = item['id'];
     if (id == null) return;
+    final rodada = _rodadaDe(item);
     // O diálogo do push pode estar decidindo este mesmo id neste instante:
     // quem assume primeiro responde, o outro desiste em silêncio.
-    if (!ControleAutorizacoes.instance.assumirDecisao(id as int)) return;
+    if (!ControleAutorizacoes.instance.assumirDecisao(id as int, rodada: rodada)) return;
     setState(() => _respondendoId = id);
-    final res = await apiResponderAutorizacao(id, autorizar, darEntrada: darEntrada);
-    if (res is Map) {
-      ControleAutorizacoes.instance.decidiu(id);
+    final r = await apiResponderAutorizacaoComStatus(id, autorizar, darEntrada: darEntrada);
+    final ok = r.erro == null;
+    // 400/409: o pedido já não aceita resposta (outro morador respondeu,
+    // venceu, a portaria cancelou). Sai da lista em vez de ficar ali.
+    final encerrado = !ok && respostaRecusadaFechaCard(r.statusCode);
+    if (ok || encerrado) {
+      ControleAutorizacoes.instance.decidiu(id, rodada: rodada);
     } else {
       ControleAutorizacoes.instance.desistiuDaDecisao(id);
     }
     if (!mounted) return;
     setState(() => _respondendoId = null);
-    if (res is Map) {
+    if (encerrado) {
+      setState(() => _list.removeWhere((e) => e['id'] == id));
+      displayMessage(context, 'Aviso', '${r.erro}');
+      _load(silent: true);
+      return;
+    }
+    if (ok) {
       setState(() => _list.removeWhere((e) => e['id'] == id));
       final nome = (item['nome'] ?? 'Visitante').toString();
       final msg = !autorizar
@@ -219,7 +254,7 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
               : 'Autorizado';
       displayMessage(context, titulo, msg);
     } else {
-      displayMessage(context, 'Erro', res.toString());
+      displayMessage(context, 'Erro', '${r.erro}');
     }
   }
 
@@ -265,14 +300,16 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
         const SizedBox(height: AppSpacing.lg),
         Center(
           child: Text(
-            'Nenhuma solicitação pendente'.toUpperCase(),
+            (_falhou ? 'Não foi possível carregar' : 'Nenhuma solicitação pendente').toUpperCase(),
             style: AppTypography.section(context),
           ),
         ),
         const SizedBox(height: AppSpacing.xs),
         Center(
           child: Text(
-            'Quando um visitante chegar na portaria, o pedido aparecerá aqui.',
+            _falhou
+                ? 'Verifique a conexão. Puxe para baixo para tentar de novo.'
+                : 'Quando um visitante chegar na portaria, o pedido aparecerá aqui.',
             textAlign: TextAlign.center,
             style: AppTypography.bodySecondary(context),
           ),
@@ -461,48 +498,93 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
 
 enum DecisaoAutorizacao { negar, autorizar, autorizarEntrada }
 
+/// Texto mostrado quando o diálogo fecha porque o pedido acabou por fora
+/// (push de fase final do card: outro morador respondeu, venceu, a portaria
+/// encerrou).
+String textoPedidoEncerradoPorFora(String nome, String fase) => switch (fase) {
+      'liberado' => 'A entrada de $nome já foi autorizada.',
+      'entrou' => '$nome já entrou.',
+      'negado' => 'A entrada de $nome já foi negada.',
+      'expirado' => 'O pedido de $nome expirou.',
+      _ => 'O pedido de $nome não está mais aguardando resposta.',
+    };
+
+/// Busca o pedido na lista de pendentes do servidor (foto e rodada que o push
+/// não trouxe). Null em falha ou se ele não estiver mais pendente.
+Future<Map?> _pendenteDoServidor(int id) async {
+  try {
+    final pendentes = await apiGetPendentesOuNull();
+    if (pendentes == null) return null;
+    for (final e in pendentes) {
+      if (e is Map && '${e['id']}' == '$id') return e;
+    }
+  } catch (_) {}
+  return null;
+}
+
 /// Diálogo acionável disparado por um push de autorização (portaria remota em primeiro plano).
 /// Usa o navigatorKey global — pode ser chamado do handler FCM sem context.
+///
+/// [rodada]: a do pedido ([rodadaDoPedido]); o card manda `chegouEm`. O
+/// push comum não manda, e a rodada vem da lista de pendentes.
 Future<void> mostrarDialogoAutorizacaoVisitante({
   required int id,
   String? nome,
   String? photo,
+  int? rodada,
 }) async {
+  final controle = ControleAutorizacoes.instance;
+  Map? doServidor;
+  bool buscou = false;
   // O FCM reentrega mensagens e dois visitantes podem chegar juntos: sem esta
   // guarda, os dialogos se empilham sobre o mesmo navigator.
-  if (!ControleAutorizacoes.instance.podeAbrirDialogo(id)) return;
+  if (!controle.podeAbrirDialogo(id, rodada: rodada)) {
+    // Id já decidido e push sem rodada (push comum): pode ser o porteiro
+    // pedindo de novo para o mesmo visitante. O servidor diz a rodada (F3).
+    if (rodada != null || !controle.jaDecidido(id)) return;
+    doServidor = await _pendenteDoServidor(id);
+    buscou = true;
+    rodada = rodadaDoPedido(doServidor?['auth_solicitado_em']);
+    if (rodada == null || !controle.podeAbrirDialogo(id, rodada: rodada)) return;
+  }
 
   final ctx = NavigationService.navigatorKey.currentContext;
-  if (ctx == null) return;
-  ControleAutorizacoes.instance.abriu(id);
-  final isDark = Theme.of(ctx).brightness == Brightness.dark;
+  if (ctx == null || !ctx.mounted) return;
+
+  // Fechamento por fora (fase final por push, AUTORIZAR pela notificação):
+  // antes do diálogo aparecer só marca; com ele na tela, tira da tela.
+  String? encerradoPorFora;
+  BuildContext? ctxDialogo;
+  controle.abriu(id, fechar: (fase) {
+    encerradoPorFora = fase;
+    final c = ctxDialogo;
+    if (c != null && c.mounted) Navigator.of(c).pop();
+  });
   final nomeLabel = (nome != null && nome.isNotEmpty) ? nome : 'Um visitante';
 
   String? fotoFinal = photo;
-  if (fotoFinal == null || fotoFinal.isEmpty) {
-    try {
-      final pendentes = await apiGetPendentes();
-      if (pendentes is List) {
-        final match = pendentes.firstWhere((e) => e['id'] == id, orElse: () => null);
-        if (match != null) {
-          fotoFinal = (match['photo'] ?? match['foto_pessoa'])?.toString();
-        }
-      }
-    } catch (_) {}
+  if ((fotoFinal == null || fotoFinal.isEmpty || rodada == null) && !buscou) {
+    doServidor = await _pendenteDoServidor(id);
   }
+  if (fotoFinal == null || fotoFinal.isEmpty) {
+    fotoFinal = (doServidor?['photo'] ?? doServidor?['foto_pessoa'])?.toString();
+  }
+  rodada ??= rodadaDoPedido(doServidor?['auth_solicitado_em']);
 
   // barrierDismissible false de proposito: com true, encostar na tela fechava
   // o dialogo sem enviar nada e sem avisar ninguem — o porteiro seguia
   // esperando com o visitante no portao. Quem quer adiar usa "Decidir depois".
   // O ctx foi capturado antes do await que busca a foto: revalida.
-  if (!ctx.mounted) {
-    ControleAutorizacoes.instance.fechou(id);
+  if (!ctx.mounted || encerradoPorFora != null) {
+    controle.fechou(id);
     return;
   }
   final decisao = await showDialog<DecisaoAutorizacao?>(
     context: ctx,
     barrierDismissible: false,
-    builder: (c) => Dialog(
+    builder: (c) {
+      ctxDialogo = c;
+      return Dialog(
       backgroundColor: AppColors.surface(c),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       elevation: 0,
@@ -700,7 +782,9 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
               child: Text(
                 'Decidir depois',
                 style: TextStyle(
-                  color: isDark ? AppColors.textTertiary(c) : AppColors.textSecondary(c),
+                  color: Theme.of(c).brightness == Brightness.dark
+                      ? AppColors.textTertiary(c)
+                      : AppColors.textSecondary(c),
                   fontSize: 13,
                 ),
               ),
@@ -708,32 +792,53 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
           ],
         ),
       ),
-    ),
+    );
+    },
   );
+  ctxDialogo = null;
+  final fase = encerradoPorFora;
+  if (fase != null) {
+    // O pedido acabou por fora com o diálogo na tela (F13): avisa e sai.
+    final ctxAviso = NavigationService.navigatorKey.currentContext;
+    if (ctxAviso != null && ctxAviso.mounted) {
+      ScaffoldMessenger.maybeOf(ctxAviso)
+          ?.showSnackBar(SnackBar(content: Text(textoPedidoEncerradoPorFora(nomeLabel, fase))));
+    }
+    return;
+  }
   if (decisao == null) {
     // "Decidir depois": segue pendente e reabrivel pela tela de pendentes.
-    ControleAutorizacoes.instance.fechou(id);
+    controle.fechou(id);
     return;
   }
   // A tela de pendentes faz poll a cada 10s e pode estar aberta ao mesmo
   // tempo: quem assume primeiro decide, o outro desiste.
-  if (!ControleAutorizacoes.instance.assumirDecisao(id)) {
-    ControleAutorizacoes.instance.fechou(id);
+  if (!controle.assumirDecisao(id, rodada: rodada)) {
+    controle.fechou(id);
     return;
   }
   final bool autorizar = decisao != DecisaoAutorizacao.negar;
   final bool darEntrada = decisao == DecisaoAutorizacao.autorizarEntrada;
-  final res = await apiResponderAutorizacao(id, autorizar, darEntrada: darEntrada);
-  if (res is Map) {
-    ControleAutorizacoes.instance.decidiu(id);
+  final r = await apiResponderAutorizacaoComStatus(id, autorizar, darEntrada: darEntrada);
+  final ok = r.erro == null;
+  // 400/409: o pedido já não aceita resposta (outro morador respondeu,
+  // venceu): conta como resolvido e a tela de pendentes recarrega (F13).
+  final encerrado = !ok && respostaRecusadaFechaCard(r.statusCode);
+  if (ok || encerrado) {
+    controle.decidiu(id, rodada: rodada);
   } else {
     // Falhou: devolve o id para o morador poder tentar de novo.
-    ControleAutorizacoes.instance.desistiuDaDecisao(id);
-    ControleAutorizacoes.instance.fechou(id);
+    controle.desistiuDaDecisao(id);
+    controle.fechou(id);
   }
+  if (encerrado) AtualizacoesApp.avisar(DominioApp.visitante);
   final ctx2 = NavigationService.navigatorKey.currentContext;
   if (ctx2 == null || !ctx2.mounted) return;
-  if (res is Map) {
+  if (encerrado) {
+    displayMessage(ctx2, 'Aviso', '${r.erro}');
+    return;
+  }
+  if (ok) {
     final msg = !autorizar
         ? '$nomeLabel foi negado.'
         : darEntrada
@@ -746,6 +851,6 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
             : 'Autorizado';
     displayMessage(ctx2, titulo, msg);
   } else {
-    displayMessage(ctx2, 'Erro', res.toString());
+    displayMessage(ctx2, 'Erro', '${r.erro}');
   }
 }

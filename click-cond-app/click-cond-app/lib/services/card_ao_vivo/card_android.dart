@@ -7,6 +7,8 @@ import 'package:click/controllers/controller_visitantes.dart';
 import 'package:click/services/card_ao_vivo/textos_card.dart';
 import 'package:click/utils/api_client.dart';
 import 'package:click/utils/api_config.dart';
+import 'package:click/utils/autorizacoes_controle.dart';
+import 'package:click/utils/fila_por_chave.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/log.dart';
 import 'package:flutter/foundation.dart';
@@ -36,8 +38,9 @@ class CardAndroid {
   static Future<void>? _iniciando;
 
   /// Chamado pela UI quando o morador toca em AUTORIZAR (app aberto/abrindo).
-  /// `origem`: visitante | visita | delivery.
-  static void Function(int idPedido, String origem)? aoAutorizarPelaNotificacao;
+  /// `origem`: visitante | visita | delivery. `rodada`: a do pedido
+  /// ([rodadaDoPedido] do `chegouEm`), para a decisão valer só para ele.
+  static void Function(int idPedido, String origem, int? rodada)? aoAutorizarPelaNotificacao;
 
   /// Chamado pela UI quando o morador toca no corpo da notificação.
   static void Function(String origem)? aoTocarNoCard;
@@ -104,21 +107,56 @@ class CardAndroid {
     if (acaoDeSegundoPlano(r.actionId)) {
       respostaCardSegundoPlano(r);
     } else if (r.actionId == acaoAutorizar) {
-      aoAutorizarPelaNotificacao?.call(dados.idPedido, dados.origem);
+      aoAutorizarPelaNotificacao?.call(dados.idPedido, dados.origem, rodadaDoPedido(dados.conteudo['chegouEm']));
     } else {
       aoTocarNoCard?.call(dados.origem);
     }
   }
 
+  /// Pushes do mesmo card, um de cada vez e na ordem de chegada (A8).
+  static final FilaPorChave<int> _fila = FilaPorChave<int>(
+    aoFalhar: (e, _) => logDebug('Card ao vivo: push do card não aplicado: $e'),
+  );
+
+  /// Última fase aplicada a cada card neste isolate (o de segundo plano e o
+  /// do app têm a sua; a notificação ativa é a referência comum).
+  static final Map<int, String> _faseAplicada = {};
+
   /// Exibe, atualiza ou remove o card a partir do push de dados.
-  static Future<void> exibir(Map<String, dynamic> data) async {
-    if (!_suportado) return;
-    await iniciar();
+  ///
+  /// Nunca lança (o listener do push não espera). Os pushes do mesmo
+  /// `id_cartao` rodam em fila: sem ela o `encerrado` podia cancelar antes de
+  /// o `show` do `aguardando` anterior sair, e o card ficava na tela.
+  static Future<void> exibir(Map<String, dynamic> data) {
+    if (!_suportado) return Future.value();
     final idCartao = int.tryParse('${data['id_cartao']}');
+    if (idCartao == null) return Future.value();
+    return _fila.rodar(idCartao, () => _exibir(idCartao, data));
+  }
+
+  /// Fase do card que está na tela, ou null (nenhum).
+  static Future<String?> _faseNaTela(int idCartao) async {
+    final aplicada = _faseAplicada[idCartao];
+    if (aplicada != null) return aplicada;
+    try {
+      final ativas = await _plugin.getActiveNotifications();
+      for (final n in ativas) {
+        if (n.id != idCartao) continue;
+        final fase = _lerPayload(n.payload)?.conteudo['fase'];
+        return fase?.toString();
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<void> _exibir(int idCartao, Map<String, dynamic> data) async {
+    await iniciar();
     final idPedido = int.tryParse('${data['id_pedido']}');
-    if (idCartao == null || idPedido == null) return;
+    if (idPedido == null) return;
+    final origem = '${data['origem'] ?? ''}';
 
     if (data['fase'] == 'encerrado') {
+      _faseAplicada[idCartao] = 'encerrado';
       await _plugin.cancel(id: idCartao);
       await _apagarFoto(idCartao);
       return;
@@ -129,7 +167,14 @@ class CardAndroid {
     } catch (_) {
       return;
     }
-    final origem = '${data['origem'] ?? ''}';
+    // O FCM não garante ordem: um `aguardando` atrasado não ressuscita
+    // AUTORIZAR/NEGAR num card que já foi respondido ou encerrado (F16).
+    final nova = '${conteudo['fase'] ?? data['fase'] ?? ''}';
+    final naTela = await _faseNaTela(idCartao);
+    if (!faseCardAvanca(naTela, nova, origem: origem)) {
+      logDebug('Card ao vivo: push "$nova" ignorado (card já em "$naTela")');
+      return;
+    }
     // Portaria: a foto vem só na abertura (data['foto']). Delivery: no próprio
     // conteúdo, em toda fase (o entregador pode ser identificado depois).
     // O arquivo guardado é reusado nas fases seguintes.
@@ -173,6 +218,7 @@ class CardAndroid {
     // Toca na chegada do pedido; no delivery, também quando pede autorização
     // ou quando é para descer à portaria — nunca pela resposta do próprio morador.
     final toca = cardToca(conteudo, origem: origem);
+    _faseAplicada[idCartao] = fase;
     final foto = await _arquivoFoto(idCartao);
     final detalhes = AndroidNotificationDetails(
       canalId,
@@ -264,6 +310,40 @@ class CardAndroid {
     } catch (_) {}
   }
 
+  /// Botão de segundo plano tomou 401: troca o card por um aviso sem botões
+  /// (o toque abre o app, que pede o login). Sem isto o card ficava parado e
+  /// o morador tocava de novo sem nada acontecer.
+  static Future<void> _avisarSessaoVencida(_PayloadCard p) async {
+    try {
+      final t = textosCard(p.conteudo, origem: p.origem);
+      await _plugin.show(
+        id: p.idCartao,
+        title: t.titulo,
+        body: textoSessaoVencidaCard,
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            canalId,
+            'Portaria remota',
+            importance: Importance.max,
+            priority: Priority.max,
+            category: AndroidNotificationCategory.status,
+            visibility: NotificationVisibility.public,
+            autoCancel: true,
+            onlyAlertOnce: true,
+          ),
+        ),
+        payload: jsonEncode({
+          'id_cartao': p.idCartao,
+          'id_pedido': p.idPedido,
+          'origem': p.origem,
+          'conteudo': p.conteudo,
+        }),
+      );
+    } catch (e) {
+      logDebug('Card ao vivo: aviso de sessão vencida não exibido: $e');
+    }
+  }
+
   static Color _corDaFase(String fase) => switch (fase) {
         'aguardando' || 'chegou' || 'retirar' => const Color(0xFFFFC83D),
         'liberado' || 'entrou' || 'autorizado' || 'entregue' => const Color(0xFF5EC28A),
@@ -295,6 +375,30 @@ class _PayloadCard {
   const _PayloadCard({required this.idCartao, required this.idPedido, required this.origem, required this.conteudo});
 }
 
+/// Texto do card quando um botão de segundo plano toma 401.
+const textoSessaoVencidaCard = 'Sua sessão expirou. Abra o app e entre de novo para responder.';
+
+/// O push novo do card pode ser aplicado sobre o que está na tela ([atual],
+/// null = nenhum)? O FCM não garante ordem e o servidor não manda número de
+/// sequência, então vale a ordem das fases:
+/// - portaria: aguardando → liberado/negado/expirado → entrou; não volta;
+/// - delivery: vai e volta no meio (autorizado ⇄ retirar, o entregador pede
+///   no portão de novo), mas depois de entregue/recusado não reabre;
+/// - `encerrado` é o fim nos dois: nada depois dele.
+/// A mesma fase entra de novo (é a confirmação do servidor ou atualização).
+bool faseCardAvanca(String? atual, String nova, {required String origem}) {
+  if (atual == null || atual.isEmpty) return true;
+  if (atual == 'encerrado') return false;
+  if (nova == 'encerrado' || nova == atual) return true;
+  if (origem == 'delivery') return atual != 'entregue' && atual != 'recusado';
+  int ordem(String f) => switch (f) {
+        'aguardando' => 0,
+        'entrou' => 2,
+        _ => 1,
+      };
+  return ordem(nova) >= ordem(atual);
+}
+
 /// Resposta recusada pelo servidor: 400 (pedido que já não aceita resposta)
 /// ou 409 (a portaria mudou o atendimento antes) fecham o card. Sem rede,
 /// timeout ou sessão vencida: o card fica, para o morador tentar de novo.
@@ -307,19 +411,32 @@ bool acaoDeSegundoPlano(String? actionId) =>
 
 /// Chamada à API de um botão de segundo plano do card do delivery:
 /// RECUSAR (mesmo motivo da tela do app) ou VOU BUSCAR.
+///
+/// Roda em segundo plano, sem tela: um 401 não desloga o app (F17) — o
+/// card avisa para abrir o app.
 Future<DeliveryResult> respostaDeliveryDoCard(String acao, int idPedido) =>
     acao == CardAndroid.acaoVouBuscar
-        ? apiVouBuscarDeliveryPorId(idPedido)
-        : apiResponderDeliveryPorId(idPedido, autorizar: false);
+        ? apiVouBuscarDeliveryPorId(idPedido, skip401Handling: true)
+        : apiResponderDeliveryPorId(idPedido, autorizar: false, skip401Handling: true);
+
+/// 401 num botão de segundo plano: a sessão do aparelho venceu (senha trocada
+/// em outro lugar, vínculo removido). Sem tela para mostrar o login.
+bool sessaoVencidaNoCard(int? statusHttp) => statusHttp == 401;
 
 /// NEGAR da portaria tocado no card: `aceito` mostra "negado" na hora;
 /// recusado com 400/409 (a portaria já resolveu ou cancelou o pedido) fecha o
-/// card, como no delivery — antes ele ficava parado na tela.
-Future<({bool aceito, bool fecharCard})> negarPortariaDoCard(int idPedido) async {
-  final r = await apiResponderAutorizacaoComStatus(idPedido, false);
-  if (r.erro == null) return (aceito: true, fecharCard: false);
+/// card, como no delivery — antes ele ficava parado na tela. 401
+/// (`sessaoVencida`): não desloga o app em
+/// segundo plano; o card pede para abrir o app.
+Future<({bool aceito, bool fecharCard, bool sessaoVencida})> negarPortariaDoCard(int idPedido) async {
+  final r = await apiResponderAutorizacaoComStatus(idPedido, false, skip401Handling: true);
+  if (r.erro == null) return (aceito: true, fecharCard: false, sessaoVencida: false);
   logDebug('Card ao vivo: negar recusado (${r.statusCode}): ${r.erro}');
-  return (aceito: false, fecharCard: respostaRecusadaFechaCard(r.statusCode));
+  return (
+    aceito: false,
+    fecharCard: respostaRecusadaFechaCard(r.statusCode),
+    sessaoVencida: sessaoVencidaNoCard(r.statusCode),
+  );
 }
 
 /// Fase mostrada na hora, depois que a API aceitou o botão (o push do
@@ -353,6 +470,7 @@ Future<void> respostaCardSegundoPlano(NotificationResponse r) async {
         logDebug('Card ao vivo: resposta "$acao" não aceita (${r.statusCode}): ${r.message}');
         // A portaria já mudou o atendimento: o card não fica parado na tela.
         if (respostaRecusadaFechaCard(r.statusCode)) await CardAndroid._plugin.cancel(id: p.idCartao);
+        if (sessaoVencidaNoCard(r.statusCode)) await CardAndroid._avisarSessaoVencida(p);
       }
       return;
     }
@@ -374,6 +492,8 @@ Future<void> respostaCardSegundoPlano(NotificationResponse r) async {
       );
     } else if (res.fecharCard) {
       await CardAndroid._plugin.cancel(id: p.idCartao);
+    } else if (res.sessaoVencida) {
+      await CardAndroid._avisarSessaoVencida(p);
     }
   } catch (e) {
     logDebug('Card ao vivo: negar falhou: $e');

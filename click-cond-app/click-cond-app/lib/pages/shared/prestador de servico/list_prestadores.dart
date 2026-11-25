@@ -49,17 +49,23 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
   /// "maria" mostrava a lista errada. Só a mais recente grava.
   int _buscaAtual = 0;
 
-  Future<void> loadList() async {
+  /// [avisarErro] falso na volta de uma ação (baixa, edição, cadastro): sem
+  /// rede, fica a lista atual em silêncio. Nos dois casos a falha não esvazia
+  /// mais a lista (antes virava `[]`, A2).
+  Future<void> loadList({bool avisarErro = true}) async {
     // Volta de outra tela depois de a sessão expirar: a página já saiu.
     if (!mounted) return;
     final minha = ++_buscaAtual;
     try {
-      setState(() => _isLoading = true);
-      final novo = await apiGetAllVisitantes(txtSearch.text, allCondos: widget.allCondos);
+      // Skeleton só sem nada na tela; na recarga, a lista fica.
+      if (list.isEmpty) setState(() => _isLoading = true);
+      final novo = await apiGetAllVisitantesOuNull(txtSearch.text, allCondos: widget.allCondos);
       if (!mounted || minha != _buscaAtual) return;
+      if (novo == null) {
+        if (avisarErro) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
+        return;
+      }
       list = novo;
-    } catch (e) {
-      if (mounted && minha == _buscaAtual) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
     } finally {
       if (mounted && minha == _buscaAtual) setState(() => _isLoading = false);
     }
@@ -78,7 +84,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
           duration: const Duration(seconds: 3),
         ),
       );
-      loadList();
+      loadList(avisarErro: false);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -442,7 +448,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                                 defaultType: 'prestador',
                               ),
                             ),
-                          ).then((_) => loadList());
+                          ).then((_) => loadList(avisarErro: false));
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.brand,
@@ -633,7 +639,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                       defaultType: 'prestador',
                     ),
                   ),
-                ).then((_) => loadList()),
+                ).then((_) => loadList(avisarErro: false)),
                 backgroundColor: AppColors.brand,
                 child: Icon(PhosphorIcons.plus, color: AppColors.onBrand),
               )
@@ -762,7 +768,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                                                   defaultType: 'prestador',
                                                 ),
                                               ),
-                                            ).then((_) => loadList())
+                                            ).then((_) => loadList(avisarErro: false))
                                         : null,
                                   ),
                                 ),
