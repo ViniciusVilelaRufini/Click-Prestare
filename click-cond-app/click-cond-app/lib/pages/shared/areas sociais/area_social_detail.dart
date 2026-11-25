@@ -86,6 +86,10 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
   /// O TimeoutException cai no catch e o finally encerra o carregamento.
   static const Duration _weatherTimeout = Duration(seconds: 8);
 
+  /// Coordenadas por "cidade|UF" enquanto o app está aberto: a cidade do
+  /// condomínio não muda e o Nominatim não aceita uma busca a cada abertura.
+  static final Map<String, (dynamic, dynamic)> _coordenadas = {};
+
   Future<void> _fetchWeatherForCondominium() async {
     try {
       // Sem previsão confirmada o widget não aparece: limpa o dado antigo.
@@ -99,15 +103,22 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
         final String stateCode = condInfo['uf'] ?? '';
         _cityName = city;
         if (city.isNotEmpty) {
-          final geoUrl = Uri.parse("https://nominatim.openstreetmap.org/search?city=${Uri.encodeComponent(city)}&state=${Uri.encodeComponent(stateCode)}&country=Brazil&format=json&limit=1");
-          final geoResponse = await http
-              .get(geoUrl, headers: {'User-Agent': 'ClickCondominioWeatherApp/1.0'})
-              .timeout(_weatherTimeout);
-          if (geoResponse.statusCode == 200) {
-            final geoData = jsonDecode(geoResponse.body) as List<dynamic>;
-            if (geoData.isNotEmpty) {
-              final lat = geoData[0]['lat'];
-              final lon = geoData[0]['lon'];
+          final chave = '$city|$stateCode';
+          if (!_coordenadas.containsKey(chave)) {
+            final geoUrl = Uri.parse("https://nominatim.openstreetmap.org/search?city=${Uri.encodeComponent(city)}&state=${Uri.encodeComponent(stateCode)}&country=Brazil&format=json&limit=1");
+            final geoResponse = await http
+                .get(geoUrl, headers: {'User-Agent': 'ClickCondominioWeatherApp/1.0'})
+                .timeout(_weatherTimeout);
+            if (geoResponse.statusCode == 200) {
+              final geoData = jsonDecode(geoResponse.body) as List<dynamic>;
+              if (geoData.isNotEmpty) _coordenadas[chave] = (geoData[0]['lat'], geoData[0]['lon']);
+            }
+          }
+          final coord = _coordenadas[chave];
+          if (coord != null) {
+            {
+              final lat = coord.$1;
+              final lon = coord.$2;
 
               final weatherUrl = Uri.parse("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code&timezone=auto");
               final weatherResponse = await http.get(weatherUrl).timeout(_weatherTimeout);

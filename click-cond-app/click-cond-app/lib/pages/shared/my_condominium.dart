@@ -1,9 +1,7 @@
 import 'package:click/widgets/app/app_card.dart';
-import 'package:click/utils/log.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_generic.dart';
@@ -45,7 +43,6 @@ import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/cond_cache.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
-import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -88,7 +85,6 @@ class _MyCondominiumState extends State<MyCondominium> {
   double? _temp;
   String? _weatherDesc;
   IconData? _weatherIcon;
-  bool _weatherLoading = false;
 
   /// True quando há um apartamento vinculado ao usuário neste condomínio
   /// (morador sempre; síndico apenas se já se vinculou como morador).
@@ -294,12 +290,6 @@ class _MyCondominiumState extends State<MyCondominium> {
           ),
         );
 
-        // Trigger weather fetch
-        final String city = cond['cidade'] ?? '';
-        final String stateCode = cond['uf'] ?? '';
-        if (city.isNotEmpty && !recarga) {
-          _fetchWeather(city, stateCode);
-        }
       } else if (temSessao() && !recarga) {
         _err();
       }
@@ -353,8 +343,10 @@ class _MyCondominiumState extends State<MyCondominium> {
   }
 
   void _navigate(Widget page) {
+    // Na volta de um módulo é recarga: mantém a tela se falhar e não busca o
+    // clima de novo (eram 2 chamadas externas a cada volta).
     Navigator.push(context, MaterialPageRoute(builder: (_) => page))
-        .then((_) => _loadCond());
+        .then((_) => _loadCond(recarga: true));
   }
 
   /// Abre o fluxo de auto-vínculo do síndico como morador. Em sucesso, popula o
@@ -368,127 +360,6 @@ class _MyCondominiumState extends State<MyCondominium> {
     Singleton.instance.apto_tipo = res['apto_tipo'];
     setState(() => _menu = _buildMenu());
     displayMessage(context, getText('alert_success'), 'Vínculo criado! Você agora é morador deste apartamento.');
-  }
-
-  Future<void> _fetchWeather(String city, String stateCode) async {
-    if (city.isEmpty) return;
-    setState(() => _weatherLoading = true);
-    try {
-      final geoUrl = Uri.parse("https://nominatim.openstreetmap.org/search?city=${Uri.encodeComponent(city)}&state=${Uri.encodeComponent(stateCode)}&country=Brazil&format=json&limit=1");
-      final geoResponse = await http.get(geoUrl, headers: {'User-Agent': 'ClickCondominioWeatherApp/1.0'});
-      if (geoResponse.statusCode == 200) {
-        final geoData = jsonDecode(geoResponse.body) as List<dynamic>;
-        if (geoData.isNotEmpty) {
-          final lat = geoData[0]['lat'];
-          final lon = geoData[0]['lon'];
-
-          final weatherUrl = Uri.parse("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code&timezone=auto");
-          final weatherResponse = await http.get(weatherUrl);
-          if (weatherResponse.statusCode == 200) {
-            final weatherData = jsonDecode(weatherResponse.body) as Map<String, dynamic>;
-            final current = weatherData['current'] as Map<String, dynamic>?;
-            if (current != null) {
-              final double temp = (current['temperature_2m'] ?? 0.0).toDouble();
-              final int code = current['weather_code'] ?? 0;
-              
-              String desc = "Limpo";
-              IconData icon = PhosphorIcons.sun;
-
-              if (code == 0) {
-                desc = "Céu Limpo";
-                icon = PhosphorIcons.sun;
-              } else if (code >= 1 && code <= 3) {
-                desc = "Parcialmente Nublado";
-                icon = PhosphorIcons.cloudSun;
-              } else if (code == 45 || code == 48) {
-                desc = "Névoa";
-                icon = PhosphorIcons.cloudFog;
-              } else if ((code >= 51 && code <= 55) || (code >= 61 && code <= 65) || (code >= 80 && code <= 82)) {
-                desc = "Chuva";
-                icon = PhosphorIcons.cloudRain;
-              } else if (code >= 71 && code <= 75) {
-                desc = "Neve";
-                icon = PhosphorIcons.snowflake;
-              } else if (code >= 95) {
-                desc = "Tempestade";
-                icon = PhosphorIcons.cloudLightning;
-              }
-
-              setState(() {
-                _temp = temp;
-                _weatherDesc = desc;
-                _weatherIcon = icon;
-              });
-              CondCache.putWeather(widget.id, temp, desc, icon);
-            }
-          }
-        }
-      }
-    } catch (e) {
-      logDebug("[Weather] Error: $e");
-    } finally {
-      if (mounted) {
-        setState(() => _weatherLoading = false);
-      }
-    }
-  }
-
-  Widget _buildWeatherWidget() {
-    if (_weatherLoading) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: AppSpacing.sm),
-        child: AppSkeleton(width: double.infinity, height: 60, borderRadius: AppRadius.lg),
-      );
-    }
-
-    if (_temp == null) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.md, AppSpacing.xl, 0),
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: AppColors.surface(context),
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(
-            color: AppColors.border(context),
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              _weatherIcon ?? PhosphorIcons.sun,
-              color: AppColors.primary,
-              size: 28,
-            ),
-            AppSpacing.gapMd,
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _weatherDesc ?? 'Tempo Limpo',
-                    style: AppTypography.bodySecondary(context).copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Previsão para ${_cond?['cidade'] ?? 'o condomínio'}',
-                    style: AppTypography.tiny(context).copyWith(color: AppColors.textSecondary(context)),
-                  ),
-                ],
-              ),
-            ),
-            Text(
-              '${_temp!.toStringAsFixed(1)}°C',
-              style: AppTypography.title(context).copyWith(
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary(context),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _buildHomeTab(BuildContext context) {
@@ -960,7 +831,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                 // Só visitantes tem lista em aba; reserva e ocorrência
                 // aparecem no resumo da home, que o _loadCond atualiza.
                 _visitantesKey.currentState?.loadList();
-                _loadCond();
+                _loadCond(recarga: true);
               });
             },
             // Botão central: quadrado sólido `brand` com ícone `on-brand`.
@@ -1133,7 +1004,7 @@ class _MyCondominiumState extends State<MyCondominium> {
           _iconBtn(context, PhosphorIcons.car, () {
             Navigator.push(context, MaterialPageRoute(
               builder: (_) => const ListVeiculos(),
-            )).then((_) => _loadCond());
+            )).then((_) => _loadCond(recarga: true));
           }),
           const SizedBox(width: AppSpacing.sm),
           if (_isLoading)
