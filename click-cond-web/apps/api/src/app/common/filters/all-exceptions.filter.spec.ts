@@ -118,6 +118,44 @@ describe('AllExceptionsFilter — body entregue na rede', () => {
     expect(capturar(e).body.message).toBe('Erro interno do servidor. Tente novamente.');
   });
 
+  // Bateria de produção 25/11: corpo de 3 MB no login respondia 500. O erro do
+  // body-parser (http-errors) não é HttpException, mas traz o status certo.
+  it('corpo grande do body-parser (entity.too.large) vira 413, não 500', () => {
+    const { capturar } = build();
+    const err = Object.assign(new Error('request entity too large'), {
+      status: 413, statusCode: 413, expose: true, type: 'entity.too.large',
+    });
+    const { body, status } = capturar(err);
+    expect(status).toBe(413);
+    expect(body.statusCode).toBe(413);
+    expect(body.message).toBe('Corpo da requisição muito grande.');
+  });
+
+  it('erro 4xx exposto do body-parser mantém o status (ex.: 415 charset)', () => {
+    const { capturar } = build();
+    const err = Object.assign(new Error('unsupported charset "X"'), {
+      status: 415, statusCode: 415, expose: true, type: 'charset.unsupported',
+    });
+    const { status } = capturar(err);
+    expect(status).toBe(415);
+  });
+
+  it('erro com status 4xx mas NÃO exposto continua 500 sanitizado', () => {
+    const { capturar } = build();
+    const err = Object.assign(new Error('segredo interno'), { status: 404, expose: false });
+    const { body, status } = capturar(err);
+    expect(status).toBe(500);
+    expect(body.message).not.toContain('segredo');
+  });
+
+  it('erro com status 5xx exposto continua 500 genérico', () => {
+    const { capturar } = build();
+    const err = Object.assign(new Error('falha do upstream xyz'), { status: 502, expose: true });
+    const { body, status } = capturar(err);
+    expect(status).toBe(500);
+    expect(body.message).not.toContain('xyz');
+  });
+
   it('erro HTTP mantém a mensagem de negócio', () => {
     const { capturar } = build();
     expect(capturar(new BadRequestException('CPF inválido')).body.message).toBe('CPF inválido');

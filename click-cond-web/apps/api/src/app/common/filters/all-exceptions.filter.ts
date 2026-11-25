@@ -9,6 +9,20 @@ import {
 import { HttpAdapterHost } from '@nestjs/core';
 import { ROTAS_HARDWARE, origemConfiavel } from '../cors-origins';
 
+/**
+ * Erro 4xx no padrão http-errors com `expose: true` (o que o body-parser lança).
+ * Devolve o status e uma mensagem para o cliente; 5xx e erros não expostos
+ * ficam de fora (continuam 500 genérico).
+ */
+function erroClienteHttpErrors(exception: unknown): { status: number; mensagem: string } | null {
+  if (!(exception instanceof Error) || exception instanceof HttpException) return null;
+  const e = exception as Error & { status?: unknown; statusCode?: unknown; expose?: unknown; type?: unknown };
+  const status = Number(e.status ?? e.statusCode);
+  if (e.expose !== true || !Number.isInteger(status) || status < 400 || status > 499) return null;
+  const mensagem = e.type === 'entity.too.large' ? 'Corpo da requisição muito grande.' : e.message;
+  return { status, mensagem };
+}
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger('ExceptionFilter');
@@ -22,10 +36,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const request = ctx.getRequest();
     const response = ctx.getResponse();
 
+    // Erro de cliente no padrão http-errors (body-parser: corpo grande, charset
+    // ou encoding não suportado): não é HttpException, mas traz o status 4xx
+    // certo e `expose: true` (mensagem segura para o cliente). Sem isto, um
+    // corpo acima do limite virava 500 em vez de 413 (bateria de produção 25/11).
+    const erroClienteExposto = erroClienteHttpErrors(exception);
+
     const httpStatus =
       exception instanceof HttpException
         ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+        : erroClienteExposto
+          ? erroClienteExposto.status
+          : HttpStatus.INTERNAL_SERVER_ERROR;
 
     // Extrai mensagem do HttpException corretamente — quando o objeto de resposta
     // tem `message` (BadRequestException, etc.), prefere esse valor.
@@ -64,6 +86,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
       } else {
         message = exception.message;
       }
+    } else if (erroClienteExposto) {
+      message = erroClienteExposto.mensagem;
     } else if (exception instanceof Error) {
       // Falha interna (Prisma, serviço externo, bug): o texto original pode
       // trazer a query com valores, a resposta crua de terceiros ou caminhos.
