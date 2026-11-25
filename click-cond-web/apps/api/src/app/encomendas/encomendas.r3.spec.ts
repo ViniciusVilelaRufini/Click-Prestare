@@ -83,6 +83,21 @@ describe('Encomendas — rodada 3', () => {
       expect(r.avisados).toBe(1);
       expect(notifications.sendPushNotification).toHaveBeenCalled();
     });
+
+    it('aviso de encomenda acha a unidade também por Apartamentos_Users (não só Moradores)', async () => {
+      const { svc, prisma } = build([enc()]);
+      await svc.notificar(5, porteiro);
+      const where = prisma.users.findMany.mock.calls.at(-1)[0].where;
+      expect((svc as any).notifications.sendPushNotification.mock.calls.at(-1)[3]).toMatchObject({
+        type: 'encomenda', id_condominio: expect.any(String),
+      });
+      expect(where.OR).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ apartamentosUsers: expect.anything() }),
+          expect.objectContaining({ moradores: expect.anything() }),
+        ]),
+      );
+    });
   });
 
   describe('22: sem bloco grava "" (como o console)', () => {

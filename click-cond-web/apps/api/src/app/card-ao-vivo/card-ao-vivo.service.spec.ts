@@ -514,6 +514,24 @@ describe('CardAoVivoService — fases', () => {
     expect(prisma.cards_Ao_Vivo.rows.find((r: any) => r.id_user === 2).encerrado_em).toBeNull();
   });
 
+  // F4: sair da conta num aparelho fechava os cards de todos os aparelhos.
+  it('logout de UM aparelho encerra só os cards daquele aparelho', async () => {
+    const k = montarCard({
+      aparelhos: [
+        { id_user: 1, fcm_token: 'fcm-iphone', plataforma: 'ios', card_token_inicio: 'aaaa9999aaaa9999' },
+        { id_user: 1, fcm_token: 'fcm-android', plataforma: 'android', card_token_inicio: null, card_android: 1 },
+      ],
+      usuarios: [{ id: 1, fcm_token: 'fcm-iphone', name: 'Marina Souza' }],
+    });
+    await k.svc.abrir(pedido, [1]);
+    const doToken = (t: string) => k.prisma.cards_Ao_Vivo.rows.find((r: any) => r.fcm_token === t);
+    expect(doToken('fcm-iphone')).toBeDefined();
+    expect(doToken('fcm-android')).toBeDefined();
+    await k.svc.encerrarDoAparelho(1, 'fcm-android');
+    expect(doToken('fcm-android').encerrado_em).toBeInstanceOf(Date);
+    expect(doToken('fcm-iphone').encerrado_em).toBeNull();
+  });
+
   it('visitante apagado: fase encerra o card em vez de mostrar dados vazios', async () => {
     const k = montarCard({ aparelhos, usuarios, visitante: null });
     await k.svc.abrir(pedido, [1]);
@@ -538,7 +556,11 @@ describe('CardAoVivoService — push comum leva o condomínio (A3)', () => {
     await svc.abrir(pedido, [2]);
     expect(notifications.enviarParaAparelho).toHaveBeenCalledWith(
       'fcm-antigo', expect.any(String), expect.any(String),
-      expect.objectContaining({ type: 'autorizacao_visitante', id: '5', id_condominio: '42' }),
+      expect.objectContaining({
+        type: 'autorizacao_visitante', id: '5', id_condominio: '42',
+        // Quando o porteiro pediu: o app separa um pedido refeito do já decidido.
+        auth_solicitado_em: new Date(T0).toISOString(),
+      }),
     );
   });
 });

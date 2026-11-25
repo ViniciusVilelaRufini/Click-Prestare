@@ -3,6 +3,7 @@ import * as admin from 'firebase-admin';
 import * as fs from 'fs';
 import * as path from 'path';
 import { PrismaService } from '../prisma/prisma.service';
+import { promoverAparelhoMaisRecente } from './aparelho-principal.util';
 
 @Injectable()
 export class NotificationsService implements OnModuleInit {
@@ -177,17 +178,20 @@ export class NotificationsService implements OnModuleInit {
       });
       if (!device) return [token];
 
-      // Só envia se o usuário estiver logado (Users.fcm_token != null)
+      // Usuário sem nenhum aparelho registrado não chega aqui (device acima).
+      // Users.fcm_token nulo com aparelho registrado era sobra do logout
+      // antigo, que anulava o principal mesmo quando outro aparelho seguia
+      // logado: o aparelho mais recente vira o principal em vez de todos os
+      // aparelhos serem apagados (F4). O logout de hoje apaga a linha do
+      // aparelho que saiu.
       const user = await this.prisma.users.findUnique({
         where: { id: device.id_user },
         select: { fcm_token: true },
       });
-      if (!user || !user.fcm_token) {
-        // Usuário deslogado: remove da tabela de dispositivos para não vazar push
-        await this.prisma.users_Devices.deleteMany({
-          where: { id_user: device.id_user },
-        }).catch(() => {});
-        return [];
+      if (!user) return [];
+      if (!user.fcm_token) {
+        user.fcm_token = await promoverAparelhoMaisRecente(this.prisma, device.id_user);
+        if (!user.fcm_token) return [];
       }
 
       const devices = await this.prisma.users_Devices.findMany({
@@ -251,11 +255,17 @@ export class NotificationsService implements OnModuleInit {
   private async esquecerToken(token: string) {
     if (!this.prisma?.isConnected) return;
     try {
+      const dono = await this.prisma.users_Devices.findUnique({
+        where: { fcm_token: token },
+        select: { id_user: true },
+      });
       await this.prisma.users_Devices.deleteMany({ where: { fcm_token: token } });
       await this.prisma.users.updateMany({
         where: { fcm_token: token },
         data: { fcm_token: null },
       });
+      // F4: o outro aparelho do mesmo usuário assume o lugar do token morto.
+      if (dono?.id_user) await promoverAparelhoMaisRecente(this.prisma, dono.id_user);
       this.logger.log('Token de push inválido removido.');
     } catch (e) {
       this.logger.warn(`Não foi possível remover token inválido: ${(e as any)?.message ?? e}`);

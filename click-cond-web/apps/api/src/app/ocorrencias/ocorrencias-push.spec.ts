@@ -12,7 +12,7 @@ describe('OcorrenciasService — push ao autor', () => {
       isConnected: true,
       ocorrencias: {
         findUnique: jest.fn(async () => ({ id: 7, id_condominio: 1, user: 41, status: 'Pendente' })),
-        update: jest.fn(async ({ data }: any) => ({ id: 7, user: 41, ...data })),
+        update: jest.fn(async ({ data }: any) => ({ id: 7, id_condominio: 1, user: 41, ...data })),
         updateMany: jest.fn(async () => ({ count: 1 })),
       },
       users: { findUnique: jest.fn(async () => ({ fcm_token: 'tok', notif_ocorrencias: notifOcorrencias })) },
@@ -27,7 +27,7 @@ describe('OcorrenciasService — push ao autor', () => {
     const { svc, notifications } = build();
     await svc.updateResposta(7, 'Vamos trocar hoje.', sindico);
     expect(notifications.sendPushNotification).toHaveBeenCalledWith(
-      'tok', 'Ocorrência respondida', 'Vamos trocar hoje.', { type: 'ocorrencia', id: '7' },
+      'tok', 'Ocorrência respondida', 'Vamos trocar hoje.', { type: 'ocorrencia', id: '7', id_condominio: '1' },
     );
   });
 
@@ -35,7 +35,7 @@ describe('OcorrenciasService — push ao autor', () => {
     const { svc, notifications } = build();
     await svc.updateStatus(7, 'Solucionado' as any, sindico);
     expect(notifications.sendPushNotification).toHaveBeenCalledWith(
-      'tok', 'Ocorrência atualizada', 'Sua ocorrência #7 agora está: Solucionado.', { type: 'ocorrencia', id: '7' },
+      'tok', 'Ocorrência atualizada', 'Sua ocorrência #7 agora está: Solucionado.', { type: 'ocorrencia', id: '7', id_condominio: '1' },
     );
   });
 

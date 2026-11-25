@@ -11,11 +11,13 @@ import { NotificationsService } from './notifications.service';
  */
 const enviados: string[] = [];
 let erroAoEnviar: any = null;
+/** Quando preenchido, só este token falha com `erroAoEnviar`. */
+let tokenComErro: string | null = null;
 
 jest.mock('firebase-admin', () => ({
   messaging: () => ({
     send: jest.fn(async (msg: any) => {
-      if (erroAoEnviar) throw erroAoEnviar;
+      if (erroAoEnviar && (!tokenComErro || msg.token === tokenComErro)) throw erroAoEnviar;
       enviados.push(msg.token);
       return `id-${msg.token}`;
     }),
@@ -52,6 +54,7 @@ describe('NotificationsService — envio para todos os aparelhos do usuário', (
   beforeEach(() => {
     enviados.length = 0;
     erroAoEnviar = null;
+    tokenComErro = null;
   });
 
   it('entrega nos DOIS aparelhos do mesmo usuário', async () => {
@@ -109,5 +112,85 @@ describe('NotificationsService — envio para todos os aparelhos do usuário', (
     await svc.sendPushNotification('token-ok', 'Aviso', 'Teste');
 
     expect(prisma.users_Devices.deleteMany).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * F4: com `Users.fcm_token` nulo (logout de outro aparelho no código antigo,
+ * ou token morto que era o principal), o envio apagava TODOS os aparelhos do
+ * usuário, inclusive os que continuavam logados.
+ */
+describe('NotificationsService — Users.fcm_token nulo não apaga aparelho válido', () => {
+  function build(
+    devices: Array<{ id: number; id_user: number; fcm_token: string; updated_at: Date }>,
+    users: Array<{ id: number; fcm_token: string | null }>,
+  ) {
+    const casa = (row: any, where: any) =>
+      Object.entries(where ?? {}).every(([k, v]) => row[k] === v);
+    const prisma: any = {
+      isConnected: true,
+      users_Devices: {
+        findUnique: jest.fn(async ({ where }: any) => devices.find((d) => d.fcm_token === where.fcm_token) ?? null),
+        findMany: jest.fn(async ({ where }: any) => devices.filter((d) => d.id_user === where.id_user)),
+        findFirst: jest.fn(async ({ where }: any) =>
+          devices
+            .filter((d) => casa(d, where))
+            .sort((a, b) => b.updated_at.getTime() - a.updated_at.getTime() || b.id - a.id)[0] ?? null,
+        ),
+        deleteMany: jest.fn(async ({ where }: any) => {
+          const antes = devices.length;
+          for (let i = devices.length - 1; i >= 0; i--) if (casa(devices[i], where)) devices.splice(i, 1);
+          return { count: antes - devices.length };
+        }),
+      },
+      users: {
+        findUnique: jest.fn(async ({ where }: any) => users.find((u) => u.id === where.id) ?? null),
+        updateMany: jest.fn(async ({ where, data }: any) => {
+          let count = 0;
+          for (const u of users) if (casa(u, where)) { Object.assign(u, data); count++; }
+          return { count };
+        }),
+      },
+    };
+    const svc = new NotificationsService(prisma);
+    (svc as any).enabled = true;
+    return { svc, prisma, devices, users };
+  }
+
+  beforeEach(() => {
+    enviados.length = 0;
+    erroAoEnviar = null;
+    tokenComErro = null;
+  });
+
+  it('aparelho registrado de usuário com Users.fcm_token nulo: recebe, e o mais recente vira o principal', async () => {
+    const { svc, devices, users } = build(
+      [
+        { id: 1, id_user: 47, fcm_token: 'token-android', updated_at: new Date('2026-11-20T10:00:00Z') },
+        { id: 2, id_user: 47, fcm_token: 'token-iphone', updated_at: new Date('2026-11-24T10:00:00Z') },
+      ],
+      [{ id: 47, fcm_token: null }],
+    );
+    await svc.sendPushNotification('token-android', 'Aviso', 'Teste');
+    expect(devices).toHaveLength(2);
+    expect(enviados.sort()).toEqual(['token-android', 'token-iphone']);
+    expect(users[0].fcm_token).toBe('token-iphone');
+  });
+
+  it('token principal recusado pelo FCM: sai só ele, e o outro aparelho assume', async () => {
+    const { svc, devices, users } = build(
+      [
+        { id: 1, id_user: 47, fcm_token: 'token-morto', updated_at: new Date('2026-11-24T10:00:00Z') },
+        { id: 2, id_user: 47, fcm_token: 'token-vivo', updated_at: new Date('2026-11-20T10:00:00Z') },
+      ],
+      [{ id: 47, fcm_token: 'token-morto' }],
+    );
+    erroAoEnviar = Object.assign(new Error('not registered'), {
+      errorInfo: { code: 'messaging/registration-token-not-registered' },
+    });
+    tokenComErro = 'token-morto';
+    await svc.sendPushNotification('token-morto', 'Aviso', 'Teste');
+    expect(devices.map((d) => d.fcm_token)).toEqual(['token-vivo']);
+    expect(users[0].fcm_token).toBe('token-vivo');
   });
 });

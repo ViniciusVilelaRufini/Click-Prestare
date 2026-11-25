@@ -42,6 +42,25 @@ type DestinoEncomenda = {
   descricao: string;
 };
 
+/**
+ * Quem mora na unidade de destino (texto apto/bloco da encomenda): pela ficha
+ * em Moradores OU pelo vínculo em Apartamentos_Users, que é o que o resto do
+ * sistema usa. Só por Moradores, quem foi ligado à unidade pelo vínculo ficava
+ * sem os avisos (pendência J13). Sem bloco, casa o número em qualquer bloco,
+ * como sempre fez o ramo de Moradores.
+ */
+function whereDaUnidade(e: {
+  id_condominio: number | null;
+  destinatario_apto: string | null;
+  destinatario_bloco: string | null;
+}) {
+  const bloco = e.destinatario_bloco ? { bloco: e.destinatario_bloco } : {};
+  return [
+    { moradores: { some: { id_condominio: e.id_condominio, apartamento: e.destinatario_apto, ...bloco } } },
+    { apartamentosUsers: { some: { apartamento: { id_condominio: e.id_condominio, apto: e.destinatario_apto, ...bloco } } } },
+  ] as any[];
+}
+
 /** Lista do console sem os LongText da retirada (assinatura e foto). */
 const SELECT_ENCOMENDA_LEVE = {
   id: true,
@@ -466,13 +485,7 @@ export class EncomendasService implements OnModuleInit {
     try {
       const moradores = await this.prisma.users.findMany({
         where: {
-          moradores: {
-            some: {
-              id_condominio: e.id_condominio,
-              apartamento: e.destinatario_apto,
-              ...(e.destinatario_bloco ? { bloco: e.destinatario_bloco } : {}),
-            },
-          },
+          OR: whereDaUnidade(e),
           notif_encomendas: 1,
         },
         select: { fcm_token: true, name: true, phone: true },
@@ -485,7 +498,7 @@ export class EncomendasService implements OnModuleInit {
             morador.fcm_token,
             titulo,
             corpo,
-            { id: e.id.toString(), type: 'encomenda' },
+            { id: e.id.toString(), type: 'encomenda', id_condominio: String(e.id_condominio) },
           );
           if (r) alcancou = true;
         }
@@ -1032,13 +1045,7 @@ export class EncomendasService implements OnModuleInit {
 
     const moradores = await this.prisma.users.findMany({
       where: {
-        moradores: {
-          some: {
-            id_condominio: enc.id_condominio,
-            apartamento: enc.destinatario_apto,
-            ...(enc.destinatario_bloco ? { bloco: enc.destinatario_bloco } : {}),
-          },
-        },
+        OR: whereDaUnidade(enc),
         fcm_token: { not: null },
         notif_encomendas: 1,
       },
@@ -1052,7 +1059,7 @@ export class EncomendasService implements OnModuleInit {
           morador.fcm_token,
           'Encomenda a Caminho!',
           `Sua encomenda "${enc.descricao}" (${enc.codigo_rastreio}) saiu para entrega!`,
-          { id: enc.id.toString(), type: 'encomenda' },
+          { id: enc.id.toString(), type: 'encomenda', ...(enc.id_condominio ? { id_condominio: String(enc.id_condominio) } : {}) },
         )
         .catch((err: any) => console.error(`Push de rastreio da encomenda ${enc.id} falhou:`, err?.message ?? err));
     }

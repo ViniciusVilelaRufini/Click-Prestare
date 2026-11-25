@@ -216,7 +216,9 @@ describe('VisitantesService — portaria remota', () => {
     await svc.solicitarAutorizacao(5, porteiro);
     expect(notifications.sendPushNotification).toHaveBeenCalledWith(
       'token-valido-fcm-1', expect.any(String), expect.any(String),
-      expect.objectContaining({ type: 'autorizacao_visitante', id: '5', id_condominio: '1' }),
+      expect.objectContaining({
+        type: 'autorizacao_visitante', id: '5', id_condominio: '1', auth_solicitado_em: expect.any(String),
+      }),
     );
   });
 });

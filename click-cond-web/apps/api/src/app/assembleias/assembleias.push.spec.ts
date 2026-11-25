@@ -17,6 +17,8 @@ const FILTRO_MORADORES = {
     notif_comunicados: 1,
     fcm_token: { not: null },
     apartamentosUsers: { some: { apartamento: { id_condominio: 1 } } },
+    // Quem convocou/publicou (síndico Users.id 7) não é avisado do que fez.
+    id: { not: 7 },
   },
   select: { fcm_token: true },
 };
@@ -99,7 +101,7 @@ describe('push ao convocar assembleia', () => {
     expect(prisma.users.findMany).toHaveBeenCalledWith(FILTRO_MORADORES);
     expect(push.sendPushNotification).toHaveBeenCalledTimes(2);
     expect(push.sendPushNotification).toHaveBeenCalledWith(
-      'tok-a', 'Assembleia convocada', 'AGO 2026 — 20/11/2026 às 19:30', { type: 'assembleia', id: '40' },
+      'tok-a', 'Assembleia convocada', 'AGO 2026 — 20/11/2026 às 19:30', { type: 'assembleia', id: '40', id_condominio: '1' },
     );
   });
 
@@ -140,13 +142,14 @@ describe('push ao abrir enquete', () => {
     data_inicio: '2026-11-14 00:00:00.000', data_termino: '2026-11-30 00:00:00.000',
   };
 
-  it('enquete nova avisa os moradores', async () => {
-    const { svc, push } = assembleias();
+  it('enquete nova avisa os moradores (menos quem publicou)', async () => {
+    const { svc, push, prisma } = assembleias();
     await expect(svc.insertVotacao({ ...enquete }, 1, sindico)).resolves.toEqual({ success: true });
     await esvaziar();
+    expect(prisma.users.findMany).toHaveBeenCalledWith(FILTRO_MORADORES);
     expect(push.sendPushNotification).toHaveBeenCalledTimes(2);
     expect(push.sendPushNotification).toHaveBeenCalledWith(
-      'tok-a', 'Nova enquete', 'Pintura da fachada — vote até 30/11/2026', { type: 'enquete', id: '9' },
+      'tok-a', 'Nova enquete', 'Pintura da fachada — vote até 30/11/2026', { type: 'enquete', id: '9', id_condominio: '1' },
     );
   });
 
@@ -155,7 +158,7 @@ describe('push ao abrir enquete', () => {
     await svc.insertVotacao({ ...enquete, data_inicio: '10/01/2099', data_termino: '20/01/2099' }, 1, sindico);
     await esvaziar();
     expect(push.sendPushNotification).toHaveBeenCalledWith(
-      'tok-a', 'Nova enquete', 'Nova enquete publicada: Pintura da fachada. Abre em 10/01.', { type: 'enquete', id: '9' },
+      'tok-a', 'Nova enquete', 'Nova enquete publicada: Pintura da fachada. Abre em 10/01.', { type: 'enquete', id: '9', id_condominio: '1' },
     );
   });
 
@@ -205,9 +208,10 @@ describe('push ao publicar ATA', () => {
     await svc.finish(1, { id: 2, doc: 'data:application/pdf;base64,JVBERi0xLjQK' }, sindico);
     await esvaziar();
     expect(prisma.documentos.create).toHaveBeenCalledTimes(2);
+    expect(prisma.users.findMany).toHaveBeenCalledWith(FILTRO_MORADORES);
     expect(push.sendPushNotification).toHaveBeenCalledTimes(2); // dois moradores, um aviso cada
     expect(push.sendPushNotification).toHaveBeenCalledWith(
-      'tok-a', 'ATA publicada', 'ATA AGO 2026 - 20/11/2026', { type: 'ata', id: '62' },
+      'tok-a', 'ATA publicada', 'ATA AGO 2026 - 20/11/2026', { type: 'ata', id: '62', id_condominio: '1' },
     );
     const criados = await Promise.all(prisma.documentos.create.mock.results.map((r: any) => r.value));
     expect(criados.map((d: any) => [d.id, d.nome])).toEqual([

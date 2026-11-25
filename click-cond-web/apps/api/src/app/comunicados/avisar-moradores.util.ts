@@ -49,9 +49,12 @@ export async function avisarMoradoresDoCondominio(
       select: { fcm_token: true },
     });
     const notifications = deps.notifications;
+    // id_condominio no data: o app abre o detalhe no condomínio certo quando
+    // o push chega com o app fechado (ou noutro condomínio).
+    const data = { ...aviso.data, id_condominio: String(idCondominio) };
     await Promise.all(
       users.map((u) =>
-        limitarPushAvisos(() => notifications.sendPushNotification(u.fcm_token!, aviso.titulo, aviso.corpo, aviso.data)).catch(
+        limitarPushAvisos(() => notifications.sendPushNotification(u.fcm_token!, aviso.titulo, aviso.corpo, data)).catch(
           (e: any) => deps.logger.error(`[push.${aviso.data['type'] ?? 'aviso'}] ${e?.message ?? e}`),
         ),
       ),

@@ -74,7 +74,7 @@ describe('AreasSociaisService — push de status da reserva', () => {
       'token-do-morador',
       expect.any(String),
       expect.any(String),
-      expect.objectContaining({ type: 'reserva_status', id: '500', status: 'aprovado' }),
+      expect.objectContaining({ type: 'reserva_status', id: '500', status: 'aprovado', id_condominio: '2' }),
     );
   });
 

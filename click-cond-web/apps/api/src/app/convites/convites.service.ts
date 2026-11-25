@@ -448,12 +448,18 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
       });
     }
 
-    await this.avisarMorador(convite.id_usuario, nome, convite.is_prestador === 1);
+    await this.avisarMorador(convite.id_usuario, nome, convite.is_prestador === 1, convite.id, convite.id_condominio);
 
     return { ok: true };
   }
 
-  private async avisarMorador(idUsuario: number, nome: string, ehPrestador: boolean) {
+  private async avisarMorador(
+    idUsuario: number,
+    nome: string,
+    ehPrestador: boolean,
+    idConvite?: number,
+    idCondominio?: number | null,
+  ) {
     try {
       // `sendPushNotification` recebe o TOKEN FCM do aparelho, não o id do
       // usuário — é preciso buscar. Mesmo padrão de areas-sociais.service.ts.
@@ -472,7 +478,12 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
         morador.fcm_token,
         ehPrestador ? 'Prestador preencheu o convite' : 'Visitante preencheu o convite',
         `${nome} enviou os dados. Confirme para liberar a entrada.`,
-        { type: 'convite_visita' },
+        // id e id_condominio: o app abre os convites no condomínio certo pelo push.
+        {
+          type: 'convite_visita',
+          ...(idConvite ? { id: String(idConvite) } : {}),
+          ...(idCondominio ? { id_condominio: String(idCondominio) } : {}),
+        },
       );
     } catch (err: any) {
       // Push é aviso, não o canal de verdade: o convite continua esperando na

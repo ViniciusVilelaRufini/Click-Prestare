@@ -25,6 +25,7 @@ import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { isOperador } from '../auth/tenant.util';
+import { tipoAvisoCriacaoVisita } from './aviso-criacao-visita.util';
 import { gerarPinUnicoVisita, novaVisitaEmOutraUnidade, visitaParaNovaPassagem } from '../common/visita-passagem.util';
 // Vaga de visitante com `fim` no passado não vale: sem isso a lista mostrava "Liberado" + selo de vaga
 // para quem o terminal já tinha deixado de liberar.
@@ -2016,33 +2017,15 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
     // Important 3 (Lote B): `createViaPessoasVisitas` notifica os moradores
     // do apartamento na criação; este caminho não notificava ninguém.
-    try {
-      const moradores = await this.prisma.users.findMany({
-        where: {
-          apartamentosUsers: { some: { id_apto: Number(dto.id_apartamento) } },
-          notif_visitantes: 1,
-        },
-        select: { fcm_token: true, name: true, phone: true },
-      });
-
-      for (const m of moradores) {
-        if (m.fcm_token) {
-          await this.notifications.sendPushNotification(
-            m.fcm_token,
-            visita.is_prestador === 1 ? 'Prestador de Serviço' : 'Chegada de Visitante',
-            `${pessoa.nome} acabou de chegar para o seu apartamento.`,
-            { id: visita.id.toString(), type: 'visitante' },
-          );
-        }
-        if (m.phone) {
-          const tipo = visita.is_prestador === 1 ? 'Prestador de Serviço' : 'Visitante';
-          const waMessage = `Olá, ${m.name}! O ${tipo} "${pessoa.nome}" acabou de chegar/foi liberado para o seu apartamento.`;
-          await this.notifications.sendWhatsApp(m.phone, waMessage);
-        }
-      }
-    } catch (error) {
-      console.error('Erro ao notificar moradores sobre visitante:', error);
-    }
+    await this.avisarMoradoresDaCriacao({
+      idApartamento: Number(dto.id_apartamento),
+      idCondominio: pessoa.id_condominio,
+      nome: pessoa.nome,
+      prestador: visita.is_prestador === 1,
+      idVisita: visita.id,
+      inicio: visita.data_hora_inicio,
+      operador: payload,
+    });
 
     if (pessoa.foto_pessoa) {
       this.fireFacialSyncPessoa(visita.id_pessoa);
@@ -2582,38 +2565,16 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         await this.aptosDoMoradorMobile(operador),
       );
 
-      // Notificar moradores
-      try {
-        const moradores = await this.prisma.users.findMany({
-          where: {
-            apartamentosUsers: {
-              some: {
-                id_apto: dto.id_apartamento,
-              },
-            },
-            notif_visitantes: 1,
-          },
-          select: { fcm_token: true, name: true, phone: true },
-        });
-
-        for (const m of moradores) {
-          if (m.fcm_token) {
-            await this.notifications.sendPushNotification(
-              m.fcm_token,
-              dto.is_prestador ? 'Prestador de Serviço' : 'Chegada de Visitante',
-              `${dto.nome} acabou de chegar para o seu apartamento.`,
-              { id: updated.id.toString(), type: 'visitante' },
-            );
-          }
-          if (m.phone) {
-            const tipo = dto.is_prestador ? 'Prestador de Serviço' : 'Visitante';
-            const waMessage = `Olá, ${m.name}! O ${tipo} "${dto.nome}" acabou de chegar/foi liberado para o seu apartamento.`;
-            await this.notifications.sendWhatsApp(m.phone, waMessage);
-          }
-        }
-      } catch (error) {
-        console.error('Erro ao notificar moradores sobre visitante:', error);
-      }
+      // Notificar moradores (F5): quem criou não recebe; agendamento não é chegada.
+      await this.avisarMoradoresDaCriacao({
+        idApartamento: Number(dto.id_apartamento),
+        idCondominio: Number(dto.id_condominio),
+        nome: dto.nome,
+        prestador: !!dto.is_prestador,
+        idVisita: updated.id,
+        inicio: updated.data_hora_inicio,
+        operador,
+      });
 
       // Sync sempre que há foto — mesmo herdada. A nova visita pode ter
       // ValidFrom/ValidTo diferentes; sem re-sync o aparelho usa datas antigas.
@@ -2664,38 +2625,16 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       detalhes: ctxCreate ?? undefined,
     });
 
-    // Notificar moradores
-    try {
-      const moradores = await this.prisma.users.findMany({
-        where: {
-          apartamentosUsers: {
-            some: {
-              id_apto: dto.id_apartamento,
-            },
-          },
-          notif_visitantes: 1,
-        },
-        select: { fcm_token: true, name: true, phone: true },
-      });
-
-      for (const m of moradores) {
-        if (m.fcm_token) {
-          await this.notifications.sendPushNotification(
-            m.fcm_token,
-            dto.is_prestador ? 'Prestador de Serviço' : 'Chegada de Visitante',
-            `${dto.nome} acabou de chegar para o seu apartamento.`,
-            { id: visitante.id.toString(), type: 'visitante' },
-          );
-        }
-        if (m.phone) {
-          const tipo = dto.is_prestador ? 'Prestador de Serviço' : 'Visitante';
-          const waMessage = `Olá, ${m.name}! O ${tipo} "${dto.nome}" acabou de chegar/foi liberado para o seu apartamento.`;
-          await this.notifications.sendWhatsApp(m.phone, waMessage);
-        }
-      }
-    } catch (error) {
-      console.error('Erro ao notificar moradores sobre visitante:', error);
-    }
+    // Notificar moradores (F5): quem criou não recebe; agendamento não é chegada.
+    await this.avisarMoradoresDaCriacao({
+      idApartamento: Number(dto.id_apartamento),
+      idCondominio: Number(dto.id_condominio),
+      nome: dto.nome,
+      prestador: !!dto.is_prestador,
+      idVisita: visitante.id,
+      inicio: visitante.data_hora_inicio,
+      operador,
+    });
 
     // Sync sempre que há foto — mesmo herdada. A nova visita pode ter
     // ValidFrom/ValidTo diferentes; sem re-sync o aparelho usa datas antigas.
@@ -2707,6 +2646,81 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     }
 
     return this.semCamposSensiveis(visitante, recortar);
+  }
+
+  /**
+   * Aviso à unidade quando uma visita nasce liberada (os quatro caminhos de
+   * criação usam este). F5: antes todos mandavam "acabou de chegar" (push e
+   * WhatsApp) para a unidade inteira, inclusive para quem agendou e para
+   * visita de amanhã.
+   *
+   * - Quem criou não recebe.
+   * - Chegada (portaria cadastrando quem está no portão agora): o texto de
+   *   sempre, por push e WhatsApp.
+   * - Agendamento (morador/síndico pelo app, ou janela no futuro): "X foi
+   *   agendado para <data>", só por push. Não há preferência de WhatsApp por
+   *   tipo em Users (só `notif_visitantes`), e aviso não urgente não gasta
+   *   mensagem. A chegada de fato vem do facial ("acabou de entrar").
+   *
+   * Falha de envio não derruba o cadastro.
+   */
+  private async avisarMoradoresDaCriacao(a: {
+    idApartamento: number;
+    /** Vai no `data` do push: o app abre os visitantes no condomínio certo. */
+    idCondominio?: number | null;
+    nome: string;
+    prestador: boolean;
+    idVisita: number;
+    inicio: Date | string | null | undefined;
+    operador?: JwtPayload;
+  }): Promise<void> {
+    try {
+      const tipoAviso = tipoAvisoCriacaoVisita(a.operador, a.inicio);
+      const idCriador = idUsuarioDoToken(a.operador);
+      const moradores = await this.prisma.users.findMany({
+        where: {
+          apartamentosUsers: { some: { id_apto: a.idApartamento } },
+          notif_visitantes: 1,
+        },
+        select: { id: true, fcm_token: true, name: true, phone: true },
+      });
+      const tipo = a.prestador ? 'Prestador de Serviço' : 'Visitante';
+      const dados = {
+        id: a.idVisita.toString(),
+        type: 'visitante',
+        ...(a.idCondominio ? { id_condominio: String(a.idCondominio) } : {}),
+      };
+      const quando = formatarDataHoraBrasilia(a.inicio ? new Date(a.inicio) : null);
+
+      for (const m of moradores) {
+        if (idCriador != null && m.id === idCriador) continue;
+        if (tipoAviso === 'chegada') {
+          if (m.fcm_token) {
+            await this.notifications.sendPushNotification(
+              m.fcm_token,
+              a.prestador ? 'Prestador de Serviço' : 'Chegada de Visitante',
+              `${a.nome} acabou de chegar para o seu apartamento.`,
+              dados,
+            );
+          }
+          if (m.phone) {
+            const waMessage = `Olá, ${m.name}! O ${tipo} "${a.nome}" acabou de chegar/foi liberado para o seu apartamento.`;
+            await this.notifications.sendWhatsApp(m.phone, waMessage);
+          }
+        } else if (m.fcm_token) {
+          await this.notifications.sendPushNotification(
+            m.fcm_token,
+            a.prestador ? 'Prestador agendado' : 'Visitante agendado',
+            quando
+              ? `${a.nome} foi agendado para ${quando}.`
+              : `${a.nome} foi agendado para o seu apartamento.`,
+            dados,
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao notificar moradores sobre visitante:', error);
+    }
   }
 
   /** Linha legada de Visitantes para morador: sem foto do documento nem face_*. */
@@ -2809,39 +2823,17 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       detalhes: ctxCreate,
     });
 
-    // Notificar moradores — idêntico ao caminho legado.
     if (!pedirAutorizacao) {
-      try {
-        const moradores = await this.prisma.users.findMany({
-          where: {
-            apartamentosUsers: {
-              some: {
-                id_apto: dto.id_apartamento,
-              },
-            },
-            notif_visitantes: 1,
-          },
-          select: { fcm_token: true, name: true, phone: true },
-        });
-
-        for (const m of moradores) {
-          if (m.fcm_token) {
-            await this.notifications.sendPushNotification(
-              m.fcm_token,
-              dto.is_prestador ? 'Prestador de Serviço' : 'Chegada de Visitante',
-              `${dto.nome} acabou de chegar para o seu apartamento.`,
-              { id: visita.id.toString(), type: 'visitante' },
-            );
-          }
-          if (m.phone) {
-            const tipo = dto.is_prestador ? 'Prestador de Serviço' : 'Visitante';
-            const waMessage = `Olá, ${m.name}! O ${tipo} "${dto.nome}" acabou de chegar/foi liberado para o seu apartamento.`;
-            await this.notifications.sendWhatsApp(m.phone, waMessage);
-          }
-        }
-      } catch (error) {
-        console.error('Erro ao notificar moradores sobre visitante:', error);
-      }
+      // Notificar moradores (F5): quem criou não recebe; agendamento não é chegada.
+      await this.avisarMoradoresDaCriacao({
+        idApartamento: Number(dto.id_apartamento),
+        idCondominio: Number(dto.id_condominio),
+        nome: dto.nome,
+        prestador: !!dto.is_prestador,
+        idVisita: visita.id,
+        inicio: visita.data_hora_inicio,
+        operador,
+      });
     }
 
     // Sync facial por PESSOA (não mais por visita avulsa) — mesma condição de
@@ -5515,6 +5507,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               // Quem tem vínculo em dois condomínios: o toque abre os pendentes
               // DESTE condomínio, não os do condomínio aberto no app.
               ...(v.id_condominio ? { id_condominio: String(v.id_condominio) } : {}),
+              // Quando o porteiro pediu: o app distingue o pedido refeito (mesmo id) do já decidido.
+              ...(v.auth_solicitado_em ? { auth_solicitado_em: new Date(v.auth_solicitado_em).toISOString() } : {}),
               ...(photoUrl ? { photo: photoUrl } : {}),
             },
           );

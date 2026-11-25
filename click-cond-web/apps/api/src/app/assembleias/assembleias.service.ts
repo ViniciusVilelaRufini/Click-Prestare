@@ -374,11 +374,18 @@ export class AssembleiasService {
    * Push aos moradores (mesmo envio e preferência do "Novo comunicado"). Sem
    * esperar e sem lançar: falha no push não desfaz o que já foi gravado.
    */
-  private avisarMoradores(idCondominio: number, titulo: string, corpo: string, data: Record<string, string>) {
+  private avisarMoradores(
+    idCondominio: number,
+    titulo: string,
+    corpo: string,
+    data: Record<string, string>,
+    requester?: JwtPayload,
+  ) {
     void avisarMoradoresDoCondominio(
       { prisma: this.prisma, notifications: this.notifications, logger: this.logger },
       idCondominio,
-      { titulo, corpo, data },
+      // O síndico que convoca/publica e mora no condomínio não recebe o próprio aviso.
+      { titulo, corpo, data, excluirUserId: idUsuarioDoToken(requester) },
     );
   }
 
@@ -486,6 +493,7 @@ export class AssembleiasService {
       'Assembleia convocada',
       quando ? `${assembleia.titulo} — ${quando}` : assembleia.titulo,
       { type: 'assembleia', id: String(criada?.id ?? '') },
+      requester,
     );
 
     return { success: true };
@@ -625,7 +633,19 @@ export class AssembleiasService {
   }
 
   /** `userId` nulo: operador do console sem Users.id — sem voto próprio. */
-  async get(idCondominio: number, idAssembleia: number, userId: number | null, requester?: JwtPayload) {
+  async get(idCondominioQuery: number, idAssembleia: number, userId: number | null, requester?: JwtPayload) {
+    // Aberto pelo push com o app fechado, o app ainda não tem condomínio
+    // (manda "null"): o condomínio vem do registro, e o vínculo de quem pede é
+    // conferido contra ele logo abaixo.
+    let idCondominio = Number(idCondominioQuery);
+    if ((!idCondominio || Number.isNaN(idCondominio)) && this.prisma.isConnected) {
+      const reg = await this.prisma.assembleias.findUnique({
+        where: { id: Number(idAssembleia) },
+        select: { id_condominio: true },
+      });
+      if (!reg) throw new NotFoundException('Assembleia não encontrada');
+      idCondominio = reg.id_condominio;
+    }
     await this.tenant.assertCondominio(idCondominio, requester);
     if (!this.prisma.isConnected) {
       return {
@@ -857,7 +877,7 @@ export class AssembleiasService {
         { refazer: false, timeout: TIMEOUT_FINISH_MS, ocupada: MSG_FINISH_DEMOROU },
       );
       // Um aviso pela ATA (a apuração vai junto, sem push próprio).
-      this.avisarMoradores(idCond, 'ATA publicada', nomeAta, { type: 'ata', id: String(idAta ?? '') });
+      this.avisarMoradores(idCond, 'ATA publicada', nomeAta, { type: 'ata', id: String(idAta ?? '') }, requester);
       if (idAta != null) this.indexarAta(idCond, idAta);
     } catch (e) {
       // Best-effort: deleteUrl não lança e só apaga dentro de `atas/`.
@@ -969,7 +989,7 @@ export class AssembleiasService {
       this.avisarMoradores(Number(idCondominio), 'Nova enquete', corpo, {
         type: 'enquete',
         id: String(idVotacao ?? ''),
-      });
+      }, requester);
     }
 
     return { success: true };

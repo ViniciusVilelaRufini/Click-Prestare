@@ -14,7 +14,7 @@ describe('OcorrenciasService.atribuir — responsável precisa ser da equipe do 
     const prisma: any = {
       ocorrencias: {
         findUnique: jest.fn(async () => ({ id_condominio: 1 })),
-        update: jest.fn(async ({ data }: any) => ({ id: 7, ...data, categoria: null })),
+        update: jest.fn(async ({ data }: any) => ({ id: 7, id_condominio: 1, ...data, categoria: null })),
       },
       // Equipe do condomínio 1: o porteiro com login porteiro@a → Users.id 31.
       funcionarios_Portaria: {
@@ -44,6 +44,10 @@ describe('OcorrenciasService.atribuir — responsável precisa ser da equipe do 
       expect.objectContaining({ data: { id_responsavel: 31 } }),
     );
     expect(notifications.sendPushNotification).toHaveBeenCalled();
+    // F10: o push leva o condomínio para o app abrir a lista certa.
+    expect(notifications.sendPushNotification.mock.calls[0][3]).toEqual({
+      id: '7', type: 'ocorrencia_atribuida', id_condominio: '1',
+    });
   });
 
   it('desatribuir (null) não consulta a equipe', async () => {

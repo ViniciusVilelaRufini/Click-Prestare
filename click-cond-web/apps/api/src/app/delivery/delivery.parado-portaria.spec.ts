@@ -100,7 +100,7 @@ describe('delivery — atendimento da portaria parado há 24 h', () => {
       'fcm-7',
       'Delivery',
       expect.any(String),
-      { id_delivery: '1', status: 'CONCLUIDA' },
+      { type: 'delivery', id_delivery: '1', status: 'CONCLUIDA', id_condominio: '1' },
     );
   });
 

@@ -21,6 +21,14 @@ describe('avisarMoradoresDoCondominio', () => {
     expect(d.prisma.users.findMany.mock.calls[0][0].where.id).toEqual({ not: 42 });
   });
 
+  it('o data do push leva o id_condominio (o app abre no condomínio certo)', async () => {
+    const d = deps(1, async () => 'ok');
+    await avisarMoradoresDoCondominio(d, 3, aviso);
+    expect(d.notifications.sendPushNotification).toHaveBeenCalledWith(
+      't0', 'Novo comunicado', 'X', { type: 'comunicado', id: '1', id_condominio: '3' },
+    );
+  });
+
   it('sem autor conhecido (porteiro), a consulta não filtra id', async () => {
     const d = deps(0, async () => 'ok');
     await avisarMoradoresDoCondominio(d, 1, { ...aviso, excluirUserId: null });

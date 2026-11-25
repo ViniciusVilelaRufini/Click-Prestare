@@ -192,9 +192,10 @@ describe('AreasSociaisService — manutenção cancela reservas atingidas', () =
       expect(facial.syncReservaArea).toHaveBeenCalledWith(1);
 
       expect(notifications.sendPushNotification).toHaveBeenCalledTimes(1);
-      const [token, title] = notifications.sendPushNotification.mock.calls[0];
+      const [token, title, , data] = notifications.sendPushNotification.mock.calls[0];
       expect(token).toBe('token-1');
       expect(title).toBe('Reserva cancelada');
+      expect(data).toEqual({ type: 'reserva_cancelada_manutencao', id: '1', id_condominio: '2' });
     });
 
     it('falha de push não impede o cancelamento nem lança', async () => {

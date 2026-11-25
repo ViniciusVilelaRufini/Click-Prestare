@@ -495,8 +495,17 @@ export class OcorrenciasService {
     return cat?.sla_horas != null ? new Date(Date.now() + cat.sla_horas * 3600 * 1000) : null;
   }
 
-  /** Push ao autor da ocorrência, respeitando a preferência `notif_ocorrencias`. */
-  private async notificarAutor(ocorrenciaId: number, idUser: number | null | undefined, titulo: string, corpo: string) {
+  /**
+   * Push ao autor da ocorrência, respeitando a preferência `notif_ocorrencias`.
+   * `idCondominio` vai no `data` (F10): sem ele o app abria a lista vazia.
+   */
+  private async notificarAutor(
+    ocorrenciaId: number,
+    idUser: number | null | undefined,
+    titulo: string,
+    corpo: string,
+    idCondominio?: number | null,
+  ) {
     if (!idUser) return;
     try {
       const u = await this.prisma.users.findUnique({
@@ -507,6 +516,7 @@ export class OcorrenciasService {
       await this.notifications.sendPushNotification(u.fcm_token, titulo, corpo, {
         type: 'ocorrencia',
         id: String(ocorrenciaId),
+        ...(idCondominio ? { id_condominio: String(idCondominio) } : {}),
       });
     } catch (e: any) {
       this.logger.error(`[ocorrencias.push] ${e?.message ?? e}`);
@@ -581,6 +591,7 @@ export class OcorrenciasService {
       atualizado.user,
       'Ocorrência atualizada',
       reabrindo ? `Sua ocorrência #${id} foi reaberta.` : `Sua ocorrência #${id} agora está: ${status}.`,
+      atualizado.id_condominio,
     );
     return atualizado;
   }
@@ -611,7 +622,7 @@ export class OcorrenciasService {
     } catch {
       throw new NotFoundException(`Ocorrência ${id} não encontrada`);
     }
-    await this.notificarAutor(id, atualizado.user, 'Ocorrência respondida', resposta.slice(0, 140));
+    await this.notificarAutor(id, atualizado.user, 'Ocorrência respondida', resposta.slice(0, 140), atualizado.id_condominio);
     return atualizado;
   }
 
@@ -651,9 +662,11 @@ export class OcorrenciasService {
       throw new NotFoundException(`Ocorrência ${idOc} não encontrada`);
     }
     if (resposta) {
-      await this.notificarAutor(idOc, atualizado.user, 'Ocorrência respondida', resposta.slice(0, 140));
+      await this.notificarAutor(idOc, atualizado.user, 'Ocorrência respondida', resposta.slice(0, 140), atualizado.id_condominio);
     } else {
-      await this.notificarAutor(idOc, atualizado.user, 'Ocorrência atualizada', `Sua ocorrência #${idOc} agora está: ${status}.`);
+      await this.notificarAutor(
+        idOc, atualizado.user, 'Ocorrência atualizada', `Sua ocorrência #${idOc} agora está: ${status}.`, atualizado.id_condominio,
+      );
     }
     return atualizado;
   }
@@ -818,7 +831,13 @@ export class OcorrenciasService {
             resp.fcm_token,
             'Ocorrência atribuída a você',
             `Você é o responsável pela ocorrência #${id}${cat}.`,
-            { id: id.toString(), type: 'ocorrencia_atribuida' },
+            {
+              id: id.toString(),
+              type: 'ocorrencia_atribuida',
+              ...((updated.id_condominio ?? o.id_condominio)
+                ? { id_condominio: String(updated.id_condominio ?? o.id_condominio) }
+                : {}),
+            },
           );
         }
       } catch (e: any) {
@@ -1024,7 +1043,12 @@ export class OcorrenciasService {
       : null;
     const senderName = remetente.nome || sender?.name || 'Sistema';
     const remetenteEhAutor = idSender != null && o.user != null && o.user === idSender;
-    const dados = { id: idOcorrencia.toString(), type: 'ocorrencia_chat' };
+    // id_condominio (F10): o app abre o chat no condomínio certo.
+    const dados = {
+      id: idOcorrencia.toString(),
+      type: 'ocorrencia_chat',
+      ...(o.id_condominio ? { id_condominio: String(o.id_condominio) } : {}),
+    };
 
     if (o.user != null && !remetenteEhAutor) {
       if (o.criadoPor?.fcm_token && o.criadoPor.id !== idSender) {

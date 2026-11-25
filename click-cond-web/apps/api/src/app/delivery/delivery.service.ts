@@ -8,7 +8,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { CardAoVivoService } from '../card-ao-vivo/card-ao-vivo.service';
-import { AtendimentoCard, mensagemDelivery } from '../card-ao-vivo/delivery-conteudo';
+import { AtendimentoCard, dadosPushDelivery, mensagemDelivery } from '../card-ao-vivo/delivery-conteudo';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
@@ -689,7 +689,9 @@ export class DeliveryService {
         }
       }
       // Sem card: a notificação de hoje a todos os vínculos da unidade.
-      if (!viaCard) await this.notificarMorador(registro.id_apartamento, null, 'AGUARDANDO_AUTORIZACAO', registro.id);
+      if (!viaCard) await this.notificarMorador(
+        registro.id_apartamento, null, 'AGUARDANDO_AUTORIZACAO', registro.id, undefined, new Set(), undefined, registro.id_condominio,
+      );
     })().catch((e: any) => this.logger.warn(`Aviso do delivery ${registro.id} (portão): ${e?.message ?? e}`));
     await this.comTeto(aviso);
   }
@@ -1106,7 +1108,7 @@ export class DeliveryService {
     // Pedido de autorização: os outros moradores da unidade também podem responder.
     // Sem dono, todos já foram avisados acima.
     if (statusNovo === 'AGUARDANDO_AUTORIZACAO' && dono) {
-      await this.notificarOutrosDaUnidade(registro.id_apartamento, dono, registro.id).catch((e: any) =>
+      await this.notificarOutrosDaUnidade(registro.id_apartamento, dono, registro.id, registro.id_condominio).catch((e: any) =>
         this.logger.warn(`Aviso do delivery ${registro.id} aos outros moradores: ${e?.message ?? e}`),
       );
     }
@@ -1118,11 +1120,11 @@ export class DeliveryService {
         : statusNovo === 'RETIRADA_NA_PORTARIA'
           ? `${outroRespondeu} vai buscar a entrega na portaria.`
           : `${outroRespondeu} recusou a entrega.`;
-      await this.notificarMorador(registro.id_apartamento, dono, statusNovo, registro.id, motivo, new Set(), texto);
+      await this.notificarMorador(registro.id_apartamento, dono, statusNovo, registro.id, motivo, new Set(), texto, registro.id_condominio);
       return;
     }
     if (!notificavel || viaCard) return;
-    await this.notificarMorador(registro.id_apartamento, dono, statusNovo, registro.id, motivo, cobertos);
+    await this.notificarMorador(registro.id_apartamento, dono, statusNovo, registro.id, motivo, cobertos, undefined, registro.id_condominio);
   }
 
   /** O atendimento no formato do card (unidade e entregador com a foto). */
@@ -1152,6 +1154,7 @@ export class DeliveryService {
         entregadorPlataforma: pedido.plataforma ?? null,
         fotoEntregador: pedido.foto ?? null,
         portao: pedido.status === 'pendente',
+        idCondominio: a.id_condominio ?? null,
       };
     }
     return {
@@ -1168,6 +1171,7 @@ export class DeliveryService {
       entregadorNome: a.entregador?.nome ?? a.nome_entregador ?? null,
       entregadorPlataforma: a.entregador?.plataforma ?? null,
       fotoEntregador: a.entregador?.foto ?? null,
+      idCondominio: a.id_condominio ?? null,
     };
   }
 
@@ -1181,7 +1185,10 @@ export class DeliveryService {
     motivo?: string,
     cobertos: Set<string> = new Set(),
     texto?: string,
+    /** Vai no `data` do push (F9): o app abre o delivery no condomínio certo. */
+    idCondominio?: number | null,
   ) {
+    const dados = dadosPushDelivery(idAtendimento, status, idCondominio);
     if (idMorador == null) {
       const vinculos = await this.prisma.apartamentos_Users.findMany({
         where: { id_apto: idApartamento },
@@ -1190,18 +1197,23 @@ export class DeliveryService {
       const tokens = new Set<string>();
       for (const v of vinculos as any[]) if (v.user?.fcm_token && !cobertos.has(v.user.fcm_token)) tokens.add(v.user.fcm_token);
       for (const token of tokens) {
-        await this.notifications.sendPushNotification(token, 'Delivery', texto ?? mensagemDelivery(status, motivo), { id_delivery: String(idAtendimento), status });
+        await this.notifications.sendPushNotification(token, 'Delivery', texto ?? mensagemDelivery(status, motivo), dados);
       }
       return;
     }
     const vinculo = await this.prisma.apartamentos_Users.findFirst({ where: { id_apto: idApartamento, id_user: idMorador }, include: { user: { select: { fcm_token: true } } } });
     const token = vinculo?.user?.fcm_token ?? '';
     if (token && cobertos.has(token)) return;
-    await this.notifications.sendPushNotification(token, 'Delivery', texto ?? mensagemDelivery(status, motivo), { id_delivery: String(idAtendimento), status });
+    await this.notifications.sendPushNotification(token, 'Delivery', texto ?? mensagemDelivery(status, motivo), dados);
   }
 
   /** A notificação de hoje do pedido de autorização aos outros moradores da unidade (um token por usuário). */
-  private async notificarOutrosDaUnidade(idApartamento: number, idCriador: number, idAtendimento: number) {
+  private async notificarOutrosDaUnidade(
+    idApartamento: number,
+    idCriador: number,
+    idAtendimento: number,
+    idCondominio?: number | null,
+  ) {
     const vinculos = await this.prisma.apartamentos_Users.findMany({
       where: { id_apto: idApartamento },
       select: { id_user: true, user: { select: { fcm_token: true } } },
@@ -1215,7 +1227,7 @@ export class DeliveryService {
     }
     const status: DeliveryStatus = 'AGUARDANDO_AUTORIZACAO';
     for (const token of tokens) {
-      await this.notifications.sendPushNotification(token, 'Delivery', mensagemDelivery(status), { id_delivery: String(idAtendimento), status });
+      await this.notifications.sendPushNotification(token, 'Delivery', mensagemDelivery(status), dadosPushDelivery(idAtendimento, status, idCondominio));
     }
   }
 

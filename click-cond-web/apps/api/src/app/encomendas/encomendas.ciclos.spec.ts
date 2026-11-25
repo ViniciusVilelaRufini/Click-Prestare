@@ -154,7 +154,9 @@ describe('Encomendas — ciclos do porteiro', () => {
       const r: any = await svc.corrigirUnidade(1, 5, { destinatario_apto: '202', destinatario_bloco: 'B' }, porteiro);
       expect(tenant.assertEntidade).toHaveBeenCalledWith(1, porteiro, expect.any(String));
       expect(registros[0]).toMatchObject({ destinatario_apto: '202', destinatario_bloco: 'B', notificado: 1 });
-      expect(prisma.users.findMany.mock.calls[0][0].where.moradores.some).toMatchObject({ apartamento: '202', bloco: 'B' });
+      const ondeMora = prisma.users.findMany.mock.calls[0][0].where.OR;
+      expect(ondeMora[0].moradores.some).toMatchObject({ apartamento: '202', bloco: 'B' });
+      expect(ondeMora[1].apartamentosUsers.some.apartamento).toMatchObject({ apto: '202', bloco: 'B' });
       expect(notifications.sendPushNotification).toHaveBeenCalledTimes(1);
       expect(r.avisados).toBe(1);
     });

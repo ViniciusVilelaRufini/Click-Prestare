@@ -54,6 +54,7 @@ import { autorOcorrencia } from '../ocorrencias/autor-ocorrencia.util';
 import { STATUS_SOLUCIONADO } from '../common/status-ocorrencia.util';
 import { normalizarTipoVinculo } from '../common/tipo-vinculo.util';
 import { AUTORIZACAO_EXPIRACAO_MS } from '../common/autorizacao-expiracao';
+import { promoverAparelhoMaisRecente } from '../notifications/aparelho-principal.util';
 
 /** Senha atual errada na troca de e-mail do perfil: 10 falhas em 10 min travam a conta por 10 min. */
 const MAX_FALHAS_SENHA_PERFIL = 10;
@@ -2309,6 +2310,12 @@ export class MobileAuthService {
       titulo: string;
       descricao: string;
       timestamp: Date;
+      /** Financeiro: data de vencimento (AAAA-MM-DD). `timestamp` é quando a conta apareceu no aviso (F6). */
+      vencimento?: string;
+      /** Ação do próprio usuário (entrou/saiu, reserva que ele registrou): o selo do sino não conta (F18). */
+      proprio?: boolean;
+      /** 'voce' nos mesmos itens de `proprio` (o app lê este nome). */
+      categoria?: 'voce';
     };
     const itens: Item[] = [];
 
@@ -2490,16 +2497,25 @@ export class MobileAuthService {
     });
     // data_vencimento é @db.Date: compara com a data de hoje em Brasília.
     const hoje = hojeBrasilia();
+    const agoraMs = Date.now();
+    const JANELA_AVISO_MS = 7 * 24 * 60 * 60 * 1000;
     for (const f of contas) {
       const venc = f.data_vencimento as Date;
       const vencida = venc < hoje;
       const valor = Number(f.valor ?? 0).toFixed(2).replace('.', ',');
+      // F6: o vencimento (futuro) no `timestamp` deixava o selo do sino aceso
+      // até a conta vencer. O aviso "nasce" quando a conta entra na janela de
+      // 7 dias ou quando é emitida, o que vier depois, e nunca no futuro.
+      const emitida = f.created_at ? new Date(f.created_at).getTime() : 0;
+      const entrouNaJanela = new Date(venc).getTime() - JANELA_AVISO_MS;
+      const nasceu = Math.min(agoraMs, Math.max(emitida || 0, entrouNaJanela));
       itens.push({
         id: `financeiro-${f.id}`,
         tipo: 'financeiro',
         titulo: vencida ? 'Conta vencida' : 'Conta a vencer',
         descricao: `${f.nome ?? 'Cobrança'} — R$ ${valor}`,
-        timestamp: venc,
+        timestamp: new Date(nasceu),
+        vencimento: new Date(venc).toISOString().slice(0, 10),
       });
     }
 
@@ -2519,12 +2535,16 @@ export class MobileAuthService {
             ? 'Reserva recusada'
             : 'Reserva registrada';
       const dia = r.data ? new Date(r.data).toLocaleDateString('pt-BR') : '';
+      // "Registrada" (pendente) é o próprio pedido do usuário; aprovação,
+      // recusa e cancelamento podem vir de terceiros e contam.
+      const proprio = rotulo === 'Reserva registrada' && !st.startsWith('cancel');
       itens.push({
         id: `reserva-${r.id}`,
         tipo: 'reserva',
         titulo: rotulo,
         descricao: `${r.area?.nome ?? 'Área comum'}${dia ? ` — ${dia}` : ''}`,
         timestamp: r.updated_at,
+        ...(proprio ? { proprio: true, categoria: 'voce' as const } : {}),
       });
     }
 
@@ -2542,6 +2562,7 @@ export class MobileAuthService {
             ? `Você ${entrou ? 'entrou' : 'saiu'} no condomínio.`
             : `${e.nome} ${entrou ? 'entrou' : 'saiu'}.`,
           timestamp: e.timestamp,
+          ...(souEu ? { proprio: true, categoria: 'voce' as const } : {}),
         });
       }
     }
@@ -2778,31 +2799,28 @@ export class MobileAuthService {
    */
   async removeFcmToken(idUser: number, fcmToken?: string) {
     if (!this.prisma.isConnected) return { success: true };
-    // Antes de apagar os tokens: o Android precisa do token para fechar a notificação.
-    if (this.cardAoVivo && idUser && !Number.isNaN(idUser)) {
-      await this.cardAoVivo.encerrarDoUsuario(idUser).catch(() => undefined);
-    }
     const token = (fcmToken ?? '').trim();
-    if (token) {
-      await this.prisma.users_Devices.deleteMany({
-        where: { fcm_token: token },
-      });
-      await this.prisma.users.updateMany({
-        where: { fcm_token: token },
-        data: { fcm_token: null },
-      });
+    const idOk = !!idUser && !Number.isNaN(idUser);
+    // F4: tudo aqui vale só para o aparelho que saiu. Antes o logout anulava
+    // Users.fcm_token sempre, fechava os cards de todos os aparelhos e, sem
+    // token, apagava todos os Users_Devices — o outro aparelho logado ficava
+    // mudo. Sem token não há como saber qual aparelho saiu: nada é apagado
+    // (o app ainda apaga o token no FCM, e o envio seguinte limpa a linha).
+    if (!token || !idOk) return { success: true };
+
+    // Antes de apagar o token: o Android precisa dele para fechar a notificação.
+    if (this.cardAoVivo) {
+      await this.cardAoVivo.encerrarDoAparelho(idUser, token).catch(() => undefined);
     }
-    if (idUser && !Number.isNaN(idUser)) {
-      if (!token) {
-        await this.prisma.users_Devices.deleteMany({
-          where: { id_user: idUser },
-        });
-      }
-      await this.prisma.users.update({
-        where: { id: idUser },
-        data: { fcm_token: null },
-      });
-    }
+    await this.prisma.users_Devices.deleteMany({
+      where: { fcm_token: token, id_user: idUser },
+    });
+    // Só anula se o principal era este token; senão o outro aparelho segue.
+    await this.prisma.users.updateMany({
+      where: { id: idUser, fcm_token: token },
+      data: { fcm_token: null },
+    });
+    await promoverAparelhoMaisRecente(this.prisma, idUser);
     return { success: true };
   }
 

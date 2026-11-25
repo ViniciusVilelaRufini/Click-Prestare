@@ -148,6 +148,14 @@ export function blocoColideComReserva(
   return min(bloco.horarioDe) < fimEmMinutos(min(ag.horaAte)) && fimEmMinutos(min(bloco.horarioAte)) > min(ag.horaDe);
 }
 
+/**
+ * `id_condominio` (string) no `data` dos pushes de reserva: o app abre a tela
+ * de reservas no condomínio certo quando o push chega com o app fechado.
+ */
+function dadosCondominio(idCondominio: number | null | undefined): { id_condominio?: string } {
+  return idCondominio ? { id_condominio: String(idCondominio) } : {};
+}
+
 @Injectable()
 export class AreasSociaisService {
   private readonly logger = new Logger(AreasSociaisService.name);
@@ -1259,10 +1267,13 @@ export class AreasSociaisService {
         status: 'aprovado',
         lembrete_enviado_em: null,
         data: { gte: ontem, lte: amanha },
+        // "Confirme para não perder" só faz sentido onde a falta de
+        // confirmação cancela; nas outras áreas não há o que confirmar.
+        area: { exige_confirmacao: 1 },
       },
       include: {
         user: { select: { fcm_token: true } },
-        area: { select: { nome: true } },
+        area: { select: { nome: true, id_condominio: true } },
       },
     });
 
@@ -1286,7 +1297,7 @@ export class AreasSociaisService {
           token,
           'Vai usar sua reserva?',
           `Sua reserva em ${ag.area?.nome ?? 'área social'} começa em 30 minutos. Confirme para não perder o horário.`,
-          { type: 'confirmacao_reserva', id: String(ag.id) },
+          { type: 'confirmacao_reserva', id: String(ag.id), ...dadosCondominio(ag.area?.id_condominio) },
         );
         // Só grava quando o envio de fato deu certo (`sendPushNotification`
         // devolve null em qualquer falha/token morto) — é a mesma regra que
@@ -1328,7 +1339,7 @@ export class AreasSociaisService {
       },
       include: {
         user: { select: { fcm_token: true } },
-        area: { select: { nome: true } },
+        area: { select: { nome: true, id_condominio: true } },
       },
     });
 
@@ -1361,7 +1372,7 @@ export class AreasSociaisService {
             token,
             'Reserva cancelada',
             `Sua reserva em ${ag.area?.nome ?? 'área social'} foi cancelada por falta de confirmação.`,
-            { type: 'reserva_cancelada_confirmacao', id: String(ag.id) },
+            { type: 'reserva_cancelada_confirmacao', id: String(ag.id), ...dadosCondominio(ag.area?.id_condominio) },
           );
         } catch (err) {
           this.logger.warn(`push cancelamento por não-confirmação ag ${ag.id}: ${(err as Error)?.message ?? err}`);
@@ -1455,7 +1466,8 @@ export class AreasSociaisService {
         data: { gte: hojeBrasilia() },
       },
       include: {
-        area: { select: { nome: true } },
+        // exige_confirmacao: o app mostra "Confirmar presença" só nessas áreas (F2).
+        area: { select: { nome: true, exige_confirmacao: true } },
         apartamento: { select: { bloco: true, apto: true } },
       },
       orderBy: { created_at: 'desc' },
@@ -1473,6 +1485,7 @@ export class AreasSociaisService {
       horaAte: ag.hora_ate ? ag.hora_ate.toTimeString().substring(0, 5) : '',
       convidados: ag.convidados ?? null,
       confirmada_em: ag.confirmada_em ?? null,
+      exige_confirmacao: ag.area?.exige_confirmacao === 1,
       // `aprovado_por` segue como o app publicado lê (com o "Síndico" genérico).
       aprovado_por: ag.aprovado_por_nome ?? (ag.status === 'aprovado' ? 'Síndico' : null),
       aprovado_em: ag.aprovado_em ? dataHoraBr(ag.aprovado_em) : null,
@@ -1637,6 +1650,7 @@ export class AreasSociaisService {
           type: 'reserva_status',
           id: String(agendamento.id),
           status: novoStatus,
+          ...dadosCondominio(agendamento.area?.id_condominio),
         });
       } catch (err) {
         console.error('Erro ao enviar push notification para agendamento:', err);
@@ -1763,7 +1777,7 @@ export class AreasSociaisService {
     })();
   }
 
-  private async notificarCancelamentosPorManutencao(conflitantes: any[], nomeArea: string) {
+  private async notificarCancelamentosPorManutencao(conflitantes: any[], nomeArea: string, idCondominio?: number | null) {
     this.sincronizarFacialEmSequencia(conflitantes, 'manutenção');
     for (const ag of conflitantes) {
 
@@ -1779,7 +1793,7 @@ export class AreasSociaisService {
             token,
             'Reserva cancelada',
             `Sua reserva para ${nomeArea} em ${dataStr} (${horaDeStr}-${horaAteStr}) foi cancelada: a área entrará em manutenção nesse período.`,
-            { type: 'reserva_cancelada_manutencao', id: String(ag.id) },
+            { type: 'reserva_cancelada_manutencao', id: String(ag.id), ...dadosCondominio(idCondominio) },
           );
         } catch (err) {
           this.logger.warn(`push cancelamento por manutenção ag ${ag.id}: ${(err as Error)?.message ?? err}`);
@@ -1902,7 +1916,7 @@ export class AreasSociaisService {
     // Facial + push são efeitos externos best-effort — de propósito depois
     // da transação já confirmada (ver `notificarCancelamentosPorManutencao`).
     if (conflitantes.length > 0) {
-      await this.notificarCancelamentosPorManutencao(conflitantes, area.nome);
+      await this.notificarCancelamentosPorManutencao(conflitantes, area.nome, area.id_condominio);
     }
 
     return { success: true };
@@ -1947,7 +1961,7 @@ export class AreasSociaisService {
     });
 
     if (conflitantes.length > 0) {
-      await this.notificarCancelamentosPorManutencao(conflitantes, atual.area?.nome ?? 'Área Social');
+      await this.notificarCancelamentosPorManutencao(conflitantes, atual.area?.nome ?? 'Área Social', atual.area?.id_condominio);
     }
 
     return { success: true };

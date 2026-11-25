@@ -37,7 +37,7 @@ describe('ComunicadosService.create — push aos moradores', () => {
     });
     expect(notifications.sendPushNotification).toHaveBeenCalledTimes(2);
     expect(notifications.sendPushNotification).toHaveBeenCalledWith(
-      'a', 'Novo comunicado', 'Troca do portão', { type: 'comunicado', id: '11' },
+      'a', 'Novo comunicado', 'Troca do portão', { type: 'comunicado', id: '11', id_condominio: '1' },
     );
   });
 });

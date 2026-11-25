@@ -50,7 +50,7 @@ describe('Ocorrências — push do chat ao responsável respeita a leitura', () 
     };
     const svc = new OcorrenciasService(prisma, notifications, tenant, {} as any);
     const tokens = () => notifications.sendPushNotification.mock.calls.map((c: any[]) => c[0]).sort();
-    return { svc, tokens };
+    return { svc, tokens, notifications };
   }
   const autor = { sub: AUTOR, typeAccess: 'Morador' } as any;
 
@@ -70,6 +70,15 @@ describe('Ocorrências — push do chat ao responsável respeita a leitura', () 
     const { svc, tokens } = montar({ vinculado: false });
     await svc.createMessage(5, AUTOR, 'x', autor);
     expect(tokens()).toEqual(['tok-sindico']);
+  });
+
+  it('F10: o push do chat leva o condomínio da ocorrência', async () => {
+    const { svc, notifications } = montar({ flag: 1 });
+    await svc.createMessage(5, AUTOR, 'x', autor);
+    for (const c of notifications.sendPushNotification.mock.calls) {
+      expect(c[3]).toEqual({ id: '5', type: 'ocorrencia_chat', id_condominio: '1' });
+    }
+    expect(notifications.sendPushNotification).toHaveBeenCalled();
   });
 
   it('privada + responsável ativo COM a flag → recebe', async () => {

@@ -106,4 +106,23 @@ describe('Encomendas — job de rastreio', () => {
     await svc.tickTrackingJob();
     expect((axios.get as jest.Mock).mock.calls[0][0]).toContain('codigo=AA1%26user%3Dx');
   });
+
+  // Pendência 5 (J13): o push procurava destinatários só por Moradores. Quem
+  // está ligado à unidade só por Apartamentos_Users (o vínculo que o resto do
+  // sistema usa) ficava sem o aviso.
+  it('destinatários: Moradores OU Apartamentos_Users da unidade', async () => {
+    process.env['NODE_ENV'] = 'development';
+    const { svc, prisma } = build([enc()]);
+    await svc.tickTrackingJob();
+    const where = prisma.users.findMany.mock.calls[0][0].where;
+    expect(where.notif_encomendas).toBe(1);
+    // id_condominio no data: o app abre as encomendas no condomínio certo.
+    expect((svc as any).notifications.sendPushNotification.mock.calls[0][3]).toEqual({
+      id: '1', type: 'encomenda', id_condominio: '1',
+    });
+    expect(where.OR).toEqual([
+      { moradores: { some: { id_condominio: 1, apartamento: '101', bloco: 'A' } } },
+      { apartamentosUsers: { some: { apartamento: { id_condominio: 1, apto: '101', bloco: 'A' } } } },
+    ]);
+  });
 });

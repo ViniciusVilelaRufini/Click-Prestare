@@ -69,6 +69,7 @@ describe('DeliveryService — card ao vivo', () => {
         entregadorNome: 'Carlos',
         entregadorPlataforma: 'iFood',
         fotoEntregador: 'https://bucket/entregadores/7.jpg',
+        idCondominio: 1,
       }),
       10,
     );
@@ -104,7 +105,7 @@ describe('DeliveryService — card ao vivo', () => {
       'fcm-iphone',
       'Delivery',
       'A portaria aguarda sua autorização para a entrega.',
-      { id_delivery: '9', status: 'AGUARDANDO_AUTORIZACAO' },
+      { type: 'delivery', id_delivery: '9', status: 'AGUARDANDO_AUTORIZACAO', id_condominio: '1' },
     );
   });
 
@@ -148,7 +149,7 @@ describe('DeliveryService — card ao vivo', () => {
       'fcm-iphone',
       'Delivery',
       'Seu entregador chegou à portaria.',
-      { id_delivery: '9', status: 'CHEGOU' },
+      { type: 'delivery', id_delivery: '9', status: 'CHEGOU', id_condominio: '1' },
     );
   });
 

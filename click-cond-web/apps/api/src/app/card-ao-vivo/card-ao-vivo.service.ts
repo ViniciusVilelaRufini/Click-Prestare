@@ -10,6 +10,7 @@ import {
   StatusDelivery,
   alertaDelivery,
   conteudoDelivery,
+  dadosPushDelivery,
   dismissalDelivery,
   faseDoStatus,
   mensagemDelivery,
@@ -202,7 +203,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
       id: a.id,
       idsUsuarios: ids,
       conteudo,
-      pushComum: opts.semAvisoComum ? null : this.pushComumDelivery(a.id, a.status, a.motivo),
+      pushComum: opts.semAvisoComum ? null : this.pushComumDelivery(a.id, a.status, a.motivo, a.idCondominio),
       foto: () => (a.fotoEntregador ? this.fotoDoCard({ fotoOrigem: a.fotoEntregador }) : Promise.resolve(null)),
       fotoNoEstado: true,
       versaoMinima: 2,
@@ -448,7 +449,9 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
       if (l.origem === 'delivery') {
         if (!(await marcar()).count) continue;
         const c = lerConteudo(l);
-        const push = this.pushComumDelivery(l.id_pedido, statusDaFase(l.fase), c?.motivo ?? null);
+        const push = this.pushComumDelivery(
+          l.id_pedido, statusDaFase(l.fase), c?.motivo ?? null, await this.condominioDoDelivery(l.id_pedido),
+        );
         await this.notifications.enviarParaAparelho(l.fcm_token, push.titulo, push.corpo, push.dados);
         continue;
       }
@@ -517,6 +520,19 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
    * O aparelho (token FCM) passou a outro usuário sem o logout chegar ao
    * servidor: encerra os cards abertos deste token que pertencem a OUTRO dono.
    */
+  /**
+   * Logout de UM aparelho: encerra só os cards abertos daquele token do
+   * usuário. `encerrarDoUsuario` fechava o card nos outros aparelhos que
+   * continuavam logados, no meio de um pedido (F4).
+   */
+  async encerrarDoAparelho(idUser: number, fcmToken: string): Promise<void> {
+    if (!idUser || !fcmToken) return;
+    const linhas = (await this.prisma.cards_Ao_Vivo.findMany({
+      where: { id_user: idUser, fcm_token: fcmToken, encerrado_em: null },
+    })) as Linha[];
+    if (linhas.length) await this.encerrarLinhas(linhas);
+  }
+
   async encerrarDoToken(fcmToken: string, idUserAtual: number): Promise<void> {
     if (!fcmToken) return;
     const linhas = (await this.prisma.cards_Ao_Vivo.findMany({
@@ -713,12 +729,30 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** A notificação de hoje do delivery (mesmo título, texto e dados de DeliveryService.notificarMorador). */
-  private pushComumDelivery(idAtendimento: number, status: StatusDelivery, motivo?: string | null): PushComum {
+  private pushComumDelivery(
+    idAtendimento: number,
+    status: StatusDelivery,
+    motivo?: string | null,
+    idCondominio?: number | null,
+  ): PushComum {
     return {
       titulo: 'Delivery',
       corpo: mensagemDelivery(status, motivo),
-      dados: { id_delivery: String(idAtendimento), status },
+      dados: dadosPushDelivery(idAtendimento, status, idCondominio),
     };
+  }
+
+  /** Condomínio do atendimento (a linha do card não guarda): null se não achar. */
+  private async condominioDoDelivery(idAtendimento: number): Promise<number | null> {
+    try {
+      const a = await (this.prisma as any).deliveryAtendimentos?.findUnique({
+        where: { id: idAtendimento },
+        select: { id_condominio: true },
+      });
+      return a?.id_condominio ?? null;
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -769,6 +803,8 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
         id: String(p.id),
         nome: c.nome,
         ...(idCondominio ? { id_condominio: String(idCondominio) } : {}),
+        // Quando o porteiro pediu: o app distingue o pedido refeito (mesmo id) do já decidido.
+        ...(c.chegouEm ? { auth_solicitado_em: new Date(c.chegouEm * 1000).toISOString() } : {}),
         ...(foto ? { photo: foto } : {}),
       } as Record<string, string>,
     };

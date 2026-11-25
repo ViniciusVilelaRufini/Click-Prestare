@@ -8,13 +8,18 @@ describe('MobileAuthService — card ao vivo', () => {
       users_Devices: {
         upsert: jest.fn(async () => ({})),
         deleteMany: jest.fn(async () => ({ count: 0 })),
+        findFirst: jest.fn(async () => null),
       },
       users: {
         updateMany: jest.fn(async () => ({ count: 0 })),
         update: jest.fn(async () => ({})),
       },
     };
-    const card = { encerrarDoUsuario: jest.fn(async () => undefined), encerrarDoToken: jest.fn(async () => undefined) };
+    const card = {
+      encerrarDoUsuario: jest.fn(async () => undefined),
+      encerrarDoToken: jest.fn(async () => undefined),
+      encerrarDoAparelho: jest.fn(async () => undefined),
+    };
     const svc = new MobileAuthService(
       prisma,
       {} as any,
@@ -106,11 +111,12 @@ describe('MobileAuthService — card ao vivo', () => {
     expect(prisma.users_Devices.upsert).toHaveBeenCalled();
   });
 
-  it('logout encerra os cards do usuário antes de apagar os tokens', async () => {
+  it('logout encerra os cards daquele aparelho antes de apagar o token', async () => {
     const { svc, prisma, card } = build();
     await svc.removeFcmToken(1, 'fcm-x');
-    expect(card.encerrarDoUsuario).toHaveBeenCalledWith(1);
-    expect(card.encerrarDoUsuario.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(card.encerrarDoAparelho).toHaveBeenCalledWith(1, 'fcm-x');
+    expect(card.encerrarDoUsuario).not.toHaveBeenCalled();
+    expect(card.encerrarDoAparelho.mock.invocationCallOrder[0]).toBeLessThan(
       prisma.users_Devices.deleteMany.mock.invocationCallOrder[0],
     );
   });

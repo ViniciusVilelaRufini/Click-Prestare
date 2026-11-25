@@ -36,6 +36,26 @@ export interface AtendimentoCard {
   fotoEntregador: string | null;
   /** Pedido de portão pendente (autoatendimento): liga a variante do card. */
   portao?: boolean;
+  /** Condomínio do atendimento: vai no push comum para o app abrir a tela certa (F9). Não entra no card. */
+  idCondominio?: number | null;
+}
+
+/**
+ * `data` do push comum do delivery (a notificação de hoje, não o card).
+ * `type` e `id_condominio` (F9): sem eles o toque não abria nada, ou abria a
+ * lista sem condomínio. `id_delivery` e `status` seguem para o app antigo.
+ */
+export function dadosPushDelivery(
+  idAtendimento: number,
+  status: StatusDelivery,
+  idCondominio?: number | null,
+): Record<string, string> {
+  return {
+    type: 'delivery',
+    id_delivery: String(idAtendimento),
+    status,
+    ...(idCondominio ? { id_condominio: String(idCondominio) } : {}),
+  };
 }
 
 /** null = sem card (AGENDADA); 'encerrar' = some na hora (CANCELADA). */

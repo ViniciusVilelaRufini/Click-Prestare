@@ -234,6 +234,14 @@ describe('ConvitesService', () => {
       );
     });
 
+    it('o data do push leva o convite e o condomínio (o app abre a tela certa)', async () => {
+      const { svc, notifications } = build({ convite: conviteAberto() });
+      await svc.responder('tok', payloadValido);
+      expect(notifications.sendPushNotification.mock.calls[0][3]).toEqual({
+        type: 'convite_visita', id: '1', id_condominio: '2',
+      });
+    });
+
     it('morador sem fcm_token não quebra o preenchimento', async () => {
       const { svc, prisma, convites, notifications } = build({ convite: conviteAberto() });
       prisma.users.findUnique.mockResolvedValueOnce({ fcm_token: null });

@@ -25,6 +25,7 @@ describe('CardAoVivoService — delivery', () => {
     entregadorNome: 'Carlos',
     entregadorPlataforma: 'iFood',
     fotoEntregador: null,
+    idCondominio: 42,
   };
   const ultimoApns = (apns: any) => (apns.enviar.mock.calls.at(-1) as any[])[1];
 
@@ -62,7 +63,7 @@ describe('CardAoVivoService — delivery', () => {
       'fcm-iphone',
       'Delivery',
       'Seu entregador chegou à portaria.',
-      { id_delivery: '9', status: 'CHEGOU' },
+      { type: 'delivery', id_delivery: '9', status: 'CHEGOU', id_condominio: '42' },
     );
     expect(prisma.cards_Ao_Vivo.rows).toHaveLength(0);
   });
@@ -261,7 +262,9 @@ describe('CardAoVivoService — delivery', () => {
   });
 
   it('reserva: iPhone que não confirmou em 10 s recebe a notificação de hoje', async () => {
-    const { svc, notifications, avancar } = montarCard({ aparelhos: [iphone], usuarios });
+    const { svc, notifications, avancar, prisma } = montarCard({ aparelhos: [iphone], usuarios });
+    // O tique só tem a linha do card: o condomínio vem do atendimento.
+    prisma.deliveryAtendimentos = { findUnique: jest.fn(async () => ({ id_condominio: 42 })) };
     await svc.abrirDelivery(a, 1);
     avancar(11_000);
     await svc.verificarReserva('delivery', 9);
@@ -269,7 +272,7 @@ describe('CardAoVivoService — delivery', () => {
       'fcm-iphone',
       'Delivery',
       'Seu entregador chegou à portaria.',
-      { id_delivery: '9', status: 'CHEGOU' },
+      { type: 'delivery', id_delivery: '9', status: 'CHEGOU', id_condominio: '42' },
     );
   });
 

@@ -107,11 +107,21 @@ describe('AreasSociaisService — confirmação de reserva', () => {
       expect(notifications.sendPushNotification).toHaveBeenCalledTimes(1);
       const [token, , , data] = notifications.sendPushNotification.mock.calls[0];
       expect(token).toBe('token-1');
-      expect(data).toEqual({ type: 'confirmacao_reserva', id: '1' });
+      // id_condominio: o app abre a reserva no condomínio certo pelo push.
+      expect(data).toEqual({ type: 'confirmacao_reserva', id: '1', id_condominio: '2' });
       expect(prisma.areas_Sociais_Agendamentos.update).toHaveBeenCalledWith({
         where: { id: 1 },
         data: { lembrete_enviado_em: agora },
       });
+    });
+
+    it('área sem exigência de confirmação (exige_confirmacao = 0) NÃO recebe "Confirme para não perder"', async () => {
+      const ag = agendamento({ hora_de: new Date(1970, 0, 1, 10, 30, 0) });
+      ag.area = { ...ag.area, exige_confirmacao: 0 };
+      const { svc, prisma, notifications } = build({ agendamentos: [ag] });
+      await (svc as any).enviarLembretesConfirmacao(agora);
+      expect(prisma.areas_Sociais_Agendamentos.findMany.mock.calls[0][0].where.area).toEqual({ exige_confirmacao: 1 });
+      expect(notifications.sendPushNotification).not.toHaveBeenCalled();
     });
 
     it('reserva no fim da janela (agora+35min) também recebe o lembrete', async () => {
@@ -193,9 +203,10 @@ describe('AreasSociaisService — confirmação de reserva', () => {
       });
       expect(facial.syncReservaArea).toHaveBeenCalledWith(1);
       expect(notifications.sendPushNotification).toHaveBeenCalledTimes(1);
-      const [token, title] = notifications.sendPushNotification.mock.calls[0];
+      const [token, title, , data] = notifications.sendPushNotification.mock.calls[0];
       expect(token).toBe('token-1');
       expect(title).toBe('Reserva cancelada');
+      expect(data).toEqual({ type: 'reserva_cancelada_confirmacao', id: '1', id_condominio: '2' });
     });
 
     it('NÃO cancela em área que não é opt-in (exige_confirmacao = 0)', async () => {
