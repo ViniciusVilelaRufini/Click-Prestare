@@ -245,12 +245,20 @@ class _NewPrestadorPageState extends State<NewPrestador> {
         onTap: _pickPhoto,
         child: Stack(
           children: [
-            CircleAvatar(
-              radius: 48,
-              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-              backgroundImage: provider,
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                color: AppColors.surface(context),
+                borderRadius: BorderRadius.zero,
+                border: Border.all(color: AppColors.border(context)),
+                image: provider == null
+                    ? null
+                    : DecorationImage(image: provider, fit: BoxFit.cover),
+              ),
               child: provider == null
-                  ? Icon(PhosphorIcons.userCircle, size: 48, color: AppColors.primary.withValues(alpha: 0.5))
+                  ? Icon(PhosphorIcons.user,
+                      size: 48, color: AppColors.textTertiary(context))
                   : null,
             ),
             Positioned(
@@ -271,14 +279,15 @@ class _NewPrestadorPageState extends State<NewPrestador> {
   }
 
   Widget _buildDiasSemana() {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+    return Row(
       children: _diasOrdem.map((d) {
         final key = d['key']!;
         final label = d['label']!;
         final sel = diasSemana.contains(key);
-        return GestureDetector(
+        return Expanded(
+            child: Padding(
+          padding: EdgeInsets.only(right: d == _diasOrdem.last ? 0 : 6),
+          child: GestureDetector(
           onTap: () => setState(() {
             if (sel) {
               diasSemana.remove(key);
@@ -287,7 +296,6 @@ class _NewPrestadorPageState extends State<NewPrestador> {
             }
           }),
           child: Container(
-            width: 44,
             height: 44,
             alignment: Alignment.center,
             decoration: BoxDecoration(
@@ -305,7 +313,7 @@ class _NewPrestadorPageState extends State<NewPrestador> {
               ),
             ),
           ),
-        );
+        )));
       }).toList(),
     );
   }
@@ -395,7 +403,7 @@ class _NewPrestadorPageState extends State<NewPrestador> {
                   const SizedBox(height: AppSpacing.xl),
                   _section('Dias de Acesso'),
                   Text(
-                    'Dias em que este funcionário pode entrar no condomínio.',
+                    'Dias em que este prestador pode entrar no condomínio.',
                     style: AppTypography.caption(context)
                         .copyWith(color: AppColors.textSecondary(context)),
                   ),
@@ -482,8 +490,7 @@ class _NewPrestadorPageState extends State<NewPrestador> {
         padding: const EdgeInsets.only(bottom: AppSpacing.sm),
         child: Text(
           title.toUpperCase(),
-          style: AppTypography.captionMedium(context)
-              .copyWith(color: AppColors.primary, letterSpacing: 0.8),
+          style: AppTypography.section(context),
         ),
       );
 }
