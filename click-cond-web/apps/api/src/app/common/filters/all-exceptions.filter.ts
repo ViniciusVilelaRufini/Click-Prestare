@@ -124,10 +124,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message,
     };
 
-    this.logger.error(
-      `Http Status: ${httpStatus} Error: ${JSON.stringify(responseBody)}`,
-      exception instanceof Error ? exception.stack : '',
-    );
+    // 4xx é erro do cliente (token vencido, rota inexistente, robô varrendo a
+    // API): warn. Só 5xx é falha da API e vai como error — o alarme
+    // prestare-api-erros conta linhas "ERROR" e disparava com qualquer varredura.
+    const linha = `Http Status: ${httpStatus} Error: ${JSON.stringify(responseBody)}`;
+    if (httpStatus >= 500) {
+      this.logger.error(linha, exception instanceof Error ? exception.stack : '');
+    } else {
+      this.logger.warn(linha);
+    }
 
     // Em erros 500 (não-HttpException), inclui o stack truncado no body
     // de DEBUG_500 só pra dev — facilita diagnostico remoto sem precisar

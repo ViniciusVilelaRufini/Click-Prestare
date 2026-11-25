@@ -28,7 +28,8 @@ describe('AllExceptionsFilter — body entregue na rede', () => {
     };
 
     // Silencia o logger de erro (o filter loga todo erro que passa por ele).
-    jest.spyOn((filter as any).logger, 'error').mockImplementation(() => undefined);
+    const logError = jest.spyOn((filter as any).logger, 'error').mockImplementation(() => undefined);
+    const logWarn = jest.spyOn((filter as any).logger, 'warn').mockImplementation(() => undefined);
 
     const capturar = (exception: unknown) => {
       filter.catch(exception, host);
@@ -36,7 +37,7 @@ describe('AllExceptionsFilter — body entregue na rede', () => {
       return { body, status };
     };
 
-    return { capturar, reply, response };
+    return { capturar, reply, response, logError, logWarn };
   }
 
   it('payload de objeto: as chaves próprias sobrevivem ao lado de statusCode/timestamp/path', () => {
@@ -156,6 +157,25 @@ describe('AllExceptionsFilter — body entregue na rede', () => {
     expect(body.message).not.toContain('xyz');
   });
 
+  // Bateria de produção 25/11: o alarme prestare-api-erros (filtro "ERROR" no
+  // log) disparou com uma varredura de 404/401 — erro do cliente não é falha
+  // da API e não pode acordar ninguém.
+  it('erro do cliente (4xx) vai para o log como warn, não error', () => {
+    const { capturar, logError, logWarn } = build();
+    capturar(new NotFoundException('nada aqui'));
+    capturar(Object.assign(new Error('request entity too large'), { status: 413, expose: true, type: 'entity.too.large' }));
+    expect(logError).not.toHaveBeenCalled();
+    expect(logWarn).toHaveBeenCalledTimes(2);
+  });
+
+  it('falha da API (5xx) continua no log como error, com o stack', () => {
+    const { capturar, logError, logWarn } = build();
+    const err = new Error('banco caiu');
+    capturar(err);
+    expect(logWarn).not.toHaveBeenCalled();
+    expect(logError).toHaveBeenCalledWith(expect.stringContaining('Http Status: 500'), err.stack);
+  });
+
   it('erro HTTP mantém a mensagem de negócio', () => {
     const { capturar } = build();
     expect(capturar(new BadRequestException('CPF inválido')).body.message).toBe('CPF inválido');
@@ -204,7 +224,8 @@ describe('AllExceptionsFilter — path sem query string (pentest P-08)', () => {
     const reply = jest.fn();
     const url = '/api/condominios/1/moradores?token=eyJsegredo';
     const filter = new AllExceptionsFilter({ httpAdapter: { reply, getRequestUrl: () => url } } as any);
-    const log = jest.spyOn((filter as any).logger, 'error').mockImplementation(() => undefined);
+    const logError = jest.spyOn((filter as any).logger, 'error').mockImplementation(() => undefined);
+    const logWarn = jest.spyOn((filter as any).logger, 'warn').mockImplementation(() => undefined);
     const host: any = {
       switchToHttp: () => ({
         getRequest: () => ({ headers: {}, originalUrl: url }),
@@ -214,6 +235,8 @@ describe('AllExceptionsFilter — path sem query string (pentest P-08)', () => {
     filter.catch(new BadRequestException('x'), host);
     const [, body] = reply.mock.calls[0];
     expect(body.path).toBe('/api/condominios/1/moradores');
-    expect(JSON.stringify(log.mock.calls)).not.toContain('eyJsegredo');
+    // 400 vai para warn: o log que importa é o que de fato foi escrito.
+    expect(logWarn).toHaveBeenCalled();
+    expect(JSON.stringify([...logError.mock.calls, ...logWarn.mock.calls])).not.toContain('eyJsegredo');
   });
 });
