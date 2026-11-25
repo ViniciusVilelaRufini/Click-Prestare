@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Logger, NotFoundException, Param, Post, Query } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../auth/public.decorator';
 import {
@@ -27,6 +27,8 @@ import { DescobertaService } from './descoberta.service';
 @SkipThrottle({ short: true, medium: true })
 @Controller('facial/agent')
 export class AgentController {
+  private readonly logger = new Logger(AgentController.name);
+
   constructor(
     private readonly service: FacialService,
     private readonly bridge: AgentBridgeService,
@@ -47,17 +49,22 @@ export class AgentController {
     // dispara o back-fill dos rostos pendentes desse condomínio em background.
     // É o que torna plug-and-play: ligou o agente → as fotos já cadastradas
     // sobem para o facial sozinhas.
-    const reconectou = !this.bridge.isOnline(device.id);
+    // `reconectando` lê o último poll gravado no banco antes de decidir: logo
+    // após um deploy o cache em memória está vazio e todo aparelho pareceria
+    // reconectado (J8).
+    const reconectou = (await this.bridge.reconectando([device.id])).has(device.id);
     const commands = await this.bridge.poll(device.id);
     if (reconectou && device.tipo === 'facial') {
       // Terminal com CARGA PENDENTE (`ultima_sincr` nulo: novo, reativado ou
       // reendereçado que ainda não recebeu todo mundo): carga completa só dele.
       // "Pendente" do back-fill é por pessoa — quem já está 'synced' pelos
       // outros terminais nunca chegaria neste.
-      void this.service.syncAllForCondominio(
-        device.id_condominio,
-        device.ultima_sincr === null ? { deviceIds: [device.id] } : { onlyPending: true },
-      );
+      void Promise.resolve(
+        this.service.syncAllForCondominio(
+          device.id_condominio,
+          device.ultima_sincr === null ? { deviceIds: [device.id] } : { onlyPending: true },
+        ),
+      ).catch((e: any) => this.logger.warn(`Back-fill da reconexão do device ${device.id} falhou: ${e?.message ?? e}`));
     }
     return {
       device: {
@@ -116,7 +123,9 @@ export class AgentController {
     const visiveis = falaGuarita ? todos : todos.filter((d) => d.tipo !== 'guarita');
     const devices = soDispositivo == null ? visiveis : visiveis.filter((d) => d.id === soDispositivo);
     // Antes do poll (que marca o heartbeat): quem estava offline até agora.
-    const reconectados = new Set(devices.filter((d) => !this.bridge.isOnline(d.id)).map((d) => d.id));
+    // Considera o último poll gravado no banco (J8): logo após um deploy o
+    // cache em memória está vazio e todos pareceriam reconectados.
+    const reconectados = await this.bridge.reconectando(devices.map((d) => d.id));
     // Uma leitura da fila para o condomínio inteiro, em vez de uma por device.
     const comandos = await this.bridge.pollVarios(devices.map((d) => d.id));
     // Faciais reconectados com CARGA PENDENTE (`ultima_sincr` nulo — ver
@@ -137,9 +146,9 @@ export class AgentController {
     const out = devices.map((d) => {
       const commands = comandos.get(d.id) ?? [];
       if (cargaPendente.length === 0 && reconectados.has(d.id) && d.tipo === 'facial') {
-        void this.service.syncAllForCondominio(idCondominio, {
-          onlyPending: true,
-        });
+        void Promise.resolve(this.service.syncAllForCondominio(idCondominio, { onlyPending: true })).catch((e: any) =>
+          this.logger.warn(`Back-fill da reconexão do condomínio ${idCondominio} falhou: ${e?.message ?? e}`),
+        );
       }
       return {
         device: {

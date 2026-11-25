@@ -310,6 +310,7 @@ describe('carga pendente do terminal facial', () => {
       };
       const bridge: any = {
         isOnline: jest.fn((id: number) => online.includes(id)),
+        reconectando: jest.fn(async (ids: number[]) => new Set(ids.filter((id) => !online.includes(id)))),
         pollVarios: jest.fn(async () => new Map()),
         poll: jest.fn(async () => []),
         pollIntervalMs: 2000,

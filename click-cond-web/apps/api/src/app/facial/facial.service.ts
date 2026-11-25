@@ -90,8 +90,22 @@ const MSG_TERMINAL_COM_ROSTOS_AGENTE_OFFLINE =
   'O terminal ainda tem rostos gravados e o Agente Local está offline: fora de operação ele não seria mais limpo e quem perdeu o acesso continuaria entrando. Ligue o agente e tente de novo.';
 const MOTIVOS_RUIDO_QR: ReadonlySet<string> = new Set(['desconhecida', 'assinatura']);
 
-/** Validade da marca de bulk sync em andamento (instância que morreu no meio não trava o condomínio para sempre). */
-const BULK_SYNC_TTL_MS = 2 * 60 * 60 * 1000;
+/**
+ * Validade da marca de bulk sync em andamento (`facial:bulk:<id>`). Curta de propósito (J1): a marca
+ * só sai no `finally` do processo que roda o bulk, e o deploy do Elastic Beanstalk mata o processo
+ * sem passar por ele. Com 2 h, o condomínio respondia `alreadyRunning` a toda carga, back-fill e
+ * retry por até 2 h depois de cada deploy. Enquanto o bulk roda, o dono renova a marca a cada
+ * BULK_SYNC_HEARTBEAT_MS; dono morto deixa de renovar e a marca vence em no máximo 10 min.
+ */
+const BULK_SYNC_TTL_MS = 10 * 60 * 1000;
+/** Renovação da marca de bulk: 5 chances antes de vencer, tolera algumas falhas seguidas do banco. */
+const BULK_SYNC_HEARTBEAT_MS = 2 * 60 * 1000;
+/**
+ * tickExpiracaoAutomatica: só olha o que venceu nesta janela (legado e Pessoas). O tick roda a cada
+ * 15 min; 2 h toleram reinícios e deploys. Sem o limite inferior, todo vencido antigo que ainda tem
+ * face_id voltaria a receber remoção em todo aparelho a cada tick.
+ */
+const JANELA_EXPIRACAO_MS = 2 * 60 * 60 * 1000;
 /** Resultado da varredura de fantasmas (roda de hora em hora) vale até a próxima, com folga. */
 const FANTASMAS_TTL_MS = 3 * 60 * 60 * 1000;
 /**
@@ -731,7 +745,10 @@ export class FacialService {
         this.prisma,
         nome,
         async () => {
-          await tick();
+          // `false` = o tick não fez o trabalho (falhou ou porta interna fechada): executarComLock
+          // não grava o período/ciclo e a próxima passada, em qualquer instância, tenta de novo (J15).
+          // Qualquer outro retorno conta como feito.
+          return (await tick()) === false ? false : undefined;
         },
         typeof periodo === 'number' ? { intervaloMinimoMs: periodo } : periodo,
       );
@@ -4760,6 +4777,48 @@ export class FacialService {
   // ---------- Sincronização em massa (back-fill) ----------
 
   /**
+   * Reserva a marca de bulk sync do condomínio (J1). null = outro bulk já roda (aqui ou na outra
+   * instância). A marca nasce com TTL curto e é renovada por heartbeat enquanto o bulk roda: se o
+   * processo morrer no meio (deploy), ela vence em BULK_SYNC_TTL_MS em vez de travar o condomínio.
+   *
+   * Devolve `liberar`, que o `finally` do bulk chama: para o heartbeat, espera a renovação em voo
+   * (senão ela recriaria a marca depois da remoção) e só remove a marca se ainda for deste dono.
+   * O valor é um token do dono: se a nossa marca venceu (event loop parado, banco fora) e outro bulk
+   * pegou o condomínio, o heartbeat não sobrescreve a dele e o `liberar` não a apaga.
+   */
+  private async reservarBulk(idCondominio: number): Promise<(() => Promise<void>) | null> {
+    const chave = `facial:bulk:${idCondominio}`;
+    const dono = crypto.randomBytes(12).toString('hex');
+    if (!(await this.estado.criarSeAusente(chave, dono, BULK_SYNC_TTL_MS))) return null;
+
+    let ativo = true;
+    let renovacao: Promise<void> = Promise.resolve();
+    const timer = setInterval(() => {
+      renovacao = renovacao
+        .then(async () => {
+          if (!ativo) return;
+          const atual = await this.estado.obter<string>(chave);
+          if (!ativo || (atual && atual.valor !== dono)) return;
+          await this.estado.definir(chave, dono, BULK_SYNC_TTL_MS);
+        })
+        .catch((e: any) => this.logger.warn(`Renovação da marca de bulk do condomínio ${idCondominio} falhou: ${e?.message ?? e}`));
+    }, BULK_SYNC_HEARTBEAT_MS);
+    timer.unref?.();
+
+    return async () => {
+      ativo = false;
+      clearInterval(timer);
+      await renovacao;
+      try {
+        const atual = await this.estado.obter<string>(chave);
+        if (!atual || atual.valor === dono) await this.estado.remover(chave);
+      } catch {
+        // Sem remover, a marca vence sozinha em BULK_SYNC_TTL_MS.
+      }
+    };
+  }
+
+  /**
    * Envia para os terminais faciais os rostos de TODAS as pessoas já
    * cadastradas (moradores + visitantes ativos com foto) do condomínio.
    *
@@ -4929,9 +4988,8 @@ export class FacialService {
       return { total: 0, started: false };
     }
 
-    if (!(await this.estado.criarSeAusente(`facial:bulk:${idCondominio}`, true, BULK_SYNC_TTL_MS))) {
-      return { alreadyRunning: true };
-    }
+    const liberarBulk = await this.reservarBulk(idCondominio);
+    if (!liberarBulk) return { alreadyRunning: true };
     // Não await: roda em background. O event loop continua após o return.
     void (async () => {
       let ok = 0;
@@ -5000,7 +5058,7 @@ export class FacialService {
           );
         }
       } finally {
-        await this.estado.remover(`facial:bulk:${idCondominio}`).catch(() => undefined);
+        await liberarBulk();
       }
     })();
 
@@ -5138,9 +5196,8 @@ export class FacialService {
       moradores.length + visitantes.length + prestadores.length + pessoas.length;
     if (total === 0) return { total: 0, started: false };
 
-    if (!(await this.estado.criarSeAusente(`facial:bulk:${idCondominio}`, true, BULK_SYNC_TTL_MS))) {
-      return { alreadyRunning: true };
-    }
+    const liberarBulk = await this.reservarBulk(idCondominio);
+    if (!liberarBulk) return { alreadyRunning: true };
     void (async () => {
       let ok = 0;
       let falhou = 0;
@@ -5249,7 +5306,7 @@ export class FacialService {
           `Bulk unsync condomínio ${idCondominio}: ${ok} ok, ${falhou} falha(s) de ${total}`,
         );
       } finally {
-        await this.estado.remover(`facial:bulk:${idCondominio}`).catch(() => undefined);
+        await liberarBulk();
       }
     })();
 
@@ -5322,13 +5379,20 @@ export class FacialService {
   /**
    * Disparo horário: ao virar o dia (0h BRT), re-sincroniza todos que têm
    * restrição de dias da semana — adiciona/remove rostos conforme o dia atual.
+   *
+   * Devolve `false` quando não fez o trabalho (banco fora, consulta de uma
+   * das fontes falhou, fora da hora 0): o wrapper `noCluster` repassa e o
+   * `executarComLock` NÃO grava o ciclo do dia, então outro tick da hora 0
+   * (boot, outra instância) tenta de novo (J15). Falha de UMA pessoa não
+   * conta: ela fica pendente e o tickSyncRetry pega (`dias_semana not null`).
    */
-  private async tickDiasSemanaSync() {
-    if (!this.prisma.isConnected) return;
+  private async tickDiasSemanaSync(): Promise<boolean> {
+    if (!this.prisma.isConnected) return false;
     const agoraBRT = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }),
     );
-    if (agoraBRT.getHours() !== 0) return;
+    if (agoraBRT.getHours() !== 0) return false;
+    let fezTudo = true;
     try {
       const comDias = await this.prisma.visitantes.findMany({
         where: {
@@ -5389,6 +5453,7 @@ export class FacialService {
           });
           await this.sincronizarPessoasDoTick('tickDiasSemanaSync', pessoasComDias, 'sincronizado(s)');
         } catch (e: any) {
+          fezTudo = false;
           this.logger.warn(`tickDiasSemanaSync pessoas erro: ${e?.message ?? e}`);
         }
       }
@@ -5409,8 +5474,10 @@ export class FacialService {
         ),
       );
     } catch (e: any) {
+      fezTudo = false;
       this.logger.warn(`tickDiasSemanaSync erro: ${e?.message ?? e}`);
     }
+    return fezTudo;
   }
 
   /**
@@ -5422,11 +5489,19 @@ export class FacialService {
     if (!this.prisma.isConnected) return;
     try {
       const agora = new Date();
+      // J10: mesma janela do bloco de Pessoas abaixo. O face_id do legado não
+      // é limpo quando o sync não chega ao aparelho (flag ligada devolve
+      // `skipped`, terminal mudo deixa pendente): sem limite inferior, todo
+      // visitante antigo com face_id voltava a esta consulta e recebia remoção
+      // em todo aparelho a cada tick, para sempre. Sobras mais antigas ficam
+      // com o validTo do aparelho, o tickSyncRetry e o tickFantasmas.
+      // `liberado = 1` fica sem janela: é zerado aqui e não casa de novo, então
+      // converge numa passada mesmo depois de uma parada longa.
       const expirados = await this.prisma.visitantes.findMany({
         where: {
           data_hora_termino: { lt: agora },
           OR: [
-            { face_id: { not: null } },
+            { face_id: { not: null }, data_hora_termino: { gte: new Date(agora.getTime() - JANELA_EXPIRACAO_MS), lt: agora } },
             { liberado: 1 }
           ]
         },
@@ -5478,7 +5553,7 @@ export class FacialService {
       if (pessoasMigrationEnabled(this.prisma)) {
         // Tick roda a cada 15 min; 2h tolera reinícios. Sobras mais antigas
         // ficam com o validTo do aparelho e o retry de pendentes do tickSyncRetry.
-        const JANELA_EXPIRACAO_PESSOAS_MS = 2 * 60 * 60 * 1000;
+        const JANELA_EXPIRACAO_PESSOAS_MS = JANELA_EXPIRACAO_MS;
         const pessoasExpiradas = await this.prisma.pessoas.findMany({
           where: {
             AND: [

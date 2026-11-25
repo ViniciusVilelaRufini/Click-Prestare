@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy, Optional } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
@@ -42,6 +42,11 @@ import { EstadoCompartilhado } from '../common/estado-compartilhado';
  */
 const RESULTADO_POLL_MS = 300;
 const CACHE_REFRESH_MS = 5_000;
+/**
+ * Quanto um poll do boot espera a primeira leitura do cache (J8). Passou disso, a reconexão é
+ * avaliada com o que houver em memória (o comportamento de antes) em vez de segurar o agente.
+ */
+const CACHE_INICIAL_ESPERA_MAX_MS = 5_000;
 /** Heartbeat no banco no máximo a cada X por device (o agente faz poll a cada 2s). */
 const HEARTBEAT_GRAVA_A_CADA_MS = 10_000;
 const FAXINA_MS = 60_000;
@@ -67,7 +72,7 @@ function ttlDoComando(expiraEmMs: number, agoraMs: number): number {
 }
 
 @Injectable()
-export class AgentBridgeService implements OnModuleDestroy {
+export class AgentBridgeService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AgentBridgeService.name);
 
   /** Janela em que o device é considerado "online" desde o último poll. */
@@ -124,8 +129,52 @@ export class AgentBridgeService implements OnModuleDestroy {
     }
   }
 
+  /**
+   * J8: semeia o `lastSeen` do banco já no boot. Sem isso a instância nova (deploy) começava com o
+   * mapa vazio e o primeiro poll de cada aparelho contava como reconexão. Não bloqueia o boot:
+   * `reconectando` espera esta mesma leitura antes de decidir.
+   */
+  onModuleInit() {
+    void this.garantirCacheInicial();
+  }
+
   onModuleDestroy() {
     for (const t of this.timers) clearInterval(t);
+  }
+
+  /** true depois que o cache leu o banco com sucesso pelo menos uma vez. */
+  private cacheCarregado = false;
+  /** Leitura inicial em andamento, dividida entre os polls que chegam juntos no boot. */
+  private cacheInicial?: Promise<void>;
+
+  private garantirCacheInicial(): Promise<void> {
+    if (this.cacheCarregado || !this.db) return Promise.resolve();
+    if (!this.cacheInicial) {
+      const leitura = this.atualizarCache().finally(() => {
+        this.cacheInicial = undefined;
+      });
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const teto = new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, CACHE_INICIAL_ESPERA_MAX_MS);
+        timer.unref?.();
+      });
+      this.cacheInicial = Promise.race([leitura, teto]).finally(() => {
+        if (timer) clearTimeout(timer);
+      });
+    }
+    return this.cacheInicial;
+  }
+
+  /**
+   * Dos `deviceIds`, quais estavam OFFLINE antes deste poll (= o agente acabou de reconectar).
+   * Chamar ANTES de `poll`/`pollVarios`, que marcam o heartbeat. Diferente de `isOnline` puro, só
+   * decide depois de ler do banco o último poll gravado (J8): na instância recém-subida o mapa em
+   * memória está vazio, e o aparelho que fez poll na instância antiga segundos antes não reconectou
+   * — só é reconexão se o último poll gravado for mais velho que o TTL de online.
+   */
+  async reconectando(deviceIds: readonly number[]): Promise<Set<number>> {
+    await this.garantirCacheInicial();
+    return new Set(deviceIds.filter((id) => !this.isOnline(id)));
   }
 
   /**
@@ -578,6 +627,7 @@ export class AgentBridgeService implements OnModuleDestroy {
     if (!db) return;
     try {
       const linhas: any[] = await db.agente_Dispositivos_Estado.findMany();
+      this.cacheCarregado = true;
       for (const l of linhas) {
         const poll = l.ultimo_poll_em ? new Date(l.ultimo_poll_em).getTime() : null;
         if (poll !== null && poll > (this.lastSeen.get(l.id_device) ?? 0)) this.lastSeen.set(l.id_device, poll);
