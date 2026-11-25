@@ -8,6 +8,9 @@
  * OFFLINE/ONLINE) têm selo próprio Offline/Online — não são entrada/saída
  * de ninguém, então não podem herdar o texto de acesso de pessoas.
  *
+ * Acionamento manual ('manual') e falha de acionamento ('falha') também têm
+ * selo próprio.
+ *
  * Sem `direcao` definida, cai no `tipo` do evento (ex.: "Encomenda").
  */
 export function direcaoLabel(direcao: string | undefined | null, tipo: string): string {
@@ -18,6 +21,9 @@ export function direcaoLabel(direcao: string | undefined | null, tipo: string): 
     case 'online': return 'Online';
     case 'negado':
     case 'bloqueado': return 'Bloqueado';
+    // Relatórios (Log de Eventos): acionamento manual do terminal e falha ao acionar.
+    case 'manual': return 'Acionamento manual';
+    case 'falha': return 'Falha';
     default: return tipo;
   }
 }

@@ -1,8 +1,12 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpResponse } from '@angular/common/http';
 import { EventosPeriodo, RelatoriosApi } from './relatorios.service';
 import { direcaoLabel as direcaoLabelUtil } from '../shared/direcao-label.util';
+import { mascararDocumentoRelatorio, mascararTelefoneRelatorio } from './mascara-relatorios.util';
+import { AuthService } from '../auth/auth.service';
+import { papelDoToken } from '../auth/papel';
 
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 import { BlocoLabelPipe } from '../shared/bloco-label.pipe';
@@ -14,6 +18,16 @@ import { BlocoLabelPipe } from '../shared/bloco-label.pipe';
 })
 export class RelatoriosPageComponent {
   private api = inject(RelatoriosApi);
+  private auth = inject(AuthService);
+
+  /**
+   * Mesmo critério da API (isSindicoEstrito): só o síndico lê os módulos
+   * sigilosos. Recalcula ao entrar / trocar de condomínio.
+   */
+  readonly ehSindico = computed(() => {
+    this.auth.porteiroInfo();
+    return papelDoToken(this.auth.token) === 'sindico';
+  });
 
   readonly activeSubTab = signal<'gerador' | 'auditoria' | 'eventos'>('gerador');
   readonly auditLogs = signal<any[]>([]);
@@ -26,6 +40,12 @@ export class RelatoriosPageComponent {
   readonly filtroModulo = signal<string>('todos');
   readonly filtroDataInicio = signal<string>('');
   readonly filtroDataFim = signal<string>('');
+  /**
+   * O que está valendo na lista. Os inputs acima só mudam a consulta quando o
+   * usuário clica em Aplicar (ou Limpar); paginação, Atualizar e Exportar CSV
+   * usam este retrato, nunca o que está digitado e ainda não foi aplicado.
+   */
+  readonly filtrosAuditoriaAplicados = signal<FiltrosAuditoria>({ modulo: 'todos', dataInicio: '', dataFim: '' });
 
   // Logs de Eventos
   readonly eventLogs = signal<any[]>([]);
@@ -34,6 +54,18 @@ export class RelatoriosPageComponent {
   readonly filtroEventosDataInicio = signal<string>('');
   readonly filtroEventosDataFim = signal<string>('');
   readonly filtroEventosSearch = signal<string>('');
+  readonly filtrosEventosAplicados = signal<FiltrosEventos>({ dataInicio: '', dataFim: '', search: '' });
+  /** Período inválido (início depois do fim) — a consulta não sai. */
+  readonly erroPeriodo = signal<string | null>(null);
+
+  readonly filtroAuditoriaAtivo = computed(() => {
+    const f = this.filtrosAuditoriaAplicados();
+    return f.modulo !== 'todos' || !!f.dataInicio || !!f.dataFim;
+  });
+  readonly filtroEventosAtivo = computed(() => {
+    const f = this.filtrosEventosAplicados();
+    return !!f.dataInicio || !!f.dataFim || !!f.search;
+  });
   /** A API cortou o histórico no limite interno: a lista está incompleta. */
   readonly eventosTruncado = signal<boolean>(false);
   /** Período que a API aplicou na última consulta do Log de Eventos. */
@@ -67,27 +99,54 @@ export class RelatoriosPageComponent {
   readonly loading = signal<boolean>(false);
   readonly error = signal<string | null>(null);
 
-  readonly modulosDisponiveis = [
+  private readonly todosModulos: { value: string; label: string }[] = [
     { value: 'todos',         label: 'Todos os módulos' },
     { value: 'facial',        label: 'Controle de Acesso (Dispositivos)' },
     { value: 'regras-acesso', label: 'Regras de Acesso' },
     { value: 'caminhos-acesso', label: 'Caminhos de Acesso' },
+    { value: 'guarita',       label: 'Guarita' },
+    { value: 'credenciais',   label: 'Credenciais e passes' },
+    { value: 'tags',          label: 'Tags de Veículo' },
     { value: 'visitantes',    label: 'Visitantes' },
+    { value: 'convites',      label: 'Convites' },
     { value: 'encomendas',    label: 'Encomendas' },
+    { value: 'delivery',      label: 'Delivery' },
     { value: 'moradores',     label: 'Moradores' },
     { value: 'apartamentos',  label: 'Apartamentos' },
     { value: 'veiculos',      label: 'Veículos' },
     { value: 'vagas',         label: 'Vagas' },
+    { value: 'mudancas',      label: 'Mudanças' },
     { value: 'areas-sociais', label: 'Áreas Sociais' },
     { value: 'ocorrencias',   label: 'Ocorrências' },
     { value: 'prestadores',   label: 'Prestadores' },
+    { value: 'funcionarios',  label: 'Funcionários' },
+    { value: 'portaria-equipe', label: 'Equipe da portaria' },
+    { value: 'portaria-remota', label: 'Portaria remota' },
     { value: 'financeiro',    label: 'Financeiro / Caixa' },
     { value: 'comunicados',   label: 'Comunicados' },
     { value: 'assembleias',   label: 'Assembleias' },
     { value: 'documentos',    label: 'Documentos' },
+    { value: 'consentimentos', label: 'Consentimentos (LGPD)' },
+    { value: 'condominios',   label: 'Condomínio' },
+    { value: 'users',         label: 'Contas de usuário' },
     { value: 'auth',          label: 'Autenticação' },
+    { value: 'crm',           label: 'CRM' },
+    { value: 'crm-condominio', label: 'CRM do Condomínio' },
+    { value: 'crm-morador',   label: 'CRM do Morador' },
+    { value: 'superlogica',   label: 'Superlógica' },
+    { value: 'relatorios',    label: 'Relatórios' },
+    { value: 'auditoria',     label: 'Exportações e auditoria' },
     { value: 'sistema',       label: 'Sistema' },
   ];
+
+  /**
+   * Módulos do filtro. Quem não é síndico não vê os que a API esconde dele
+   * (MODULOS_AUDITORIA_SIGILOSOS em apps/api/src/app/relatorios/relatorios.service.ts):
+   * o filtro voltaria sempre vazio.
+   */
+  readonly modulosDisponiveis = computed(() =>
+    this.ehSindico() ? this.todosModulos : this.todosModulos.filter((m) => !MODULOS_SO_SINDICO.has(m.value)),
+  );
 
   /** Toggle para expandir o JSON de detalhes de cada linha. */
   readonly expandidos = signal<Record<string | number, boolean>>({});
@@ -101,10 +160,45 @@ export class RelatoriosPageComponent {
     try {
       const obj = typeof detalhes === 'string' ? JSON.parse(detalhes) : detalhes;
       // Linhas antigas gravavam o PIN/QR do visitante; o valor nunca vai para a tela.
-      return JSON.stringify(obj, (k, v) => (k === 'codigoAcesso' && v ? '[oculto]' : v), 2);
+      // CPF/documento/telefone saem mascarados (inclusive no diff { de, para }).
+      return JSON.stringify(
+        obj,
+        (k, v) => {
+          if (k === 'codigoAcesso' && v) return '[oculto]';
+          return this.valorCampo(k, v);
+        },
+        2,
+      );
     } catch {
       return String(detalhes);
     }
+  }
+
+  /** Documento só com os 4 últimos dígitos (formato da API). O que já chegou mascarado fica como está. */
+  mascararDocumento(valor: unknown): string {
+    return mascararDocumentoRelatorio(valor);
+  }
+
+  /** Telefone só com os 4 últimos dígitos (formato da API): (**) *****-8148. */
+  mascararTelefone(valor: unknown): string {
+    return mascararTelefoneRelatorio(valor);
+  }
+
+  /**
+   * Valor exibido de um campo de detalhes/diff: mascara quando o nome do campo
+   * é de documento ou telefone. Diff `{ de, para }` mascara os dois lados.
+   */
+  valorCampo(chave: string | number | symbol, valor: any): any {
+    const tipo = tipoCampoSensivel(String(chave));
+    if (!tipo || valor === null || valor === undefined) return valor;
+    const mascara = (v: any) =>
+      typeof v === 'string' || typeof v === 'number'
+        ? tipo === 'telefone' ? this.mascararTelefone(v) : this.mascararDocumento(v)
+        : v;
+    if (typeof valor === 'object' && !Array.isArray(valor) && ('de' in valor || 'para' in valor)) {
+      return { ...valor, de: mascara(valor.de), para: mascara(valor.para) };
+    }
+    return mascara(valor);
   }
 
   /** Verifica se um objeto de diff tem pelo menos uma chave (usado no template). */
@@ -165,6 +259,7 @@ export class RelatoriosPageComponent {
     this.pagina.set(1);
     this.total.set(0);
     this.expandidos.set({});
+    this.erroPeriodo.set(null);
     if (tab === 'auditoria') {
       this.carregarAuditoria();
     } else if (tab === 'eventos') {
@@ -176,15 +271,20 @@ export class RelatoriosPageComponent {
     const consulta = ++this.consultaAtual;
     this.loadingAudit.set(true);
     this.errorAudit.set(null);
+    const f = this.filtrosAuditoriaAplicados();
     this.api.getAuditoria(
-      this.filtroModulo(),
-      this.filtroDataInicio() || undefined,
-      this.filtroDataFim() || undefined,
+      f.modulo,
+      f.dataInicio || undefined,
+      f.dataFim || undefined,
       this.pagina(),
       this.tamanhoPagina(),
     ).subscribe({
       next: (data) => {
         if (consulta !== this.consultaAtual) return;
+        if (this.voltarSePassouDoTotal(data?.items ?? [], data?.total ?? 0)) {
+          this.carregarAuditoria();
+          return;
+        }
         this.auditLogs.set(data?.items ?? []);
         this.total.set(data?.total ?? 0);
         this.loadingAudit.set(false);
@@ -202,15 +302,20 @@ export class RelatoriosPageComponent {
     const consulta = ++this.consultaAtual;
     this.loadingEvents.set(true);
     this.errorEvents.set(null);
+    const f = this.filtrosEventosAplicados();
     this.api.getEventos(
-      this.filtroEventosDataInicio() || undefined,
-      this.filtroEventosDataFim() || undefined,
+      f.dataInicio || undefined,
+      f.dataFim || undefined,
       this.pagina(),
       this.tamanhoPagina(),
-      this.filtroEventosSearch() || undefined,
+      f.search || undefined,
     ).subscribe({
       next: (data) => {
         if (consulta !== this.consultaAtual) return;
+        if (this.voltarSePassouDoTotal(data?.items ?? [], data?.total ?? 0)) {
+          this.carregarEventos();
+          return;
+        }
         this.eventLogs.set(data?.items ?? []);
         this.total.set(data?.total ?? 0);
         this.eventosTruncado.set(data?.truncado === true);
@@ -226,26 +331,69 @@ export class RelatoriosPageComponent {
     });
   }
 
+  /**
+   * A página pedida passou do total (registros sumiram entre uma consulta e
+   * outra, ex.: depois de Atualizar). Volta para a última página válida e
+   * devolve true para a consulta ser refeita.
+   */
+  private voltarSePassouDoTotal(items: unknown[], total: number): boolean {
+    if (items.length > 0 || total <= 0 || this.pagina() <= 1) return false;
+    const ultima = Math.max(1, Math.ceil(total / this.tamanhoPagina()));
+    if (this.pagina() <= ultima) return false;
+    this.pagina.set(ultima);
+    return true;
+  }
+
+  private periodoInvalido(inicio: string, fim: string): boolean {
+    // `AAAA-MM-DD` compara certo como texto.
+    return !!inicio && !!fim && inicio > fim;
+  }
+
   aplicarFiltros() {
-    this.pagina.set(1);
-    if (this.activeSubTab() === 'auditoria') {
-      this.carregarAuditoria();
-    } else if (this.activeSubTab() === 'eventos') {
-      this.carregarEventos();
+    const aba = this.activeSubTab();
+    if (aba === 'auditoria') {
+      if (this.periodoInvalido(this.filtroDataInicio(), this.filtroDataFim())) {
+        this.erroPeriodo.set(MSG_PERIODO_INVALIDO);
+        return;
+      }
+      this.filtrosAuditoriaAplicados.set({
+        modulo: this.filtroModulo(),
+        dataInicio: this.filtroDataInicio(),
+        dataFim: this.filtroDataFim(),
+      });
+    } else if (aba === 'eventos') {
+      if (this.periodoInvalido(this.filtroEventosDataInicio(), this.filtroEventosDataFim())) {
+        this.erroPeriodo.set(MSG_PERIODO_INVALIDO);
+        return;
+      }
+      this.filtrosEventosAplicados.set({
+        dataInicio: this.filtroEventosDataInicio(),
+        dataFim: this.filtroEventosDataFim(),
+        search: this.filtroEventosSearch().trim(),
+      });
+    } else {
+      return;
     }
+    this.erroPeriodo.set(null);
+    this.pagina.set(1);
+    if (aba === 'auditoria') this.carregarAuditoria();
+    else this.carregarEventos();
   }
 
   limparFiltros() {
     this.pagina.set(1);
+    this.erroPeriodo.set(null);
     if (this.activeSubTab() === 'auditoria') {
       this.filtroModulo.set('todos');
       this.filtroDataInicio.set('');
       this.filtroDataFim.set('');
+      this.filtrosAuditoriaAplicados.set({ modulo: 'todos', dataInicio: '', dataFim: '' });
       this.carregarAuditoria();
     } else if (this.activeSubTab() === 'eventos') {
       this.filtroEventosDataInicio.set('');
       this.filtroEventosDataFim.set('');
       this.filtroEventosSearch.set('');
+      this.filtrosEventosAplicados.set({ dataInicio: '', dataFim: '', search: '' });
       this.carregarEventos();
     }
   }
@@ -280,21 +428,14 @@ export class RelatoriosPageComponent {
 
   exportarCsv() {
     this.exportandoCsv.set(true);
+    const f = this.filtrosAuditoriaAplicados();
     this.api.exportAuditoria(
-      this.filtroModulo(),
-      this.filtroDataInicio() || undefined,
-      this.filtroDataFim() || undefined,
+      f.modulo,
+      f.dataInicio || undefined,
+      f.dataFim || undefined,
     ).subscribe({
-      next: (blob) => {
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const stamp = new Date().toISOString().slice(0, 10);
-        a.download = `auditoria_${stamp}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
+      next: (resp) => {
+        this.baixarResposta(resp, `auditoria_${dataHojeSaoPaulo()}.csv`);
         this.exportandoCsv.set(false);
       },
       error: (err) => {
@@ -311,22 +452,16 @@ export class RelatoriosPageComponent {
 
   exportarDadosCompletos() {
     this.exportandoCompleto.set(true);
+    this.error.set(null);
     this.api.exportDadosCompletos().subscribe({
-      next: (blob) => {
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const stamp = new Date().toISOString().slice(0, 10);
-        a.download = `export_condominio_${stamp}.zip`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
+      next: (resp) => {
+        this.baixarResposta(resp, `export_condominio_${dataHojeSaoPaulo()}.zip`);
         this.exportandoCompleto.set(false);
       },
       error: (err) => {
         console.error(err);
-        this.errorAudit.set(
+        // O botão fica na aba Relatórios Gerais, que mostra error() — não errorAudit().
+        this.error.set(
           err?.status === 403
             ? 'A exportação completa dos dados é exclusiva do síndico.'
             : 'Falha ao exportar dados completos.',
@@ -334,6 +469,26 @@ export class RelatoriosPageComponent {
         this.exportandoCompleto.set(false);
       },
     });
+  }
+
+  /** Nome do servidor (Content-Disposition) quando vem; senão o padrão com a data de Brasília. */
+  private baixarResposta(resp: HttpResponse<Blob> | Blob, padrao: string) {
+    const blob = resp instanceof HttpResponse ? resp.body : resp;
+    if (!blob) return;
+    const nome =
+      resp instanceof HttpResponse ? nomeDoContentDisposition(resp.headers.get('Content-Disposition')) : null;
+    this.baixarArquivo(blob, nome || padrao);
+  }
+
+  private baixarArquivo(blob: Blob, nome: string) {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nome;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
   }
 
   getAcaoColor(acao: string): string {
@@ -433,8 +588,8 @@ export class RelatoriosPageComponent {
       funcionarios:    'Funcionários',
       convites:        'Convites',
       delivery:        'Delivery',
-      users:           'Usuários',
-      auditoria:       'Auditoria',
+      users:           'Contas de usuário',
+      auditoria:       'Exportações e auditoria',
       tags:            'Tags de Veículo',
       consentimentos:  'Consentimentos (LGPD)',
       sindico:         'Síndico',
@@ -444,20 +599,32 @@ export class RelatoriosPageComponent {
       'chat-ia':       'Assistente IA',
       dashboard:       'Dashboard',
       relatorios:      'Relatórios',
+      guarita:         'Guarita',
+      credenciais:     'Credenciais e passes',
+      wallet:          'Credenciais e passes',
+      'portaria-equipe': 'Equipe da portaria',
+      'portaria-remota': 'Portaria remota',
+      'crm-morador':   'CRM do Morador',
     };
     // A API grava alguns módulos em maiúsculas (ex.: AUTH).
     return labels[(modulo ?? '').toLowerCase()] ?? modulo;
   }
 
+  /** Data e hora de Brasília, qualquer que seja o fuso do PC (o da portaria costuma estar errado). */
   formatarData(iso: string): string {
     if (!iso) return '-';
     const d = new Date(iso);
-    const dia = String(d.getDate()).padStart(2, '0');
-    const mes = String(d.getMonth() + 1).padStart(2, '0');
-    const ano = d.getFullYear();
-    const h = String(d.getHours()).padStart(2, '0');
-    const m = String(d.getMinutes()).padStart(2, '0');
-    return `${dia}/${mes}/${ano} ${h}:${m}`;
+    if (Number.isNaN(d.getTime())) return '-';
+    return d
+      .toLocaleString('pt-BR', {
+        timeZone: FUSO,
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+      .replace(',', '');
   }
 
   /**
@@ -516,6 +683,56 @@ export class RelatoriosPageComponent {
       },
     });
   }
+}
+
+interface FiltrosAuditoria {
+  modulo: string;
+  dataInicio: string;
+  dataFim: string;
+}
+
+interface FiltrosEventos {
+  dataInicio: string;
+  dataFim: string;
+  search: string;
+}
+
+const FUSO = 'America/Sao_Paulo';
+const MSG_PERIODO_INVALIDO = 'A data de início não pode ser depois da data de fim.';
+
+/** Espelha MODULOS_AUDITORIA_SIGILOSOS da API (apps/api/src/app/relatorios/relatorios.service.ts). */
+const MODULOS_SO_SINDICO = new Set(['financeiro', 'crm', 'crm-condominio', 'superlogica', 'auth']);
+
+const CAMPOS_DOCUMENTO = new Set(['cpf', 'cnpj', 'rg', 'doc', 'documento', 'doc_identificacao', 'cpf_cnpj', 'documento_identificacao']);
+
+function tipoCampoSensivel(chave: string): 'documento' | 'telefone' | null {
+  const k = (chave ?? '').toLowerCase();
+  if (!k) return null;
+  if (CAMPOS_DOCUMENTO.has(k) || k.includes('cpf') || k.includes('documento')) return 'documento';
+  if (k.includes('telefone') || k.includes('celular') || k.includes('whatsapp') || k === 'fone' || k === 'phone') return 'telefone';
+  return null;
+}
+
+/** `AAAA-MM-DD` de hoje em Brasília (toISOString vira o dia às 21h). */
+export function dataHojeSaoPaulo(agora: Date = new Date()): string {
+  return agora.toLocaleDateString('en-CA', { timeZone: FUSO });
+}
+
+/** `filename` (ou `filename*` RFC 5987) do Content-Disposition; null quando não há. */
+export function nomeDoContentDisposition(header: string | null | undefined): string | null {
+  if (!header) return null;
+  const estendido = /filename\*\s*=\s*(?:UTF-8|utf-8)?''([^;]+)/i.exec(header);
+  if (estendido) {
+    try {
+      return decodeURIComponent(estendido[1].trim().replace(/^"|"$/g, '')) || null;
+    } catch {
+      /* cai no filename simples */
+    }
+  }
+  const simples = /filename\s*=\s*("([^"]*)"|[^;]+)/i.exec(header);
+  const nome = (simples?.[2] ?? simples?.[1] ?? '').trim();
+  // Só o nome: nada de caminho vindo do header.
+  return nome ? nome.split(/[\\/]/).pop() || null : null;
 }
 
 /** `message` do JSON de erro da API que veio como Blob (download); null se não houver. */

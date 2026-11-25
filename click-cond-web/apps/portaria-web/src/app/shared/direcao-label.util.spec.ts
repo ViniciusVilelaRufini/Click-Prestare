@@ -31,4 +31,9 @@ describe('direcaoLabel', () => {
     expect(direcaoLabel(undefined, 'Encomenda')).toBe('Encomenda');
     expect(direcaoLabel(null, 'Encomenda')).toBe('Encomenda');
   });
+
+  it('acionamento manual e falha de acionamento têm selo próprio', () => {
+    expect(direcaoLabel('manual', 'Acesso Facial')).toBe('Acionamento manual');
+    expect(direcaoLabel('falha', 'Acesso Facial')).toBe('Falha');
+  });
 });

@@ -8,9 +8,12 @@
   </div>
 
   <!-- Navegação de Abas -->
-  <div class="ps-seg max-w-full overflow-x-auto [scrollbar-width:none]" [psSlideIndicator]="'x'">
-    <span class="ps-seg-pill ps-slide-ind"></span>
+  <div class="ps-seg max-w-full overflow-x-auto [scrollbar-width:none]" [psSlideIndicator]="'x'" role="tablist" aria-label="Seções da central de relatórios">
+    <span class="ps-seg-pill ps-slide-ind" aria-hidden="true"></span>
     <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="activeSubTab() === 'gerador'"
       (click)="setSubTab('gerador')"
       [class.on]="activeSubTab() === 'gerador'"
       class=""
@@ -18,6 +21,9 @@
       Relatórios Gerais
     </button>
     <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="activeSubTab() === 'auditoria'"
       (click)="setSubTab('auditoria')"
       [class.on]="activeSubTab() === 'auditoria'"
       class="flex items-center gap-1.5"
@@ -28,6 +34,9 @@
       Log de Auditoria (Segurança)
     </button>
     <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="activeSubTab() === 'eventos'"
       (click)="setSubTab('eventos')"
       [class.on]="activeSubTab() === 'eventos'"
       class="flex items-center gap-1.5"
@@ -292,7 +301,7 @@
           <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide" for="relatorios-page-modulo">Módulo</label>
           <select id="relatorios-page-modulo" [ngModel]="filtroModulo()" (ngModelChange)="filtroModulo.set($event)"
                   class="w-full bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none transition shadow-2xs cursor-pointer">
-            @for (m of modulosDisponiveis; track m.value) {
+            @for (m of modulosDisponiveis(); track m.value) {
               <option [value]="m.value" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{{ m.label }}</option>
             }
           </select>
@@ -307,6 +316,9 @@
           <input id="relatorios-page-data-fim" type="date" [ngModel]="filtroDataFim()" (ngModelChange)="filtroDataFim.set($event)"
                  class="w-full bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none transition shadow-2xs" />
         </div>
+        @if (erroPeriodo()) {
+          <p role="alert" data-testid="erro-periodo" class="md:col-span-3 text-xs font-semibold text-red-600 dark:text-red-400">{{ erroPeriodo() }}</p>
+        }
         <div class="md:col-span-3 flex gap-3 justify-end pt-1">
           <button (click)="limparFiltros()" class="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-white/10 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition cursor-pointer">
             Limpar filtros
@@ -346,24 +358,26 @@
             </thead>
             <tbody class="divide-y divide-slate-200/80 dark:divide-white/5 text-xs text-slate-800 dark:text-white">
               @for (log of auditLogs(); track log.id) {
-                <tr
-                     role="button"
-                     tabindex="0"
-                     (keydown.enter)="log.detalhes && toggleDetalhes(log.id)"
-                     (keydown.space)="$event.preventDefault(); log.detalhes && toggleDetalhes(log.id)" class="hover:bg-slate-50/80 dark:hover:bg-white/[0.02] transition-colors"
-                    [class.cursor-pointer]="log.detalhes"
-                    (click)="log.detalhes && toggleDetalhes(log.id)">
+                <tr class="hover:bg-slate-50/80 dark:hover:bg-white/[0.02] transition-colors">
                   <td class="px-4 py-3.5 font-mono text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                    <div class="flex items-center gap-1.5">
-                      @if (log.detalhes) {
-                        <svg class="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 transition-transform" [class.rotate-90]="expandidos()[log.id]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    @if (log.detalhes) {
+                      <button type="button"
+                              class="flex items-center gap-1.5 cursor-pointer rounded hover:text-slate-900 dark:hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500"
+                              [attr.aria-expanded]="!!expandidos()[log.id]"
+                              [attr.aria-controls]="'auditoria-detalhes-' + log.id"
+                              [attr.aria-label]="(expandidos()[log.id] ? 'Recolher' : 'Ver') + ' detalhes do registro de ' + formatarData(log.created_at)"
+                              (click)="toggleDetalhes(log.id)">
+                        <svg class="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 transition-transform" [class.rotate-90]="expandidos()[log.id]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                         </svg>
-                      } @else {
+                        {{ formatarData(log.created_at) }}
+                      </button>
+                    } @else {
+                      <div class="flex items-center gap-1.5">
                         <span class="w-3.5 h-3.5 inline-block"></span>
-                      }
-                      {{ formatarData(log.created_at) }}
-                    </div>
+                        {{ formatarData(log.created_at) }}
+                      </div>
+                    }
                   </td>
                   <td class="px-4 py-3.5">
                     <p class="font-bold text-slate-900 dark:text-white">{{ log.usuario_nome || 'Sistema' }}</p>
@@ -391,7 +405,7 @@
                   </td>
                 </tr>
                 @if (expandidos()[log.id] && log.detalhes) {
-                  <tr class="bg-slate-100/70 dark:bg-white/[0.02] border-b border-slate-200 dark:border-white/10">
+                  <tr class="bg-slate-100/70 dark:bg-white/[0.02] border-b border-slate-200 dark:border-white/10" [id]="'auditoria-detalhes-' + log.id">
                     <td colspan="6" class="px-5 py-4">
                       @let dt = parseDetalhes(log.detalhes);
                       @let tipo = tipoDetalhes(dt);
@@ -405,7 +419,7 @@
                             </div>
                             <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.visitante.nome }}</div>
                             @if (dt.visitante.documento) {
-                              <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-mono">Doc: {{ dt.visitante.documento }}</div>
+                              <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-mono">Doc: {{ mascararDocumento(dt.visitante.documento) }}</div>
                             }
                           </div>
 
@@ -501,7 +515,7 @@
                               <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.retirada.por }}</div>
                               <div class="flex items-center gap-3 mt-1.5 text-[11px] text-slate-600 dark:text-slate-400 flex-wrap">
                                 <span>{{ dt.retirada.em }}</span>
-                                @if (dt.retirada.documento) { <span class="font-mono">Doc: {{ dt.retirada.documento }}</span> }
+                                @if (dt.retirada.documento) { <span class="font-mono">Doc: {{ mascararDocumento(dt.retirada.documento) }}</span> }
                                 @if (dt.retirada.entreguePor) { <span>entregue por {{ dt.retirada.entreguePor.nome }}</span> }
                                 @if (dt.retirada.comAssinatura) { <span class="text-emerald-600 dark:text-emerald-400 font-semibold">✍ assinou</span> }
                                 @if (dt.retirada.comFoto) { <span class="text-emerald-600 dark:text-emerald-400 font-semibold">📷 foto</span> }
@@ -523,9 +537,9 @@
                               @if (dt.morador.tipo) {
                                 <span class="capitalize font-semibold text-slate-700 dark:text-slate-300">{{ dt.morador.tipo }}</span>
                               }
-                              @if (dt.morador.documento) { <span class="font-mono">Doc: {{ dt.morador.documento }}</span> }
+                              @if (dt.morador.documento) { <span class="font-mono">Doc: {{ mascararDocumento(dt.morador.documento) }}</span> }
                               @if (dt.morador.email) { <span>{{ dt.morador.email }}</span> }
-                              @if (dt.morador.telefone) { <span>{{ dt.morador.telefone }}</span> }
+                              @if (dt.morador.telefone) { <span class="font-mono">{{ mascararTelefone(dt.morador.telefone) }}</span> }
                             </div>
                           </div>
                           <div class="rounded-xl bg-white dark:bg-graphite border border-emerald-200/80 dark:border-emerald-500/30 p-3.5 shadow-2xs">
@@ -570,9 +584,9 @@
                                 @for (key of dt.changes | keyvalue; track key.key) {
                                   <div class="flex items-center gap-2 text-xs">
                                     <span class="text-slate-500 dark:text-slate-400 font-mono w-32 shrink-0">{{ key.key }}</span>
-                                    <span class="text-rose-600 dark:text-rose-400 line-through font-mono truncate">{{ key.value?.de ?? '—' }}</span>
+                                    <span class="text-rose-600 dark:text-rose-400 line-through font-mono truncate">{{ valorCampo(key.key, key.value?.de) ?? '—' }}</span>
                                     <span class="text-slate-400">→</span>
-                                    <span class="text-emerald-600 dark:text-emerald-400 font-mono font-bold truncate">{{ key.value?.para ?? '—' }}</span>
+                                    <span class="text-emerald-600 dark:text-emerald-400 font-mono font-bold truncate">{{ valorCampo(key.key, key.value?.para) ?? '—' }}</span>
                                   </div>
                                 }
                               </div>
@@ -628,9 +642,9 @@
                                 @for (key of dt.changes | keyvalue; track key.key) {
                                   <div class="flex items-center gap-2 text-xs">
                                     <span class="text-slate-500 dark:text-slate-400 font-mono w-40 shrink-0">{{ key.key }}</span>
-                                    <span class="text-rose-600 dark:text-rose-400 line-through font-mono truncate max-w-xs">{{ key.value?.de ?? '—' }}</span>
+                                    <span class="text-rose-600 dark:text-rose-400 line-through font-mono truncate max-w-xs">{{ valorCampo(key.key, key.value?.de) ?? '—' }}</span>
                                     <span class="text-slate-400">→</span>
-                                    <span class="text-emerald-600 dark:text-emerald-400 font-mono font-bold truncate max-w-xs">{{ key.value?.para ?? '—' }}</span>
+                                    <span class="text-emerald-600 dark:text-emerald-400 font-mono font-bold truncate max-w-xs">{{ valorCampo(key.key, key.value?.para) ?? '—' }}</span>
                                   </div>
                                 }
                               </div>
@@ -748,9 +762,9 @@
                                 @for (key of dt.changes | keyvalue; track key.key) {
                                   <div class="flex items-center gap-2 text-xs">
                                     <span class="text-slate-500 dark:text-slate-400 font-mono w-32 shrink-0">{{ key.key }}</span>
-                                    <span class="text-rose-600 dark:text-rose-400 line-through font-mono truncate">{{ key.value?.de ?? '—' }}</span>
+                                    <span class="text-rose-600 dark:text-rose-400 line-through font-mono truncate">{{ valorCampo(key.key, key.value?.de) ?? '—' }}</span>
                                     <span class="text-slate-400">→</span>
-                                    <span class="text-emerald-600 dark:text-emerald-400 font-mono font-bold truncate">{{ key.value?.para ?? '—' }}</span>
+                                    <span class="text-emerald-600 dark:text-emerald-400 font-mono font-bold truncate">{{ valorCampo(key.key, key.value?.para) ?? '—' }}</span>
                                   </div>
                                 }
                               </div>
@@ -879,9 +893,9 @@
                             @for (key of dt.changes | keyvalue; track key.key) {
                               <div class="flex items-center gap-2 text-xs">
                                 <span class="text-slate-500 dark:text-slate-400 font-mono w-32 shrink-0">{{ key.key }}</span>
-                                <span class="text-rose-600 dark:text-rose-400 line-through font-mono truncate">{{ key.value?.de ?? '—' }}</span>
+                                <span class="text-rose-600 dark:text-rose-400 line-through font-mono truncate">{{ valorCampo(key.key, key.value?.de) ?? '—' }}</span>
                                 <span class="text-slate-400">→</span>
-                                <span class="text-emerald-600 dark:text-emerald-400 font-mono font-bold truncate">{{ key.value?.para ?? '—' }}</span>
+                                <span class="text-emerald-600 dark:text-emerald-400 font-mono font-bold truncate">{{ valorCampo(key.key, key.value?.para) ?? '—' }}</span>
                               </div>
                             }
                           </div>
@@ -901,8 +915,12 @@
                       <svg class="w-10 h-10 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                       </svg>
-                      <p class="text-sm">Nenhum log encontrado para os filtros selecionados.</p>
-                      <p class="text-xs text-slate-400">Os logs serão gravados automaticamente a partir de agora.</p>
+                      @if (filtroAuditoriaAtivo()) {
+                        <p class="text-sm">Nenhum registro encontrado para os filtros aplicados.</p>
+                      } @else {
+                        <p class="text-sm">Nenhum log registrado ainda.</p>
+                        <p class="text-xs text-slate-400">Os logs serão gravados automaticamente a partir de agora.</p>
+                      }
                     </div>
                   </td>
                 </tr>
@@ -967,7 +985,7 @@
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-slate-50/70 dark:bg-white/[0.02] rounded-xl border border-slate-200/80 dark:border-white/5">
         <div>
           <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide" for="relatorios-page-buscar-por-nome-descricao">Buscar por nome/descrição</label>
-          <input id="relatorios-page-buscar-por-nome-descricao" type="text" [ngModel]="filtroEventosSearch()" (ngModelChange)="filtroEventosSearch.set($event)" placeholder="Digite para filtrar..."
+          <input id="relatorios-page-buscar-por-nome-descricao" type="text" [ngModel]="filtroEventosSearch()" (ngModelChange)="filtroEventosSearch.set($event)" (keydown.enter)="aplicarFiltros()" placeholder="Digite e tecle Enter..."
                  class="w-full bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none transition placeholder-slate-400 shadow-2xs" />
         </div>
         <div>
@@ -980,6 +998,9 @@
           <input id="relatorios-page-data-fim-2" type="date" [ngModel]="filtroEventosDataFim()" (ngModelChange)="filtroEventosDataFim.set($event)"
                  class="w-full bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none transition shadow-2xs" />
         </div>
+        @if (erroPeriodo()) {
+          <p role="alert" data-testid="erro-periodo" class="md:col-span-3 text-xs font-semibold text-red-600 dark:text-red-400">{{ erroPeriodo() }}</p>
+        }
         <div class="md:col-span-3 flex flex-wrap gap-3 items-center justify-end pt-1">
           @if (eventosPeriodoPadraoLabel(); as periodoPadrao) {
             <p data-testid="eventos-periodo-padrao" class="mr-auto text-xs text-slate-500 dark:text-slate-400">{{ periodoPadrao }}</p>
@@ -1028,19 +1049,26 @@
             </thead>
             <tbody class="divide-y divide-slate-200/80 dark:divide-white/5 text-xs text-slate-800 dark:text-white">
               @for (ev of eventLogs(); track ev.id) {
-                <tr
-                     role="button"
-                     tabindex="0"
-                     (keydown.enter)="toggleDetalhes(ev.id)"
-                     (keydown.space)="$event.preventDefault(); toggleDetalhes(ev.id)" class="hover:bg-slate-50/80 dark:hover:bg-white/[0.02] transition-colors cursor-pointer"
-                    (click)="toggleDetalhes(ev.id)">
+                <tr class="hover:bg-slate-50/80 dark:hover:bg-white/[0.02] transition-colors">
                   <td class="px-4 py-3.5 font-mono text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                    <div class="flex items-center gap-1.5">
-                      <svg class="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 transition-transform" [class.rotate-90]="expandidos()[ev.id]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                      </svg>
-                      {{ formatarData(ev.quando) }}
-                    </div>
+                    @if (ev.detalhes) {
+                      <button type="button"
+                              class="flex items-center gap-1.5 cursor-pointer rounded hover:text-slate-900 dark:hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500"
+                              [attr.aria-expanded]="!!expandidos()[ev.id]"
+                              [attr.aria-controls]="'evento-detalhes-' + ev.id"
+                              [attr.aria-label]="(expandidos()[ev.id] ? 'Recolher' : 'Ver') + ' detalhes do evento de ' + formatarData(ev.quando)"
+                              (click)="toggleDetalhes(ev.id)">
+                        <svg class="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 transition-transform" [class.rotate-90]="expandidos()[ev.id]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+                        {{ formatarData(ev.quando) }}
+                      </button>
+                    } @else {
+                      <div class="flex items-center gap-1.5">
+                        <span class="w-3.5 h-3.5 inline-block"></span>
+                        {{ formatarData(ev.quando) }}
+                      </div>
+                    }
                   </td>
                   <td class="px-4 py-3.5 whitespace-nowrap">
                     <span class="inline-block text-[10px] uppercase font-bold px-2 py-0.5 rounded border font-mono"
@@ -1049,18 +1077,19 @@
                             'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25': ev.tipo === 'Visitante',
                             'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25': ev.tipo === 'Prestador',
                             'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/25': ev.tipo === 'Encomenda',
-                            'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/25': ev.tipo === 'Ocorrência'
+                            'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/25': ev.tipo === 'Ocorrência',
+                            'bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border-cyan-500/25': ev.tipo === 'Dispositivo'
                           }">
                       {{ ev.tipo }}
                     </span>
                   </td>
                   <td class="px-4 py-3.5 text-center whitespace-nowrap">
                     @if (ev.direcao) {
-                      <span class="inline-block text-[10px] uppercase font-bold px-2 py-0.5 rounded border"
+                      <span data-testid="evento-direcao" class="inline-block text-[10px] uppercase font-bold px-2 py-0.5 rounded border"
                             [ngClass]="{
                               'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25': ev.direcao === 'entrada' || ev.direcao === 'online',
-                              'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25': ev.direcao === 'saida' || ev.direcao === 'offline',
-                              'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25': ev.direcao === 'bloqueado'
+                              'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25': ev.direcao === 'saida' || ev.direcao === 'offline' || ev.direcao === 'falha',
+                              'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25': ev.direcao === 'bloqueado' || ev.direcao === 'negado' || ev.direcao === 'manual'
                             }">
                         {{ direcaoLabel(ev.direcao, ev.tipo) }}
                       </span>
@@ -1072,15 +1101,15 @@
                     <div [title]="ev.descricao">{{ ev.descricao }}</div>
                   </td>
                 </tr>
-                @if (expandidos()[ev.id]) {
-                  <tr class="bg-slate-100/70 dark:bg-white/[0.02] border-b border-slate-200 dark:border-white/10">
+                @if (expandidos()[ev.id] && ev.detalhes) {
+                  <tr class="bg-slate-100/70 dark:bg-white/[0.02] border-b border-slate-200 dark:border-white/10" [id]="'evento-detalhes-' + ev.id">
                     <td colspan="4" class="px-5 py-4">
                       <!-- Renderizar card com base no tipo de evento -->
                       @if (ev.tipo === 'Acesso Facial' && ev.detalhes) {
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                           <div class="flex items-center gap-3 bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 rounded-xl shadow-2xs">
                             @if (ev.detalhes.fotoPessoa) {
-                              <img [src]="ev.detalhes.fotoPessoa" class="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-white/10" />
+                              <img [src]="ev.detalhes.fotoPessoa" [alt]="'Foto de ' + (ev.detalhes.nome || 'pessoa')" class="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-white/10" />
                             } @else {
                               <div class="w-10 h-10 rounded-full border border-[var(--line-200)] flex items-center justify-center text-[var(--ink-muted)] font-bold text-sm">
                                 {{ (ev.detalhes.nome || 'P').substring(0,1).toUpperCase() }}
@@ -1121,7 +1150,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                           <div class="flex items-center gap-3 bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 rounded-xl shadow-2xs">
                             @if (ev.detalhes.fotoPessoa) {
-                              <img [src]="ev.detalhes.fotoPessoa" class="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-white/10" />
+                              <img [src]="ev.detalhes.fotoPessoa" [alt]="'Foto de ' + (ev.detalhes.nome || 'pessoa')" class="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-white/10" />
                             } @else {
                               <div class="w-10 h-10 rounded-full border border-[var(--line-200)] flex items-center justify-center text-[var(--ink-muted)] font-bold text-sm">
                                 {{ (ev.detalhes.nome || 'V').substring(0,1).toUpperCase() }}
@@ -1129,7 +1158,7 @@
                             }
                             <div>
                               <div class="text-sm font-bold text-slate-900 dark:text-white">{{ ev.detalhes.nome }}</div>
-                              <div class="text-[10px] uppercase text-slate-500 dark:text-slate-400 tracking-wider mt-0.5">Doc: {{ ev.detalhes.documento }}</div>
+                              <div class="text-[10px] uppercase text-slate-500 dark:text-slate-400 tracking-wider mt-0.5">Doc: {{ ev.detalhes.documento ? mascararDocumento(ev.detalhes.documento) : '—' }}</div>
                             </div>
                           </div>
 
@@ -1171,6 +1200,31 @@
                         </div>
                       }
 
+                      @if (ev.tipo === 'Dispositivo' && ev.detalhes) {
+                        <div data-testid="evento-dispositivo" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-cyan-200/80 dark:border-cyan-500/30 p-3.5 shadow-2xs md:col-span-2">
+                            <div class="text-[10px] uppercase tracking-wider text-cyan-700 dark:text-cyan-400 font-bold mb-1">Dispositivo</div>
+                            <div class="text-sm font-bold text-slate-900 dark:text-white">{{ ev.detalhes.terminalNome || ev.detalhes.nome || 'Terminal' }}</div>
+                            <div class="text-xs text-slate-700 dark:text-slate-300 mt-1.5 whitespace-pre-line leading-relaxed">{{ ev.detalhes.descricao || ev.descricao }}</div>
+                            @if (ev.detalhes.ip || ev.detalhes.terminalIp) {
+                              <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-mono">IP: {{ ev.detalhes.ip || ev.detalhes.terminalIp }}</div>
+                            }
+                          </div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-1">Status</div>
+                            <span class="inline-block text-[10px] uppercase font-bold px-2 py-0.5 rounded border"
+                                  [ngClass]="{
+                                    'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25': ev.detalhes.status === 'Online',
+                                    'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25': ev.detalhes.status === 'Offline'
+                                  }">{{ ev.detalhes.status || '—' }}</span>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">Em: {{ formatarData(ev.detalhes.dataEntrada || ev.quando) }}</div>
+                            @if (ev.detalhes.autorizadoPor) {
+                              <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Origem: {{ ev.detalhes.autorizadoPor }}</div>
+                            }
+                          </div>
+                        </div>
+                      }
+
                       @if (ev.tipo === 'Ocorrência' && ev.detalhes) {
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                           <div class="rounded-xl bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 shadow-2xs md:col-span-2">
@@ -1206,7 +1260,11 @@
                       <svg class="w-10 h-10 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                       </svg>
-                      <p class="text-sm">Nenhum evento encontrado para os filtros selecionados.</p>
+                      @if (filtroEventosAtivo()) {
+                        <p class="text-sm">Nenhum registro encontrado para os filtros aplicados.</p>
+                      } @else {
+                        <p class="text-sm">Nenhum evento registrado no período.</p>
+                      }
                     </div>
                   </td>
                 </tr>

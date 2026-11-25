@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { API_BASE } from '../shared/api.config';
 import { AuthService } from '../auth/auth.service';
@@ -35,9 +35,10 @@ export class RelatoriosApi {
     });
   }
 
-  exportDadosCompletos(): Observable<Blob> {
+  /** Resposta inteira: o nome do arquivo vem no Content-Disposition. */
+  exportDadosCompletos(): Observable<HttpResponse<Blob>> {
     const cid = this.auth.porteiroInfo()?.id_condominio ?? 1;
-    return this.http.get(`${API_BASE}/condominios/${cid}/export`, { responseType: 'blob' });
+    return this.http.get(`${API_BASE}/condominios/${cid}/export`, { responseType: 'blob', observe: 'response' });
   }
 
   getAuditoria(
@@ -56,12 +57,13 @@ export class RelatoriosApi {
     return this.http.get<AuditoriaPage>(`${this.base}/auditoria`, { params });
   }
 
-  exportAuditoria(modulo?: string, dataInicio?: string, dataFim?: string): Observable<Blob> {
+  /** Resposta inteira: o nome do arquivo (com id e horário de Brasília) vem no Content-Disposition. */
+  exportAuditoria(modulo?: string, dataInicio?: string, dataFim?: string): Observable<HttpResponse<Blob>> {
     let params = new HttpParams();
     if (modulo && modulo !== 'todos') params = params.set('modulo', modulo);
     if (dataInicio) params = params.set('dataInicio', dataInicio);
     if (dataFim) params = params.set('dataFim', dataFim);
-    return this.http.get(`${this.base}/auditoria/export`, { params, responseType: 'blob' });
+    return this.http.get(`${this.base}/auditoria/export`, { params, responseType: 'blob', observe: 'response' });
   }
 
   getEventos(
