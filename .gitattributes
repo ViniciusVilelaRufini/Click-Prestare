@@ -1,0 +1,3 @@
+# Scripts que rodam em Linux (CloudShell, EB): sempre LF, mesmo em checkout no Windows.
+*.sh text eol=lf
+scripts/ops/**/*.sql text eol=lf
