@@ -1,6 +1,9 @@
 import type { PrismaService } from '../prisma/prisma.service';
 import type { DeclaracaoFerramenta } from './gemini.client';
 import type { CartaoAcao } from './acao-pendente.store';
+import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
+import { formatarDataHoraBrasilia } from '../common/hora-brasilia.util';
+import { chavePessoaLegado } from '../dashboard/dashboard.service';
 
 /**
  * Ferramentas de LEITURA do Assistente IA.
@@ -406,6 +409,95 @@ export const FERRAMENTAS_LEITURA: FerramentaLeitura[] = [
         orderBy: { nome: 'asc' },
       });
       return { encontrados: lista.length, moradores: lista };
+    },
+  },
+
+  {
+    nome: 'movimento_da_portaria_hoje',
+    descricao:
+      'Movimento da portaria HOJE (dia de Brasília) no condomínio: total de entradas de visitantes e de prestadores, quantas pessoas distintas entraram, quantas estão no local agora (entraram e ainda não saíram) e a lista de quem entrou, com hora de entrada e saída. Use para "quantos visitantes entraram hoje", "quem está no condomínio agora", "movimento da portaria hoje". Disponível apenas para síndico e funcionário.',
+    parametros: { type: 'object', properties: {} },
+    papeis: STAFF,
+    async executar(_args, ctx) {
+      const agora = new Date();
+      const hoje = formatarDataHoraBrasilia(agora).slice(0, 10);
+      // Janela larga (48 h) só para a consulta; o corte exato do dia é feito em
+      // Brasília na memória (servidor em UTC), como entradasPorHora do painel.
+      const desde = new Date(agora.getTime() - 48 * 3600_000);
+      // Mesma fonte e regra do Dashboard e do Log de Eventos: cada registro de
+      // visita com data_entrada é uma entrada; "no local" = entrou e não saiu
+      // (em qualquer dia, como o card "Dentro do condomínio").
+      const filtroDia = {
+        OR: [
+          { data_entrada: { gte: desde } },
+          { NOT: { data_entrada: null }, data_saida: null },
+        ],
+      };
+
+      interface Linha {
+        chave: string;
+        nome: string;
+        tipo: 'visitante' | 'prestador';
+        entrada: Date;
+        saida: Date | null;
+      }
+      let linhas: Linha[];
+      if (pessoasMigrationEnabled(ctx.prisma)) {
+        const rows = await ctx.prisma.visitas.findMany({
+          where: { id_condominio: ctx.idCondominio, ...filtroDia },
+          select: {
+            id_pessoa: true,
+            data_entrada: true,
+            data_saida: true,
+            pessoa: { select: { nome: true, tipo_pessoa: true } },
+          },
+          orderBy: { data_entrada: 'asc' },
+        });
+        linhas = rows.map((v: any) => ({
+          chave: `p:${v.id_pessoa}`,
+          nome: v.pessoa?.nome ?? '',
+          tipo: v.pessoa?.tipo_pessoa === 'prestador' ? 'prestador' : 'visitante',
+          entrada: v.data_entrada,
+          saida: v.data_saida,
+        }));
+      } else {
+        const rows = await ctx.prisma.visitantes.findMany({
+          where: { id_condominio: ctx.idCondominio, ...filtroDia },
+          select: {
+            nome: true,
+            doc_identificacao: true,
+            is_prestador: true,
+            data_entrada: true,
+            data_saida: true,
+          },
+          orderBy: { data_entrada: 'asc' },
+        });
+        linhas = rows.map((v: any) => ({
+          chave: chavePessoaLegado(v),
+          nome: v.nome ?? '',
+          tipo: v.is_prestador === 1 ? 'prestador' : 'visitante',
+          entrada: v.data_entrada,
+          saida: v.data_saida,
+        }));
+      }
+
+      const comEntrada = linhas.filter((l) => l.entrada);
+      const deHoje = comEntrada.filter((l) => formatarDataHoraBrasilia(l.entrada).slice(0, 10) === hoje);
+      const noLocal = new Set(comEntrada.filter((l) => !l.saida).map((l) => l.chave));
+      return {
+        data: hoje,
+        entradas_visitantes: deHoje.filter((l) => l.tipo === 'visitante').length,
+        entradas_prestadores: deHoje.filter((l) => l.tipo === 'prestador').length,
+        pessoas_distintas: new Set(deHoje.map((l) => l.chave)).size,
+        no_local_agora: noLocal.size,
+        registros: deHoje.slice(0, LIMITE_LISTA).map((l) => ({
+          nome: l.nome,
+          tipo: l.tipo,
+          entrada: dataHoraBR(l.entrada),
+          saida: dataHoraBR(l.saida),
+        })),
+        ...(deHoje.length > LIMITE_LISTA && { observacao: `Lista limitada às ${LIMITE_LISTA} primeiras entradas.` }),
+      };
     },
   },
 

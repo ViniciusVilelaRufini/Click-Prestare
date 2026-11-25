@@ -69,7 +69,7 @@ export interface DashboardSummary {
  * Pessoa no caminho legado (Visitantes, uma linha por visita): documento;
  * sem documento, o nome — cópia da chave privada de VisitantesService.
  */
-function chavePessoaLegado(v: { doc_identificacao?: string | null; nome?: string | null }): string {
+export function chavePessoaLegado(v: { doc_identificacao?: string | null; nome?: string | null }): string {
   const doc = (v.doc_identificacao ?? '').trim().toLowerCase();
   return doc || `nome:${(v.nome ?? '').trim().toLowerCase()}`;
 }

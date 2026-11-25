@@ -398,4 +398,117 @@ describe('Ferramentas do Assistente IA — autorização', () => {
       });
     });
   });
+
+  // -----------------------------------------------------------------------
+  describe('movimento_da_portaria_hoje', () => {
+    const f = () => FERRAMENTAS_LEITURA.find((x) => x.nome === 'movimento_da_portaria_hoje')!;
+    // 25/11/2026 15:00 BRT. O dia de Brasília começa em 03:00 UTC.
+    const AGORA = new Date('2026-11-25T18:00:00.000Z');
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      jest.setSystemTime(AGORA);
+      delete process.env['PESSOAS_MIGRATION_ENABLED'];
+    });
+    afterEach(() => {
+      jest.useRealTimers();
+      delete process.env['PESSOAS_MIGRATION_ENABLED'];
+    });
+
+    function comVisitas(linhas: any[]) {
+      const c = ctx({ papel: 'Sindico', staff: true, aptos: [] });
+      (c.prisma as any).visitantes.findMany = jest.fn(async () => linhas);
+      return c;
+    }
+    const v = (nome: string, entrada: string | null, saida: string | null, prestador = 0, doc = '') => ({
+      nome,
+      doc_identificacao: doc,
+      is_prestador: prestador,
+      data_entrada: entrada ? new Date(entrada) : null,
+      data_saida: saida ? new Date(saida) : null,
+    });
+
+    it('só síndico e funcionário têm a ferramenta; morador não', () => {
+      expect(ferramentasPara('Sindico').map((x) => x.nome)).toContain('movimento_da_portaria_hoje');
+      expect(ferramentasPara('Funcionario').map((x) => x.nome)).toContain('movimento_da_portaria_hoje');
+      expect(ferramentasPara('Morador').map((x) => x.nome)).not.toContain('movimento_da_portaria_hoje');
+    });
+
+    it('pessoa com 2 entradas conta 2 entradas e 1 pessoa, e segue no local', async () => {
+      const c = comVisitas([
+        v('Vinicius Vilela Rufini', '2026-11-25T16:16:00.000Z', '2026-11-25T16:16:40.000Z', 0, '123'),
+        v('Vinicius Vilela Rufini', '2026-11-25T16:17:00.000Z', null, 0, '123'),
+      ]);
+      const r: any = await f().executar({}, c);
+      expect(r.entradas_visitantes).toBe(2);
+      expect(r.entradas_prestadores).toBe(0);
+      expect(r.pessoas_distintas).toBe(1);
+      expect(r.no_local_agora).toBe(1);
+      expect(r.registros).toHaveLength(2);
+      expect(r.registros[0]).toMatchObject({ nome: 'Vinicius Vilela Rufini', tipo: 'visitante' });
+      expect(r.registros.map((x: any) => x.entrada)).toContain('25/11/2026, 13:17:00');
+    });
+
+    it('corte do dia em Brasília: 02:30 UTC de hoje (23:30 de ontem) não conta', async () => {
+      const c = comVisitas([
+        v('Ontem', '2026-11-25T02:30:00.000Z', '2026-11-25T02:50:00.000Z', 0, 'a'),
+        v('Hoje', '2026-11-25T03:30:00.000Z', null, 0, 'b'),
+      ]);
+      const r: any = await f().executar({}, c);
+      expect(r.entradas_visitantes).toBe(1);
+      expect(r.pessoas_distintas).toBe(1);
+      expect(r.registros.map((x: any) => x.nome)).toEqual(['Hoje']);
+    });
+
+    it('no local = entrada sem saída; separa prestador de visitante', async () => {
+      const c = comVisitas([
+        v('Ana', '2026-11-25T12:00:00.000Z', '2026-11-25T13:00:00.000Z', 0, '1'),
+        v('Bruno', '2026-11-25T14:00:00.000Z', null, 1, '2'),
+        v('Carla', '2026-11-25T15:00:00.000Z', null, 0, '3'),
+      ]);
+      const r: any = await f().executar({}, c);
+      expect(r.entradas_visitantes).toBe(2);
+      expect(r.entradas_prestadores).toBe(1);
+      expect(r.pessoas_distintas).toBe(3);
+      expect(r.no_local_agora).toBe(2);
+    });
+
+    it('quem entrou em dia anterior e não saiu ainda está no local (como o painel)', async () => {
+      const c = comVisitas([v('Antigo', '2026-11-20T12:00:00.000Z', null, 0, 'z')]);
+      const r: any = await f().executar({}, c);
+      expect(r.entradas_visitantes).toBe(0);
+      expect(r.no_local_agora).toBe(1);
+    });
+
+    it('escopo é o condomínio do contexto, nunca dos args', async () => {
+      const c = comVisitas([]);
+      await f().executar({ id_condominio: 999 }, c);
+      const arg = (c.prisma as any).visitantes.findMany.mock.calls[0][0];
+      expect(arg.where.id_condominio).toBe(1);
+    });
+
+    it('limita a lista de registros', async () => {
+      const linhas = Array.from({ length: 40 }, (_, i) =>
+        v(`P${i}`, '2026-11-25T14:00:00.000Z', null, 0, `d${i}`),
+      );
+      const r: any = await f().executar({}, comVisitas(linhas));
+      expect(r.entradas_visitantes).toBe(40);
+      expect(r.registros).toHaveLength(25);
+    });
+
+    it('caminho migrado: lê visitas e agrupa por id_pessoa', async () => {
+      process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
+      const c = ctx({ papel: 'Sindico', staff: true, aptos: [] });
+      (c.prisma as any).visitas = {
+        findMany: jest.fn(async () => [
+          { id_pessoa: 7, data_entrada: new Date('2026-11-25T16:16:00.000Z'), data_saida: null, pessoa: { nome: 'Vini', tipo_pessoa: 'visitante' } },
+          { id_pessoa: 7, data_entrada: new Date('2026-11-25T16:17:00.000Z'), data_saida: null, pessoa: { nome: 'Vini', tipo_pessoa: 'visitante' } },
+        ]),
+      };
+      const r: any = await f().executar({}, c);
+      expect(r.entradas_visitantes).toBe(2);
+      expect(r.pessoas_distintas).toBe(1);
+      expect((c.prisma as any).visitas.findMany.mock.calls[0][0].where.id_condominio).toBe(1);
+    });
+  });
 });
