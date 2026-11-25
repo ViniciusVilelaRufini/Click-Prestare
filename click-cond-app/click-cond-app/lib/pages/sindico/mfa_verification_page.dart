@@ -146,7 +146,7 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
       showAppDialog(
         context,
         title: 'Código expirado',
-        message: 'O tempo limite deste código expirou. Por favor, clique em "Reenviar código".',
+        message: 'O tempo limite deste código expirou. Por favor, toque em "Reenviar código".',
         icon: PhosphorIcons.clockClockwise,
         iconColor: AppColors.warning,
       );

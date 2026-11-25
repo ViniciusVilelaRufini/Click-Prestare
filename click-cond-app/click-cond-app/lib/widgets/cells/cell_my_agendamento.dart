@@ -1,3 +1,4 @@
+import 'package:click/utils/nome_proprio.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/utils/rotulo_bloco.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -104,7 +105,11 @@ class CellMyAgendamento extends StatelessWidget {
         ? '$horaDe às $horaAte'
         : horaDe;
     final dataCriacao = item['data_criacao']?.toString() ?? '';
-    final aprovadoPor = item['aprovado_por']?.toString() ?? (isAprovado ? 'Síndico' : null);
+    // "Cancelado pelo Morador" é frase pronta, não nome: só nomes são normalizados.
+    final aprovadoPorBruto = item['aprovado_por']?.toString() ?? (isAprovado ? 'Síndico' : null);
+    final aprovadoPor = (aprovadoPorBruto != null && !aprovadoPorBruto.startsWith('Cancelado'))
+        ? nomeProprio(aprovadoPorBruto)
+        : aprovadoPorBruto;
     final aprovadoEm = item['aprovado_em']?.toString();
     final motivoRecusa = item['motivo_recusa']?.toString();
     final agendadoPor = rotuloAgendadoPor(item);

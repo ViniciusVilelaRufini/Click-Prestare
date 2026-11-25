@@ -45,13 +45,13 @@ void main() {
 
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: ListOcorrenciasTodos())));
     await tester.pumpAndSettle();
-    expect(find.text('Barulho no 302'), findsOneWidget);
+    expect(find.text('BARULHO NO 302'), findsOneWidget);
 
     falhar = true;
     final antes = buscas;
-    await tester.fling(find.text('Barulho no 302'), const Offset(0, 400), 1000);
+    await tester.fling(find.text('BARULHO NO 302'), const Offset(0, 400), 1000);
     await tester.pumpAndSettle();
     expect(buscas, greaterThan(antes));
-    expect(find.text('Barulho no 302'), findsOneWidget);
+    expect(find.text('BARULHO NO 302'), findsOneWidget);
   });
 }

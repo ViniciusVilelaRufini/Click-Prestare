@@ -16,6 +16,14 @@ bool _isSolucionado(dynamic status) {
   return s == 'solucionado' || s == 'resolvida';
 }
 
+/// Ocorrência em aberto com o prazo (SLA) já vencido. Solucionada e sem prazo
+/// nunca contam como atrasada.
+bool ocorrenciaAtrasada(dynamic item, {DateTime? agora}) {
+  if (item is! Map || _isSolucionado(item['status'])) return false;
+  final prazo = parsePrazoOcorrencia(item);
+  return prazo != null && (agora ?? DateTime.now()).isAfter(prazo);
+}
+
 /// Selo visual do SLA de uma ocorrência.
 /// - Solucionada  → neutro ("Concluída")
 /// - Sem prazo    → neutro ("Sem prazo")

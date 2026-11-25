@@ -113,6 +113,16 @@ class _ComunicadoCard extends StatelessWidget {
                   Text(item['titulo'] ?? '', style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 2),
                   Text(item['descricao'] ?? '', style: AppTypography.caption(context), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  if ((item['created_at']?.toString() ?? '').trim().isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.xs),
+                    Row(
+                      children: [
+                        Icon(PhosphorIcons.clock, size: 12, color: AppColors.textTertiary(context)),
+                        const SizedBox(width: 4),
+                        Text(item['created_at'].toString().trim(), style: AppTypography.tiny(context)),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
