@@ -426,6 +426,9 @@ getPhoto(BuildContext context) async {
       ),
     ),
   );
+  // Fechar a janela (voltar ou tocar fora) não escolhe nada — antes caía na
+  // galeria. Quem chama já trata null, que é o mesmo de cancelar a galeria.
+  if (exit != "camera" && exit != "galeria") return null;
   return await pickImage(
       exit == "camera" ? ImageSource.camera : ImageSource.gallery);
 }

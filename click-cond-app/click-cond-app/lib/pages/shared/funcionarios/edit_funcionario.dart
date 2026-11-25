@@ -112,6 +112,7 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
 
   Future<void> _selectPhoto() async {
     var res = await getPhoto(context);
+    if (res == null) return; // cancelou: mantém a foto atual
     imageFile = res;
     changed = true;
     setState(() {});
