@@ -109,12 +109,12 @@ void main() {
 
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: ListOcorrenciasTodos())));
     await tester.pumpAndSettle();
-    expect(find.text('Barulho no 302'), findsOneWidget);
+    expect(find.text('BARULHO NO 302'), findsOneWidget);
 
     falhar = true;
     AtualizacoesApp.avisar(DominioApp.tudo);
     await tester.pumpAndSettle();
-    expect(find.text('Barulho no 302'), findsOneWidget);
+    expect(find.text('BARULHO NO 302'), findsOneWidget);
   });
 
   testWidgets('delivery: recarga que falha mantém a lista em vez da tela de erro', (tester) async {

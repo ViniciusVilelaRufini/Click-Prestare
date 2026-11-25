@@ -27,7 +27,7 @@ class _ListOcorrenciasPageState extends State<ListOcorrencias> {
     return DefaultTabController(
       length: 4,
       child: AppScaffold(
-        title: getText('ocorrencia_abertura_nav'),
+        title: getText('ocorrencia_lista_nav'),
         actions: canManage
             ? [
                 IconButton(

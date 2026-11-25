@@ -8,6 +8,7 @@ import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/localizable/localizable.dart';
+import 'package:click/utils/nome_proprio.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
@@ -128,7 +129,7 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
         // Seletor de Meses Premium
         Container(
           height: 52,
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
           decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(
@@ -141,55 +142,26 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             children: [
-              // Chip "Todos"
               Padding(
-                padding: const EdgeInsets.only(right: 8.0),
-                child: ChoiceChip(
-                  label: const Text('Todos os Meses'),
+                padding: const EdgeInsets.only(right: AppSpacing.sm),
+                child: _FiltroMes(
+                  label: 'Todos os meses',
                   selected: _selectedMonth == null,
-                  onSelected: (val) {
-                    setState(() => _selectedMonth = null);
-                  },
-                  selectedColor: AppColors.brand,
-                  backgroundColor: AppColors.surface(context),
-                  labelStyle: AppTypography.captionMedium(context).copyWith(
-                    color: _selectedMonth == null ? AppColors.onBrand : AppColors.textSecondary(context),
-                    fontWeight: FontWeight.w600,
-                  ),
-                  side: BorderSide(
-                    color: _selectedMonth == null 
-                        ? AppColors.brand 
-                        : AppColors.textTertiary(context).withValues(alpha: 0.15),
-                  ),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                  onTap: () => setState(() => _selectedMonth = null),
                 ),
               ),
               ...months.map((m) {
-                final isSelected = _selectedMonth != null && 
-                                   _selectedMonth!.month == m['month'] && 
-                                   _selectedMonth!.year == m['year'];
+                final isSelected = _selectedMonth != null &&
+                    _selectedMonth!.month == m['month'] &&
+                    _selectedMonth!.year == m['year'];
                 return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: ChoiceChip(
-                    label: Text(m['label']),
+                  padding: const EdgeInsets.only(right: AppSpacing.sm),
+                  child: _FiltroMes(
+                    label: m['label'],
                     selected: isSelected,
-                    onSelected: (val) {
-                      setState(() {
-                        _selectedMonth = val ? DateTime(m['year'], m['month']) : null;
-                      });
-                    },
-                    selectedColor: AppColors.brand,
-                    backgroundColor: AppColors.surface(context),
-                    labelStyle: AppTypography.captionMedium(context).copyWith(
-                      color: isSelected ? AppColors.onBrand : AppColors.textSecondary(context),
-                      fontWeight: FontWeight.w600,
-                    ),
-                    side: BorderSide(
-                      color: isSelected 
-                          ? AppColors.brand 
-                          : AppColors.textTertiary(context).withValues(alpha: 0.15),
-                    ),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                    onTap: () => setState(() {
+                      _selectedMonth = isSelected ? null : DateTime(m['year'], m['month']);
+                    }),
                   ),
                 );
               }),
@@ -245,7 +217,9 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
               : RefreshIndicator(
                   onRefresh: () => loadList(recarga: true),
                   child: ListView.separated(
-                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    // Respiro embaixo: o "+" flutuante não cobre o último card.
+                    padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 96),
                     itemCount: filteredList.length,
                     separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
                     itemBuilder: (_, i) => _OcorrenciaCard(
@@ -306,6 +280,10 @@ class _OcorrenciaCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusVal = item['status'];
+    // O texto do problema é o principal; o tipo (categoria) vira legenda.
+    final categoria = (item['tipo'] ?? '').toString().trim();
+    final descricao = (item['descricao'] ?? '').toString().trim();
+    final autor = (item['criado_por'] ?? '').toString().trim();
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -326,64 +304,99 @@ class _OcorrenciaCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Wrap(
-                    spacing: 4,
-                    runSpacing: 4,
-                    crossAxisAlignment: WrapCrossAlignment.center,
+                  if (categoria.isNotEmpty)
+                    Text(
+                      categoria.toUpperCase(),
+                      style: AppTypography.label(context).copyWith(color: AppColors.textTertiary(context)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  if (descricao.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(descricao, style: AppTypography.bodyMedium(context), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  ],
+                  const SizedBox(height: AppSpacing.xs + 2),
+                  Row(
                     children: [
-                      Text(item['tipo'] ?? item['descricao'] ?? '', style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: _statusColor(statusVal).withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                        child: Text(
-                          _statusLabel(statusVal),
-                          style: AppTypography.captionMedium(context).copyWith(
-                            color: _statusColor(statusVal),
-                            fontSize: 9,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: (item['publica'] == true) 
-                              ? AppColors.success.withValues(alpha: 0.12) 
-                              : AppColors.textTertiary(context).withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                        child: Text(
-                          (item['publica'] == true) ? 'Pública' : 'Privada',
-                          style: AppTypography.captionMedium(context).copyWith(
-                            color: (item['publica'] == true)
-                                ? AppColors.success
-                                : AppColors.textSecondary(context),
-                            fontSize: 9,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      OcorrenciaSlaBadge(item: item, compact: true),
+                      _Tag(label: _statusLabel(statusVal), cor: _statusColor(statusVal)),
+                      if (ocorrenciaAtrasada(item)) ...[
+                        const SizedBox(width: 4),
+                        _Tag(label: 'Atrasada', cor: AppColors.error),
+                      ],
                     ],
                   ),
-                  if (item['descricao'] != null)
-                    Text(item['descricao'], style: AppTypography.caption(context), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  if (item['criado_por'] != null && item['criado_por'].toString().isNotEmpty)
+                  if (autor.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
-                        'Autor: ${item['criado_por']}',
+                        'Autor: ${nomeProprio(autor)}',
                         style: AppTypography.caption(context).copyWith(fontSize: 10, color: AppColors.textSecondary(context)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                 ],
               ),
             ),
+            const SizedBox(width: AppSpacing.sm),
             Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Etiqueta de uma linha (nunca quebra): status e "Atrasada" do card.
+class _Tag extends StatelessWidget {
+  final String label;
+  final Color cor;
+  const _Tag({required this.label, required this.cor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: cor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.zero,
+      ),
+      child: Text(
+        label.toUpperCase(),
+        maxLines: 1,
+        style: AppTypography.tiny(context).copyWith(color: cor, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+}
+
+/// Filtro de mês no mesmo desenho dos filtros da lista de visitantes:
+/// rótulo curto em caixa alta, fundo da marca quando ativo, contorno quando não.
+class _FiltroMes extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _FiltroMes({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final cor = selected ? AppColors.onBrand : AppColors.textSecondary(context);
+    return Material(
+      color: selected ? AppColors.brand : Colors.transparent,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: selected ? AppColors.brand : AppColors.borderStrong(context)),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          height: 34,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            label.toUpperCase(),
+            maxLines: 1,
+            style: AppTypography.label(context).copyWith(color: cor),
+          ),
         ),
       ),
     );

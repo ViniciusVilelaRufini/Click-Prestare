@@ -1,3 +1,4 @@
+import 'package:click/utils/nome_proprio.dart';
 import 'dart:async';
 
 import 'package:click/services/atualizacoes_app.dart';
@@ -215,7 +216,7 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                             style: AppTypography.captionMedium(ctx).copyWith(color: AppColors.primary),
                           ),
                         ),
-                        title: Text(f['nome'] ?? '', style: AppTypography.body(ctx)),
+                        title: Text(nomeProprio(f['nome']?.toString()), style: AppTypography.body(ctx)),
                         subtitle: (f['funcao'] ?? '').toString().isNotEmpty
                             ? Text(f['funcao'], style: AppTypography.caption(ctx))
                             : null,
@@ -331,7 +332,7 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                                 Text('Autor: ', style: AppTypography.captionMedium(context)),
                                 Expanded(
                                   child: Text(
-                                    obj['criado_por'].toString(),
+                                    nomeProprio(obj['criado_por'].toString()),
                                     style: AppTypography.captionMedium(context).copyWith(
                                       color: AppColors.textPrimary(context),
                                       fontWeight: FontWeight.w600,
@@ -362,7 +363,7 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                               Expanded(
                                 child: Text(
                                   (obj['responsavelNome']?.toString().isNotEmpty ?? false)
-                                      ? obj['responsavelNome'].toString()
+                                      ? nomeProprio(obj['responsavelNome'].toString())
                                       : 'Não atribuído',
                                   style: AppTypography.captionMedium(context).copyWith(
                                     color: (obj['responsavelNome']?.toString().isNotEmpty ?? false)
