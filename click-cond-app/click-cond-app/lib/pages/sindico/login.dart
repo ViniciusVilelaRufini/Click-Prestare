@@ -76,12 +76,16 @@ class _LoginSindicoPageState extends State<LoginSindico> {
 
   Future<void> _loginWithBiometrics({Map<String, String>? creds}) async {
     if (_isLoading || _isBiometricAuthenticating) return;
+    // Liga antes do primeiro await: a biometria automática e um toque rápido
+    // em "Entrar" rodavam juntos (dois logins e dois registros de push).
+    setState(() => _isBiometricAuthenticating = true);
 
     final service = BiometricAuthService.instance;
     final saved = creds ?? await service.getSavedCredentials(widget.loginType);
-    if (saved == null) return;
-
-    setState(() => _isBiometricAuthenticating = true);
+    if (saved == null) {
+      if (mounted) setState(() => _isBiometricAuthenticating = false);
+      return;
+    }
 
     final authenticated = await service.authenticate(
       reason:
@@ -126,7 +130,7 @@ class _LoginSindicoPageState extends State<LoginSindico> {
   }
 
   Future<void> _doLogin({bool isFromBiometrics = false}) async {
-    if (_isLoading) return;
+    if (_isLoading || _isBiometricAuthenticating) return;
     final login = _txtLogin.text.trim();
     final senha = _txtSenha.text.trim();
     if (login.isEmpty || senha.isEmpty) {

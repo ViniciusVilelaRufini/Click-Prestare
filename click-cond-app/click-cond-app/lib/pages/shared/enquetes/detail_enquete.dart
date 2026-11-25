@@ -48,6 +48,10 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
   /// voto. Se a carga falhar, a unidade escolhida continua a mesma.
   bool _avancarUnidade = false;
 
+  /// A primeira carga falhou e não há enquete na tela: mostra o erro com
+  /// "tentar de novo" (antes a tela ficava em branco, sem saída).
+  bool _falhouCarga = false;
+
   @override
   void initState() {
     super.initState();
@@ -57,7 +61,22 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
   Future<void> load() async {
     try {
       setState(() => _isLoading = true);
-      obj = await apiGetDetails('assembleias/votacoes/enquetes', widget.id);
+      final novo = await apiGetDetails('assembleias/votacoes/enquetes', widget.id);
+      if (!mounted) return;
+      if (novo == null) {
+        // Falha na busca (rede, 5xx): a enquete que já estava na tela fica —
+        // inclusive logo depois de um voto aceito — e a pessoa é avisada.
+        _avancarUnidade = false;
+        if (obj == null) {
+          _falhouCarga = true;
+        } else {
+          displayMessage(context, getText('alert_error'),
+              'Não foi possível atualizar a enquete. Puxe a tela para baixo para tentar de novo.');
+        }
+        return;
+      }
+      obj = novo;
+      _falhouCarga = false;
       // Dado novo (ex.: depois de votar): volta ao estado de leitura.
       _escolhida = null;
       _alterando = false;
@@ -199,7 +218,30 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
   Widget build(BuildContext context) {
     final Widget body;
     if (obj == null) {
-      body = _isLoading ? const Center(child: CircularProgressIndicator()) : const SizedBox();
+      body = _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _falhouCarga
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.xl),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Não foi possível carregar a enquete.',
+                          style: AppTypography.bodySecondary(context),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        TextButton(
+                          onPressed: load,
+                          child: Text('Tentar de novo'.toUpperCase()),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : const SizedBox();
     } else {
       body = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

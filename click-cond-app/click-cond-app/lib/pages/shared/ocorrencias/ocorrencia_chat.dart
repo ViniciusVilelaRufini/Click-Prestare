@@ -53,9 +53,31 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage>
     _iniciarPoll();
   }
 
+  /// Número da última busca de mensagens. Resposta de uma busca mais antiga
+  /// (o poll que saiu antes do envio e chegou depois) é descartada: ela
+  /// trazia a lista sem a mensagem recém-enviada e a apagava da tela.
+  int _buscaAtual = 0;
+
+  /// Buscas ainda sem resposta. O tique do poll não sai com outra em voo:
+  /// numa rede lenta cada resposta seria descartada pela busca seguinte.
+  int _emVoo = 0;
+
+  /// A primeira carga falhou e não há nada na tela: mostra o erro em vez de
+  /// "Nenhuma mensagem ainda".
+  bool _falhouCarga = false;
+
   void _iniciarPoll() {
     _timer?.cancel();
-    _timer = Timer.periodic(_intervaloAtual, (_) => _loadMessages(showLoading: false));
+    _timer = null;
+    // Uma resposta que chega depois do dispose (ou com o app em segundo
+    // plano) não pode religar o timer: ele ficava chamando /messages sem
+    // ninguém para cancelar. A volta ao app religa pelo lifecycle.
+    if (!mounted) return;
+    final estado = WidgetsBinding.instance.lifecycleState;
+    if (estado != null && estado != AppLifecycleState.resumed) return;
+    _timer = Timer.periodic(_intervaloAtual, (_) {
+      if (_emVoo == 0) _loadMessages(showLoading: false);
+    });
   }
 
   @override
@@ -66,6 +88,7 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage>
       _iniciarPoll();
     } else {
       _timer?.cancel();
+      _timer = null;
     }
   }
 
@@ -79,34 +102,44 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage>
   }
 
   Future<void> _loadMessages({bool showLoading = true}) async {
+    final minha = ++_buscaAtual;
+    if (showLoading && mounted) {
+      setState(() => _isLoading = true);
+    }
+    final List<dynamic>? list;
+    _emVoo++;
     try {
-      if (showLoading && mounted) {
-        setState(() => _isLoading = true);
-      }
-      final list = await apiGetOcorrenciaMessages(widget.idOcorrencia);
-      if (_intervaloAtual != _intervaloBase) {
-        _intervaloAtual = _intervaloBase;
-        _iniciarPoll();
-      }
-      if (mounted) {
-        final hasNewMessage = list.length != _mensagens.length;
-        setState(() {
-          _mensagens = list;
-          _isLoading = false;
-        });
-        if (hasNewMessage) {
-          _scrollToBottom();
-        }
-      }
-    } catch (e) {
-      logDebug('[OcorrenciaChat] Erro ao carregar mensagens: $e');
-      // Dobra o intervalo ate 1 min enquanto a rede nao volta.
+      list = await apiGetOcorrenciaMessagesOuNull(widget.idOcorrencia);
+    } finally {
+      _emVoo--;
+    }
+    if (!mounted || minha != _buscaAtual) return;
+    if (list == null) {
+      logDebug('[OcorrenciaChat] Falha ao carregar mensagens');
+      // Dobra o intervalo até 1 min enquanto a rede não volta; as mensagens
+      // que já estão na tela ficam.
       final proximo = _intervaloAtual * 2;
       _intervaloAtual = proximo > const Duration(minutes: 1) ? const Duration(minutes: 1) : proximo;
       _iniciarPoll();
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      setState(() {
+        _isLoading = false;
+        _falhouCarga = _mensagens.isEmpty;
+      });
+      return;
+    }
+    if (_intervaloAtual != _intervaloBase) {
+      _intervaloAtual = _intervaloBase;
+      _iniciarPoll();
+    }
+    final List<dynamic> novas = list;
+    final hasNewMessage = novas.length != _mensagens.length;
+    setState(() {
+      _mensagens = novas;
+      _isLoading = false;
+      _falhouCarga = false;
+    });
+    if (hasNewMessage) {
+      _scrollToBottom();
     }
   }
 
@@ -124,7 +157,7 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage>
 
   Future<void> _sendMessage() async {
     final text = _msgController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || _isSending) return;
 
     setState(() {
       _isSending = true;
@@ -132,12 +165,20 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage>
 
     try {
       final res = await apiSendOcorrenciaMessage(widget.idOcorrencia, text);
-      if (res != null) {
+      if (!mounted) return;
+      if (res.ok) {
         _msgController.clear();
         await _loadMessages(showLoading: false);
+      } else {
+        // O texto fica no campo para tentar de novo; a recusa da API (sem
+        // permissão, sessão revogada) ou a falta de rede aparece aqui.
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res.mensagemOu('Não foi possível enviar a mensagem. Tente novamente.')),
+            backgroundColor: AppColors.error,
+          ),
+        );
       }
-    } catch (e) {
-      logDebug('[OcorrenciaChat] Erro ao enviar mensagem: $e');
     } finally {
       if (mounted) {
         setState(() => _isSending = false);
@@ -195,11 +236,18 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage>
                             Icon(PhosphorIcons.chatCircle, size: 48, color: AppColors.textTertiary(context)),
                             const SizedBox(height: 8),
                             Text(
-                              'Nenhuma mensagem ainda',
+                              _falhouCarga
+                                  ? 'Não foi possível carregar as mensagens.'
+                                  : 'Nenhuma mensagem ainda',
                               style: AppTypography.bodyMedium(context).copyWith(
                                 color: AppColors.textSecondary(context),
                               ),
                             ),
+                            if (_falhouCarga)
+                              TextButton(
+                                onPressed: () => _loadMessages(),
+                                child: Text('Tentar de novo'.toUpperCase()),
+                              ),
                           ],
                         ),
                       )

@@ -23,7 +23,11 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 class ListDelivery extends StatefulWidget {
   final bool hideAppBar;
   final bool showFab;
-  const ListDelivery({super.key, this.hideAppBar = false, this.showFab = true});
+
+  /// Condomínio do push tocado: com o app aberto pelo push não há condomínio
+  /// aberto e a lista mostrava "Selecione um condomínio". Null = o aberto.
+  final int? idCondominio;
+  const ListDelivery({super.key, this.hideAppBar = false, this.showFab = true, this.idCondominio});
 
   @override
   ListDeliveryState createState() => ListDeliveryState();
@@ -36,6 +40,10 @@ class ListDeliveryState extends State<ListDelivery> {
 
   /// Avisos com resposta (autorizar/recusar) em envio pelo destaque.
   final Set<int?> _respondendo = {};
+
+  /// Ids com uma resposta em andamento (do toque ao fim do envio, diálogo de
+  /// recusa incluído).
+  final Set<int?> _decidindo = {};
 
   /// O status muda na portaria com a tela aberta ou com o app em segundo
   /// plano: o push do delivery e a volta ao app recarregam a lista.
@@ -60,7 +68,7 @@ class ListDeliveryState extends State<ListDelivery> {
   /// 401/5xx), fica a lista atual em vez da tela de erro.
   Future<void> loadList({bool recarga = false}) async {
     if (_deliveries.isEmpty) setState(() => _loading = true);
-    final result = await apiGetDeliveries();
+    final result = await apiGetDeliveries(idCondominio: widget.idCondominio);
     if (!mounted) return;
     if (recarga && result.message != null) {
       setState(() => _loading = false);
@@ -82,18 +90,32 @@ class ListDeliveryState extends State<ListDelivery> {
   void _openDetails(DeliveryModel delivery) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => DeliveryDetailsPage(delivery: delivery, onChanged: loadList)),
-    ).then((_) => loadList());
+      // Só o `.then`: com `onChanged: loadList` junto, cada resposta nos
+      // detalhes recarregava a lista duas vezes (e fora de ordem). Recarga
+      // que falha mantém a lista em vez da tela de erro.
+      MaterialPageRoute(builder: (_) => DeliveryDetailsPage(delivery: delivery)),
+    ).then((_) => loadList(recarga: true));
   }
 
   /// Mesma resposta dos detalhes (com confirmação para recusar), direto da
   /// lista.
   Future<void> _responder(DeliveryModel delivery, RespostaDelivery resposta) async {
-    HapticFeedback.lightImpact();
-    if (resposta == RespostaDelivery.recusar) {
-      final confirmed = await showConfirmDialog(context, text: textoConfirmarRecusa(delivery));
-      if (confirmed != true || !mounted) return;
+    // Dois toques rápidos em Recusar abriam dois diálogos e mandavam duas
+    // recusas: a trava vale desde antes do diálogo.
+    if (_respondendo.contains(delivery.id) || !_decidindo.add(delivery.id)) return;
+    try {
+      HapticFeedback.lightImpact();
+      if (resposta == RespostaDelivery.recusar) {
+        final confirmed = await showConfirmDialog(context, text: textoConfirmarRecusa(delivery));
+        if (confirmed != true || !mounted) return;
+      }
+      await _enviarResposta(delivery, resposta);
+    } finally {
+      _decidindo.remove(delivery.id);
     }
+  }
+
+  Future<void> _enviarResposta(DeliveryModel delivery, RespostaDelivery resposta) async {
     setState(() => _respondendo.add(delivery.id));
     final result = await enviarRespostaDelivery(delivery, resposta);
     if (!mounted) return;
@@ -107,7 +129,7 @@ class ListDeliveryState extends State<ListDelivery> {
           content: Text(result.message ?? 'Não foi possível enviar sua resposta.'),
           backgroundColor: AppColors.error));
     }
-    await loadList();
+    await loadList(recarga: true);
   }
 
   @override

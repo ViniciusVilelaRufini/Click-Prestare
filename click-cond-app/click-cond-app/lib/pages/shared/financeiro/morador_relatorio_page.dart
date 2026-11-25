@@ -142,7 +142,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
             }
           }
         }
-        setState(() => _items = filtered);
+        if (mounted) setState(() => _items = filtered);
       }
     } catch (e) {
       debugPrint('Erro ao carregar dados para relatório: $e');

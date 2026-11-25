@@ -62,10 +62,13 @@ class _ListVeiculosState extends State<ListVeiculos> {
   Future<void> _loadVagas() async {
     if (!_loadedVagas) setState(() => _loadingVagas = true);
     try {
-      _resumoVagas = await apiGetVagas();
-      _loadedVagas = true;
-    } catch (_) {
-      _resumoVagas = VagasResumo.empty();
+      // Falha na busca: fica o resumo anterior em vez de um falso "sem vagas"
+      // (que também escondia o "Liberar vaga").
+      final novo = await apiGetVagasOuNull();
+      if (novo != null) {
+        _resumoVagas = novo;
+        _loadedVagas = true;
+      }
     } finally {
       if (mounted) setState(() => _loadingVagas = false);
     }
@@ -104,18 +107,28 @@ class _ListVeiculosState extends State<ListVeiculos> {
     });
   }
 
+  /// Vagas com revogação em curso (o segundo toque dava "Não foi possível
+  /// revogar" mesmo com a primeira revogação tendo dado certo).
+  final Set<int> _revogando = {};
+
   Future<void> _revogarVaga(VagaModel v) async {
-    final ok = await showConfirmDialog(
-      context,
-      text: 'A vaga de ${v.ocupanteNome ?? 'beneficiário'} será liberada de volta.',
-    );
-    if (ok != true) return;
-    final success = await apiRevogarVaga(v.id!);
-    if (!mounted) return;
-    if (success) {
-      _loadVagas();
-    } else {
-      displayMessage(context, 'Erro', 'Não foi possível revogar a vaga.');
+    final id = v.id;
+    if (id == null || !_revogando.add(id)) return;
+    try {
+      final ok = await showConfirmDialog(
+        context,
+        text: 'A vaga de ${v.ocupanteNome ?? 'beneficiário'} será liberada de volta.',
+      );
+      if (ok != true) return;
+      final success = await apiRevogarVaga(id);
+      if (!mounted) return;
+      if (success) {
+        await _loadVagas();
+      } else {
+        displayMessage(context, 'Erro', 'Não foi possível revogar a vaga.');
+      }
+    } finally {
+      _revogando.remove(id);
     }
   }
 

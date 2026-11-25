@@ -2,6 +2,7 @@ import 'package:click/theme/app_colors.dart';
 import 'package:click/utils/rotulo_bloco.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/utils/localizable/localizable.dart';
+import 'package:click/utils/hora_brasilia.dart';
 import 'package:click/utils/rotulo_reserva.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -10,11 +11,21 @@ class CellMyAgendamento extends StatelessWidget {
   final dynamic item;
   final Function(int id)? onCancel;
 
+  /// "Confirmar presença" (área que exige confirmação). Sem ele, o botão não
+  /// aparece; com ele, só aparece quando [podeConfirmarPresenca] deixa.
+  final Function(int id)? onConfirmar;
+
   const CellMyAgendamento({
     super.key,
     required this.item,
     this.onCancel,
+    this.onConfirmar,
   });
+
+  int get _id {
+    final rawId = item['id'];
+    return rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 0;
+  }
 
   void _mostrarModalCancelar(BuildContext context) {
     showDialog(
@@ -34,9 +45,7 @@ class CellMyAgendamento extends StatelessWidget {
           ElevatedButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              final rawId = item['id'];
-              final id = rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 0;
-              onCancel?.call(id);
+              onCancel?.call(_id);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
@@ -99,6 +108,8 @@ class CellMyAgendamento extends StatelessWidget {
     final aprovadoEm = item['aprovado_em']?.toString();
     final motivoRecusa = item['motivo_recusa']?.toString();
     final agendadoPor = rotuloAgendadoPor(item);
+    final podeConfirmar = onConfirmar != null && podeConfirmarPresenca(item, agora: agoraBrasilia());
+    final confirmada = isAprovado && presencaConfirmada(item);
 
     return Container(
       margin: const EdgeInsets.symmetric(
@@ -318,24 +329,63 @@ class CellMyAgendamento extends StatelessWidget {
                         ],
                       ),
 
-                      // Botão de Cancelar Reserva para o morador
-                      if (isCancelavel && onCancel != null) ...[
+                      if (confirmada)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Row(
+                            children: [
+                              Icon(PhosphorIcons.checkCircle, size: 14, color: AppColors.success),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Presença confirmada',
+                                style: TextStyle(
+                                  color: AppColors.success,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      // Ações do morador: confirmar presença e cancelar.
+                      if ((isCancelavel && onCancel != null) || podeConfirmar) ...[
                         const SizedBox(height: 10),
                         const Divider(height: 1),
                         const SizedBox(height: 8),
                         Align(
                           alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            onPressed: () => _mostrarModalCancelar(context),
-                            style: TextButton.styleFrom(
-                              foregroundColor: AppColors.error,
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            ),
-                            icon: const Icon(PhosphorIcons.xCircle, size: 15),
-                            label: const Text(
-                              'Cancelar Agendamento',
-                              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
-                            ),
+                          child: Wrap(
+                          alignment: WrapAlignment.end,
+                          spacing: 8,
+                          children: [
+                            if (podeConfirmar)
+                              TextButton.icon(
+                                onPressed: () => onConfirmar?.call(_id),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: AppColors.success,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                ),
+                                icon: const Icon(PhosphorIcons.checkCircle, size: 15),
+                                label: const Text(
+                                  'Confirmar presença',
+                                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            if (isCancelavel && onCancel != null)
+                              TextButton.icon(
+                                onPressed: () => _mostrarModalCancelar(context),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: AppColors.error,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                ),
+                                icon: const Icon(PhosphorIcons.xCircle, size: 15),
+                                label: const Text(
+                                  'Cancelar Agendamento',
+                                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                          ],
                           ),
                         ),
                       ],

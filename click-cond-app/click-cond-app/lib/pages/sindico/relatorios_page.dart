@@ -185,6 +185,7 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
         final file = File('${dir.path}/$filename');
         await file.writeAsBytes(bytes);
 
+        if (!mounted) return;
         setState(() {
           _isLoadingPdf = false;
           _isLoadingXlsx = false;
@@ -201,6 +202,7 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
           );
         }
       } else {
+        if (!mounted) return;
         setState(() {
           _isLoadingPdf = false;
           _isLoadingXlsx = false;
@@ -216,6 +218,7 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
         }
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoadingPdf = false;
         _isLoadingXlsx = false;

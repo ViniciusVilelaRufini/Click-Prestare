@@ -1118,6 +1118,9 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     // Código escaneado do boleto (opcional): fica salvo junto com a conta.
     String? scannedLinha = isEditing ? item['linha_digitavel']?.toString() : null;
     String? scannedPix = isEditing ? item['pix_copia_cola']?.toString() : null;
+    // Trava do botão do modal: o toque duplo (ou um segundo toque com a rede
+    // lenta) criava a conta em duplicidade.
+    bool salvando = false;
 
     showModalBottomSheet(
       context: ctx,
@@ -1441,7 +1444,8 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                           foregroundColor: AppColors.onBrand,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                         ),
-                        onPressed: () async {
+                        onPressed: salvando ? null : () async {
+                          if (salvando) return;
                           if (txtNome.text.trim().isEmpty || txtValor.text.trim().isEmpty || txtVencimento.text.trim().isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(content: Text("Preencha todos os campos!")),
@@ -1450,6 +1454,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                           }
 
                           final messenger = ScaffoldMessenger.of(context);
+                          setModalState(() => salvando = true);
                           setState(() => _isLoading = true);
 
                           final bodyData = {
@@ -1482,12 +1487,19 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                             );
                           } else {
                             if (mounted) setState(() => _isLoading = false);
+                            if (context.mounted) setModalState(() => salvando = false);
                             messenger.showSnackBar(
                               const SnackBar(content: Text("Erro ao salvar conta.")),
                             );
                           }
                         },
-                        child: Text(
+                        child: salvando
+                            ? SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onBrand),
+                              )
+                            : Text(
                           isEditing ? "Salvar Alterações" : "Adicionar Conta",
                           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.onBrand),
                         ),

@@ -90,8 +90,9 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
     super.dispose();
   }
 
-  /// [recarga] na atualização automática: se a busca falhar (sem rede,
-  /// 401/5xx), fica a lista atual e não abre alerta.
+  /// [recarga] na atualização automática, na volta do detalhe (depois de
+  /// mudar status/atribuir) e no puxar-para-atualizar: se a busca falhar (sem
+  /// rede, 401/5xx), fica a lista atual e não abre alerta.
   Future<void> loadList({bool recarga = false}) async {
     try {
       if (list.isEmpty) setState(() => _isLoading = true);
@@ -202,7 +203,7 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
               // Vazio também aceita puxar para atualizar: era exatamente o
               // estado em que o morador ficava preso após abrir a 1ª ocorrência.
               ? RefreshIndicator(
-                  onRefresh: loadList,
+                  onRefresh: () => loadList(recarga: true),
                   child: LayoutBuilder(
                     builder: (context, constraints) => SingleChildScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
@@ -242,7 +243,7 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
                   ),
                 )
               : RefreshIndicator(
-                  onRefresh: loadList,
+                  onRefresh: () => loadList(recarga: true),
                   child: ListView.separated(
                     padding: const EdgeInsets.all(AppSpacing.lg),
                     itemCount: filteredList.length,
@@ -252,7 +253,7 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => DetailOcorrencia(id: filteredList[i]['id'])),
-                      ).then((_) => loadList()),
+                      ).then((_) => loadList(recarga: true)),
                     ),
                   ),
                 ),

@@ -362,8 +362,10 @@ updatePasswordSindicoApi(String senhaAtual, String senha) async {
   final body = json.encode({"senha_atual": senhaAtual, "senha": senha});
   http.Response response;
   try {
+    // 401 aqui é "Senha atual incorreta.", não sessão vencida: sem o skip o
+    // ApiClient deslogava o usuário em vez de mostrar a mensagem.
     response = await ApiClient
-        .post(url, body: body)
+        .post(url, body: body, skip401Handling: true)
         .timeout(_kTimeout);
   } catch (e) {
     throw "Houve um erro, tente novamente!";

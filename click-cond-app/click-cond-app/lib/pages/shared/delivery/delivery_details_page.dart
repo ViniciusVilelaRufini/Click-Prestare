@@ -78,7 +78,25 @@ class _DeliveryDetailsPageState extends State<DeliveryDetailsPage> {
     }
   }
 
+  /// Botões travados: durante o envio e nos 550 ms da animação de sucesso
+  /// (antes um toque ali mandava a autorização de novo e levava 409).
+  bool get _bloqueado => _respondendo || _celebrando || _decidindo;
+
+  /// Do toque ao fim do envio, diálogo de recusa incluído: dois toques
+  /// rápidos em Recusar abriam dois diálogos e mandavam duas recusas.
+  bool _decidindo = false;
+
   Future<void> _responder(RespostaDelivery resposta) async {
+    if (_bloqueado) return;
+    _decidindo = true;
+    try {
+      await _responderAgora(resposta);
+    } finally {
+      _decidindo = false;
+    }
+  }
+
+  Future<void> _responderAgora(RespostaDelivery resposta) async {
     final delivery = _delivery;
     final autorizar = resposta == RespostaDelivery.autorizar;
     if (resposta != RespostaDelivery.recusar) HapticFeedback.lightImpact();
@@ -153,7 +171,7 @@ class _DeliveryDetailsPageState extends State<DeliveryDetailsPage> {
           label: 'Liberar entrada',
           icon: PhosphorIcons.check,
           loading: _respondendo,
-          onPressed: _respondendo ? null : () => _responder(RespostaDelivery.autorizar),
+          onPressed: _bloqueado ? null : () => _responder(RespostaDelivery.autorizar),
         ),
         const SizedBox(height: AppSpacing.sm),
         Row(children: [
@@ -162,7 +180,7 @@ class _DeliveryDetailsPageState extends State<DeliveryDetailsPage> {
               label: 'Vou buscar',
               icon: PhosphorIcons.personSimpleWalk,
               variant: AppButtonVariant.secondary,
-              onPressed: _respondendo ? null : () => _responder(RespostaDelivery.vouBuscar),
+              onPressed: _bloqueado ? null : () => _responder(RespostaDelivery.vouBuscar),
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
@@ -171,7 +189,7 @@ class _DeliveryDetailsPageState extends State<DeliveryDetailsPage> {
               label: 'Recusar',
               icon: PhosphorIcons.x,
               variant: AppButtonVariant.danger,
-              onPressed: _respondendo ? null : () => _responder(RespostaDelivery.recusar),
+              onPressed: _bloqueado ? null : () => _responder(RespostaDelivery.recusar),
             ),
           ),
         ]),
@@ -185,7 +203,7 @@ class _DeliveryDetailsPageState extends State<DeliveryDetailsPage> {
             label: 'Recusar',
             icon: PhosphorIcons.x,
             variant: AppButtonVariant.danger,
-            onPressed: _respondendo ? null : () => _responder(RespostaDelivery.recusar),
+            onPressed: _bloqueado ? null : () => _responder(RespostaDelivery.recusar),
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
@@ -195,7 +213,7 @@ class _DeliveryDetailsPageState extends State<DeliveryDetailsPage> {
             label: 'Autorizar entrega',
             icon: PhosphorIcons.check,
             loading: _respondendo,
-            onPressed: _respondendo ? null : () => _responder(RespostaDelivery.autorizar),
+            onPressed: _bloqueado ? null : () => _responder(RespostaDelivery.autorizar),
           ),
         ),
       ]);

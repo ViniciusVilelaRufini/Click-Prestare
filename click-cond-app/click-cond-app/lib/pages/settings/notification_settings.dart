@@ -3,7 +3,6 @@ import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/api_config.dart';
 import 'package:click/utils/api_client.dart';
-import 'package:click/utils/local_storage.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -23,6 +22,14 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   bool _visitantes = true;
   bool _isLoading = true;
 
+  /// A carga falhou: mostra o erro com "tentar de novo" (antes o spinner
+  /// girava para sempre).
+  bool _falhouCarga = false;
+
+  /// Um salvamento em curso: os switches ficam travados até a resposta, para
+  /// uma reversão por falha não desfazer outro toque.
+  bool _salvando = false;
+
   @override
   void initState() {
     super.initState();
@@ -30,36 +37,50 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   }
 
   Future<void> _loadSettings() async {
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _falhouCarga = false;
+      });
+    }
+    var ok = false;
     try {
-      final response = await ApiClient.get(
-        ApiConfig.buildUri('/users/settings'),
-        headers: {
-          'Authorization': getToken(),
-        },
-      );
+      final response = await ApiClient.get(ApiConfig.buildUri('/users/settings'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        setState(() {
-          _encomendas = data['notif_encomendas'] == 1;
-          _comunicados = data['notif_comunicados'] == 1;
-          _ocorrencias = data['notif_ocorrencias'] == 1;
-          _visitantes = data['notif_visitantes'] == 1;
-          _isLoading = false;
-        });
+        if (data is Map) {
+          _encomendas = data['notif_encomendas'] == 1 || data['notif_encomendas'] == true;
+          _comunicados = data['notif_comunicados'] == 1 || data['notif_comunicados'] == true;
+          _ocorrencias = data['notif_ocorrencias'] == 1 || data['notif_ocorrencias'] == true;
+          _visitantes = data['notif_visitantes'] == 1 || data['notif_visitantes'] == true;
+          ok = true;
+        }
       }
     } catch (e) {
       debugPrint('Error loading settings: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _falhouCarga = !ok;
+        });
+      }
     }
   }
 
-  Future<void> _saveSettings() async {
+  /// Liga/desliga um aviso e grava. Se o servidor não confirmar, o switch
+  /// volta ao que era e a pessoa é avisada: antes a tela mostrava desligado,
+  /// o servidor seguia ligado e o push continuava chegando.
+  Future<void> _alterar(bool novo, void Function(bool) aplicar) async {
+    if (_salvando) return;
+    setState(() {
+      aplicar(novo);
+      _salvando = true;
+    });
+    var ok = false;
     try {
-      await ApiClient.post(
+      final response = await ApiClient.post(
         ApiConfig.buildUri('/users/settings'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': getToken(),
-        },
         body: jsonEncode({
           'notif_encomendas': _encomendas,
           'notif_comunicados': _comunicados,
@@ -67,8 +88,22 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
           'notif_visitantes': _visitantes,
         }),
       );
+      ok = response.statusCode >= 200 && response.statusCode < 300;
     } catch (e) {
       debugPrint('Error saving settings: $e');
+    }
+    if (!mounted) return;
+    setState(() {
+      if (!ok) aplicar(!novo);
+      _salvando = false;
+    });
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Não foi possível salvar a preferência. Tente novamente.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
     }
   }
 
@@ -78,7 +113,28 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       title: 'Notificações',
       body: _isLoading
           ? Center(child: CircularProgressIndicator(color: AppColors.primary))
-          : Padding(
+          : _falhouCarga
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.xl),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Não foi possível carregar suas preferências de notificação.',
+                          style: AppTypography.bodySecondary(context),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        TextButton(
+                          onPressed: _loadSettings,
+                          child: Text('Tentar de novo'.toUpperCase()),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : Padding(
               padding: const EdgeInsets.all(AppSpacing.xl),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -93,10 +149,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                     subtitle: 'Receba avisos quando chegar um pacote para você.',
                     value: _encomendas,
                     icon: PhosphorIcons.package,
-                    onChanged: (val) {
-                      setState(() => _encomendas = val);
-                      _saveSettings();
-                    },
+                    onChanged: (val) => _alterar(val, (v) => _encomendas = v),
                   ),
                   const Divider(height: AppSpacing.xxl),
                   _buildSwitch(
@@ -104,10 +157,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                     subtitle: 'Avisos importantes do síndico e condomínio.',
                     value: _comunicados,
                     icon: PhosphorIcons.megaphone,
-                    onChanged: (val) {
-                      setState(() => _comunicados = val);
-                      _saveSettings();
-                    },
+                    onChanged: (val) => _alterar(val, (v) => _comunicados = v),
                   ),
                   const Divider(height: AppSpacing.xxl),
                   _buildSwitch(
@@ -115,10 +165,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                     subtitle: 'Saiba quando sua ocorrência for respondida.',
                     value: _ocorrencias,
                     icon: PhosphorIcons.warningCircle,
-                    onChanged: (val) {
-                      setState(() => _ocorrencias = val);
-                      _saveSettings();
-                    },
+                    onChanged: (val) => _alterar(val, (v) => _ocorrencias = v),
                   ),
                   const Divider(height: AppSpacing.xxl),
                   _buildSwitch(
@@ -126,10 +173,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                     subtitle: 'Receba avisos quando alguém chegar para você.',
                     value: _visitantes,
                     icon: PhosphorIcons.userList,
-                    onChanged: (val) {
-                      setState(() => _visitantes = val);
-                      _saveSettings();
-                    },
+                    onChanged: (val) => _alterar(val, (v) => _visitantes = v),
                   ),
                 ],
               ),
@@ -166,7 +210,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
         ),
         Switch.adaptive(
           value: value,
-          onChanged: onChanged,
+          onChanged: _salvando ? null : onChanged,
         ),
       ],
     );

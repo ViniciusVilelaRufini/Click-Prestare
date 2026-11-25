@@ -73,9 +73,11 @@ class ListEncomendasState extends State<ListEncomendas> {
     super.dispose();
   }
 
-  /// [recarga] na atualização automática: se a busca falhar (sem rede,
+  /// [recarga] na atualização automática, depois de retirar/cadastrar/
+  /// editar/remover e no puxar-para-atualizar: se a busca falhar (sem rede,
   /// 401/5xx), fica a lista atual e não abre alerta.
   Future<void> _loadList({bool recarga = false}) async {
+    if (!mounted) return;
     if (_encomendas.isEmpty) setState(() => _isLoading = true);
     try {
       final List<dynamic>? result = recarga
@@ -102,7 +104,7 @@ class ListEncomendasState extends State<ListEncomendas> {
         context,
         MaterialPageRoute(builder: (_) => const NewEncomenda()),
       ).then((res) {
-        if (res == true) _loadList();
+        if (res == true) _loadList(recarga: true);
       });
     } else {
       showRegisterTrackingDialog(context);
@@ -120,7 +122,7 @@ class ListEncomendasState extends State<ListEncomendas> {
           context,
           match.first,
           isStaff: _isStaff,
-          onRetirada: _loadList,
+          onRetirada: () => _loadList(recarga: true),
           onEdit: (enc) => _editarEncomenda(enc),
           onDelete: (enc) => _confirmDeleteEncomenda(enc),
         );
@@ -133,7 +135,7 @@ class ListEncomendasState extends State<ListEncomendas> {
       context,
       MaterialPageRoute(builder: (_) => NewEncomenda(encomenda: enc)),
     ).then((res) {
-      if (res == true) _loadList();
+      if (res == true) _loadList(recarga: true);
     });
   }
 
@@ -250,7 +252,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                     itemBuilder: (_, __) => AppSkeleton.listTile(context),
                   )
                 : RefreshIndicator(
-                    onRefresh: _loadList,
+                    onRefresh: () => _loadList(recarga: true),
                     child: lista.isEmpty
                         ? _buildEmptyState()
                         : _buildSections(lista),
@@ -286,7 +288,7 @@ class ListEncomendasState extends State<ListEncomendas> {
               encomenda: enc,
               isStaff: _isStaff,
               showUnit: showUnit,
-              onRetirada: _loadList,
+              onRetirada: () => _loadList(recarga: true),
               onEdit: (e) => _editarEncomenda(e),
               onDelete: (e) => _confirmDeleteEncomenda(e),
             ),
@@ -424,7 +426,7 @@ class ListEncomendasState extends State<ListEncomendas> {
       if (mounted) {
         if (success) {
           displayMessage(context, 'Sucesso', 'Encomenda removida com sucesso');
-          _loadList();
+          _loadList(recarga: true);
         } else {
           displayMessage(context, 'Erro', 'Falha ao remover encomenda');
         }
@@ -560,7 +562,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                           if (!success) setState(() {});
                           if (success) {
                             Navigator.pop(context);
-                            _loadList();
+                            _loadList(recarga: true);
                             displayMessage(context, 'Sucesso', 'Encomenda cadastrada com sucesso!');
                           } else {
                             displayMessage(context, 'Erro', 'Não foi possível cadastrar encomenda.');
@@ -679,6 +681,9 @@ class _EncomendaCard extends StatelessWidget {
                   : (isStaff ? 'Morador' : getUsername());
 
               setSheetState(() => enviando = true);
+              // Pego antes do envio: a folha (e até o detalhe) pode ser fechada
+              // enquanto a rede responde, e o aviso e a recarga seguem valendo.
+              final messenger = ScaffoldMessenger.of(detailContext);
 
               final foto = fotoBytes == null
                   ? null
@@ -690,14 +695,12 @@ class _EncomendaCard extends StatelessWidget {
                 retiradoFoto: foto,
               );
 
-              if (!sheetContext.mounted) return;
-              Navigator.pop(sheetContext);
+              // Folha fechada durante o envio: antes, a lista ficava velha e
+              // sem aviso, e o porteiro repetia a retirada e levava erro.
+              if (ok) onRetirada?.call();
+              if (sheetContext.mounted) Navigator.pop(sheetContext);
               if (detailContext.mounted) Navigator.pop(detailContext);
-
-              if (ok) {
-                onRetirada?.call();
-              }
-              ScaffoldMessenger.of(detailContext).showSnackBar(
+              messenger.showSnackBar(
                 SnackBar(
                   content: Text(ok
                       ? 'Entrega / Retirada confirmada com sucesso!'

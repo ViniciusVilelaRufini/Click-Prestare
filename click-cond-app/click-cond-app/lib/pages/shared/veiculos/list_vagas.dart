@@ -22,6 +22,10 @@ class _ListVagasState extends State<ListVagas> {
   bool _isLoading = false;
   bool _loaded = false;
 
+  /// Vagas com revogação em curso: o segundo toque mostrava "Não foi
+  /// possível revogar a vaga" mesmo com a primeira revogação tendo dado certo.
+  final Set<int> _revogando = {};
+
   @override
   void initState() {
     super.initState();
@@ -32,10 +36,17 @@ class _ListVagasState extends State<ListVagas> {
     // Stale-while-revalidate: skeleton só no 1º load; ao voltar, mantém o cache.
     if (!_loaded) setState(() => _isLoading = true);
     try {
-      _resumo = await apiGetVagas();
-      _loaded = true;
-    } catch (_) {
-      _resumo = VagasResumo.empty();
+      final novo = await apiGetVagasOuNull();
+      if (novo != null) {
+        _resumo = novo;
+        _loaded = true;
+      } else if (mounted) {
+        // Falha: fica o resumo anterior (ou o vazio da 1ª carga) e a pessoa
+        // sabe que não é "sem vagas".
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não foi possível atualizar as vagas. Puxe para tentar de novo.')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -51,17 +62,23 @@ class _ListVagasState extends State<ListVagas> {
   }
 
   Future<void> _revogar(VagaModel v) async {
-    final ok = await showConfirmDialog(
-      context,
-      text: 'A vaga de ${v.ocupanteNome ?? 'beneficiário'} será liberada de volta.',
-    );
-    if (ok != true) return;
-    final success = await apiRevogarVaga(v.id!);
-    if (!mounted) return;
-    if (success) {
-      _load();
-    } else {
-      displayMessage(context, 'Erro', 'Não foi possível revogar a vaga.');
+    final id = v.id;
+    if (id == null || !_revogando.add(id)) return;
+    try {
+      final ok = await showConfirmDialog(
+        context,
+        text: 'A vaga de ${v.ocupanteNome ?? 'beneficiário'} será liberada de volta.',
+      );
+      if (ok != true) return;
+      final success = await apiRevogarVaga(id);
+      if (!mounted) return;
+      if (success) {
+        await _load();
+      } else {
+        displayMessage(context, 'Erro', 'Não foi possível revogar a vaga.');
+      }
+    } finally {
+      _revogando.remove(id);
     }
   }
 

@@ -66,7 +66,12 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
     try {
       if (obj == null) setState(() => _isLoading = true);
       final novo = await apiGetDetails('areas-sociais', widget.myId!);
-      if (recarga && novo == null && obj != null) return;
+      // Busca que falhou com a área já na tela: ela fica (antes a tela
+      // esvaziava logo depois de uma reserva criada com sucesso).
+      if (novo == null && obj != null) {
+        if (!recarga && mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
+        return;
+      }
       obj = novo;
       if (obj == null && mounted) {
         displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
@@ -207,7 +212,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => NewReserva(obj: obj)),
-    ).then((_) => load());
+    ).then((_) => load(recarga: true));
   }
 
   void _abrirEdicaoReserva(dynamic item) {
@@ -215,7 +220,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => NewReserva(obj: obj, objEditReserva: item)),
-    ).then((_) => load());
+    ).then((_) => load(recarga: true));
   }
 
   bool _canEditAgendamento(dynamic item) {
@@ -706,7 +711,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => NewAreaSocial(isEdit: true, obj: obj, myId: obj['id'])),
-              ).then((_) => load()),
+              ).then((_) => load(recarga: true)),
               backgroundColor: AppColors.brand,
               child: Icon(PhosphorIcons.pencil, color: AppColors.onBrand),
             )

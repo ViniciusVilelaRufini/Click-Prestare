@@ -299,6 +299,21 @@ Future<String> apiUpdateStatusAgendamento(int idItem, String status, {String mot
       "Não foi possível atualizar a reserva. Tente novamente.";
 }
 
+/// Morador confirma que vai usar a reserva (área com "exige confirmação": a
+/// API cancela no início do horário a reserva aprovada sem confirmação).
+/// Idempotente na API. A recusa ("Esta reserva ainda não foi aprovada.") vem
+/// em `mensagem`; sem conexão, o texto de comunicação.
+Future<ResultadoApi> apiConfirmarAgendamento(int idAgendamento) async {
+  final url = _buildUri('/areas-sociais/agendamento/confirmar');
+  try {
+    final response = await ApiClient.post(url, body: json.encode({"id": idAgendamento}))
+        .timeout(_kTimeout);
+    return ResultadoApi.daResposta(response.statusCode, response.body);
+  } catch (e) {
+    return const ResultadoApi.falha('Falha de comunicação com o servidor. Verifique sua conexão.');
+  }
+}
+
 apiUpdateStatusOcorrManut(String route, int idItem, String status) async {
   final url = _buildUri('/$route/update-status');
   final body = json.encode({
@@ -338,6 +353,14 @@ apiUpdateResponsavel(int idOcorrencia, int? idResponsavel) async {
 }
 
 apiGetOcorrenciaMessages(int idOcorrencia) async {
+  return await apiGetOcorrenciaMessagesOuNull(idOcorrencia) ?? [];
+}
+
+/// Igual a [apiGetOcorrenciaMessages], mas devolve `null` quando a busca
+/// falha (status diferente de 200, sem rede, tempo esgotado). O chat usa esta:
+/// com `null` as mensagens que já estão na tela ficam e o poll entra em
+/// backoff, em vez de a conversa sumir numa oscilação de rede.
+Future<List<dynamic>?> apiGetOcorrenciaMessagesOuNull(int idOcorrencia) async {
   final url = _buildUri('/ocorrencias/mensagens/get-all', {
     'id': idOcorrencia.toString(),
   });
@@ -346,16 +369,20 @@ apiGetOcorrenciaMessages(int idOcorrencia) async {
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body);
-      return (parsed == null || parsed == "") ? [] : parsed;
+      if (parsed is List) return parsed;
+      return [];
     }
-    return [];
+    return null;
   } catch (e) {
     logDebug('[apiGetOcorrenciaMessages] Erro: $e');
-    return [];
+    return null;
   }
 }
 
-apiSendOcorrenciaMessage(int idOcorrencia, String mensagem) async {
+/// Envia uma mensagem no chat da ocorrência. Na recusa da API (403 de quem
+/// não é autor nem equipe, 400 de mensagem vazia) a explicação vem em
+/// `mensagem`; sem conexão, o texto de comunicação.
+Future<ResultadoApi> apiSendOcorrenciaMessage(int idOcorrencia, String mensagem) async {
   final url = _buildUri('/ocorrencias/mensagens/enviar');
   final body = json.encode({
     "id_ocorrencia": idOcorrencia,
@@ -364,13 +391,13 @@ apiSendOcorrenciaMessage(int idOcorrencia, String mensagem) async {
   try {
     final response = await ApiClient.post(url, body: body)
         .timeout(_kTimeout);
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      logDebug('[apiSendOcorrenciaMessage] HTTP ${response.statusCode}');
     }
-    return null;
+    return ResultadoApi.daResposta(response.statusCode, response.body);
   } catch (e) {
     logDebug('[apiSendOcorrenciaMessage] Erro: $e');
-    return null;
+    return const ResultadoApi.falha('Falha de comunicação com o servidor. Verifique sua conexão.');
   }
 }
 

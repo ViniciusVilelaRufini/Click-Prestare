@@ -44,14 +44,24 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
     super.dispose();
   }
 
+  /// Número da última busca. A busca digitada tem debounce, mas a requisição
+  /// já em voo não é cancelada: a resposta de "mar" chegando depois da de
+  /// "maria" mostrava a lista errada. Só a mais recente grava.
+  int _buscaAtual = 0;
+
   Future<void> loadList() async {
+    // Volta de outra tela depois de a sessão expirar: a página já saiu.
+    if (!mounted) return;
+    final minha = ++_buscaAtual;
     try {
       setState(() => _isLoading = true);
-      list = await apiGetAllVisitantes(txtSearch.text, allCondos: widget.allCondos);
+      final novo = await apiGetAllVisitantes(txtSearch.text, allCondos: widget.allCondos);
+      if (!mounted || minha != _buscaAtual) return;
+      list = novo;
     } catch (e) {
-      if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
+      if (mounted && minha == _buscaAtual) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && minha == _buscaAtual) setState(() => _isLoading = false);
     }
   }
 

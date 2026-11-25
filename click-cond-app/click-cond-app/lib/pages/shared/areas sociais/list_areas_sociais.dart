@@ -89,10 +89,14 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
       if (_isMorador) Tab(text: getText('area_social_meus_agendamentos').toUpperCase()),
     ];
 
+    // Recarga depois de aprovar/cancelar/confirmar (e o puxar-para-atualizar):
+    // se a busca falhar, fica a lista que já estava na tela, em vez de um
+    // falso "nada por aqui" logo depois de uma ação que deu certo.
+    Future<void> recarregar() => loadAll(recarga: true);
     final views = <Widget>[
-      AreasSociaisCells(list: list, reload: loadAll),
-      if (_isSindico) AgendamentosCells(list: listAgendamentos, reload: loadAll),
-      if (_isMorador) MeusAgendamentosCells(list: listMeusAgendamentos, reload: loadAll),
+      AreasSociaisCells(list: list, reload: recarregar),
+      if (_isSindico) AgendamentosCells(list: listAgendamentos, reload: recarregar),
+      if (_isMorador) MeusAgendamentosCells(list: listMeusAgendamentos, reload: recarregar),
     ];
 
     final canAddArea = _currentTab == 0 && (_isSindico || getUserPermission("areas_sociais") == 1);
@@ -105,7 +109,7 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
             ? FloatingActionButton(
                 onPressed: () => Navigator.push(context,
                         MaterialPageRoute(builder: (_) => NewAreaSocial(isEdit: false)))
-                    .then((_) => loadAll()),
+                    .then((_) => loadAll(recarga: true)),
                 backgroundColor: AppColors.brand,
                 child: Icon(PhosphorIcons.plus, color: AppColors.onBrand),
               )

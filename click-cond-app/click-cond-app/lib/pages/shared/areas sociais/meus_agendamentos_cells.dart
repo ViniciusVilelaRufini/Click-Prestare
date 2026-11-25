@@ -53,6 +53,37 @@ class _MeusAgendamentosCellsState extends State<MeusAgendamentosCells> {
     }
   }
 
+  /// "Confirmar presença" na área que exige confirmação: sem ela, a API
+  /// cancela a reserva aprovada quando o horário começa.
+  Future<void> _confirmarPresenca(int idItem) async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+    try {
+      final res = await apiConfirmarAgendamento(idItem);
+      if (!mounted) return;
+      if (res.ok) {
+        await widget.reload();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Presença confirmada. Sua reserva está mantida.',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            backgroundColor: AppColors.success,
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        displayMessage(context, getText('alert_error'),
+            res.mensagemOu('Não foi possível confirmar a presença. Tente novamente.'));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -99,6 +130,7 @@ class _MeusAgendamentosCellsState extends State<MeusAgendamentosCells> {
           return CellMyAgendamento(
             item: item,
             onCancel: _cancelAgendamento,
+            onConfirmar: _confirmarPresenca,
           );
         },
       ),

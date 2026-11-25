@@ -97,7 +97,9 @@ class _ConvitesVisitaPageState extends State<ConvitesVisitaPage> {
       context,
       MaterialPageRoute(builder: (_) => ConfirmarConvitePage(convite: convite)),
     );
-    if (mudou == true) _carregar();
+    // Sessão expirada com a confirmação aberta remove esta página: sem o
+    // mounted, o setState de _carregar rodava em estado descartado.
+    if (mudou == true && mounted) _carregar();
   }
 
   String _cpfFormatado(dynamic cpf) {

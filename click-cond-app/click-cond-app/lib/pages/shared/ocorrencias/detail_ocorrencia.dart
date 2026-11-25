@@ -121,18 +121,27 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
     if (mounted) setState(() => _mensagensChat = msgs);
   }
 
+  /// Número da última carga de anexos. Duas cargas juntas (toque no push com
+  /// o app frio e a volta ao app, por exemplo) faziam `clear()` e depois as
+  /// duas faziam `add`: as fotos apareciam duplicadas. Agora cada carga monta
+  /// a própria lista e só a mais recente é gravada.
+  int _cargaAnexos = 0;
+
   Future<void> _carregarAnexos() async {
-    list.clear();
+    final minha = ++_cargaAnexos;
+    final novos = <dynamic>[];
     if (obj['anexos'] != null && obj['anexos'].toString().isNotEmpty) {
       for (var item in obj['anexos'].split(';')) {
         if (item.toString().isNotEmpty) {
           // fileFromImageUrl devolve null quando não há arquivo local; null
           // na lista estourava em `f.path` no build.
           final arquivo = await fileFromImageUrl(item);
-          if (arquivo != null) list.add(arquivo);
+          if (arquivo != null) novos.add(arquivo);
         }
       }
     }
+    if (minha != _cargaAnexos) return;
+    list = novos;
   }
 
   Future<void> saveResposta() async {

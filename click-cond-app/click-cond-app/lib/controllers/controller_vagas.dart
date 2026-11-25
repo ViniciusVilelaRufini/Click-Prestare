@@ -23,6 +23,14 @@ Map<String, String> unidadeAberta() {
 
 /// Vagas do apartamento do morador logado (total + ocupadas).
 Future<VagasResumo> apiGetVagas() async {
+  return await apiGetVagasOuNull() ?? VagasResumo.empty();
+}
+
+/// Igual a [apiGetVagas], mas devolve `null` quando a busca falha (status
+/// diferente de 200, resposta sem o formato, sem rede). A tela de vagas usa
+/// esta: em falha fica o resumo que já estava, em vez de um falso "sem vagas"
+/// que também escondia o botão "Liberar vaga".
+Future<VagasResumo?> apiGetVagasOuNull() async {
   final url = ApiConfig.buildUri('/vagas/get-all', {
     'id_condominio': Singleton.instance.id_condominio.toString(),
     ...unidadeAberta(),
@@ -34,10 +42,10 @@ Future<VagasResumo> apiGetVagas() async {
       final parsed = jsonDecode(response.body);
       if (parsed is Map<String, dynamic>) return VagasResumo.fromJson(parsed);
     }
-    return VagasResumo.empty();
+    return null;
   } catch (e) {
     logDebug('[apiGetVagas] Erro: $e');
-    return VagasResumo.empty();
+    return null;
   }
 }
 

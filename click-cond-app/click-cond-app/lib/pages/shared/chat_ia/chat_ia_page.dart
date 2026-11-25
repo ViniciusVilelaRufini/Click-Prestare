@@ -70,6 +70,11 @@ class _ChatIaPageState extends State<ChatIaPage> {
   /// chega na primeira resposta do backend.
   String? _conversaId;
 
+  /// Muda a cada "Nova conversa" e a cada conversa aberta. Resposta (da IA ou
+  /// do histórico) que volta com outra geração é descartada: antes ela caía
+  /// na conversa nova e amarrava a conversa nova ao id da antiga.
+  int _geracao = 0;
+
   List<ConversaIa> _conversas = [];
   bool _carregandoConversas = false;
   String? _erroConversas;
@@ -273,6 +278,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
 
   void _novaConversa() {
     setState(() {
+      _geracao++;
       _mensagens.clear();
       _conversaId = null;
       _isSending = false;
@@ -280,6 +286,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
   }
 
   Future<void> _abrirConversa(ConversaIa conversa) async {
+    final geracao = ++_geracao;
     setState(() {
       _mensagens.clear();
       _conversaId = conversa.id;
@@ -287,14 +294,14 @@ class _ChatIaPageState extends State<ChatIaPage> {
     });
     try {
       final msgs = await apiAbrirConversaIa(conversa.id);
-      if (!mounted) return;
+      if (!mounted || geracao != _geracao) return;
       setState(() {
         _mensagens.addAll(msgs.map((m) => _ChatMessage(m.texto, m.isUser)));
         _isSending = false;
       });
       _scrollToBottom();
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || geracao != _geracao) return;
       setState(() => _isSending = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error),
@@ -374,6 +381,9 @@ class _ChatIaPageState extends State<ChatIaPage> {
       return;
     }
 
+    // A permissão do microfone pode ter ficado aberta enquanto a pessoa saía
+    // da tela: sem tela, não liga o reconhecimento.
+    if (!mounted) return;
     setState(() => _ouvindo = true);
     await _speech.listen(
       localeId: 'pt_BR',
@@ -385,6 +395,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
         );
       },
     );
+    if (!mounted) _speech.stop();
   }
 
   // ==========================================================================
@@ -631,6 +642,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
     });
     _scrollToBottom();
 
+    final geracao = _geracao;
     final resposta = await apiPerguntarChatIa(
       textoEnvio,
       conversaId: _conversaId,
@@ -643,7 +655,9 @@ class _ChatIaPageState extends State<ChatIaPage> {
           : null,
     );
 
-    if (!mounted) return;
+    // Trocou de conversa (ou abriu uma nova) enquanto a IA respondia: a
+    // resposta é da conversa antiga e fica só no histórico dela.
+    if (!mounted || geracao != _geracao) return;
     setState(() {
       _mensagens.add(_ChatMessage(resposta.texto, false, acao: resposta.acao));
       _isSending = false;
