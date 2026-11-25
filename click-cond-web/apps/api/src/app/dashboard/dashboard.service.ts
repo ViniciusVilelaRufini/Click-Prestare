@@ -833,9 +833,9 @@ export class DashboardService {
       }
     }
 
-    const sortedEvents = ultimosEventos
-      .sort((a, b) => new Date(b.quando).getTime() - new Date(a.quando).getTime())
-      .slice(0, 15);
+    // Os 15 mais recentes no geral (aba "Todos") + os 15 de cada tipo: as abas do card filtram
+    // esta lista no front, e cortar só no geral deixava "Encomendas"/"Ocorrências" vazias.
+    const sortedEvents = selecionarUltimosEventos(ultimosEventos, 15);
 
     return {
       visitantesAtivos,
@@ -909,4 +909,23 @@ function labelMetodoDispositivo(tipo?: string | null): string {
     case 'facial':
     default: return 'Terminal Facial';
   }
+}
+
+/**
+ * Últimos eventos do card do dashboard: os `n` mais recentes no geral (o front mostra estes na aba
+ * "Todos") mais os `n` mais recentes de cada tipo (as abas filtram por tipo no front), sem repetir,
+ * em ordem decrescente. Exportada para teste.
+ */
+export function selecionarUltimosEventos<T extends { tipo: string; quando: string }>(eventos: T[], n: number): T[] {
+  const ordenados = [...eventos].sort((a, b) => new Date(b.quando).getTime() - new Date(a.quando).getTime());
+  const escolhidos = new Set<T>(ordenados.slice(0, n));
+  const porTipo = new Map<string, number>();
+  for (const e of ordenados) {
+    const k = porTipo.get(e.tipo) ?? 0;
+    if (k < n) {
+      escolhidos.add(e);
+      porTipo.set(e.tipo, k + 1);
+    }
+  }
+  return ordenados.filter((e) => escolhidos.has(e));
 }

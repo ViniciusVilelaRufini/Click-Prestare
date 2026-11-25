@@ -357,6 +357,12 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       });
     }
 
+    // A API manda os 15 mais recentes no geral + os 15 de cada tipo (para as abas de tipo não
+    // ficarem vazias). "Todos" sem busca mostra só os 15 mais recentes, como sempre.
+    if (filtro === 'Todos' && !busca) {
+      filtrados = filtrados.slice(0, 15);
+    }
+
     return filtrados;
   });
 
