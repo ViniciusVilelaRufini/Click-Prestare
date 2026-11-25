@@ -10,7 +10,7 @@ import { DeliveryApi } from '../delivery.service';
  * então só o síndico vê — o mesmo critério da API (assertSindicoEstrito,
  * pelo typeAccess do token, não pelo turno texto livre do porteiro).
  *
- * O QR de cada portão é gerado em Terminais; aqui só a opção do condomínio.
+ * O QR de cada portão é gerado em Configurações → Terminais de Dispositivos; aqui só a opção do condomínio.
  */
 @Component({
   selector: 'app-delivery-autoatendimento',
@@ -24,7 +24,7 @@ import { DeliveryApi } from '../delivery.service';
           <div class="min-w-0">
             <h2 id="titulo-autoatendimento" class="ps-h2">Autoatendimento no portão</h2>
             <p class="mt-1 text-sm text-slate-400">
-              O entregador lê o QR no portão, tira uma foto e o morador decide. Gere o QR de cada portão em Terminais.
+              O entregador lê o QR no portão, tira uma foto e o morador decide. Gere o QR de cada portão em Configurações → Terminais de Dispositivos.
             </p>
           </div>
           @if (carregado()) {

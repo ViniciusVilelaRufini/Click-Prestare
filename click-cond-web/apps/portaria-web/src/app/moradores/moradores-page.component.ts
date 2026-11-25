@@ -10,7 +10,7 @@ import { ActivatedRoute } from '@angular/router';
 type AbaDetalhe = 'geral' | 'visitas' | 'encomendas' | 'ocorrencias' | 'acessos';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { ConfirmService } from '../shared/confirm.service';
-import { InputMaskDirective, validators } from '../shared/input-mask.directive';
+import { InputMaskDirective, formatarTelefoneExibicao, validators } from '../shared/input-mask.directive';
 import { EnrollCaptureComponent } from '../shared/enroll-capture.component';
 import { FacialCaptureComponent } from '../shared/facial-capture.component';
 import { AuthService } from '../auth/auth.service';
@@ -33,6 +33,9 @@ const FILTRO_SEM_NASCIMENTO = 'sem_nascimento';
   templateUrl: './moradores-page.component.html',
 })
 export class MoradoresPageComponent implements OnInit {
+  /** Telefone sempre formatado na lista e na ficha (cadastro antigo guarda cru). */
+  readonly telefoneExibicao = formatarTelefoneExibicao;
+
   private api = inject(MoradoresApi);
   private veiculosApi = inject(VeiculosApi);
   private aptApi = inject(ApartamentosApi);

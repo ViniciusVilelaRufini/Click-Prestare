@@ -34,6 +34,7 @@ import {
   StatusVisitante,
   VisitaParaStatus,
 } from '../core/status-visitante.util';
+import { rotuloStatusVisita, RotuloStatusVisita, TomStatusVisita } from './rotulo-status-visita.util';
 
 @Component({
   selector: 'app-visitantes-page',
@@ -222,9 +223,39 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     } else {
       this.novo.dias_semana = [...selecionados, dia].join(',');
     }
+    this.ajustarTerminoRecorrente(selecionados.length > 0);
+  }
+
+  /**
+   * Dica perto do "Liberado até" quando o término padrão de 4 h foi limpo ao
+   * marcar dias da semana (acesso recorrente).
+   */
+  readonly dicaRecorrente = signal<string | null>(null);
+
+  /**
+   * A API trata a janela como ABSOLUTA e os dias só restringem dentro dela:
+   * prestador "Segunda a Sexta" com o término padrão (agora + 4 h) valia só
+   * 4 h num dia. Ao marcar o 1º dia com o término ainda no padrão (não
+   * editado), o término vai para daqui a 30 dias — padrão FINITO: acesso sem
+   * data para acabar só por escolha explícita do operador (campo em branco).
+   */
+  private ajustarTerminoRecorrente(jaTinhaDias: boolean) {
+    if (jaTinhaDias || !this.diasSemanaSelecionados().length) return;
+    const fim = this.novo.data_hora_termino;
+    if (!fim || fim !== this.terminoPadrao) return;
+    this.novo.data_hora_termino = this.terminoPadrao = this.localDateTime(24 * 30);
+    this.dicaRecorrente.set(
+      'Acesso recorrente: o "Liberado até" foi para daqui a 30 dias. Ajuste até quando vale o acesso (ou deixe em branco para não ter data final).',
+    );
   }
 
   aplicarPresetDias(preset: 'semana' | 'fim-semana' | 'todos' | 'nenhum') {
+    const jaTinhaDias = this.diasSemanaSelecionados().length > 0;
+    this.aplicarPresetDiasSemAjuste(preset);
+    this.ajustarTerminoRecorrente(jaTinhaDias);
+  }
+
+  private aplicarPresetDiasSemAjuste(preset: 'semana' | 'fim-semana' | 'todos' | 'nenhum') {
     if (preset === 'semana') {
       this.novo.dias_semana = 'seg,ter,qua,qui,sex';
     } else if (preset === 'fim-semana') {
@@ -340,9 +371,17 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     return total === undefined || total > 0;
   }
 
+  /**
+   * Linha da lista clicada para abrir o detalhe. O objeto do detalhe (API) não
+   * traz auth_status/liberado/pedido_expirado; o status do cabeçalho e do selo
+   * "Visita Atual" sai desta linha, pela mesma regra da lista.
+   */
+  readonly detalhesLinha = signal<Visitante | Pessoa | null>(null);
+
   abrirDetalhes(v: Visitante | Pessoa) {
     if (!this.temVisita(v) || v.id == null) return;
     const idVisita = v.id;
+    this.detalhesLinha.set(v);
     this.detalhesData.set(null);
     this.detalhesError.set(null);
     this.detalhesLoading.set(true);
@@ -359,6 +398,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   }
 
   fecharDetalhes() {
+    this.detalhesLinha.set(null);
     this.detalhesData.set(null);
     this.detalhesError.set(null);
     this.detalhesLoading.set(false);
@@ -555,6 +595,8 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
    */
   readonly visitantesFiltrados = this.pessoasFiltradas;
 
+  /** Término proposto pelo `estadoInicial` (agora + 4 h): "não editado" = igual a este. */
+  private terminoPadrao: string | null = null;
   novo: CreateVisitante = this.estadoInicial();
   showForm = false;
   editingId: number | null = null;
@@ -825,6 +867,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.pessoaEncontrada.set(null);
     this.error.set(null);
     this.erroForm.set(null);
+    this.dicaRecorrente.set(null);
     this.showForm = true;
   }
 
@@ -856,6 +899,10 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.pessoaEncontrada.set(null);
     this.error.set(null);
     this.erroForm.set(null);
+    this.dicaRecorrente.set(null);
+    // Pessoa recorrente: a nova visita nasce com o término em 30 dias em vez das
+    // 4 h padrão, que o salvar recusaria para quem tem dias marcados.
+    this.ajustarTerminoRecorrente(false);
     this.showForm = true;
   }
 
@@ -935,6 +982,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.fotoDocumentoBase64.set(v.foto_documento ?? null);
     this.error.set(null);
     this.erroForm.set(null);
+    this.dicaRecorrente.set(null);
     this.showForm = true;
     document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -966,6 +1014,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.consentimentoBiometria.set(false);
     this.error.set(null);
     this.erroForm.set(null);
+    this.dicaRecorrente.set(null);
   }
 
   /**
@@ -988,6 +1037,17 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     if (!(this.editingId && this.editandoIdentidade()) && ini && fim && fim <= ini) {
       this.erroForm.set('"Liberado até" precisa ser depois de "Liberado a partir de".');
       return;
+    }
+    // Recorrente (dias da semana): a API trata a janela como absoluta e os dias
+    // só restringem dentro dela — "Seg a Sex" com término em 4 h valia 4 h num dia.
+    if (!(this.editingId && this.editandoIdentidade()) && fim && (this.novo.dias_semana ?? '').trim()) {
+      const inicioMs = ini ? new Date(ini).getTime() : this.agoraMs();
+      if (new Date(fim).getTime() - inicioMs < 24 * 3600_000) {
+        this.erroForm.set(
+          'Acesso recorrente: o "Liberado até" precisa cobrir mais de um dia (até quando vale o acesso) — ou deixe em branco para acesso contínuo.',
+        );
+        return;
+      }
     }
 
     // Modo: Nova Visita para pessoa existente (form curto, só apto+validade)
@@ -1422,6 +1482,28 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     return 'historico';
   }
 
+  /** Rótulo do status da linha — regra única (rotulo-status-visita.util), igual à lista. */
+  rotuloStatusVisita(v: Visitante | Pessoa): RotuloStatusVisita {
+    return rotuloStatusVisita(v as any, this.agoraMs());
+  }
+
+  /**
+   * Status do detalhe aberto, pela linha clicada (a versão mais nova dela na
+   * lista, se a lista recarregou). Sem linha, null: o template usa o fallback.
+   */
+  rotuloDetalhe(): RotuloStatusVisita | null {
+    const linha = this.detalhesLinha();
+    if (!linha) return null;
+    const chave = this.chavePessoa(linha);
+    const atual = this.pessoas().find((p) => this.chavePessoa(p) === chave) ?? linha;
+    return this.rotuloStatusVisita(atual);
+  }
+
+  /** Cor (variável CSS) do tom do status — capa e card "Visita Atual". */
+  tomVar(tom: TomStatusVisita): string {
+    return tom === 'ok' ? 'var(--signal-ok)' : tom === 'warn' ? 'var(--signal-warn)' : tom === 'danger' ? 'var(--signal-danger)' : 'var(--ink-subtle)';
+  }
+
   /** Hora do SERVIDOR (o PC da portaria costuma estar com o relógio errado). Ver ServerClockService. */
   private agoraMs(): number {
     return this.relogio ? this.relogio.agora().getTime() : Date.now();
@@ -1463,10 +1545,24 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.showValidationModal.set(false);
   }
 
+  /** Dígitos do PIN digitado (a máscara "000-000" põe hífen). */
+  pinDigitos(): string {
+    return this.pinCode().replace(/\D/g, '');
+  }
+
+  /** O PIN tem exatamente 6 dígitos: com menos, "12" ia à API e voltava 404. */
+  pinCompleto(): boolean {
+    return this.pinDigitos().length === 6;
+  }
+
   validarPIN() {
-    const code = this.pinCode().trim().replace('-', '');
+    const code = this.pinDigitos();
     if (!code) {
       this.validationError.set('Por favor, informe o código PIN.');
+      return;
+    }
+    if (!this.pinCompleto()) {
+      this.validationError.set('Digite os 6 dígitos do PIN');
       return;
     }
     
@@ -1545,7 +1641,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       tag_rfid: '',
       // Janela de validade padrão: a partir de agora, por 4h. O operador ajusta.
       data_hora_inicio: this.localDateTime(0),
-      data_hora_termino: this.localDateTime(4),
+      data_hora_termino: (this.terminoPadrao = this.localDateTime(4)),
     };
   }
 

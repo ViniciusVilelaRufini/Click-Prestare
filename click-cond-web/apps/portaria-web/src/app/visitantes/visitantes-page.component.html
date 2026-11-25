@@ -410,6 +410,9 @@
                 <span class="text-[10px] text-slate-500 dark:text-slate-400 mt-1 block">
                   Em branco = sem prazo (acesso contínuo).
                 </span>
+                @if (dicaRecorrente(); as dica) {
+                  <span class="text-[10px] text-amber-600 dark:text-amber-400 mt-1 block" role="status" data-dica-recorrente>{{ dica }}</span>
+                }
               </label>
             } @else {
               <p class="sm:col-span-2 text-[11px] text-slate-400">
@@ -891,7 +894,8 @@
                     {{ tipoPessoa(v) }}
                   </span>
                 </div>
-                <div class="mt-2 flex items-center gap-2 flex-wrap">
+                <!-- Status: mesma regra de rotuloStatusVisita (rotulo-status-visita.util), conferida em spec. -->
+                <div class="mt-2 flex items-center gap-2 flex-wrap" data-status-visita>
                   @if (!temVisita(v)) {
                     <span class="ps-tag" title="Nenhuma visita ativa. Use Nova Visita.">
                       <span class="ps-dot ps-dot-ink"></span>
@@ -1037,7 +1041,9 @@
                       >
                     }
                     @if (v.dias_semana) {
-                      <span class="text-slate-400">·</span>
+                      @if (v.categorias) {
+                        <span class="text-slate-400">·</span>
+                      }
                       <span class="text-slate-400">{{
                         formatarDiasSemanaExtenso(v.dias_semana)
                       }}</span>
@@ -1240,7 +1246,7 @@
                           </span>
                         }
                       </div>
-                      <div class="flex items-center gap-2 flex-wrap text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                      <div class="flex items-center gap-2 flex-wrap text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5" data-sublinha-pessoa>
                         @if (v.temPinAtivo || v.codigo_acesso) {
                           <span
                             class="inline-flex items-center gap-1 text-slate-300 font-medium"
@@ -1274,7 +1280,10 @@
                           </span>
                         }
                         @if (v.categorias || v.dias_semana) {
-                          <span class="text-slate-300 dark:text-slate-650 select-none">·</span>
+                          <!-- "·" só separa: sem nada antes na sub-linha, saía "· Seg, Ter, Qua". -->
+                          @if (v.temPinAtivo || v.codigo_acesso || v.face_sync_status === 'synced' || v.face_sync_status === 'pending' || v.tag_rfid || $any(v).visitasAnteriores > 0) {
+                            <span class="text-slate-300 dark:text-slate-650 select-none">·</span>
+                          }
                           @if (v.categorias) {
                             <span
                               class="ps-tag truncate max-w-[150px]"
@@ -1369,7 +1378,8 @@
                     <span class="text-slate-400 dark:text-slate-600">—</span>
                   }
                 </td>
-                <td>
+                <!-- Status: mesma regra de rotuloStatusVisita (rotulo-status-visita.util), conferida em spec. -->
+                <td data-status-visita>
                   @if (!temVisita(v)) {
                     <span class="ps-tag" title="Nenhuma visita ativa. Use Nova Visita.">
                       <span class="ps-dot ps-dot-ink"></span>
@@ -2367,7 +2377,7 @@
                   />
                   <button
                     (click)="validarPIN()"
-                    [disabled]="validating() || !pinCode()"
+                    [disabled]="validating() || !pinCompleto()"
                     class="ps-btn !h-12 shrink-0 disabled:opacity-50"
                   >
                     @if (validating()) {
@@ -2379,6 +2389,9 @@
                     }
                   </button>
                 </div>
+                @if (pinDigitos() && !pinCompleto() && !validationError()) {
+                  <span data-pin-dica class="text-[11px] text-slate-400 mt-1.5 block">Digite os 6 dígitos do PIN</span>
+                }
               </label>
             </div>
           }
@@ -2646,6 +2659,10 @@
     >
       <div
         class="ps-modal on !p-0 !gap-0 overflow-hidden max-h-[90vh] !w-[min(768px,calc(100%-32px))]"
+        role="dialog"
+        aria-modal="true"
+        [attr.aria-labelledby]="detalhesData() ? 'detalhe-visitante-titulo' : null"
+        [attr.aria-label]="detalhesData() ? null : 'Detalhes do visitante'"
         (click)="$event.stopPropagation()"
       >
         @if (detalhesLoading()) {
@@ -2695,8 +2712,11 @@
               {{ copiaSucessoTexto() }}
             </div>
           }
+          <!-- Status pela linha clicada, com a regra da lista (o detalhe da API não
+               traz auth_status/liberado/pedido_expirado). Sem linha: regra antiga. -->
+          @let rs = rotuloDetalhe();
           <!-- Capa: foto ao fundo em degradê e cor pelo status da visita -->
-          <div class="ps-pessoa-hero" [style.--tom]="d.visitante.data_entrada && !d.visitante.data_saida ? 'var(--signal-ok)' : d.visitante.data_saida ? 'var(--ink-subtle)' : 'var(--signal-warn)'">
+          <div class="ps-pessoa-hero" [style.--tom]="rs ? tomVar(rs.tom) : (d.visitante.data_entrada && !d.visitante.data_saida ? 'var(--signal-ok)' : d.visitante.data_saida ? 'var(--ink-subtle)' : 'var(--signal-warn)')">
             @if (d.visitante.foto_pessoa) {
               <div class="ps-pessoa-hero-foto" aria-hidden="true">
                 <img [src]="d.visitante.foto_pessoa" alt="" (error)="$any($event.target).hidden = true" />
@@ -2728,7 +2748,7 @@
               }
             </div>
             <div class="flex-1 min-w-0">
-              <span class="ps-ev-dir !w-auto mb-1.5"><span class="ps-ev-ponto"></span>{{ d.visitante.data_entrada && !d.visitante.data_saida ? 'No condomínio' : d.visitante.data_saida ? 'Visita concluída (saiu)' : 'Aguardando entrada' }}</span>
+              <span class="ps-ev-dir !w-auto mb-1.5"><span class="ps-ev-ponto"></span><span data-status-detalhe="cabecalho">{{ rs ? rs.label : (d.visitante.data_entrada && !d.visitante.data_saida ? 'No condomínio' : d.visitante.data_saida ? 'Visita concluída (saiu)' : 'Aguardando entrada') }}</span></span>
               <div class="flex items-center gap-2 flex-wrap">
                 <div
                      role="button"
@@ -2740,6 +2760,7 @@
                   title="Clique para copiar o Nome"
                 >
                   <h2
+                    id="detalhe-visitante-titulo"
                     class="text-lg font-bold text-slate-800 dark:text-white truncate"
                   >
                     {{ d.visitante.nome }}
@@ -2989,7 +3010,7 @@
                 <div
                   class="ps-label mb-2"
                 >
-                  Método
+                  Método (entradas e saídas)
                 </div>
                 <div
                   class="flex items-center gap-1.5 text-[11px] font-bold text-slate-800 dark:text-white"
@@ -3029,7 +3050,7 @@
                     }})
                   </h3>
                   <span class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                    Total de acessos vinculados: <strong class="text-slate-700 dark:text-slate-200 font-semibold">{{ d.stats.totalEntradas || d.stats.acessosFaciais + d.stats.acessosPin }}</strong>
+                    Entradas registradas: <strong class="text-slate-700 dark:text-slate-200 font-semibold">{{ d.stats.totalEntradas || d.stats.acessosFaciais + d.stats.acessosPin }}</strong>
                   </span>
                 </div>
 
@@ -3069,7 +3090,7 @@
                       <span
                         class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/60 shrink-0"
                       >
-                        {{ a.visitas }} {{ a.visitas === 1 ? 'visita' : 'visitas' }}
+                        {{ a.visitas }} {{ a.visitas === 1 ? 'registro de visita' : 'registros de visita' }}
                       </span>
                     </div>
                   }
@@ -3078,7 +3099,7 @@
             }
 
             <!-- Visita atual -->
-            <div class="ps-pessoa-visita space-y-4" [style.--tom]="d.visitante.data_entrada && !d.visitante.data_saida ? 'var(--signal-ok)' : d.visitante.data_saida ? 'var(--ink-subtle)' : 'var(--signal-warn)'">
+            <div class="ps-pessoa-visita space-y-4" [style.--tom]="rs ? tomVar(rs.tom) : (d.visitante.data_entrada && !d.visitante.data_saida ? 'var(--signal-ok)' : d.visitante.data_saida ? 'var(--ink-subtle)' : 'var(--signal-warn)')">
               <!-- Cabeçalho do Card com Status da Visita em destaque -->
               <div class="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-white/5 pb-3">
                 <div class="flex items-center gap-2.5">
@@ -3098,7 +3119,12 @@
                 </div>
 
                 <!-- Badge de Presença/Status Atual -->
-                @if (d.visitante.data_entrada && !d.visitante.data_saida) {
+                @if (rs) {
+                  <span class="ps-tag" data-status-detalhe="visita-atual">
+                    <span class="ps-dot ps-dot-{{ rs.tom }}"></span>
+                    {{ rs.label }}
+                  </span>
+                } @else if (d.visitante.data_entrada && !d.visitante.data_saida) {
                   <span class="ps-tag">
                     <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                     No condomínio
@@ -3308,7 +3334,7 @@
                     d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                   />
                 </svg>
-                Histórico Completo de Acessos ({{ d.timeline.length }})
+                Histórico de entradas, saídas e recusas ({{ d.timeline.length }})
               </h3>
               @if (d.timeline.length === 0) {
                 <div class="text-xs text-slate-500 text-center py-4">

@@ -1141,7 +1141,7 @@
                     class="flex-1 min-w-0 h-12 px-4 text-lg font-mono text-center tracking-widest bg-[var(--bg-200)] border border-[var(--line-200)] text-[var(--ink)] focus:outline-none focus:border-[var(--brand)]" />
                   <button
                     (click)="validarPIN()"
-                    [disabled]="validating() || !pinCode()"
+                    [disabled]="validating() || !pinCompleto()"
                     class="ps-btn !h-12 disabled:opacity-50">
                     @if (validating()) {
                       <div class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>

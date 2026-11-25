@@ -726,7 +726,7 @@
                     }
                   </span>
                   @if (m.documento) { <span class="font-mono">{{ docsRevelados().has(m.id) ? m.documento : (m.documento | maskDoc) }}</span> }
-                  @if (m.telefone) { <span class="font-mono">{{ m.telefone }}</span> }
+                  @if (m.telefone) { <span class="font-mono">{{ telefoneExibicao(m.telefone) }}</span> }
                 </div>
               </div>
               <div class="flex items-center gap-1 shrink-0" (click)="$event.stopPropagation()">
@@ -830,7 +830,7 @@
                   {{ tipoLabel(m.tipo) }}
                 </span>
               </td>
-              <td class="text-slate-400 text-xs font-mono">{{ m.telefone || '\u2014' }}</td>
+              <td class="text-slate-400 text-xs font-mono">{{ m.telefone ? telefoneExibicao(m.telefone) : '\u2014' }}</td>
               <td class="text-right" (click)="$event.stopPropagation()">
                 <div class="flex items-center justify-end gap-1">
                   <button (click)="abrirEditar(m)" title="Editar morador"
@@ -1338,7 +1338,7 @@
           <div class="flex-1 min-w-0">
             <p class="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold">Telefone</p>
             @if (selectedMorador()!.telefone) {
-              <a [href]="'tel:' + selectedMorador()!.telefone" class="text-sm text-slate-900 dark:text-white font-mono block">{{ selectedMorador()!.telefone }}</a>
+              <a [href]="'tel:' + selectedMorador()!.telefone" class="text-sm text-slate-900 dark:text-white font-mono block">{{ telefoneExibicao(selectedMorador()!.telefone) }}</a>
             } @else {
               <span class="text-xs text-slate-400 dark:text-slate-500">Não cadastrado</span>
             }

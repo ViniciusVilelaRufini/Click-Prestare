@@ -148,6 +148,22 @@ export class InputMaskDirective implements ControlValueAccessor, OnInit {
 }
 
 /**
+ * Telefone para EXIBIÇÃO (listas, fichas): o cadastro antigo/importado guarda
+ * "11953561869" cru e o novo, "(17) 98833-8146" (máscara `phone`). Com 10 ou 11
+ * dígitos (e só dígitos, espaços, parênteses, hífen ou ponto) sai no mesmo
+ * formato da máscara; qualquer outro formato (ex.: "+55 …") sai como veio.
+ */
+export function formatarTelefoneExibicao(valor: string | null | undefined): string {
+  if (valor == null) return '';
+  const bruto = String(valor).trim();
+  if (!/^[\d\s().-]+$/.test(bruto)) return bruto;
+  const d = bruto.replace(/\D/g, '');
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  return bruto;
+}
+
+/**
  * Helpers — utilitários de validação básicos (usar nos componentes antes de salvar).
  */
 export const validators = {

@@ -135,9 +135,23 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     this.validationError.set(null);
   }
 
+  /** Dígitos do PIN digitado (a máscara "000-000" põe hífen). Mesma regra do modal de Visitantes. */
+  pinDigitos(): string {
+    return this.pinCode().replace(/\D/g, '');
+  }
+
+  /** O PIN tem exatamente 6 dígitos: com menos, "12" ia à API e voltava 404. */
+  pinCompleto(): boolean {
+    return this.pinDigitos().length === 6;
+  }
+
   validarPIN() {
-    const code = this.pinCode().trim();
+    const code = this.pinDigitos();
     if (!code) return;
+    if (!this.pinCompleto()) {
+      this.validationError.set('Digite os 6 dígitos do PIN');
+      return;
+    }
 
     this.validating.set(true);
     this.validationError.set(null);

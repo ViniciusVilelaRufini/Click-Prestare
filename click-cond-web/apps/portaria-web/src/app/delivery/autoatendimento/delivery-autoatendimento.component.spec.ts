@@ -68,7 +68,7 @@ describe('DeliveryAutoatendimentoComponent', () => {
     fixture.detectChanges();
     const el: HTMLElement = fixture.nativeElement;
     expect(el.textContent).toContain('Autoatendimento no portão');
-    expect(el.textContent).toContain('O entregador lê o QR no portão, tira uma foto e o morador decide. Gere o QR de cada portão em Terminais.');
+    expect(el.textContent).toContain('O entregador lê o QR no portão, tira uma foto e o morador decide. Gere o QR de cada portão em Configurações → Terminais de Dispositivos.');
     expect((el.querySelector('input[name="habilitado"]') as HTMLInputElement).checked).toBe(true);
     expect(fixture.componentInstance.inicio()).toBe('07:00');
     expect(fixture.componentInstance.fim()).toBe('22:00');
