@@ -987,7 +987,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Este dia está marcado como fechado. Clique no botão abaixo para adicionar um horário.',
+                      'Este dia está marcado como fechado. Toque no botão abaixo para adicionar um horário.',
                       style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary(context)),
                     ),
                   ),

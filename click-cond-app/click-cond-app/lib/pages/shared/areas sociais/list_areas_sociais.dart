@@ -8,10 +8,10 @@ import 'package:click/pages/shared/areas%20sociais/new_area_social.dart';
 import 'package:click/services/atualizacoes_app.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
-import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
+import 'package:click/widgets/app/app_segmented_control.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -98,10 +98,10 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
 
   @override
   Widget build(BuildContext context) {
-    final tabs = <Tab>[
-      Tab(text: getText('lb_areas_sociais').toUpperCase()),
-      if (_isSindico) Tab(text: getText('area_social_agendamentos').toUpperCase()),
-      if (_isMorador) Tab(text: getText('area_social_meus_agendamentos').toUpperCase()),
+    final titulos = <String>[
+      getText('lb_areas_sociais'),
+      if (_isSindico) getText('area_social_agendamentos'),
+      if (_isMorador) getText('area_social_meus_agendamentos'),
     ];
 
     // Recarga depois de aprovar/cancelar/confirmar (e o puxar-para-atualizar):
@@ -114,12 +114,10 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
       if (_isMorador) MeusAgendamentosCells(list: listMeusAgendamentos, reload: recarregar),
     ];
 
-    final canAddArea = _currentTab == 0 && (_isSindico || getUserPermission("areas_sociais") == 1);
+    final aba = _currentTab < titulos.length ? _currentTab : 0;
+    final canAddArea = aba == 0 && (_isSindico || getUserPermission("areas_sociais") == 1);
 
-    return DefaultTabController(
-      length: tabs.length,
-      initialIndex: _currentTab < tabs.length ? _currentTab : 0,
-      child: AppScaffold(
+    return AppScaffold(
         title: getText('lb_areas_sociais'),
         floatingActionButton: canAddArea
             ? FloatingActionButton(
@@ -132,31 +130,13 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
             : null,
         body: Column(
           children: [
-            Container(
-              margin: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg,
-                vertical: AppSpacing.sm,
-              ),
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: AppColors.surface(context),
-                borderRadius: BorderRadius.zero,
-                border: Border.all(color: AppColors.border(context)),
-              ),
-              child: TabBar(
-                dividerColor: Colors.transparent,
-                dividerHeight: 0,
-                indicator: BoxDecoration(
-                  color: AppColors.brand,
-                  borderRadius: BorderRadius.zero,
-                ),
-                indicatorSize: TabBarIndicatorSize.tab,
-                labelColor: AppColors.onBrand,
-                unselectedLabelColor: AppColors.textSecondary(context),
-                labelStyle: AppTypography.button(context),
-                unselectedLabelStyle: AppTypography.button(context),
-                onTap: (i) => setState(() => _currentTab = i),
-                tabs: tabs,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.sm),
+              child: AppSegmentedControl(
+                selectedIndex: aba,
+                onChanged: (i) => setState(() => _currentTab = i),
+                segments: [for (final t in titulos) AppSegment(label: t)],
               ),
             ),
             Expanded(
@@ -167,11 +147,10 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
                       separatorBuilder: (_, __) => SizedBox(height: AppSpacing.sm),
                       itemBuilder: (_, __) => AppSkeleton.listTile(context),
                     )
-                  : TabBarView(children: views),
+                  : views[aba],
             ),
           ],
         ),
-      ),
     );
   }
 }

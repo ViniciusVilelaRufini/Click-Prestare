@@ -212,7 +212,7 @@ void main() {
 
       await tester.pumpWidget(const MaterialApp(home: ListAreasSociais()));
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(Tab).last);
+      await tester.tap(find.text('MEUS AGENDAMENTOS'));
       await tester.pumpAndSettle();
       expect(find.text('Churrasqueira'), findsOneWidget);
 

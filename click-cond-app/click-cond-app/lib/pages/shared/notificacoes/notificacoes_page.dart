@@ -1,4 +1,5 @@
 import 'package:click/controllers/controller_notificacoes.dart';
+import 'package:click/pages/shared/areas%20sociais/list_areas_sociais.dart';
 import 'package:click/pages/shared/comunicados/detail_comunidado.dart';
 import 'package:click/pages/shared/encomendas/list_encomendas.dart';
 import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart';
@@ -199,6 +200,10 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
       case 'financeiro':
         destino = const MoradorFinanceiroView();
         break;
+      case 'reserva':
+        // Mesma tela do push de reserva: morador cai em "Meus agendamentos".
+        destino = const ListAreasSociais(minhasReservas: true);
+        break;
       case 'solicitacao':
       case 'autorizacao_visitante':
         destino = const PendentesVisitantePage();
@@ -376,8 +381,6 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
     final v = _visual(n);
     final nova = _isNova(n);
     final descricao = (n['descricao']?.toString() ?? '').trim();
-    final tipo = n['tipo']?.toString() ?? '';
-    final navegavel = tipo != 'reserva';
     // O amarelo da marca não serve como texto no tema claro.
     final corTexto = v.cor == AppColors.brand ? AppColors.brandInkOf(context) : null;
 
@@ -390,7 +393,7 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
         titulo: n['titulo']?.toString() ?? '',
         linhas: [descricao, _tempoRelativo(n['timestamp']?.toString())],
         nova: nova,
-        onTap: navegavel ? () => _abrir(n) : null,
+        onTap: () => _abrir(n),
         esquerda: Padding(
           padding: const EdgeInsets.only(left: 24),
           child: Align(

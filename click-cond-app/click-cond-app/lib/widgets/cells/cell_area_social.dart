@@ -81,31 +81,6 @@ class CellAreaSocial extends StatelessWidget {
                     ),
                   ),
                 ),
-                // Badge de Categoria/Ícone no canto superior esquerdo
-                Positioned(
-                  top: 12,
-                  left: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.zero,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(areaIcon, size: 14, color: Colors.white),
-                        const SizedBox(width: 5),
-                        Text(
-                          'Área Social'.toUpperCase(),
-                          style: AppTypography.label(context)
-                              .copyWith(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
                 // Badge de Ocupação no canto superior direito
                 if (item["tem_monitoramento"] == true)
                   _OcupacaoBadge(
@@ -148,7 +123,7 @@ class CellAreaSocial extends StatelessWidget {
                           size: 16, color: AppColors.primary),
                       const SizedBox(width: 6),
                       Text(
-                        'Clique para agendar',
+                        'Toque para agendar',
                         style: TextStyle(
                           color: AppColors.textSecondary(context),
                           fontSize: 13,
