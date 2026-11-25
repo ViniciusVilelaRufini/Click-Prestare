@@ -1137,7 +1137,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               _DashboardCard(
                 title: 'Ocorrências',
                 value: contador2(_summary?['occurrences'] ?? 0),
-                subtitle: 'Aguardando resposta',
+                subtitle: 'Em aberto',
                 icon: PhosphorIcons.warningCircle,
                 color: AppColors.warning,
                 onTap: () => _onDashboardTap('occurrences'),

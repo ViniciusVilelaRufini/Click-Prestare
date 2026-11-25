@@ -842,7 +842,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text("BRL", style: AppTypography.label(context)),
+              Text(Singleton.instance.getCurrentMoeda(), style: AppTypography.label(context)),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
@@ -1216,7 +1216,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text("Valor (BRL)", style: AppTypography.caption(context)),
+                              Text("Valor (${Singleton.instance.getCurrentMoeda()})", style: AppTypography.caption(context)),
                               const SizedBox(height: 8),
                               TextField(
                                 controller: txtValor,

@@ -43,12 +43,8 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _requestCameraPermission() async {
     if (kIsWeb) return; // permission_handler não funciona no Web
-    try {
-      if (!await Permission.camera.isGranted) {
-        await Permission.camera.request();
-      }
-    } catch (_) {}
-    // Notificação em sequência, depois da câmera. O Firebase pede a mesma
+    // A câmera não é pedida aqui: leitor de QR/boleto e seletor de foto
+    // pedem na hora do uso. Notificação: o Firebase pede a mesma
     // permissão no init, em paralelo com este pedido; o Android só atende um
     // diálogo por vez e o outro some — instalação nova ficava sem push
     // (POST_NOTIFICATIONS negado) sem o morador nunca ter visto a pergunta.

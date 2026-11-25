@@ -267,7 +267,7 @@ class Localizable_PtBr {
     LocalizableModel(key: 'area_social_obrigatoriedades', text: 'OBRIGATORIEDADES'), 
     LocalizableModel(key: 'area_social_novo_horario', text: 'Novo Horário'), 
     LocalizableModel(key: 'area_social_erro_normas', text: 'Aceite as normas antes de continuar.'), 
-    LocalizableModel(key: 'area_social_nav_edit_reserva', text: 'Editar Reserva'), 
+    LocalizableModel(key: 'area_social_nav_edit_reserva', text: 'Reserva'), 
     LocalizableModel(key: 'area_social_nav_reservar', text: 'Reservar'), 
     LocalizableModel(key: 'area_social_data_reserva', text: 'Data da reserva:'), 
     LocalizableModel(key: 'area_social_hora_reserva', text: 'Hora da reserva:'), 

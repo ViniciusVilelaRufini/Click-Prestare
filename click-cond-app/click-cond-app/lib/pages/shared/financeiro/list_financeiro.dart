@@ -17,6 +17,7 @@ import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/utils/boleto_utils.dart';
 import 'package:click/pages/shared/financeiro/scan_boleto_page.dart';
+import 'package:click/utils/rotulo_saldo.dart';
 import 'package:click/widgets/cells/cell_financeiro_card.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/localizable/localizable.dart';
@@ -1012,7 +1013,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text("BRL", style: AppTypography.label(context)),
+              Text(Singleton.instance.getCurrentMoeda(), style: AppTypography.label(context)),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
@@ -1542,7 +1543,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text("Valor (BRL)", style: AppTypography.caption(context)),
+                              Text("Valor (${Singleton.instance.getCurrentMoeda()})", style: AppTypography.caption(context)),
                               const SizedBox(height: 8),
                               TextField(
                                 controller: txtValor,
@@ -1870,6 +1871,7 @@ class _DashboardHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isNeg = saldo.contains('-');
+    final rotulo = rotuloSaldo(saldo);
     final cleanSaldo = _cleanMoeda(saldo);
     final cleanReceitas = _cleanMoeda(receitas);
     final cleanDespesas = _cleanMoeda(despesas);
@@ -1887,7 +1889,8 @@ class _DashboardHeader extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('SALDO ATUAL', style: AppTypography.label(context)),
-                  AppTag(label: isNeg ? 'NEGATIVO' : 'POSITIVO', signal: isNeg ? AppSignal.danger : AppSignal.ok),
+                  if (rotulo != null)
+                    AppTag(label: rotulo, signal: isNeg ? AppSignal.danger : AppSignal.ok),
                 ],
               ),
               const SizedBox(height: 10),
@@ -2358,7 +2361,7 @@ class _InadEventoTile extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text((evento['valorString'] ?? '').toString(), style: AppTypography.captionMedium(context)),
+              Text((evento['valorString'] ?? '').toString().replaceAll('BRL', 'R\$'), style: AppTypography.captionMedium(context)),
               Text((evento['data'] ?? '').toString(), style: AppTypography.tiny(context).copyWith(color: AppColors.textTertiary(context))),
             ],
           ),
@@ -2468,7 +2471,7 @@ class InadimplenciaListaPage extends StatelessWidget {
                     ])),
                     const SizedBox(width: AppSpacing.sm),
                     Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                      Text((item['valorString'] ?? '').toString(),
+                      Text((item['valorString'] ?? '').toString().replaceAll('BRL', 'R\$'),
                         style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.w800,
                           color: pago ? AppColors.success : AppColors.error)),
                       // Nenhuma cobrança aceita baixa pelo Clique: quem marca

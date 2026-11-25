@@ -1,4 +1,5 @@
 import 'package:click/theme/app_colors.dart';
+import 'package:click/utils/rotulo_bloco.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/rotulo_reserva.dart';
@@ -55,19 +56,8 @@ class CellMyAgendamento extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final String apto = item['apto']?.toString() ?? '';
     final String blocoRaw = item['bloco']?.toString() ?? '';
-    String blocoText = '';
-    if (blocoRaw.isNotEmpty) {
-      final blocoLower = blocoRaw.toLowerCase();
-      if (blocoLower.contains('bloco') ||
-          blocoLower.contains('bloque') ||
-          blocoLower.contains('block')) {
-        blocoText = blocoRaw;
-      } else {
-        blocoText = '${getText('lb_bloco')} $blocoRaw';
-      }
-    }
     final String aptoBlocoTitle =
-        '${getText('lb_apto')} $apto ${blocoText.isNotEmpty ? "- $blocoText" : ""}';
+        rotuloUnidadeCard(blocoRaw, apto, rotuloApto: getText('lb_apto'));
 
     final String status =
         item['status']?.toString().toLowerCase() ?? 'pendente';

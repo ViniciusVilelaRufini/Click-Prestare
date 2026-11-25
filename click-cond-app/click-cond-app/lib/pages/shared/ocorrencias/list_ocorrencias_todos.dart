@@ -295,7 +295,8 @@ class _OcorrenciaCard extends StatelessWidget {
     if (s == 'solucionado' || s == 'resolvida') {
       return 'Solucionada';
     }
-    if (s == 'ciente' || s == 'em andamento' || s == 'em_andamento') {
+    if (s == 'ciente') return 'Ciente';
+    if (s == 'em andamento' || s == 'em_andamento') {
       return 'Em andamento';
     }
     return 'Pendente';

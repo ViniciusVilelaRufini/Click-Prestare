@@ -140,7 +140,7 @@ class MinhaReservaCard extends StatelessWidget {
                     ),
                     icon: const Icon(PhosphorIcons.pencilSimple, size: 18),
                     label: Text(
-                      'Editar'.toUpperCase(),
+                      'Detalhes'.toUpperCase(),
                       style: AppTypography.button(context).copyWith(
                         color: AppColors.primary,
                       ),
