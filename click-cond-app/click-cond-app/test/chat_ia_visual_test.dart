@@ -89,16 +89,24 @@ void main() {
     expect(find.text('ANEXAR CONTA / FATURA'), findsOneWidget);
   });
 
-  testWidgets('botão de enviar quadrado e amarelo', (t) async {
+  testWidgets('botão de enviar: apagado sem texto, amarelo e quadrado com texto', (t) async {
     await abrir(t);
-    final caixa = find.ancestor(
-      of: find.byIcon(PhosphorIcons.paperPlaneRight),
-      matching: find.byWidgetPredicate((w) =>
-          w is Container && w.decoration is BoxDecoration &&
-          (w.decoration as BoxDecoration).color == AppColors.brand &&
-          (w.decoration as BoxDecoration).shape == BoxShape.rectangle),
-    );
-    expect(caixa, findsOneWidget);
+    Finder caixa(Color cor) => find.ancestor(
+          of: find.byIcon(PhosphorIcons.paperPlaneRight),
+          matching: find.byWidgetPredicate((w) =>
+              w is Container && w.decoration is BoxDecoration &&
+              (w.decoration as BoxDecoration).color == cor &&
+              (w.decoration as BoxDecoration).shape == BoxShape.rectangle),
+        );
+    final ctx = t.element(find.byIcon(PhosphorIcons.paperPlaneRight));
+    expect(caixa(AppColors.brand), findsNothing);
+    expect(caixa(AppColors.border(ctx)), findsOneWidget);
+    expect(t.widget<GestureDetector>(find.byKey(const ValueKey('chat_ia_enviar'))).onTap, isNull);
+
+    await t.enterText(find.byType(TextField), 'Oi');
+    await t.pump();
+    expect(caixa(AppColors.brand), findsOneWidget);
+    expect(t.widget<GestureDetector>(find.byKey(const ValueKey('chat_ia_enviar'))).onTap, isNotNull);
   });
 
   testWidgets('cabe numa tela estreita (320)', (t) async {

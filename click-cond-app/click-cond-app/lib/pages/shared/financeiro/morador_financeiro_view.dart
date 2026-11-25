@@ -9,6 +9,7 @@ import 'package:click/pages/shared/financeiro/scan_boleto_page.dart';
 import 'package:click/utils/boleto_utils.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/theme/app_typography.dart';
+import 'package:click/widgets/valor_destaque.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/utils/localizable/localizable.dart';
@@ -839,25 +840,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
             ],
           ),
           const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(Singleton.instance.getCurrentMoeda(), style: AppTypography.label(context)),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  formatMoeda(totalPendente),
-                  style: AppTypography.display(context).copyWith(
-                    fontWeight: FontWeight.w300,
-                    fontSize: 48,
-                    height: 1,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-            ],
-          ),
+          ValorDestaque(moeda: Singleton.instance.getCurrentMoeda(), valor: formatMoeda(totalPendente)),
           const SizedBox(height: 16),
           Container(
             height: 2,
