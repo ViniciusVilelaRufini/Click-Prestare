@@ -92,4 +92,23 @@ describe('MobileAuthService — getNotificacoes() solicitações pendentes (Pess
     expect(prisma.visitas.findMany).toHaveBeenCalled();
     expect(prisma.visitantes.findMany).not.toHaveBeenCalled();
   });
+  // Bateria de produção 25/11: pedidos de 14 e 15/11 ainda apareciam no feed
+  // como "aguarda sua autorização" — o feed não aplicava o prazo de 10 min que
+  // a caixa de pendentes (GET /visitantes/pendentes) e o autorizar já aplicam.
+  it.each([
+    ['true', 'visitas'],
+    ['false', 'visitantes'],
+  ])('flag %s: só busca pedidos dentro do prazo de resposta (%s)', async (flag, tabela) => {
+    process.env['PESSOAS_MIGRATION_ENABLED'] = flag;
+    const { svc, prisma } = build();
+    const antes = Date.now();
+    await svc.getNotificacoes(9);
+    const where = prisma[tabela].findMany.mock.calls[0][0].where;
+    expect(where.auth_status).toBe('pendente');
+    const limite = where.auth_solicitado_em?.gte as Date;
+    expect(limite).toBeInstanceOf(Date);
+    const idadeMs = antes - limite.getTime();
+    expect(idadeMs).toBeGreaterThanOrEqual(10 * 60 * 1000 - 1000);
+    expect(idadeMs).toBeLessThanOrEqual(10 * 60 * 1000 + 1000);
+  });
 });

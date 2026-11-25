@@ -52,6 +52,7 @@ import { subirAnexosOcorrencia } from '../ocorrencias/anexos-ocorrencia.util';
 import { autorOcorrencia } from '../ocorrencias/autor-ocorrencia.util';
 import { STATUS_SOLUCIONADO } from '../common/status-ocorrencia.util';
 import { normalizarTipoVinculo } from '../common/tipo-vinculo.util';
+import { AUTORIZACAO_EXPIRACAO_MS } from '../common/autorizacao-expiracao';
 
 /** Senha atual errada na troca de e-mail do perfil: 10 falhas em 10 min travam a conta por 10 min. */
 const MAX_FALHAS_SENHA_PERFIL = 10;
@@ -2199,11 +2200,15 @@ export class MobileAuthService {
       // devolve id de Visita). Mesmo assim, este id segue o mesmo espaço
       // usado por `autorizar`/`negar` (id de Visita) para não criar um
       // contrato divergente caso algum consumidor futuro passe a usá-lo.
+      const prazoPedido = new Date(Date.now() - AUTORIZACAO_EXPIRACAO_MS);
       if (pessoasMigrationEnabled(this.prisma)) {
         const pendentes = await this.prisma.visitas.findMany({
           where: {
             id_apartamento: { in: aptoIds },
             auth_status: 'pendente',
+            // Mesmo prazo da caixa de pendentes e do autorizar: pedido vencido
+            // não "aguarda autorização" (antes ficava no feed para sempre).
+            auth_solicitado_em: { gte: prazoPedido },
           },
           include: { pessoa: { select: { nome: true } } },
           take: 10,
@@ -2222,6 +2227,7 @@ export class MobileAuthService {
           where: {
             id_apartamento: { in: aptoIds },
             auth_status: 'pendente',
+            auth_solicitado_em: { gte: prazoPedido },
           },
           take: 10,
         });
