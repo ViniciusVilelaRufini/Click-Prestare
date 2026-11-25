@@ -20,6 +20,7 @@ import 'package:click/pages/shared/financeiro/scan_boleto_page.dart';
 import 'package:click/utils/rotulo_saldo.dart';
 import 'package:click/widgets/cells/cell_financeiro_card.dart';
 import 'package:click/theme/app_typography.dart';
+import 'package:click/widgets/valor_destaque.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/utils/local_storage.dart';
@@ -1009,25 +1010,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
             ],
           ),
           const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(Singleton.instance.getCurrentMoeda(), style: AppTypography.label(context)),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  formatMoeda(totalPendente),
-                  style: AppTypography.display(context).copyWith(
-                    fontWeight: FontWeight.w300,
-                    fontSize: 48,
-                    height: 1,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-            ],
-          ),
+          ValorDestaque(moeda: Singleton.instance.getCurrentMoeda(), valor: formatMoeda(totalPendente)),
           const SizedBox(height: 16),
           Container(
             height: 2,
@@ -1888,7 +1871,6 @@ class _DashboardHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final isNeg = saldo.contains('-');
     final rotulo = rotuloSaldo(saldo);
-    final cleanSaldo = _cleanMoeda(saldo);
     final cleanReceitas = _cleanMoeda(receitas);
     final cleanDespesas = _cleanMoeda(despesas);
 
@@ -1910,19 +1892,7 @@ class _DashboardHeader extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 10),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  cleanSaldo,
-                  style: AppTypography.display(context).copyWith(
-                    fontWeight: FontWeight.w300,
-                    fontSize: 48,
-                    height: 1,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
+              ValorDestaque.doTexto(saldo),
               const SizedBox(height: 14),
               Container(height: 1, color: AppColors.border(context)),
               const SizedBox(height: 12),
