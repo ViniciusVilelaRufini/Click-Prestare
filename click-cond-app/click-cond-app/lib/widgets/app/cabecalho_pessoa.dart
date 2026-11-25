@@ -3,7 +3,12 @@ import 'package:click/theme/app_typography.dart';
 import 'package:flutter/material.dart';
 
 /// Estado do visitante/prestador mostrado no selo.
-enum StatusPessoa { noLocal, autorizado, agendado, finalizado }
+///
+/// [aguardando]: pedido ao morador ainda sem resposta (dentro dos 10 min).
+/// [expirado]: autorização/pedido do morador vencido ou janela encerrada —
+/// o console diz "Autorização expirada" / "Pedido expirado" / "Janela
+/// encerrada"; aqui não se confunde com quem já saiu (FINALIZADO).
+enum StatusPessoa { noLocal, autorizado, agendado, aguardando, expirado, finalizado }
 
 /// Topo do cartão de pessoa (visitante/prestador) no desenho dos eventos: a
 /// foto ocupa a esquerda de ponta a ponta e se dissolve no cartão — o
@@ -36,6 +41,10 @@ class CabecalhoPessoa extends StatelessWidget {
         return ('AUTORIZADO', AppColors.success);
       case StatusPessoa.agendado:
         return ('AGENDADO', AppColors.signalWarn(context));
+      case StatusPessoa.aguardando:
+        return ('AGUARDANDO', AppColors.signalWarn(context));
+      case StatusPessoa.expirado:
+        return ('EXPIRADO', AppColors.signalDanger(context));
       case StatusPessoa.finalizado:
         return ('FINALIZADO', AppColors.textTertiary(context));
     }

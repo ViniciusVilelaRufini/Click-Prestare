@@ -10,6 +10,7 @@ import 'package:click/pages/shared/visitantes/compartilhar_passe.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/services/atualizacoes_app.dart';
 import 'package:click/utils/visitantes_presenca.dart';
+import 'package:click/utils/status_visita.dart';
 import 'package:click/utils/visitantes_pessoas.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -211,27 +212,12 @@ class ListVisitantesPageState extends State<ListVisitantes> {
     final isInside = item['data_entrada'] != null && item['data_saida'] == null;
     final canAdd = _canManage(item);
 
-    bool isExpired = false;
-    final endStr = item['data_hora_termino'];
-    if (endStr != null) {
-      final end = DateTime.tryParse(endStr.toString());
-      if (end != null && DateTime.now().isAfter(end)) {
-        isExpired = true;
-      }
-    }
-
-    bool isAuthorized = false;
-    if (!isInside && item['data_saida'] == null && !isExpired) {
-      final startStr = item['data_hora_inicio'];
-      if (startStr != null && endStr != null) {
-        final start = DateTime.tryParse(startStr);
-        final end = DateTime.tryParse(endStr);
-        if (start != null && end != null) {
-          isAuthorized =
-              DateTime.now().isAfter(start) && DateTime.now().isBefore(end);
-        }
-      }
-    }
+    // Mesma regra do console (utils/status_visita.dart): liberado,
+    // autorização do morador (10 min) e tolerância da janela — não só o horário.
+    final agora = DateTime.now();
+    final isExpired = visitaVencida(item as Map, agora);
+    final statusDetalhe = statusPessoaDaVisita(item, agora);
+    final isAuthorized = statusDetalhe == StatusPessoa.autorizado;
 
     final _sw = MediaQuery.of(context).size.width;
     final _sh = MediaQuery.of(context).size.height;
@@ -358,7 +344,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                                   BorderRadius.zero,
                                             ),
                                             child: Text(
-                                              'AGENDADO',
+                                              rotuloStatusPessoa(statusDetalhe),
                                               style: AppTypography.tiny(context)
                                                   .copyWith(
                                                 color: AppColors.textSecondary(
@@ -1360,27 +1346,10 @@ class _VisitanteCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isInside = item['data_entrada'] != null && item['data_saida'] == null;
 
-    bool isExpired = false;
-    final endStr = item['data_hora_termino'];
-    if (endStr != null) {
-      final end = DateTime.tryParse(endStr.toString());
-      if (end != null && DateTime.now().isAfter(end)) {
-        isExpired = true;
-      }
-    }
-
-    bool isAuthorized = false;
-    if (!isInside && item['data_saida'] == null && !isExpired) {
-      final startStr = item['data_hora_inicio'];
-      if (startStr != null && endStr != null) {
-        final start = DateTime.tryParse(startStr);
-        final end = DateTime.tryParse(endStr);
-        if (start != null && end != null) {
-          isAuthorized =
-              DateTime.now().isAfter(start) && DateTime.now().isBefore(end);
-        }
-      }
-    }
+    // Mesma regra do console (utils/status_visita.dart): liberado,
+    // autorização do morador (10 min) e tolerância da janela — não só o horário.
+    final agora = DateTime.now();
+    final isExpired = visitaVencida(item as Map, agora);
 
     // Subtítulo no formato "Visitante · A · 101"
     final tipo = (item['is_prestador'] == 1) ? 'Prestador' : 'Visitante';
@@ -1411,11 +1380,7 @@ class _VisitanteCard extends StatelessWidget {
 
     final status = isInside
         ? StatusPessoa.noLocal
-        : isAuthorized
-            ? StatusPessoa.autorizado
-            : isExpired
-                ? StatusPessoa.finalizado
-                : StatusPessoa.agendado;
+        : statusPessoaDaVisita(item, agora);
 
     return GestureDetector(
       onTap: onTap,

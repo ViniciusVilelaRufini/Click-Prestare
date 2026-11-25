@@ -41,4 +41,14 @@ void main() {
     final ctx = t.element(find.text('FINALIZADO'));
     expect(t.widget<Text>(find.text('FINALIZADO')).style?.color, AppColors.textTertiary(ctx));
   });
+
+  testWidgets('selos novos: AGUARDANDO (pedido aberto) e EXPIRADO (autorização/janela vencida)', (t) async {
+    await montar(t, status: StatusPessoa.aguardando);
+    final ctx = t.element(find.text('AGUARDANDO'));
+    expect(t.widget<Text>(find.text('AGUARDANDO')).style?.color, AppColors.signalWarn(ctx));
+    await montar(t, status: StatusPessoa.expirado);
+    final ctx2 = t.element(find.text('EXPIRADO'));
+    expect(t.widget<Text>(find.text('EXPIRADO')).style?.color, AppColors.signalDanger(ctx2));
+    expect(find.text('AUTORIZADO'), findsNothing);
+  });
 }

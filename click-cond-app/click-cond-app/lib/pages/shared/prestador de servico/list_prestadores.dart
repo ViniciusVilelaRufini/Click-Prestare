@@ -12,6 +12,8 @@ import 'package:click/utils/utils.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:click/utils/datas.dart';
+import 'package:click/utils/status_visita.dart';
+import 'package:click/widgets/app/cabecalho_pessoa.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -82,27 +84,12 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
     final isInside = item['data_entrada'] != null && item['data_saida'] == null;
     final canAdd = (getUserType() != 'funcionario') || getUserPermission('prestadores_servico') == 1;
     
-    bool isExpired = false;
-    final endStr = item['data_hora_termino'];
-    if (endStr != null) {
-      final end = DateTime.tryParse(endStr.toString());
-      if (end != null && DateTime.now().isAfter(end)) {
-        isExpired = true;
-      }
-    }
-
-    bool isAuthorized = false;
-    if (!isInside && item['data_saida'] == null && !isExpired) {
-      final startStr = item['data_hora_inicio'];
-      final endStr = item['data_hora_termino'];
-      if (startStr != null && endStr != null) {
-        final start = DateTime.tryParse(startStr);
-        final end = DateTime.tryParse(endStr);
-        if (start != null && end != null) {
-          isAuthorized = DateTime.now().isAfter(start) && DateTime.now().isBefore(end);
-        }
-      }
-    }
+    // Mesma regra do console (utils/status_visita.dart): liberado,
+    // autorização do morador (10 min) e tolerância da janela — não só o horário.
+    final agora = DateTime.now();
+    final isExpired = visitaVencida(item as Map, agora);
+    final statusPessoa = statusPessoaDaVisita(item, agora);
+    final isAuthorized = statusPessoa == StatusPessoa.autorizado;
 
     showModalBottomSheet(
       context: context,
@@ -184,7 +171,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                                   borderRadius: BorderRadius.circular(2),
                                 ),
                                 child: Text(
-                                  'AGENDADO',
+                                  rotuloStatusPessoa(statusPessoa),
                                   style: AppTypography.tiny(context).copyWith(
                                     color: AppColors.textSecondary(context),
                                     fontWeight: FontWeight.bold,
@@ -790,28 +777,12 @@ class _PrestadorCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isInside = item['data_entrada'] != null && item['data_saida'] == null;
     
-    bool isExpired = false;
-    final endStr = item['data_hora_termino'];
-    if (endStr != null) {
-      final end = DateTime.tryParse(endStr.toString());
-      if (end != null && DateTime.now().isAfter(end)) {
-        isExpired = true;
-      }
-    }
-    
-    // Verificar se é agendado (está ativo no período, mas não entrou ainda)
-    bool isAuthorized = false;
-    if (!isInside && item['data_saida'] == null && !isExpired) {
-      final startStr = item['data_hora_inicio'];
-      final endStr = item['data_hora_termino'];
-      if (startStr != null && endStr != null) {
-        final start = DateTime.tryParse(startStr);
-        final end = DateTime.tryParse(endStr);
-        if (start != null && end != null) {
-          isAuthorized = DateTime.now().isAfter(start) && DateTime.now().isBefore(end);
-        }
-      }
-    }
+    // Mesma regra do console (utils/status_visita.dart): liberado,
+    // autorização do morador (10 min) e tolerância da janela — não só o horário.
+    final agora = DateTime.now();
+    final isExpired = visitaVencida(item as Map, agora);
+    final statusPessoa = statusPessoaDaVisita(item, agora);
+    final isAuthorized = statusPessoa == StatusPessoa.autorizado;
     return GestureDetector(
       onTap: onTap,
       child: Container(
