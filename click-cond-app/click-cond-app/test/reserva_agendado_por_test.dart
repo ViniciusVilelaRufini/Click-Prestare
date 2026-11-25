@@ -14,6 +14,10 @@ void main() {
       expect(rotuloAgendadoPor({'criado_por': '  Ana  '}), 'Agendado por Ana');
     });
 
+    test('nome todo em maiúsculas sai como nome próprio', () {
+      expect(rotuloAgendadoPor({'criado_por': 'VINICIUS VILELA RUFINI'}), 'Agendado por Vinicius Vilela Rufini');
+    });
+
     test('sem o campo, nulo, vazio ou não-texto: nada', () {
       expect(rotuloAgendadoPor({}), isNull);
       expect(rotuloAgendadoPor({'criado_por': null}), isNull);
