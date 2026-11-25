@@ -11,6 +11,7 @@ Conta AWS 850401152034 (sa-east-1), pelo CloudShell, e da internet pública. Tud
 | Infra | EB (saúde, instâncias, tamanho das envs), RDS (Multi-AZ, criptografia, proteção contra exclusão, não público, backup, CPU, disco, conexões), alarmes, SNS, canary | canary parado há 13 dias |
 | Logs | 5xx e erros fora do HTTP em 7 dias (CloudWatch Logs Insights) | só os 500 provocados pelo teste; ruído do tickFantasmas do terminal de teste |
 | Portal (navegador) | 24 páginas e links públicos abertos direto (landing, login, convite, passe, entrega, redefinir senha, política, exclusão de conta, telas internas com F5), console e recursos com erro | links de passe e entrega quebrados |
+| Console logado (navegador) | 17 telas internas abertas sem clicar em ação; console, chamadas de API com erro e tempo de resposta | 0 erros; API p50 34 ms, p95 89 ms (dados de teste) |
 | Banco | 40 checagens de integridade (duplicatas de e-mail/CPF/login, senhas fora de bcrypt, dados cruzando condomínio, QR ativo órfão, PIN repetido, reservas sobrepostas, chaves e índices, engine/charset, conexões, sql_mode) | 2 achados de dado + 2 de configuração |
 
 ## Corrigido
@@ -21,7 +22,10 @@ Conta AWS 850401152034 (sa-east-1), pelo CloudShell, e da internet pública. Tud
 
 4. **Links `/passe/<token>` e `/entrega/<token>` abriam a página 404 do Amplify** (link do passe do visitante e QR do entregador no portão). A regra SPA do Amplify listava as rotas do Angular sem essas duas. O `docs/operacao/amplify-regras.json` já as previa, mas nunca foi aplicado, e ainda recusava ponto em `passe/<token>` (o token é `<id36>.<hmac>`): aplicado só a regra SPA corrigida (backup em `~/testes/amplify-rules-backup-*.json` no CloudShell), conferido no navegador que passe, entrega, convite, dashboard, login, landing e política abrem e que rota inexistente segue 404. Arquivo do repositório igualado à produção.
 
-**Publicação**: 1 e 2 estão no branch `fix/testes-producao-2026-11-25` (suíte da API 6133/6133), sem push — o push para master/main foi barrado pela proteção do modo automático e fica para o dono liberar. 3 e 4 são configuração da AWS e já estão no ar.
+5. **Alarme `prestare-api-erros` disparava com qualquer varredura de robô** (`all-exceptions.filter.ts`). O filtro global registrava todo erro HTTP como `ERROR`, inclusive 401/404, e o alarme conta linhas `ERROR`: a própria bateria (531 requisições inválidas) gerou 37 em 5 min e o alarme mandou e-mail às 14:15 UTC (alerta falso, causado pelo teste). Agora 4xx vai como `warn` e só 5xx como `error`. 2 testes novos; o teste do pentest P-08 passou a conferir os dois níveis.
+6. **Scripts `.sh` saíam com CRLF de checkout no Windows** e quebravam no CloudShell: `.gitattributes` força LF em `*.sh` e nos SQL de `scripts/ops`.
+
+**Publicação**: 1, 2 e 5 estão no branch `fix/testes-producao-2026-11-25` (suíte da API 6135/6135), sem push — o push para master/main foi barrado pela proteção do modo automático e fica para o dono liberar. 3 e 4 são configuração da AWS e já estão no ar.
 
 ## Estado observado
 
