@@ -308,7 +308,10 @@ class CellAgendamento extends StatelessWidget {
                                       ? 'Aprovado por $aprovadoPor${aprovadoEm != null ? " ($aprovadoEm)" : ""}'
                                       : (status == 'recusado'
                                           ? 'Recusado por $aprovadoPor${motivoRecusa != null && motivoRecusa.isNotEmpty ? " • Motivo: $motivoRecusa" : ""}'
-                                          : aprovadoPor),
+                                          : status == 'cancelado'
+                                              // O cancelamento pelo morador já grava "Cancelado pelo Morador".
+                                              ? '${aprovadoPor.startsWith('Cancelado') ? aprovadoPor : 'Cancelado por $aprovadoPor'}${aprovadoEm != null ? " ($aprovadoEm)" : ""}'
+                                              : aprovadoPor),
                                   style: TextStyle(
                                     fontSize: 11.5,
                                     fontWeight: FontWeight.w600,

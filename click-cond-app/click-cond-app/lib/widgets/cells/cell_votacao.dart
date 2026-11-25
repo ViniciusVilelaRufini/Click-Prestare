@@ -269,7 +269,9 @@ class _CellVotacaoState extends State<CellVotacao> {
             const SizedBox(height: AppSpacing.xs),
             _acoes(),
           ],
-          if (isSindico && !widget.isRegister && !widget.somenteLeitura) ...[
+          // Pauta com voto não pode ser excluída (a API recusa); sem o botão.
+          if (isSindico && !widget.isRegister && !widget.somenteLeitura &&
+              (participacaoDaVotacao(_item)?.votaram ?? 0) == 0) ...[
             const SizedBox(height: AppSpacing.sm),
             Align(
               alignment: Alignment.centerRight,
