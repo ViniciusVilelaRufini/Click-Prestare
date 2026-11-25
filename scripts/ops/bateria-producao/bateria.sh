@@ -32,7 +32,7 @@ a=$(curl -sI --max-time 20 -H 'Origin: https://evil.example.com' $API/health | g
 a=$(curl -sI --max-time 20 -H "Origin: $WWW" $API/health | grep -i '^access-control-allow-origin' | tr -d '\r')
 echo "$a" | grep -q "$WWW" && ok "CORS origem oficial" || fa "CORS origem oficial" "'$a'"
 # rotas protegidas sem token -> 401
-for r in condominios/1/moradores condominios/1/visitas condominios/1/dashboard condominios/1/relatorios facial/devices encomendas ocorrencias notificacoes apartamentos crm/condominios; do
+for r in condominios/1/moradores condominios/1/visitas condominios/1/dashboard condominios/1/relatorios condominios/1/encomendas condominios/1/ocorrencias condominios/1/apartamentos condominios/1/comunicados condominios/1/pessoas facial/devices; do
   c=$(code $API/$r); case $c in 401|403) ok "sem token /$r" "$c";; 404) av "sem token /$r" "404 (rota?)";; *) fa "sem token /$r" "$c $(head -c 120 /tmp/b)";; esac
 done
 # JWT forjado (alg none / assinatura errada)
