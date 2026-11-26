@@ -130,7 +130,7 @@ describe('DeliveryPortaoService — rotina', () => {
     });
   });
 
-  it('autoatendimento AUTORIZADA sem abertura e RETIRADA_NA_PORTARIA há 2h01 são concluídos', async () => {
+  it('autoatendimento AUTORIZADA sem abertura e RETIRADA_NA_PORTARIA há 2h01 são encerrados sem retirada (CANCELADA, nunca concluídos) e avisam o morador', async () => {
     const { svc, tabela } = montarPortao({
       atendimentos: [
         atendimento(1, { status: 'AUTORIZADA', id_pedido_portao: 10, updated_at: em(-2 * H - M) }),
@@ -146,11 +146,12 @@ describe('DeliveryPortaoService — rotina', () => {
       ],
     });
     await svc.tick();
-    expect(tabela('deliveryAtendimentos').map((a) => a.status)).toEqual(['CONCLUIDA', 'CONCLUIDA', 'AUTORIZADA', 'AUTORIZADA']);
-    expect(tabela('deliveryEventos').filter((e) => e.status_novo === 'CONCLUIDA').map((e) => e.mensagem)).toEqual([
-      'Encerrado automaticamente',
-      'Encerrado automaticamente',
+    expect(tabela('deliveryAtendimentos').map((a) => a.status)).toEqual(['CANCELADA', 'CANCELADA', 'AUTORIZADA', 'AUTORIZADA']);
+    expect(tabela('deliveryEventos').filter((e) => e.status_novo === 'CANCELADA').map((e) => e.mensagem)).toEqual([
+      'Encerrada sem retirada',
+      'Encerrada sem retirada',
     ]);
+    expect(tabela('deliveryEventos').some((e) => e.status_novo === 'CONCLUIDA')).toBe(false);
   });
 
   it('um erro num atendimento não impede os seguintes', async () => {
@@ -172,7 +173,7 @@ describe('DeliveryPortaoService — rotina', () => {
       return original(id, s, m);
     });
     await expect(k.svc.tick()).resolves.toBeUndefined();
-    expect(k.tabela('deliveryAtendimentos').map((a) => a.status)).toEqual(['AGUARDANDO_AUTORIZACAO', 'CANCELADA', 'CONCLUIDA']);
+    expect(k.tabela('deliveryAtendimentos').map((a) => a.status)).toEqual(['AGUARDANDO_AUTORIZACAO', 'CANCELADA', 'CANCELADA']);
   });
 
   it('erro numa etapa não impede as outras', async () => {

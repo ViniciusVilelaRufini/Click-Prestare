@@ -276,6 +276,13 @@ describe('CardAoVivoService — delivery', () => {
     );
   });
 
+  it('reserva: recusa não afirma "pela portaria" (o card não sabe quem recusou)', async () => {
+    const { svc } = montarCard({ aparelhos: [iphone], usuarios });
+    const push = (svc as any).pushComumDelivery(9, 'RECUSADA', 'Entregador não esperou', 42);
+    expect(push.corpo).toBe('Sua entrega foi recusada. Motivo: Entregador não esperou');
+    expect((svc as any).pushComumDelivery(9, 'RECUSADA', null, 42).corpo).toBe('Sua entrega foi recusada.');
+  });
+
   it('confirmação atrasada depois de mudar de fase reenvia o estado salvo', async () => {
     const { svc, apns, prisma, avancar } = montarCard({ aparelhos: [iphone], usuarios });
     await svc.abrirDelivery(a, 1);

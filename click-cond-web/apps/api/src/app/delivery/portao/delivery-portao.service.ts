@@ -16,6 +16,7 @@ import { FacialService } from '../../facial/facial.service';
 import { PREFIXOS_FOTO_PEDIDO_PORTAO, StorageService } from '../../common/storage/storage.service';
 import { ResultadoLock, comLock, executarComLock } from '../../common/lock-distribuido';
 import { DeliveryService, DeliveryStatus, GanchoPortao, QuemMudou } from '../delivery.service';
+import { MOTIVO_ENCERRADA_SEM_RETIRADA } from '../../card-ao-vivo/delivery-conteudo';
 import { TenantAccessService } from '../../auth/tenant-access.service';
 import type { JwtPayload } from '../../auth/jwt-payload.interface';
 import { assertOperador, assertSindicoEstrito, assertTenantStrict } from '../../auth/tenant.util';
@@ -282,7 +283,7 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
       });
       // Autorizado com o portão aberto é da etapa anterior (30 min).
       const semAbertura = (lista as any[]).filter((a) => a.status !== 'AUTORIZADA' || !a.pedidosPortao?.length);
-      await this.transicionarCada(semAbertura, 'CONCLUIDA', 'Encerrado automaticamente');
+      await this.transicionarCada(semAbertura, 'CANCELADA', MOTIVO_ENCERRADA_SEM_RETIRADA);
     });
 
     await this.etapa('cancelar aviso sem chegada', () => this.delivery.cancelarAvisosSemChegada());

@@ -8,7 +8,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { CardAoVivoService } from '../card-ao-vivo/card-ao-vivo.service';
-import { AtendimentoCard, dadosPushDelivery, mensagemDelivery } from '../card-ao-vivo/delivery-conteudo';
+import { AtendimentoCard, MOTIVO_ENCERRADA_SEM_RETIRADA, dadosPushDelivery, mensagemDelivery } from '../card-ao-vivo/delivery-conteudo';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
@@ -69,6 +69,9 @@ const MSG_PORTARIA_ATENDENDO = 'A portaria já está atendendo uma entrega para 
 const TRANSICOES_DO_SISTEMA: Partial<Record<DeliveryStatus, readonly DeliveryStatus[]>> = {
   CHEGOU: ['CANCELADA'],
   AGUARDANDO_AUTORIZACAO: ['CANCELADA'],
+  // Encerramento por tempo sem retirada: "encerrada sem retirada", nunca "concluída".
+  AUTORIZADA: ['CANCELADA'],
+  RETIRADA_NA_PORTARIA: ['CANCELADA'],
 };
 /** Aviso AGENDADA sem chegada é cancelado este tempo depois da previsão (ou da criação, sem previsão). */
 export const AVISO_SEM_CHEGADA_MS = 24 * 3_600_000;
@@ -81,7 +84,7 @@ export const MOTIVO_SEM_CHEGADA = 'Sem chegada';
 export const LOTE_SEM_CHEGADA = 50;
 /**
  * Atendimento da portaria (sem pedido de portão) parado este tempo é
- * encerrado pela rotina: AUTORIZADA/RETIRADA_NA_PORTARIA → CONCLUIDA;
+ * encerrado pela rotina: AUTORIZADA/RETIRADA_NA_PORTARIA → CANCELADA ("Encerrada sem retirada");
  * CHEGOU/AGUARDANDO_AUTORIZACAO → CANCELADA com motivo "Sem resposta".
  */
 export const PARADO_PORTARIA_MS = 24 * 3_600_000;
@@ -91,8 +94,8 @@ export const MSG_ENCERRADO_AUTOMATICAMENTE = 'Encerrado automaticamente';
 const DESTINO_PARADO_PORTARIA: Partial<Record<DeliveryStatus, { status: DeliveryStatus; mensagem: string }>> = {
   CHEGOU: { status: 'CANCELADA', mensagem: MOTIVO_PARADO_SEM_RESPOSTA },
   AGUARDANDO_AUTORIZACAO: { status: 'CANCELADA', mensagem: MOTIVO_PARADO_SEM_RESPOSTA },
-  AUTORIZADA: { status: 'CONCLUIDA', mensagem: MSG_ENCERRADO_AUTOMATICAMENTE },
-  RETIRADA_NA_PORTARIA: { status: 'CONCLUIDA', mensagem: MSG_ENCERRADO_AUTOMATICAMENTE },
+  AUTORIZADA: { status: 'CANCELADA', mensagem: MOTIVO_ENCERRADA_SEM_RETIRADA },
+  RETIRADA_NA_PORTARIA: { status: 'CANCELADA', mensagem: MOTIVO_ENCERRADA_SEM_RETIRADA },
 };
 const MSG_JA_TEM_PEDIDO = 'Este atendimento já tem um pedido de portão.';
 const MSG_ENTREGADOR_SAIU = 'O entregador não está mais no portão.';
@@ -744,7 +747,7 @@ export class DeliveryService {
     if (!atualizado) return false;
     const gancho = this.chamarGancho(atualizado, statusNovo, { idUser: null, operador: false, sistema: true });
     const aviso = this.avisarMorador(atualizado, statusNovo, false, false, data.motivo, null, {
-      semNotificacaoComum: statusNovo === 'CANCELADA' || !!opcoes.semNotificacaoComum,
+      semNotificacaoComum: (statusNovo === 'CANCELADA' && mensagem !== MOTIVO_ENCERRADA_SEM_RETIRADA) || !!opcoes.semNotificacaoComum,
     }).catch((e: any) => this.logger.warn(`Aviso do delivery ${atualizado.id}: ${e?.message ?? e}`));
     // Ambos nunca rejeitam; em lote seguem em segundo plano.
     if (!opcoes.semEsperarAviso) await this.comTeto(Promise.all([gancho, aviso]));
@@ -1069,12 +1072,15 @@ export class DeliveryService {
     outroRespondeu: string | null = null,
     opts: { semNotificacaoComum?: boolean } = {},
   ) {
+    // Encerrada pela rotina sem retirada: o card some sem dizer nada, então o aviso vai a todos.
+    const semRetirada = statusNovo === 'CANCELADA' && motivo?.trim() === MOTIVO_ENCERRADA_SEM_RETIRADA && !opts.semNotificacaoComum;
     const notificavel =
-      !opts.semNotificacaoComum &&
+      semRetirada ||
+      (!opts.semNotificacaoComum &&
       !respostaDoMorador &&
       (['CHEGOU', 'AGUARDANDO_AUTORIZACAO', 'AUTORIZADA', 'CONCLUIDA', 'RECUSADA', 'RETIRADA_NA_PORTARIA'].includes(statusNovo) ||
         // Cancelamento pela portaria; o do próprio morador não volta a ele.
-        (statusNovo === 'CANCELADA' && !acaoDoMorador));
+        (statusNovo === 'CANCELADA' && !acaoDoMorador)));
     // Sem dono (autoatendimento do portão): o card acompanha em todos os vínculos.
     const dono: number | null = registro.id_morador_user ?? null;
     let cobertos = new Set<string>();
@@ -1123,8 +1129,8 @@ export class DeliveryService {
       await this.notificarMorador(registro.id_apartamento, dono, statusNovo, registro.id, motivo, new Set(), texto, registro.id_condominio);
       return;
     }
-    if (!notificavel || viaCard) return;
-    await this.notificarMorador(registro.id_apartamento, dono, statusNovo, registro.id, motivo, cobertos, undefined, registro.id_condominio);
+    if (!notificavel || (viaCard && !semRetirada)) return;
+    await this.notificarMorador(registro.id_apartamento, dono, statusNovo, registro.id, motivo, semRetirada ? new Set() : cobertos, undefined, registro.id_condominio);
   }
 
   /** O atendimento no formato do card (unidade e entregador com a foto). */

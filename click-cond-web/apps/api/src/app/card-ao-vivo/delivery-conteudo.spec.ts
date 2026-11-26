@@ -123,6 +123,10 @@ describe('conteúdo do card do delivery', () => {
     expect(alertaDelivery('aguardando', { ...c, portao: undefined })?.titulo).toBe('Autorize a entrega');
   });
 
+  it('encerrada sem retirada tem texto próprio, sem "concluída" nem "pela portaria"', () => {
+    expect(mensagemDelivery('CANCELADA', 'Encerrada sem retirada')).toBe('Sua entrega foi encerrada sem retirada.');
+  });
+
   it('textos da notificação de hoje não mudam', () => {
     expect(mensagemDelivery('CHEGOU')).toBe('Seu entregador chegou à portaria.');
     expect(mensagemDelivery('RECUSADA', ' Sem documento ')).toBe('Sua entrega foi recusada pela portaria. Motivo: Sem documento');

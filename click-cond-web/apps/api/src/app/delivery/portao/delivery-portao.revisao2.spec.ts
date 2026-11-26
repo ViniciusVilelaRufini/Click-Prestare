@@ -270,7 +270,7 @@ describe('autoatendimento no portão — segunda revisão', () => {
       expect(k.tabela('deliveryAtendimentos')[0]).toMatchObject({ status: 'CANCELADA', motivo: 'Sem resposta do morador' });
     });
 
-    it('autorizado sem abertura ou "vou buscar" parado há 2 h: CONCLUIDA', async () => {
+    it('autorizado sem abertura ou "vou buscar" parado há 2 h: CANCELADA (encerrada sem retirada)', async () => {
       const k = montarPortao({
         atendimentos: [
           reaproveitado({ status: 'AUTORIZADA', updated_at: new Date(T0 - 2 * H - M) }),
@@ -279,7 +279,7 @@ describe('autoatendimento no portão — segunda revisão', () => {
         pedidos: [pedido({ status: 'liberado' }), pedido({ id: 41, id_atendimento: 5, token_hash: 'd'.repeat(64), status: 'vou_buscar' })],
       });
       await k.svc.tick();
-      expect(k.tabela('deliveryAtendimentos').map((a: any) => a.status)).toEqual(['CONCLUIDA', 'CONCLUIDA']);
+      expect(k.tabela('deliveryAtendimentos').map((a: any) => a.status)).toEqual(['CANCELADA', 'CANCELADA']);
     });
   });
 

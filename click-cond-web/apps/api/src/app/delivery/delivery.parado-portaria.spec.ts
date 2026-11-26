@@ -8,7 +8,7 @@ import {
 /**
  * Atendimento da portaria (sem pedido de portão) parado há 24 h é encerrado
  * pela rotina periódica do delivery: AUTORIZADA/RETIRADA_NA_PORTARIA →
- * CONCLUIDA ("Encerrado automaticamente"); CHEGOU/AGUARDANDO_AUTORIZACAO →
+ * CANCELADA ("Encerrada sem retirada"); CHEGOU/AGUARDANDO_AUTORIZACAO →
  * CANCELADA com motivo "Sem resposta". Com pedido de portão valem as regras
  * de 2 h do portão; AGENDADA segue a regra "Sem chegada".
  */
@@ -41,28 +41,29 @@ describe('delivery — atendimento da portaria parado há 24 h', () => {
     expect(MSG_ENCERRADO_AUTOMATICAMENTE).toBe('Encerrado automaticamente');
   });
 
-  it("RETIRADA_NA_PORTARIA sem pedido, parado 25 h → CONCLUIDA com 'Encerrado automaticamente'", async () => {
+  it("RETIRADA_NA_PORTARIA sem pedido, parado 25 h → CANCELADA com 'Encerrada sem retirada'", async () => {
     const k = montarPortao({ atendimentos: [atendimento(1, 'RETIRADA_NA_PORTARIA', 25 * H)] });
     const n = await k.delivery.encerrarParadosDaPortaria();
     expect(n).toBe(1);
     const [a] = k.tabela('deliveryAtendimentos');
-    expect(a.status).toBe('CONCLUIDA');
-    expect(a.concluido_em).toBeInstanceOf(Date);
+    expect(a.status).toBe('CANCELADA');
+    expect(a.concluido_em ?? null).toBeNull();
+    expect(a.cancelado_em).toBeInstanceOf(Date);
     expect(k.tabela('deliveryEventos')).toEqual([
       expect.objectContaining({
         id_atendimento: 1,
         status_anterior: 'RETIRADA_NA_PORTARIA',
-        status_novo: 'CONCLUIDA',
+        status_novo: 'CANCELADA',
         autor_nome: 'Sistema',
-        mensagem: 'Encerrado automaticamente',
+        mensagem: 'Encerrada sem retirada',
       }),
     ]);
   });
 
-  it('AUTORIZADA sem pedido, parado 25 h → CONCLUIDA', async () => {
+  it('AUTORIZADA sem pedido, parado 25 h → CANCELADA (nunca concluída)', async () => {
     const k = montarPortao({ atendimentos: [atendimento(1, 'AUTORIZADA', 25 * H)] });
     await k.delivery.encerrarParadosDaPortaria();
-    expect(status(k)).toEqual([[1, 'CONCLUIDA', null]]);
+    expect(status(k)).toEqual([[1, 'CANCELADA', 'Encerrada sem retirada']]);
   });
 
   // O aviso da rotina vai em segundo plano (semEsperarAviso): deixa assentar.
@@ -70,7 +71,7 @@ describe('delivery — atendimento da portaria parado há 24 h', () => {
     for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
   };
 
-  it('conclusão automática não manda a notificação comum ao morador, mas o card chega ao fim', async () => {
+  it('encerramento automático (sem retirada) de 24 h não manda a notificação comum ao morador, mas o card chega ao fim', async () => {
     const k = montarPortao({
       atendimentos: [
         atendimento(1, 'AUTORIZADA', 25 * H),
@@ -82,12 +83,12 @@ describe('delivery — atendimento da portaria parado há 24 h', () => {
     expect(n).toBe(2);
     expect(k.notifications.sendPushNotification).not.toHaveBeenCalled();
     expect(k.card.atualizarDelivery).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 1, status: 'CONCLUIDA' }),
+      expect.objectContaining({ id: 1, status: 'CANCELADA' }),
       7,
       { voceRespondeu: false },
     );
     expect(k.card.atualizarDelivery).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 2, status: 'CONCLUIDA' }),
+      expect.objectContaining({ id: 2, status: 'CANCELADA' }),
       7,
       { voceRespondeu: false },
     );
@@ -102,6 +103,23 @@ describe('delivery — atendimento da portaria parado há 24 h', () => {
       expect.any(String),
       { type: 'delivery', id_delivery: '1', status: 'CONCLUIDA', id_condominio: '1' },
     );
+  });
+
+  it('encerrada sem retirada (rotina do portão, 2 h) avisa o morador sem dizer "concluída" nem "cancelada pela portaria"', async () => {
+    const k = montarPortao({ atendimentos: [atendimento(1, 'AUTORIZADA', 3 * H)] });
+    expect(await k.delivery.transicionarPeloSistema(1, 'CANCELADA', 'Encerrada sem retirada')).toBe(true);
+    expect(k.notifications.sendPushNotification).toHaveBeenCalledWith(
+      'fcm-7',
+      'Delivery',
+      'Sua entrega foi encerrada sem retirada.',
+      expect.objectContaining({ status: 'CANCELADA' }),
+    );
+  });
+
+  it('cancelamento do sistema por outro motivo segue sem a notificação comum', async () => {
+    const k = montarPortao({ atendimentos: [atendimento(1, 'CHEGOU', 3 * H)] });
+    expect(await k.delivery.transicionarPeloSistema(1, 'CANCELADA', 'Sem resposta')).toBe(true);
+    expect(k.notifications.sendPushNotification).not.toHaveBeenCalled();
   });
 
   it("CHEGOU e AGUARDANDO_AUTORIZACAO sem pedido, parados 25 h → CANCELADA com motivo 'Sem resposta'", async () => {
@@ -174,7 +192,7 @@ describe('delivery — atendimento da portaria parado há 24 h', () => {
     expect(n).toBe(1);
     expect(status(k)).toEqual([
       [1, 'CHEGOU', null],
-      [2, 'CONCLUIDA', null],
+      [2, 'CANCELADA', 'Encerrada sem retirada'],
     ]);
     expect((k.delivery as any).logger.warn).toHaveBeenCalled();
   });
@@ -189,7 +207,7 @@ describe('delivery — atendimento da portaria parado há 24 h', () => {
     await k.svc.tick();
     expect(status(k)).toEqual([
       [1, 'CANCELADA', 'Sem resposta'],
-      [2, 'CONCLUIDA', null],
+      [2, 'CANCELADA', 'Encerrada sem retirada'],
     ]);
   });
 });

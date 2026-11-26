@@ -735,9 +735,13 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     motivo?: string | null,
     idCondominio?: number | null,
   ): PushComum {
+    // Recusa: este caminho não sabe quem recusou (portaria, o próprio morador em outro aparelho ou o pedido que venceu).
+    const corpo = status === 'RECUSADA'
+      ? `Sua entrega foi recusada.${motivo?.trim() ? ` Motivo: ${motivo.trim()}` : ''}`
+      : mensagemDelivery(status, motivo);
     return {
       titulo: 'Delivery',
-      corpo: mensagemDelivery(status, motivo),
+      corpo,
       dados: dadosPushDelivery(idAtendimento, status, idCondominio),
     };
   }

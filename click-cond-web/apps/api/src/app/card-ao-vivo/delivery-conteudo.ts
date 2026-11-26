@@ -19,6 +19,9 @@ export type StatusDelivery =
   | 'CANCELADA'
   | 'RECUSADA';
 
+/** Motivo do encerramento pela rotina de uma entrega autorizada/na portaria que ninguém retirou (CANCELADA, não "entregue"). */
+export const MOTIVO_ENCERRADA_SEM_RETIRADA = 'Encerrada sem retirada';
+
 export interface AtendimentoCard {
   id: number;
   status: StatusDelivery;
@@ -145,6 +148,10 @@ export function mensagemDelivery(status: StatusDelivery, motivo?: string | null)
     RETIRADA_NA_PORTARIA: 'Sua entrega ficou na portaria. Retire quando puder.',
     CANCELADA: `Seu aviso de delivery foi cancelado pela portaria.${motivo?.trim() ? ` Motivo: ${motivo.trim()}` : ''}`,
   };
+  // Rotina: ninguém retirou. Não foi a portaria que cancelou nem a entrega que se concluiu.
+  if (status === 'CANCELADA' && motivo?.trim() === MOTIVO_ENCERRADA_SEM_RETIRADA) {
+    return 'Sua entrega foi encerrada sem retirada.';
+  }
   return mensagens[status] ?? 'Atualização no seu atendimento.';
 }
 
