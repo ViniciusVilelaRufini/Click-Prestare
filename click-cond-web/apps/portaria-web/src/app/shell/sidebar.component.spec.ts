@@ -3,6 +3,7 @@ import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { SidebarComponent } from './sidebar.component';
 import { AuthService } from '../auth/auth.service';
+import { NetworkStatusService } from '../core/network-status.service';
 import { ThemeService } from '../shared/theme.service';
 
 describe('SidebarComponent — itens do menu por papel', () => {
@@ -34,5 +35,23 @@ describe('SidebarComponent — itens do menu por papel', () => {
   it('síndico vê todos os itens', () => {
     info = { id_condominio: 1, nome: 'Síndico', turno: 'Síndico' };
     expect(visiveis()).toEqual(expect.arrayContaining(['/configuracoes', '/financeiro', '/relatorios']));
+  });
+});
+
+describe('SidebarComponent — estado de conexão', () => {
+  it('reflete o estado real da rede, não um rótulo fixo', () => {
+    const rede = { hasConnectionIssue: signal(false) };
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        { provide: AuthService, useValue: { porteiroInfo: () => null } },
+        { provide: ThemeService, useValue: { isLight: signal(false), toggleTheme: jest.fn() } },
+        { provide: NetworkStatusService, useValue: rede },
+      ],
+    });
+    const s = TestBed.runInInjectionContext(() => new SidebarComponent());
+    expect(s.semConexao()).toBe(false);
+    rede.hasConnectionIssue.set(true);
+    expect(s.semConexao()).toBe(true);
   });
 });

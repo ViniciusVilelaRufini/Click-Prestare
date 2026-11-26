@@ -56,6 +56,12 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   readonly idApartamentoSelecionado = signal<number | null>(null);
   readonly liberarInicio = signal<string>('');
   readonly liberarTermino = signal<string>('');
+  /** Início sugerido ao abrir o modal (agora); enquanto igual, a tela mostra "Começa agora". */
+  readonly liberarInicioPadrao = signal<string>('');
+  readonly liberarComecaAgora = computed(() => !!this.liberarInicio() && this.liberarInicio() === this.liberarInicioPadrao());
+  /** A pessoa tem mais de uma unidade possível: o operador precisa confirmar qual. */
+  readonly aptoAmbiguo = signal(false);
+  private visitaCriadaParaRetry: { chave: string; id: number } | null = null;
   readonly carregandoPessoas = signal(false);
 
   /** "YYYY-MM-DDTHH:mm" em hora local (formato do input datetime-local). */
@@ -220,7 +226,10 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     this.pessoasEncontradas.set([]);
     this.pessoaSelecionada.set(null);
     this.idApartamentoSelecionado.set(null);
-    this.liberarInicio.set(this.localDateTime(0)); // agora
+    this.liberarInicioPadrao.set(this.localDateTime(0));
+    this.liberarInicio.set(this.liberarInicioPadrao()); // agora
+    this.aptoAmbiguo.set(false);
+    this.visitaCriadaParaRetry = null;
     this.liberarTermino.set(this.localDateTime(4)); // +4h
     this.erroLiberar.set(null);
     this.sucessoLiberar.set(null);
@@ -263,13 +272,13 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   selecionarPessoa(p: Pessoa) {
     this.pessoaSelecionada.set(p);
     this.erroLiberar.set(null);
-    if (p.id_apartamento) {
-      this.idApartamentoSelecionado.set(p.id_apartamento);
-    } else if (p.apartamentosVisitados && p.apartamentosVisitados.length > 0) {
-      this.idApartamentoSelecionado.set(p.apartamentosVisitados[0].id);
-    } else {
-      this.idApartamentoSelecionado.set(null);
-    }
+    const ids = new Set<number>();
+    if (p.id_apartamento) ids.add(p.id_apartamento);
+    for (const a of p.apartamentosVisitados ?? []) ids.add(a.id);
+    this.aptoAmbiguo.set(ids.size > 1);
+    // Só pré-seleciona quando há uma única unidade possível; com várias, o operador escolhe.
+    this.idApartamentoSelecionado.set(ids.size === 1 ? [...ids][0] : null);
+    this.visitaCriadaParaRetry = null;
   }
 
   confirmarLiberacao() {
@@ -291,31 +300,43 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
 
     // `id` da lista de pessoas é o da VISITA principal; a rota quer o da
     // pessoa. Mesmo critério de chavePessoa() na tela de Visitantes.
-    this.visitantesService.novaVisitaPessoa(p.id_pessoa ?? (p.id as number), {
+    const idPessoa = p.id_pessoa ?? (p.id as number);
+    const liberarVisita = (idVisita: number) =>
+      this.visitantesService.liberar(idVisita).subscribe({
+        next: () => {
+          this.liberandoVisitante.set(false);
+          this.sucessoLiberar.set(`Acesso de ${p.nome} liberado com sucesso!`);
+          this.load();
+          setTimeout(() => {
+            this.fecharModalLiberar();
+          }, 2000);
+        },
+        error: (e) => {
+          this.liberandoVisitante.set(false);
+          this.erroLiberar.set(this.network.getFriendlyErrorMessage(e, 'A visita foi cadastrada, mas falhou ao liberar o acesso'));
+        },
+      });
+
+    // Repetir o clique depois de uma falha em liberar() não cria outra visita.
+    const chave = `${idPessoa}:${idApto}`;
+    if (this.visitaCriadaParaRetry?.chave === chave) {
+      liberarVisita(this.visitaCriadaParaRetry.id);
+      return;
+    }
+
+    this.visitantesService.novaVisitaPessoa(idPessoa, {
       id_apartamento: idApto,
       data_hora_inicio: this.liberarInicio() || undefined,
       data_hora_termino: this.liberarTermino() || undefined,
     }).subscribe({
       next: (visitanteCriado) => {
-        this.visitantesService.liberar(visitanteCriado.id).subscribe({
-          next: () => {
-            this.liberandoVisitante.set(false);
-            this.sucessoLiberar.set(`Acesso de ${p.nome} liberado com sucesso!`);
-            this.load();
-            setTimeout(() => {
-              this.fecharModalLiberar();
-            }, 2000);
-          },
-          error: (e) => {
-            this.liberandoVisitante.set(false);
-            this.erroLiberar.set(this.network.getFriendlyErrorMessage(e, 'A visita foi cadastrada, mas falhou ao liberar o acesso'));
-          }
-        });
+        this.visitaCriadaParaRetry = { chave, id: visitanteCriado.id };
+        liberarVisita(visitanteCriado.id);
       },
       error: (e) => {
         this.liberandoVisitante.set(false);
         this.erroLiberar.set(this.network.getFriendlyErrorMessage(e, 'Falha ao criar visita'));
-      }
+      },
     });
   }
 
@@ -529,19 +550,21 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Painel "Na portaria agora": quem está no local primeiro; no máximo quatro.
+   * Painel "Na portaria agora": só quem está dentro; quem apenas foi liberado aparece à parte, como "ainda não chegaram".
    * "Liberado" é o mesmo da tela de Visitantes (statusVisitante): o
    * `statusLabel` da API diz "Liberado" também com a janela encerrada ou a
    * autorização do morador vencida. Recalcula com o relógio do servidor, então
    * quem tem a janela vencendo sai do painel sem esperar a próxima carga.
    */
   readonly naPortaria = signal<Pessoa[]>([]);
-  readonly naPortariaVisiveis = computed(() => {
+  /** Quem está DENTRO (entrou e não saiu). */
+  readonly naPortariaDentro = computed(() => this.naPortaria().filter((p) => p.noLocal).slice(0, 5));
+  /** Liberados de fato (janela e autorização vigentes) que ainda não chegaram. */
+  readonly naPortariaAChegar = computed(() => {
     const agoraMs = this.agora().getTime();
     return this.naPortaria()
-      .filter((p) => p.noLocal || statusVisitante(p, agoraMs) === 'liberado')
-      .sort((a, b) => Number(b.noLocal) - Number(a.noLocal))
-      .slice(0, 4);
+      .filter((p) => !p.noLocal && statusVisitante(p, agoraMs) === 'liberado')
+      .slice(0, 3);
   });
   readonly qtdNoLocal = computed(() => this.naPortaria().filter((p) => p.noLocal).length);
 

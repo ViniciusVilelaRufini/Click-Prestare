@@ -1,5 +1,5 @@
 import { signal } from '@angular/core';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { DashboardPageComponent } from './dashboard-page.component';
 
 /**
@@ -34,5 +34,57 @@ describe('Dashboard — liberar acesso usa o id da pessoa', () => {
     jest.useRealTimers();
     expect(service.novaVisitaPessoa.mock.calls[0][0]).toBe(2000001);
     expect(service.liberar).toHaveBeenCalledWith(1000010);
+  });
+});
+
+describe('Dashboard — liberação rápida: unidade e prazo', () => {
+  const nova = () => {
+    const tela = Object.create(DashboardPageComponent.prototype) as any;
+    Object.assign(tela, {
+      pessoaSelecionada: signal(null),
+      idApartamentoSelecionado: signal(null),
+      aptoAmbiguo: signal(false),
+      erroLiberar: signal(null),
+      visitaCriadaParaRetry: null,
+    });
+    return tela;
+  };
+
+  it('com mais de uma unidade, não escolhe o apartamento pelo operador', () => {
+    const tela = nova();
+    tela.selecionarPessoa({ id: 1, nome: 'A', id_apartamento: 10, apartamentosVisitados: [{ id: 10 }, { id: 11 }] });
+    expect(tela.idApartamentoSelecionado()).toBeNull();
+    expect(tela.aptoAmbiguo()).toBe(true);
+  });
+
+  it('com uma única unidade, pré-seleciona', () => {
+    const tela = nova();
+    tela.selecionarPessoa({ id: 1, nome: 'A', id_apartamento: 10, apartamentosVisitados: [{ id: 10 }] });
+    expect(tela.idApartamentoSelecionado()).toBe(10);
+    expect(tela.aptoAmbiguo()).toBe(false);
+  });
+
+  it('repetir o clique após falha em liberar não cria outra visita', () => {
+    const tela = nova();
+    const service = {
+      novaVisitaPessoa: jest.fn(() => of({ id: 77 })),
+      liberar: jest.fn()
+        .mockReturnValueOnce(throwError(() => new Error('x')))
+        .mockReturnValueOnce(of({})),
+    };
+    Object.assign(tela, {
+      pessoaSelecionada: signal({ id: 1, id_pessoa: 5, nome: 'A' }),
+      idApartamentoSelecionado: signal(10),
+      liberarInicio: signal(''), liberarTermino: signal(''),
+      liberandoVisitante: signal(false), sucessoLiberar: signal(null),
+      visitantesService: service, load: jest.fn(), fecharModalLiberar: jest.fn(),
+      network: { getFriendlyErrorMessage: (_e: any, p: string) => p },
+    });
+    jest.useFakeTimers();
+    tela.confirmarLiberacao();
+    tela.confirmarLiberacao();
+    jest.useRealTimers();
+    expect(service.novaVisitaPessoa).toHaveBeenCalledTimes(1);
+    expect(service.liberar).toHaveBeenCalledTimes(2);
   });
 });

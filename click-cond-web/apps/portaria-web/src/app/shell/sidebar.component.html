@@ -24,13 +24,13 @@
     (click)="auth.temMultiplosCondominios() && trocarCondominio()"
   >
     <div class="flex items-center gap-2 min-w-0">
-      <span class="ps-dot ps-dot-ok ps-dot-pulse"></span>
+      <span class="ps-dot" [class.ps-dot-ok]="!semConexao()" [class.ps-dot-pulse]="!semConexao()" [class.ps-dot-danger]="semConexao()"></span>
       <span class="font-display font-semibold text-[12px] tracking-[0.14em] uppercase truncate">{{ auth.condominioNome() }}</span>
     </div>
     @if (auth.temMultiplosCondominios()) {
       <span class="ps-tag shrink-0">Trocar</span>
     } @else {
-      <span class="ps-label !text-[9px] !tracking-[0.14em] shrink-0">Online</span>
+      <span class="ps-label !text-[9px] !tracking-[0.14em] shrink-0" [style.color]="semConexao() ? 'var(--signal-danger)' : null">{{ semConexao() ? 'Sem conexão' : 'Online' }}</span>
     }
   </div>
 
