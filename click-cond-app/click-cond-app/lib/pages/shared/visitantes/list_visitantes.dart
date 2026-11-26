@@ -898,7 +898,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                     icon: Icon(PhosphorIcons.signOut,
                                         size: 20, color: AppColors.onPrimary),
                                     label: Text(
-                                      'Dar Baixa na Visita',
+                                      'Dar baixa na visita'.toUpperCase(),
                                       style: TextStyle(
                                         color: AppColors.onPrimary,
                                         fontWeight: FontWeight.bold,
@@ -959,7 +959,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                             color: AppColors.onBrand,
                                             size: 18),
                                         label: Text(
-                                          'Editar',
+                                          'Editar'.toUpperCase(),
                                           style: TextStyle(
                                             color: AppColors.onBrand,
                                             fontWeight: FontWeight.bold,
