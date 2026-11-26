@@ -452,8 +452,8 @@ class Localizable_PtBr {
     //APARTAMENTO
     LocalizableModel(key: 'apto_desc', text: 'Para realizar o cadastro de um novo apartamento, insira os dados abaixo:'), 
     LocalizableModel(key: 'apto_fracao', text: 'Fração ideal'), 
-    LocalizableModel(key: 'apto_proprietarios', text: 'Proprietários: '), 
-    LocalizableModel(key: 'apto_inquilinos', text: 'Inquilinos: '), 
+    LocalizableModel(key: 'apto_proprietarios', text: 'Proprietários'),
+    LocalizableModel(key: 'apto_inquilinos', text: 'Inquilinos'),
     LocalizableModel(key: 'apto_usuario_criado_msg', text: 'Usuário criado!\nInforme que a senha padrão será o número do documento e que ao entrar na conta a senha poderá ser alterada.'),
     LocalizableModel(key: 'lb_meu_apartamento', text: 'Meu Apartamento'),
     LocalizableModel(key: 'apto_membros', text: 'Família'),

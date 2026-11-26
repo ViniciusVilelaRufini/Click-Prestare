@@ -6,6 +6,8 @@ import 'package:click/controllers/controller_generic.dart';
 import 'package:click/controllers/controller_sindico.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
+import 'package:click/utils/contato_edicao.dart';
+import 'package:easy_mask/easy_mask.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/troca_email.dart';
 import 'package:click/theme/app_colors.dart';
@@ -39,6 +41,10 @@ class _EditSindicoPageState extends State<EditSindico> {
   final txtDN = TextEditingController();
   final txtEmail = TextEditingController();
   final txtTelefone = TextEditingController();
+  /// Documento e telefone como vieram do servidor: a máscara mostrada na tela
+  /// não muda o formato enviado à API (ver [contatoParaEnvio]).
+  String _documentoCarregado = '';
+  String _telefoneCarregado = '';
 
   /// E-mail como veio do servidor: trocar por outro exige a senha atual.
   String _emailCarregado = '';
@@ -67,8 +73,10 @@ class _EditSindicoPageState extends State<EditSindico> {
       txtEmail.text = obj["email"] ?? "";
       _emailCarregado = txtEmail.text;
       txtDN.text = obj["date_birth"] ?? "";
-      txtTelefone.text = obj["phone"] ?? "";
-      txtDocumento.text = obj["doc_identification"] ?? "";
+      _telefoneCarregado = (obj["phone"] ?? "").toString();
+      _documentoCarregado = (obj["doc_identification"] ?? "").toString();
+      txtTelefone.text = formatarTelefoneEdicao(_telefoneCarregado);
+      txtDocumento.text = formatarDocumentoEdicao(_documentoCarregado);
       
       final photoVal = (obj['foto_pessoa'] ?? obj['photo'] ?? obj['profile_image'])?.toString().trim();
       final photoUrl = (photoVal != null && photoVal.isNotEmpty && photoVal != 'null' && photoVal != 'undefined')
@@ -124,10 +132,20 @@ class _EditSindicoPageState extends State<EditSindico> {
       
       await updateSindico(
         txtNome.text, 
-        txtDocumento.text, 
+        contatoParaEnvio(
+          exibido: txtDocumento.text,
+          original: _documentoCarregado,
+          formatar: formatarDocumentoEdicao,
+          soDigitos: true,
+        ),
         txtDN.text, 
         txtEmail.text.trim(), 
-        txtTelefone.text, 
+        contatoParaEnvio(
+          exibido: txtTelefone.text,
+          original: _telefoneCarregado,
+          formatar: formatarTelefoneEdicao,
+          soDigitos: true,
+        ),
         base64,
         senhaAtual: senhaAtual,
       );          
@@ -276,6 +294,9 @@ class _EditSindicoPageState extends State<EditSindico> {
                     controller: txtTelefone,
                     prefixIcon: PhosphorIcons.phone,
                     keyboard: TextInputType.phone,
+                    formatters: [
+                      TextInputMask(mask: ['(99) 9999-9999', '(99) 99999-9999'])
+                    ],
                   ),
                   const SizedBox(height: AppSpacing.xl),
                   AppButton(

@@ -462,8 +462,8 @@ class Localizable_Al {
     //APARTAMENTO
     LocalizableModel(key: 'apto_desc', text: 'Um eine neue Wohnung anzumelden, geben Sie die folgenden Daten ein:'), 
     LocalizableModel(key: 'apto_fracao', text: 'Idealer Bruch'), 
-    LocalizableModel(key: 'apto_proprietarios', text: 'Eigentümer:'), 
-    LocalizableModel(key: 'apto_inquilinos', text: 'Mieter:'), 
+    LocalizableModel(key: 'apto_proprietarios', text: 'Eigentümer'),
+    LocalizableModel(key: 'apto_inquilinos', text: 'Mieter'),
     LocalizableModel(key: 'apto_usuario_criado_msg', text: 'Usuário criado!\nInforme que a senha padrão será o número do documento e que ao entrar na conta a senha poderá ser alterada.'), 
     
     //MUDANCA

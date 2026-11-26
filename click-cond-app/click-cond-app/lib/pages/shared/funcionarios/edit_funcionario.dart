@@ -11,6 +11,8 @@ import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
+import 'package:click/utils/contato_edicao.dart';
+import 'package:easy_mask/easy_mask.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_dialog.dart';
 import 'package:click/widgets/app/app_input.dart';
@@ -34,6 +36,10 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
   final txtDocumento = TextEditingController();
   final txtEmail = TextEditingController();
   final txtTelefone = TextEditingController();
+  /// Documento e telefone como vieram do servidor: a máscara mostrada na tela
+  /// não muda o formato enviado à API (ver [contatoParaEnvio]).
+  String _documentoCarregado = '';
+  String _telefoneCarregado = '';
 
   dynamic imageFile;
   var changed = false;
@@ -61,10 +67,12 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
       var obj = await apiGetDetails("funcionarios", 0);
       myId = obj["id"] ?? -1;
       txtNome.text = obj["nome"] ?? "";
-      txtDocumento.text = obj["documento"] ?? "";
+      _documentoCarregado = (obj["documento"] ?? "").toString();
+      txtDocumento.text = formatarDocumentoEdicao(_documentoCarregado);
       txtEmail.text = obj["email"] ?? "";
       _emailCarregado = txtEmail.text;
-      txtTelefone.text = obj["telefone"] ?? "";
+      _telefoneCarregado = (obj["telefone"] ?? "").toString();
+      txtTelefone.text = formatarTelefoneEdicao(_telefoneCarregado);
       imageFile = obj['photo'] != null && obj['photo'].toString().isNotEmpty ? obj['photo'] : null;
       if (imageFile != null && imageFile.toString().startsWith('http')) {
         setUserPhoto(imageFile.toString());
@@ -92,8 +100,21 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
         base64 = imageFile;
       }
       var funcionario = FuncionarioModel(
-        id: myId, nome: txtNome.text, documento: txtDocumento.text,
-        email: txtEmail.text, telefone: txtTelefone.text, photo: base64,
+        id: myId, nome: txtNome.text,
+        documento: contatoParaEnvio(
+          exibido: txtDocumento.text,
+          original: _documentoCarregado,
+          formatar: formatarDocumentoEdicao,
+          soDigitos: true,
+        ),
+        email: txtEmail.text,
+        telefone: contatoParaEnvio(
+          exibido: txtTelefone.text,
+          original: _telefoneCarregado,
+          formatar: formatarTelefoneEdicao,
+          soDigitos: true,
+        ),
+        photo: base64,
       );
       var res = await updateFuncionarioApi(funcionario, senhaAtual: senhaAtual);
       if (!mounted) return;
@@ -202,7 +223,9 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
                   const SizedBox(height: AppSpacing.md),
                   AppInput(label: getText('email'), controller: txtEmail, prefixIcon: PhosphorIcons.envelope, keyboard: TextInputType.emailAddress),
                   const SizedBox(height: AppSpacing.md),
-                  AppInput(label: '${getText('telefone')} (Opcional)', controller: txtTelefone, prefixIcon: PhosphorIcons.phone, keyboard: TextInputType.phone),
+                  AppInput(label: '${getText('telefone')} (Opcional)', controller: txtTelefone, prefixIcon: PhosphorIcons.phone, keyboard: TextInputType.phone, formatters: [
+                    TextInputMask(mask: ['(99) 9999-9999', '(99) 99999-9999'])
+                  ]),
                   const SizedBox(height: AppSpacing.xl),
                   AppButton(
                     label: getText('btn_save'),

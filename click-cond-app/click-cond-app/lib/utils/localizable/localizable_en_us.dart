@@ -461,8 +461,8 @@ class Localizable_EnUs {
           //APARTAMENTO
           LocalizableModel(key: 'apto_desc', text: 'To register a new apartment, enter the data below:'), 
           LocalizableModel(key: 'apto_fracao', text: 'Ideal fraction'), 
-          LocalizableModel(key: 'apto_proprietarios', text: 'Owners:'), 
-          LocalizableModel(key: 'apto_inquilinos', text: 'Tenants:'), 
+          LocalizableModel(key: 'apto_proprietarios', text: 'Owners'),
+          LocalizableModel(key: 'apto_inquilinos', text: 'Tenants'),
           LocalizableModel(key: 'apto_usuario_criado_msg', text: 'Usuário criado!\nInforme que a senha padrão será o número do documento e que ao entrar na conta a senha poderá ser alterada.'), 
           
           //MUDANCA

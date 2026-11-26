@@ -9,6 +9,7 @@ import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
+import 'package:click/utils/contato_edicao.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/troca_email.dart';
 import 'package:click/widgets/alerts/modal_cupertino.dart';
@@ -38,6 +39,10 @@ class _EditMoradorPageState extends State<EditMorador> {
   final txtDN = TextEditingController();
   final txtEmail = TextEditingController();
   final txtTelefone = TextEditingController();
+  /// Documento e telefone como vieram do servidor: a máscara mostrada na tela
+  /// não muda o formato enviado à API (ver [contatoParaEnvio]).
+  String _documentoCarregado = '';
+  String _telefoneCarregado = '';
   final txtExtra1 = TextEditingController();
   final txtExtra2 = TextEditingController();
   final txtExtra3 = TextEditingController();
@@ -70,11 +75,13 @@ class _EditMoradorPageState extends State<EditMorador> {
       var obj = await apiGetDetails("moradores", 0);
       myId = obj["id"] ?? -1;
       txtNome.text = obj["nome"] ?? "";
-      txtDocumento.text = obj["documento"] ?? "";
+      _documentoCarregado = (obj["documento"] ?? "").toString();
+      txtDocumento.text = formatarDocumentoEdicao(_documentoCarregado);
       txtEmail.text = obj["email"] ?? "";
       _emailCarregado = txtEmail.text;
       txtDN.text = obj["data_nascimento"] ?? "";
-      txtTelefone.text = obj["telefone"] ?? "";
+      _telefoneCarregado = (obj["telefone"] ?? "").toString();
+      txtTelefone.text = formatarTelefoneEdicao(_telefoneCarregado);
       txtExtra1.text = obj["extra1"] ?? '';
       txtExtra2.text = obj["extra2"] ?? '';
       txtExtra3.text = obj["extra3"] ?? '';
@@ -107,8 +114,18 @@ class _EditMoradorPageState extends State<EditMorador> {
         base64 = imageFile;
       }
       var morador = MoradorModel(
-        id: myId, nome: txtNome.text, documento: txtDocumento.text,
-        data_nascimento: txtDN.text, email: txtEmail.text, telefone: txtTelefone.text,
+        id: myId, nome: txtNome.text,
+        documento: contatoParaEnvio(
+          exibido: txtDocumento.text,
+          original: _documentoCarregado,
+          formatar: formatarDocumentoEdicao,
+        ),
+        data_nascimento: txtDN.text, email: txtEmail.text,
+        telefone: contatoParaEnvio(
+          exibido: txtTelefone.text,
+          original: _telefoneCarregado,
+          formatar: formatarTelefoneEdicao,
+        ),
         extra1: txtExtra1.text, extra2: txtExtra2.text,
         extra3: txtExtra3.text, extra4: txtExtra4.text, photo: base64,
       );

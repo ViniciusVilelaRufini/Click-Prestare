@@ -191,7 +191,7 @@ class _MyCondominiumState extends State<MyCondominium> {
     final all = <_MenuItem>[
       _MenuItem(getText('lb_areas_sociais'), PhosphorIcons.usersFour, ListAreasSociais(), asset: 'assets/images/modulos/areas_sociais.png'),
       _MenuItem(getText('lb_financeiro'), PhosphorIcons.wallet, getUserType() == 'morador' ? const MoradorFinanceiroView() : const ListFinanceiro(), asset: 'assets/images/modulos/financeiro.png'),
-      _MenuItem('Minhas Encomendas', PhosphorIcons.package, const ListEncomendas(), asset: 'assets/images/modulos/encomendas.png'),
+      _MenuItem('Minhas Encomendas', PhosphorIcons.package, const ListEncomendas(visaoMorador: true), asset: 'assets/images/modulos/encomendas.png'),
       _MenuItem(getText('lb_assembleias'), PhosphorIcons.usersThree, ListAssembleias(), asset: 'assets/images/modulos/assembleias.png'),
       _MenuItem(getText('lb_enquetes'), PhosphorIcons.chartBar, ListEnquetes(), asset: 'assets/images/modulos/enquetes.png'),
       _MenuItem(getText('lb_comunicados'), PhosphorIcons.megaphone, ListComunicados(), asset: 'assets/images/modulos/comunicados.png'),
@@ -934,8 +934,7 @@ class _MyCondominiumState extends State<MyCondominium> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  GestureDetector(
-                    onTap: type == 'sindico' ? _updateCondominiumPhoto : null,
+                  SizedBox.expand(
                     child: ShaderMask(
                       blendMode: BlendMode.dstIn,
                       shaderCallback: (r) => const LinearGradient(

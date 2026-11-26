@@ -452,8 +452,8 @@ class Localizable_PtPt {
     //APARTAMENTO
     LocalizableModel(key: 'apto_desc', text: 'Para efetuar o registo de um novo apartamento, clique nos dados abaixo:'), 
     LocalizableModel(key: 'apto_fracao', text: 'Fração ideal'), 
-    LocalizableModel(key: 'apto_proprietarios', text: 'Proprietários:'), 
-    LocalizableModel(key: 'apto_inquilinos', text: 'Inquilinos:'), 
+    LocalizableModel(key: 'apto_proprietarios', text: 'Proprietários'),
+    LocalizableModel(key: 'apto_inquilinos', text: 'Inquilinos'),
     LocalizableModel(key: 'apto_usuario_criado_msg', text: 'Usuário criado!\nInforme que a senha padrão será o número do documento e que ao entrar na conta a senha poderá ser alterada.'),
     LocalizableModel(key: 'lb_meu_apartamento', text: 'O Meu Apartamento'),
     LocalizableModel(key: 'apto_membros', text: 'Família'),

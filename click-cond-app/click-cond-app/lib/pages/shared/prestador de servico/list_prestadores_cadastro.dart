@@ -47,22 +47,33 @@ class _ListPrestadoresCadastroState extends State<ListPrestadoresCadastro> {
     return AppScaffold(
       title: getText('lb_funcionarios_condominio'),
       floatingActionButton: canEdit
-          ? FloatingActionButton(
+          ? FloatingActionButton.extended(
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => NewPrestador(isEdit: false)),
               ).then((_) => loadList()),
               backgroundColor: AppColors.brand,
-              child: Icon(PhosphorIcons.plus, color: AppColors.onBrand),
+              foregroundColor: AppColors.onBrand,
+              shape: const RoundedRectangleBorder(),
+              icon: Icon(PhosphorIcons.plus, color: AppColors.onBrand, size: 20),
+              label: Text(
+                'CADASTRAR PRESTADOR',
+                style: AppTypography.button(context).copyWith(color: AppColors.onBrand),
+              ),
             )
           : null,
       body: Column(
         children: [
-          if (canEdit) _buildFuncionariosWebButton(context),
+          if (canEdit) ...[
+            _secao(context, 'Acesso ao sistema web', topo: true),
+            _buildFuncionariosWebButton(context),
+          ],
+          _secao(context, 'Prestadores de serviço', topo: !canEdit),
           Expanded(
             child: _isLoading
                 ? ListView.separated(
-                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    padding: EdgeInsets.fromLTRB(
+                        AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, fabClearance(context)),
                     itemCount: 8,
                     separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
                     itemBuilder: (_, __) => AppSkeleton.listTile(context),
@@ -81,7 +92,8 @@ class _ListPrestadoresCadastroState extends State<ListPrestadoresCadastro> {
                     : RefreshIndicator(
                         onRefresh: loadList,
                         child: ListView.separated(
-                          padding: const EdgeInsets.all(AppSpacing.lg),
+                          padding: EdgeInsets.fromLTRB(
+                              AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, fabClearance(context)),
                           itemCount: list.length,
                           separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
                           itemBuilder: (_, i) => _PrestadorCadastroCard(
@@ -104,12 +116,26 @@ class _ListPrestadoresCadastroState extends State<ListPrestadoresCadastro> {
     );
   }
 
+  /// Título de seção no mesmo estilo dos formulários do app.
+  Widget _secao(BuildContext context, String titulo, {bool topo = false}) => Padding(
+        padding: EdgeInsets.fromLTRB(
+            AppSpacing.lg, topo ? AppSpacing.lg : AppSpacing.xl, AppSpacing.lg, AppSpacing.sm),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            titulo.toUpperCase(),
+            style: AppTypography.captionMedium(context)
+                .copyWith(color: AppColors.primary, letterSpacing: 0.8),
+          ),
+        ),
+      );
+
   /// Atalho para o cadastro de funcionários do condomínio (porteiro/zelador etc.),
   /// que possuem login próprio no sistema web (Portaria) — diferente do prestador
   /// de serviço e do cadastro do síndico.
   Widget _buildFuncionariosWebButton(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 0),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, 0),
       child: Material(
         color: Colors.transparent,
         child: InkWell(

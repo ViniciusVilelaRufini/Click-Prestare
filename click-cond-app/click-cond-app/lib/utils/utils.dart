@@ -224,12 +224,6 @@ String contadorSimples(dynamic valor) {
   return n.toString();
 }
 
-/// Contador inteiro com zero à esquerda (3 -> "03"); não-numéricos viram "00".
-String contador2(dynamic valor) {
-  final n = valor is num ? valor.toInt() : int.tryParse('${valor ?? ''}') ?? 0;
-  return n.toString().padLeft(2, '0');
-}
-
 String convertStringToDateTime(String date) {
   try {
     return DateFormat("dd/MM/yyyy HH:mm").parseStrict(date).toString();

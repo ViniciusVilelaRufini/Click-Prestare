@@ -1,5 +1,7 @@
 import 'package:click/utils/telefone_exibicao.dart';
 import 'package:click/utils/rotulo_bloco.dart';
+import 'package:click/utils/nome_proprio.dart';
+import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/controllers/controller_moradores.dart';
 import 'package:click/theme/app_colors.dart';
@@ -131,7 +133,7 @@ class _NewAptoPageState extends State<NewApto> {
     return AppScaffold(
       title: getText('lb_apartamento'),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const _AptoSkeleton()
           : SingleChildScrollView(
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
@@ -237,6 +239,8 @@ class _NewAptoPageState extends State<NewApto> {
                           ],
                         ),
                         const SizedBox(height: 16),
+                        // Na edição o cartão do topo já mostra bloco e apartamento.
+                        if (!isEdit) ...[
                         Row(
                           children: [
                             Expanded(
@@ -259,6 +263,7 @@ class _NewAptoPageState extends State<NewApto> {
                           ],
                         ),
                         const SizedBox(height: 16),
+                        ],
                         AppInput(
                           label: 'Quantidade de vagas',
                           controller: txtVagas,
@@ -459,7 +464,7 @@ class _MoradorSection extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Nenhum $roleName cadastrado',
+                  'Nenhum ${roleName.toLowerCase()} cadastrado',
                   style: AppTypography.bodySecondary(context).copyWith(
                     fontWeight: FontWeight.w500,
                     fontSize: 13,
@@ -487,7 +492,7 @@ class _MoradorSection extends StatelessWidget {
         else
           ...list.map((item) {
             final String? photoUrl = (item['foto_pessoa'] ?? item['photo'])?.toString();
-            final String name = item['nome'] ?? 'Sem Nome';
+            final String name = nomeProprio((item['nome'] ?? 'Sem Nome').toString());
             final String telefone = item['celular'] ?? item['telefone'] ?? '';
 
             return Container(
@@ -585,4 +590,31 @@ class AptoModel {
   AptoModel({this.id, this.bloco, this.apto, this.fracao, this.qtdVagas});
 
   Map toJson() => {'id': id, 'bloco': bloco, 'apto': apto, 'fracao': fracao, 'qtd_vagas': qtdVagas ?? 0};
+}
+
+/// Esqueleto da tela de apartamento: cartão de cabeçalho e três seções.
+class _AptoSkeleton extends StatelessWidget {
+  const _AptoSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppSkeleton(width: w, height: 92),
+          const SizedBox(height: AppSpacing.xl),
+          for (var i = 0; i < 3; i++) ...[
+            const AppSkeleton(width: 140, height: 14),
+            const SizedBox(height: AppSpacing.md),
+            AppSkeleton.listTile(context),
+            const SizedBox(height: AppSpacing.lg),
+          ],
+        ],
+      ),
+    );
+  }
 }

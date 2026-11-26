@@ -1,5 +1,7 @@
 import 'package:click/utils/rotulo_tipo_morador.dart';
 import 'package:click/utils/rotulo_bloco.dart';
+import 'package:click/utils/nome_proprio.dart';
+import 'package:click/widgets/app/app_filtro_chip.dart';
 import 'package:click/controllers/controller_moradores.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/theme/app_colors.dart';
@@ -173,7 +175,7 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
                           ),
                         )
                       : SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.sm, AppSpacing.xl, AppSpacing.xxxl),
+                          padding: EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.sm, AppSpacing.xl, fabClearance(context)),
                           sliver: SliverList(
                             delegate: SliverChildBuilderDelegate(
                               (_, index) {
@@ -260,7 +262,7 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
   Widget _buildStatItem(String label, int count) {
     return Column(
       children: [
-        Text(contador2(count), style: AppTypography.numeral(context).copyWith(fontSize: 22, height: 1)),
+        Text(contadorSimples(count), style: AppTypography.numeral(context).copyWith(fontSize: 22, height: 1)),
         const SizedBox(height: 2),
         Text(label.toUpperCase(), style: AppTypography.label(context)),
       ],
@@ -292,36 +294,19 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
   Widget _buildCategoryTabs(BuildContext context) {
     final categories = ['Todos', 'Proprietários', 'Inquilinos', 'Dependentes'];
     return SizedBox(
-      height: 36,
+      height: 34,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
         scrollDirection: Axis.horizontal,
         itemCount: categories.length,
-        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.xs),
+        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
         itemBuilder: (_, index) {
           final cat = categories[index];
           final isSelected = _selectedCategory == cat;
-          return GestureDetector(
+          return AppFiltroChip(
+            label: cat,
+            selected: isSelected,
             onTap: () => setState(() => _selectedCategory = cat),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: isSelected ? AppColors.brand : AppColors.surface(context),
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                border: Border.all(
-                  color: isSelected ? AppColors.brand : AppColors.border(context),
-                ),
-              ),
-              child: Text(
-                cat,
-                style: AppTypography.captionMedium(context).copyWith(
-                  color: isSelected ? AppColors.onBrand : AppColors.textSecondary(context),
-                  fontSize: 12,
-                ),
-              ),
-            ),
           );
         },
       ),
@@ -397,7 +382,7 @@ class _MoradorGeralCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    item['nome'] ?? '',
+                    nomeProprio(item['nome']?.toString()),
                     style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.w600),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

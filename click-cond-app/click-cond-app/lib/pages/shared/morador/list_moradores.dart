@@ -239,7 +239,7 @@ class _AptoCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Apto ${item['numero'] ?? ''} - ${rotuloBloco(item['bloco']?.toString())}',
+                  Text('Apto ${item['numero'] ?? ''}',
                       style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis),
                   if (item['tipo'] != null)
                     Text(item['tipo'], style: AppTypography.caption(context)),

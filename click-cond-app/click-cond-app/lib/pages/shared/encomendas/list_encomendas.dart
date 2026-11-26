@@ -1,3 +1,4 @@
+import 'package:click/pages/singleton.dart';
 import 'package:click/utils/rotulo_bloco.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -30,6 +31,10 @@ class ListEncomendas extends StatefulWidget {
   /// flutuante e o fim da lista sobem esse tanto.
   final double fabBottomInset;
   final int? destacarId;
+  /// Força a visão do morador ("Minhas encomendas"): só as encomendas do
+  /// apartamento do próprio usuário, mesmo que ele seja síndico/funcionário.
+  /// A aba Encomendas da barra inferior não usa: continua na visão da portaria.
+  final bool visaoMorador;
   const ListEncomendas({
     super.key,
     this.allCondos = false,
@@ -37,6 +42,7 @@ class ListEncomendas extends StatefulWidget {
     this.showFab = true,
     this.fabBottomInset = 0,
     this.destacarId,
+    this.visaoMorador = false,
   });
 
   @override
@@ -54,6 +60,7 @@ class ListEncomendasState extends State<ListEncomendas> {
   final TextEditingController _searchController = TextEditingController();
 
   bool get _isStaff {
+    if (widget.visaoMorador) return false;
     final type = getUserType().toLowerCase();
     return type == 'sindico' || type == 'funcionario';
   }
@@ -89,7 +96,9 @@ class ListEncomendasState extends State<ListEncomendas> {
           : await apiGetAllEncomendas(allCondos: widget.allCondos);
       if (result != null && mounted) {
         setState(() {
-          _encomendas = result.map((e) => EncomendaModel.fromJson(e)).toList();
+          _encomendas = _soDoMeuApto(
+            result.map((e) => EncomendaModel.fromJson(e)).toList(),
+          );
         });
         _abrirDestaqueSeNecessario();
       }
@@ -100,6 +109,27 @@ class ListEncomendasState extends State<ListEncomendas> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// Na visão do morador de quem também é síndico/funcionário, a API devolve
+  /// o condomínio inteiro: fica só o que é do apartamento vinculado a ele. Para
+  /// o morador comum a API já filtra, então nada muda.
+  List<EncomendaModel> _soDoMeuApto(List<EncomendaModel> lista) {
+    final type = getUserType().toLowerCase();
+    if (!widget.visaoMorador || (type != 'sindico' && type != 'funcionario')) {
+      return lista;
+    }
+    String norm(String? v) => (v ?? '').trim().toLowerCase();
+    final apto = norm(Singleton.instance.apartamento);
+    final bloco = norm(Singleton.instance.bloco);
+    final idCond = Singleton.instance.id_condominio;
+    if (apto.isEmpty) return [];
+    return lista
+        .where((e) =>
+            norm(e.destinatarioApto) == apto &&
+            norm(e.destinatarioBloco) == bloco &&
+            (idCond == 0 || e.idCondominio == null || e.idCondominio == idCond))
+        .toList();
   }
 
   void openAddEncomenda(BuildContext context) {
@@ -185,11 +215,9 @@ class ListEncomendasState extends State<ListEncomendas> {
               onPressed: () => openAddEncomenda(context),
               icon: Icon(PhosphorIcons.plus, color: AppColors.onBrand, size: 20),
               label: Text(
-                (widget.hideAppBar
+                (widget.hideAppBar || _isStaff
                     ? 'Registrar encomenda'
-                    : _isStaff
-                        ? 'Nova Encomenda'
-                        : 'Avisar Encomenda')
+                    : 'Avisar Encomenda')
                 .toUpperCase(),
                 style: AppTypography.button(context).copyWith(color: AppColors.onBrand),
               ),
