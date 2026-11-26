@@ -13,11 +13,11 @@ void main() {
     // Renderiza a estrutura inicial
     expect(find.text('EVENTOS DE ACESSO'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
-    expect(find.text('Todos'), findsOneWidget);
-    expect(find.text('Visitantes'), findsOneWidget);
-    expect(find.text('Prestadores'), findsOneWidget);
-    expect(find.text('Entradas'), findsOneWidget);
-    expect(find.text('Saídas'), findsOneWidget);
+    expect(find.text('TODOS'), findsOneWidget);
+    expect(find.text('VISITANTES'), findsOneWidget);
+    expect(find.text('PRESTADORES'), findsOneWidget);
+    expect(find.text('ENTRADAS'), findsOneWidget);
+    expect(find.text('SAÍDAS'), findsOneWidget);
 
     // Deixa os microtasks e timers de rede concluírem
     await tester.pump(const Duration(milliseconds: 100));
@@ -30,7 +30,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Prestadores'), findsOneWidget);
+    expect(find.text('PRESTADORES'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 100));
   });
 }
