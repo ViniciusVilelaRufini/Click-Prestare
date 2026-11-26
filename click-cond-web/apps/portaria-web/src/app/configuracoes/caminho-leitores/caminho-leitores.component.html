@@ -62,7 +62,7 @@
   @if (!editando()) {
     <div class="flex items-center justify-between">
       <p class="text-xs text-slate-400">
-        {{ caminhos().length }} caminho(s) configurado(s)
+        {{ caminhos().length }} {{ caminhos().length === 1 ? 'caminho configurado' : 'caminhos configurados' }}
       </p>
       <button
         (click)="novo()"

@@ -851,6 +851,11 @@
                class="ps-btn ps-btn-sm">
               Ver Visitantes
             </a>
+          } @else if (ev.tipo === 'Prestador') {
+            <a routerLink="/prestadores" (click)="fecharDetalhes()"
+               class="ps-btn ps-btn-sm">
+              Ver Prestadores
+            </a>
           } @else if (ev.tipo === 'Encomenda') {
             <a routerLink="/encomendas" (click)="fecharDetalhes()"
                class="ps-btn ps-btn-sm">

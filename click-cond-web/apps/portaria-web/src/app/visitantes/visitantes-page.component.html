@@ -1790,7 +1790,7 @@
             <div class="flex items-center justify-between">
               <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">Unidade de destino</span>
               @if (p.apartamentosVisitados && p.apartamentosVisitados.length > 1) {
-                <span class="text-xs text-slate-500 dark:text-slate-400">{{ p.apartamentosVisitados.length }} unidades · escolha uma</span>
+                <span class="text-xs text-slate-500 dark:text-slate-400">{{ p.apartamentosVisitados.length }} {{ p.apartamentosVisitados.length === 1 ? 'unidade' : 'unidades' }} · escolha uma</span>
               }
             </div>
 

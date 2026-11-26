@@ -5,6 +5,7 @@ import { AgendamentoArea, AreaSocial, AreasSociaisApi } from './areas-sociais.se
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { ConfirmService } from '../shared/confirm.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
+import { BlocoLabelPipe } from '../shared/bloco-label.pipe';
 import { rotuloBloco } from '../shared/bloco-label.util';
 import { AuthService } from '../auth/auth.service';
 import { papelDoToken } from '../auth/papel';
@@ -33,7 +34,7 @@ function hhmmDaGrade(min: number): string {
 @Component({
   selector: 'app-areas-sociais-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, SlideIndicatorDirective],
+  imports: [CommonModule, FormsModule, SlideIndicatorDirective, BlocoLabelPipe],
   templateUrl: './areas-sociais-page.component.html',
 })
 export class AreasSociaisPageComponent implements OnInit {

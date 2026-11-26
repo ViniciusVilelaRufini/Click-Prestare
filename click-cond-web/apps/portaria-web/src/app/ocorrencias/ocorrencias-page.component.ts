@@ -206,7 +206,7 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
     }
 
     const ok = await this.confirm.ask({
-      title: isCritica ? '⚠️ Alteração em Ocorrência CRÍTICA' : reabrir ? 'Reabrir ocorrência' : 'Confirmar alteração de status',
+      title: isCritica ? 'Alteração em Ocorrência CRÍTICA' : reabrir ? 'Reabrir ocorrência' : 'Confirmar alteração de status',
       message,
       confirmLabel: reabrir ? 'Reabrir' : 'Alterar',
       variant: isCritica ? 'danger' : 'primary',
@@ -279,6 +279,8 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
 
   abrirChat(o: Ocorrencia) {
     this.limparIntervaloChat();
+    // Rascunho é da conversa anterior: não pode seguir para outro morador.
+    this.novaMensagemText = '';
     this.selectedOcorrencia.set(o);
     this.chatErro.set(null);
     this.loadingMensagens.set(true);
@@ -300,6 +302,7 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
   fecharChat() {
     this.limparIntervaloChat();
     this.selectedOcorrencia.set(null);
+    this.novaMensagemText = '';
     this.mensagens.set([]);
     this.chatErro.set(null);
   }

@@ -92,7 +92,7 @@ function textoDoAndamento(tipo: TipoOperacaoTela, op: GuaritaOperacao): { texto:
       const ri = op.resumo as { total?: number; novos?: number; atualizados?: number; vinculados?: number } | null | undefined;
       if (tipo === 'importar' && ri && ri.total != null) {
         return {
-          texto: `Importação concluída: ${ri.total} lido(s) do Guarita, ${ri.novos ?? 0} novo(s), ${ri.atualizados ?? 0} atualizado(s), ${ri.vinculados ?? 0} vinculado(s) a veículo.`,
+          texto: `Importação concluída: ${ri.total} ${ri.total === 1 ? 'lido' : 'lidos'} do Guarita, ${ri.novos ?? 0} ${(ri.novos ?? 0) === 1 ? 'novo' : 'novos'}, ${ri.atualizados ?? 0} ${(ri.atualizados ?? 0) === 1 ? 'atualizado' : 'atualizados'}, ${ri.vinculados ?? 0} ${(ri.vinculados ?? 0) === 1 ? 'vinculado' : 'vinculados'} a veículo.`,
           erro: false,
           fim: true,
         };

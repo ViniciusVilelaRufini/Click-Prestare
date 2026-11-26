@@ -126,9 +126,9 @@ export class SidebarComponent {
     {
       category: 'Serviços',
       items: [
-        { label: 'Comunicados', path: '/comunicados', icon: '✉' },
+        { label: 'Comunicados', path: '/comunicados', icon: '✎' },
         { label: 'Áreas Sociais', path: '/areas-sociais', icon: '◈' },
-        { label: 'Assembleias', path: '/assembleias', icon: '⚖' }
+        { label: 'Assembleias', path: '/assembleias', icon: '§' }
       ]
     },
     {
