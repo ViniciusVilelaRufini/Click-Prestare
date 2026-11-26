@@ -124,8 +124,7 @@ class _ListPrestadoresCadastroState extends State<ListPrestadoresCadastro> {
           alignment: Alignment.centerLeft,
           child: Text(
             titulo.toUpperCase(),
-            style: AppTypography.captionMedium(context)
-                .copyWith(color: AppColors.primary, letterSpacing: 0.8),
+            style: AppTypography.section(context),
           ),
         ),
       );

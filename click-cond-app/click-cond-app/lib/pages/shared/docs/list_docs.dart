@@ -92,46 +92,53 @@ class _ListDocsPageState extends State<ListDocs> {
               itemBuilder: (_, __) => AppSkeleton.listTile(context),
             )
           : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                AppFiltroMeses(
-                  selecionado: _selectedMonth,
-                  onChanged: (m) => setState(() => _selectedMonth = m),
+                // Atalhos fixos primeiro: são a navegação da tela e não
+                // dependem do período nem de haver documentos.
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 0),
+                  child: Column(children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: _DocCard(
+                        item: {'nome': 'Atas'},
+                        icon: PhosphorIcons.fileText,
+                        showArrow: true,
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ListAtas())),
+                      ),
+                    ),
+                    _DocCard(
+                      item: {'nome': getText('contatos_nav')},
+                      icon: PhosphorIcons.addressBook,
+                      showArrow: true,
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ListContatos())),
+                    ),
+                  ]),
                 ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, 0),
+                  child: Semantics(
+                    header: true,
+                    child: Text('DOCUMENTOS', style: AppTypography.label(context)),
+                  ),
+                ),
+                // O filtro de mês vale só para os documentos — fica abaixo do
+                // título deles, não acima de Atas/Contatos. Sem nenhum
+                // documento não há o que filtrar.
+                if (list.isNotEmpty)
+                  AppFiltroMeses(
+                    selecionado: _selectedMonth,
+                    onChanged: (m) => setState(() => _selectedMonth = m),
+                  ),
                 Expanded(
                   child: RefreshIndicator(
                     onRefresh: loadList,
                     child: ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      padding: EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg,
+                      padding: EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg,
                           isSindico ? fabClearance(context) : AppSpacing.lg),
                       children: [
-                        // Atalhos fixos primeiro: são a navegação da tela e não
-                        // dependem do período nem de haver documentos.
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                          child: _DocCard(
-                            item: {'nome': 'Atas'},
-                            icon: PhosphorIcons.fileText,
-                            showArrow: true,
-                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ListAtas())),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                          child: _DocCard(
-                            item: {'nome': getText('contatos_nav')},
-                            icon: PhosphorIcons.addressBook,
-                            showArrow: true,
-                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ListContatos())),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(top: AppSpacing.md, bottom: AppSpacing.sm),
-                          child: Semantics(
-                            header: true,
-                            child: Text('DOCUMENTOS', style: AppTypography.label(context)),
-                          ),
-                        ),
                         if (filteredList.isEmpty)
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),

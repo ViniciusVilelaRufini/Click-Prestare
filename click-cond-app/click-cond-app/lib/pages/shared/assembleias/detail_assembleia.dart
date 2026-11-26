@@ -473,7 +473,11 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
               ),
               icon: const Icon(PhosphorIcons.plus, size: 16),
-              label: Text('Nova votação'.toUpperCase(), style: AppTypography.button(context)),
+              // `button` traz a cor de texto sobre fundo de destaque; aqui o
+              // fundo é transparente, então a cor tem de ser a do texto comum
+              // (sem isso o rótulo sumia no tema claro).
+              label: Text('Nova votação'.toUpperCase(),
+                  style: AppTypography.button(context).copyWith(color: AppColors.textPrimary(context))),
             ),
           ),
       ],

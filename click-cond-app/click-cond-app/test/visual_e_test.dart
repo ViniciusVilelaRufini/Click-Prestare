@@ -65,14 +65,35 @@ void main() {
     expect(find.text('Nenhum registro encontrado!'), findsNothing);
     expect(find.text('Atas'), findsOneWidget);
     expect(find.text('Nenhum documento enviado ainda.'), findsOneWidget);
-    expect(find.byType(AppFiltroChip), findsWidgets);
+    // Sem nenhum documento não há o que filtrar: o filtro de mês não aparece.
+    expect(find.byType(AppFiltroChip), findsNothing);
     expect(tester.getTopLeft(find.text('Atas')).dy,
         lessThan(tester.getTopLeft(find.text('Nenhum documento enviado ainda.')).dy));
+  });
 
-    await tester.tap(find.text('TODOS OS MESES'));
+  testWidgets('Documentos: filtro de mês fica abaixo do título e filtra só os documentos', (tester) async {
+    storageMorador({'token': 't', 'user': {'id': 1, 'nome': 'Ana'}});
+    final antigo = DateTime.now().toUtc().subtract(const Duration(days: 90));
+    servir({
+      'documentos/get-all': [
+        {'id': 1, 'nome': 'Regimento', 'link_doc': 'x', 'created_at': antigo.toIso8601String()}
+      ]
+    });
+    await tester.pumpWidget(const MaterialApp(home: ListDocs()));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AppFiltroChip), findsWidgets);
+    expect(tester.getTopLeft(find.text('Contatos Úteis')).dy,
+        lessThan(tester.getTopLeft(find.text('TODOS OS MESES')).dy));
+    // .last: o título da página também é "DOCUMENTOS".
+    expect(tester.getTopLeft(find.text('DOCUMENTOS').last).dy,
+        lessThan(tester.getTopLeft(find.text('TODOS OS MESES')).dy));
+
+    // Mês atual: o documento é de 90 dias atrás, então some — e os atalhos ficam.
     await tester.tap(find.byType(AppFiltroChip).at(1));
     await tester.pumpAndSettle();
     expect(find.text('Nenhum documento neste período.'), findsOneWidget);
+    expect(find.text('Atas'), findsOneWidget);
   });
 
   testWidgets('Atas mostra a data de cada ata', (tester) async {
