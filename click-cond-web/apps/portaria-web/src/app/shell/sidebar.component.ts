@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { ehPorteiro, ROTAS_SO_SINDICO } from '../auth/papel';
+import { NetworkStatusService } from '../core/network-status.service';
 import { ThemeService } from '../shared/theme.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 
@@ -69,6 +70,9 @@ export class SidebarComponent {
   readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private theme = inject(ThemeService);
+  private readonly rede = inject(NetworkStatusService);
+  /** Estado real da conexão (navegador + última resposta da API). */
+  readonly semConexao = this.rede.hasConnectionIssue;
   readonly isLight = this.theme.isLight;
   @Output() linkClicked = new EventEmitter<void>();
 
@@ -122,18 +126,18 @@ export class SidebarComponent {
     {
       category: 'Serviços',
       items: [
-        { label: 'Comunicados', path: '/comunicados', icon: '✉' },
-        { label: 'Áreas Sociais', path: '/areas-sociais', icon: '☕' },
-        { label: 'Assembleias', path: '/assembleias', icon: '⚖' }
+        { label: 'Comunicados', path: '/comunicados', icon: '✎' },
+        { label: 'Áreas Sociais', path: '/areas-sociais', icon: '◈' },
+        { label: 'Assembleias', path: '/assembleias', icon: '§' }
       ]
     },
     {
       category: 'Administrativo',
       items: [
-        { label: 'Financeiro', path: '/financeiro', icon: '💲' },
-        { label: 'Documentos', path: '/documentos', icon: '📄' },
-        { label: 'Relatórios', path: '/relatorios', icon: '📊' },
-        { label: 'Configurações', path: '/configuracoes', icon: '⚙' }
+        { label: 'Financeiro', path: '/financeiro', icon: '$' },
+        { label: 'Documentos', path: '/documentos', icon: '▭' },
+        { label: 'Relatórios', path: '/relatorios', icon: '▦' },
+        { label: 'Configurações', path: '/configuracoes', icon: '✱' }
       ]
     }
   ];

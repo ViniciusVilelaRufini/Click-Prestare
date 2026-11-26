@@ -122,6 +122,7 @@
               <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
               @if (area.tem_monitoramento) {
                 <span class="ps-tag absolute top-3 left-3 shrink-0 !bg-black/80 !text-white keep-white"
+                      title="Estimado pelos leitores: quem entrou hoje e ainda não passou no leitor de saída"
                       [class.!text-white]="(area.ocupacao ?? 0) > 0">
                   <span class="ps-dot"
                         [class.ps-dot-ok]="(area.ocupacao ?? 0) > 0"
@@ -133,7 +134,7 @@
                 <h3 class="text-lg font-semibold text-white keep-white truncate drop-shadow">{{ area.nome }}</h3>
                 @if (area.capacidade) {
                   <span class="ps-tag !bg-black/80 text-white keep-white shrink-0">
-                    Até {{ area.capacidade }} pessoas
+                    Até {{ area.capacidade }} {{ area.capacidade === 1 ? 'pessoa' : 'pessoas' }}
                   </span>
                 }
               </div>
@@ -278,7 +279,7 @@
                     <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
                     </svg>
-                    Apto {{ ag.apto }} {{ ag.bloco }}
+                    {{ ag.apto | unidade: ag.bloco }}
                   </span>
 
                   <!-- Date Badge -->
@@ -386,7 +387,7 @@
         </button>
       </div>
       <div class="ps-drawer-body">
-        <p class="text-sm text-slate-300">{{ ag.nomeArea }} · Apto {{ ag.apto }} {{ ag.bloco }} · {{ ag.data }} {{ ag.horaDe }} - {{ ag.horaAte }}</p>
+        <p class="text-sm text-slate-300">{{ ag.nomeArea }} · {{ ag.apto | unidade: ag.bloco }} · {{ ag.data }} {{ ag.horaDe }} - {{ ag.horaAte }}</p>
         <div>
           <label class="ps-label block mb-1.5" for="areas-sociais-motivo-recusa">Motivo (opcional)</label>
           <textarea id="areas-sociais-motivo-recusa" [(ngModel)]="motivoRecusa" rows="3" maxlength="500"
@@ -530,6 +531,12 @@
             <p class="mb-2 text-[11px] text-slate-500">
               Horários que o morador pode reservar. Para ir até a meia-noite, use 00:00 no fim.
             </p>
+            @if (!areaEditando() && !gradeTemHorario()) {
+              <div class="mb-2 flex items-center justify-between gap-2 p-3 border border-[var(--line-100)]">
+                <span class="text-[11px] text-[var(--signal-danger)]">Nenhum horário definido: adicione os horários de cada dia ou use o atalho.</span>
+                <button type="button" (click)="preencherHorarioComercial()" class="ps-btn ps-btn-ghost ps-btn-sm shrink-0">08:00 às 22:00, todos os dias</button>
+              </div>
+            }
             <div class="space-y-2">
               @for (dia of grade; track $index; let d = $index) {
                 <div class="p-3 border border-slate-300 bg-graphite-50">
@@ -596,7 +603,7 @@
           </button>
           <button
             (click)="salvarArea()"
-            [disabled]="!novaArea.nome || salvando() || !gradeValida()"
+            [disabled]="!novaArea.nome || salvando() || !gradeValida() || (!areaEditando() && !gradeTemHorario())"
             class="ps-btn disabled:opacity-50 disabled:cursor-not-allowed"
           >
             @if (salvando()) {
@@ -660,7 +667,7 @@
                     [class.text-slate-300]="novaReserva.id_apartamento !== apto.id"
                     [class.hover:bg-white/5]="novaReserva.id_apartamento !== apto.id"
                   >
-                    <span class="font-semibold">Apto {{ apto.apto }}<span class="text-slate-500 font-normal">{{ apto.bloco ? ' · ' + rotuloBloco(apto.bloco) : '' }}</span></span>
+                    <span class="font-semibold">{{ apto.apto | unidade: apto.bloco }}</span>
                     @if (novaReserva.id_apartamento === apto.id) {
                       <svg class="w-4 h-4 text-accent shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
@@ -770,7 +777,7 @@
             <label class="ps-label block mb-1.5" for="areas-sociais-page-numero-de-convidados-opcional-if-areares">
               Número de convidados (opcional)
               @if (areaReserva()?.capacidade) {
-                <span class="text-slate-500">— capacidade: {{ areaReserva()?.capacidade }} pessoas</span>
+                <span class="text-slate-500">— capacidade: {{ areaReserva()?.capacidade }} {{ areaReserva()?.capacidade === 1 ? 'pessoa' : 'pessoas' }}</span>
               }
             </label>
             <input id="areas-sociais-page-numero-de-convidados-opcional-if-areares"

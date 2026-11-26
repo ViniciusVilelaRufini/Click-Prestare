@@ -25,3 +25,15 @@ export function chaveBloco(bloco: string | null | undefined): string {
   // "Quadra"/"Torre" sozinhos continuam sendo o nome do bloco.
   return s.replace(/^(bloco|quadra|torre)(?=[\s\d.]|$)\.?\s*/, '') || (/^(quadra|torre)$/.test(s) ? s : '');
 }
+
+/**
+ * Rótulo único de unidade no console e no app: "Bloco A · Apto 101" (ou só "Apto 101" sem bloco).
+ * Cadastros que já guardam "Apto 101" no número não duplicam o prefixo.
+ */
+export function rotuloUnidade(bloco: string | null | undefined, apto: string | number | null | undefined): string {
+  const a = String(apto ?? '').replace(/\s+/g, ' ').trim();
+  const num = a.replace(/^apto\.?\s*/i, '');
+  const b = rotuloBloco(bloco);
+  const parteApto = num ? `Apto ${num}` : '';
+  return [b, parteApto].filter(Boolean).join(' · ');
+}

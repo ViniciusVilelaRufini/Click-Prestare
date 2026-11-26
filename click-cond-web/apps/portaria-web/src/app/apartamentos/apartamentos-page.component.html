@@ -158,7 +158,7 @@
               </svg>
               <span class="text-[10px] text-slate-500 group-hover:text-[var(--ink)] transition">Ver moradores</span>
             </div>
-            <span class="text-xs text-slate-400">{{ b.aptos.length }} unidade(s)</span>
+            <span class="text-xs text-slate-400">{{ b.aptos.length }} {{ b.aptos.length === 1 ? 'unidade' : 'unidades' }}</span>
           </div>
           <div class="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
             @for (a of b.aptos; track a.id) {
@@ -264,13 +264,12 @@
             <div class="min-w-0">
               <h3 class="ps-h2">
                 @if (moradoresApto) {
-                  Apto {{ moradoresApto.apto }}
-                  @if (moradoresApto.bloco) { · {{ moradoresApto.bloco | blocoLabel }} }
+                  {{ moradoresApto.apto | unidade: moradoresApto.bloco }}
                 } @else {
                   {{ nomeBloco(moradoresBlocoNome) }} · Todos os moradores
                 }
               </h3>
-              <p class="text-xs text-slate-400 mt-0.5">{{ moradores().length }} morador(es) encontrado(s)</p>
+              <p class="text-xs text-slate-400 mt-0.5">{{ moradores().length }} {{ moradores().length === 1 ? 'morador encontrado' : 'moradores encontrados' }}</p>
             </div>
           </div>
           <div class="flex items-center gap-2">
@@ -413,8 +412,7 @@
                     <div class="flex items-center gap-3 mt-0.5 flex-wrap">
                       @if (m.apto || m.apto_numero) {
                         <span class="text-[11px] text-slate-400">
-                          Apto {{ m.apto || m.apto_numero }}
-                          @if (m.bloco) { · {{ m.bloco | blocoLabel }} }
+                          {{ (m.apto || m.apto_numero) | unidade: m.bloco }}
                         </span>
                       }
                       @if (m.email) {
@@ -594,11 +592,11 @@
             </div>
             <div class="min-w-0">
               <h3 class="ps-h2">
-                Vagas · Apto {{ vagasApto()?.apto }}{{ vagasApto()?.bloco ? ' · ' + (vagasApto()?.bloco | blocoLabel) : '' }}
+                Vagas · {{ vagasApto()?.apto | unidade: vagasApto()?.bloco }}
               </h3>
               @if (vagasResumo()) {
                 <p class="text-xs text-slate-400 mt-0.5">
-                  {{ vagasResumo()?.ocupadas }} de {{ vagasResumo()?.qtd_vagas }} vaga(s) ocupada(s) · {{ vagasLivres() }} livre(s)
+                  {{ vagasResumo()?.ocupadas }} de {{ vagasResumo()?.qtd_vagas }} {{ vagasResumo()?.qtd_vagas === 1 ? 'vaga ocupada' : 'vagas ocupadas' }} · {{ vagasLivres() }} {{ vagasLivres() === 1 ? 'livre' : 'livres' }}
                 </p>
               }
             </div>

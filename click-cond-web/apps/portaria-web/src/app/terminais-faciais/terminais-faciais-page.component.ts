@@ -1,6 +1,7 @@
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, signal, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ServerClockService } from '../core/server-clock.service';
 import {
   AgentAtualizacao,
   AgentTelemetria,
@@ -232,6 +233,9 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   private api = inject(TerminaisFaciaisApi);
   private areasApi = inject(AreasSociaisApi);
   private confirm = inject(ConfirmService);
+  private relogio = inject(ServerClockService);
+  /** Hora do servidor, atualizada a cada ciclo de status; os "há N min" leem este signal. */
+  readonly agora = signal<Date>(this.relogio.agora());
   private statusInterval?: ReturnType<typeof setInterval>;
 
   // Áreas de lazer do condomínio, para vincular um terminal a uma área
@@ -739,8 +743,8 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   /** "há 3 min" / "há 2h" — para last-seen do agente e da varredura de fantasmas. */
   tempoRelativo(iso: string | null): string {
     if (!iso) return 'sem registro';
-    const diffMs = Date.now() - new Date(iso).getTime();
-    const min = Math.floor(diffMs / 60_000);
+    const diffMs = this.agora().getTime() - new Date(iso).getTime();
+    const min = Math.max(0, Math.floor(diffMs / 60_000));
     if (min < 1) return 'agora mesmo';
     if (min < 60) return `há ${min} min`;
     const h = Math.floor(min / 60);
@@ -907,7 +911,8 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       (f) => f.value === this.form.fabricante,
     );
     if (!fabricanteAtualValido) {
-      this.form.fabricante = tipoCfg.fabricantes[0].value;
+      // Só há uma marca possível (ex.: Guarita): não há o que escolher. Com várias, o operador escolhe.
+      this.form.fabricante = tipoCfg.fabricantes.length === 1 ? tipoCfg.fabricantes[0].value : '';
     }
     // Se o tipo novo não precisa de auth, limpa pra não enviar credenciais
     // antigas sem querer.
@@ -951,6 +956,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.agora.set(this.relogio.agora());
     this.load();
     this.loadAreasSociais();
     this.loadSyncStatus();
@@ -961,6 +967,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     // Atualiza o status online/offline dos aparelhos a cada 15s (silencioso),
     // refletindo o heartbeat do agente sem o operador clicar "Testar Conexão".
     this.statusInterval = setInterval(() => {
+      this.agora.set(this.relogio.agora());
       this.load(true);
       this.loadHealth();
       this.loadAgentTelemetria();
@@ -1075,7 +1082,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
           );
         } else {
           this.successMessage.set(
-            `Enviando ${r.total} rosto(s) para o(s) terminal(is)… acompanhe o progresso abaixo.`,
+            `Enviando ${r.total} ${r.total === 1 ? 'rosto' : 'rostos'} para os terminais… acompanhe o progresso abaixo.`,
           );
         }
         setTimeout(() => this.successMessage.set(null), 6000);
@@ -1121,7 +1128,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
           );
         } else {
           this.successMessage.set(
-            `Removendo ${r.total} rosto(s) do(s) terminal(is)… acompanhe o progresso abaixo.`,
+            `Removendo ${r.total} ${r.total === 1 ? 'rosto' : 'rostos'} dos terminais… acompanhe o progresso abaixo.`,
           );
         }
         setTimeout(() => this.successMessage.set(null), 6000);
@@ -1279,10 +1286,9 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       tipo: 'facial',
       sentido: 'auto',
       confianca_minima: 0,
-      // Default = primeira opção do tipo 'facial', a marca com mais campo
-      // rodado. `control_id` como default deixava o select fora de ordem com a
-      // lista de fabricantes exibida.
-      fabricante: 'intelbras',
+      // Sem marca pré-escolhida: o operador escolhe (a marca define o protocolo
+      // usado para falar com o aparelho).
+      fabricante: '',
       modelo: '',
       ip: '',
       porta: 80,
@@ -1411,6 +1417,10 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     }
     if (!this.form.ip?.trim()) {
       this.modalError.set('Informe o endereço IP do dispositivo.');
+      return;
+    }
+    if (!this.form.fabricante) {
+      this.modalError.set('Escolha o fabricante do dispositivo.');
       return;
     }
     // Facial e catraca precisam de usuário e senha — sem eles o terminal

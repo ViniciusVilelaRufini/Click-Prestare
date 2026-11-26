@@ -69,6 +69,7 @@ describe('AreasSociaisPageComponent — gestão de espaços e da fila', () => {
     tela.abrirModalArea();
     tela.novaArea.nome = 'Churrasqueira';
     tela.novaArea.exige_confirmacao = true;
+    tela.preencherHorarioComercial();
     tela.salvarArea();
     expect(api.insertArea).toHaveBeenCalledWith(expect.objectContaining({ exige_confirmacao: 1 }));
 

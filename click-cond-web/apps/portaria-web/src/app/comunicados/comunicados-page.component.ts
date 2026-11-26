@@ -1,4 +1,5 @@
 import { Component, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ServerClockService } from '../core/server-clock.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -18,6 +19,7 @@ export class ComunicadosPageComponent implements OnInit {
   private confirm = inject(ConfirmService);
   private route = inject(ActivatedRoute);
   private auth = inject(AuthService);
+  private relogio = inject(ServerClockService);
 
   readonly comunicados = signal<Comunicado[]>([]);
   readonly loading = signal(true);
@@ -187,6 +189,6 @@ export class ComunicadosPageComponent implements OnInit {
 
   isRecent(c: Comunicado): boolean {
     const created = new Date(c.created_at).getTime();
-    return Date.now() - created < 7 * 86400000;
+    return this.relogio.agora().getTime() - created < 7 * 86400000;
   }
 }

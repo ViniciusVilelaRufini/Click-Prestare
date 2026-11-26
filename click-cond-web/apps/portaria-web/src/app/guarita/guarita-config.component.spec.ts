@@ -264,7 +264,7 @@ describe('GuaritaConfigComponent — importar e conferir', () => {
     tela.importar();
     f.detectChanges();
     expect(el.querySelector('[data-guarita-andamento]')?.textContent?.trim()).toBe(
-      'Importação concluída: 312 lido(s) do Guarita, 40 novo(s), 270 atualizado(s), 25 vinculado(s) a veículo.',
+      'Importação concluída: 312 lidos do Guarita, 40 novos, 270 atualizados, 25 vinculados a veículo.',
     );
     tela.ngOnDestroy();
   });
@@ -313,7 +313,7 @@ describe('GuaritaConfigComponent — cópias de segurança', () => {
     const { el, tela, api } = build();
     const linha = el.querySelector('[data-guarita-backup]') as HTMLElement;
     expect(linha.textContent).toContain('Importação');
-    expect(linha.textContent).toContain('312 dispositivo(s)');
+    expect(linha.textContent).toContain('312 dispositivos');
     botao(linha, 'Baixar')!.click();
     expect(api.baixarBackup).toHaveBeenCalledWith(7, 11);
     expect(criar).toHaveBeenCalled();

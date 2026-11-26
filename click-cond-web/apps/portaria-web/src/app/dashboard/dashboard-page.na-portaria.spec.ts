@@ -44,15 +44,16 @@ describe('DashboardPageComponent — "Na portaria agora"', () => {
       pessoa(5, { auth_status: 'autorizado', auth_respondido_em: h(-1), data_hora_inicio: null, data_hora_termino: null }),
       pessoa(6, { noLocal: true, statusLabel: 'No condomínio', data_entrada: h(-1) }),
     ]);
-    expect(tela.naPortariaVisiveis().map((p) => p.id).sort()).toEqual([1, 6]);
+    expect(tela.naPortariaDentro().map((p) => p.id)).toEqual([6]);
+    expect(tela.naPortariaAChegar().map((p) => p.id)).toEqual([1]);
   });
 
   it('janela que vence enquanto a tela está aberta sai do painel', () => {
     const tela = build();
     tela.naPortaria.set([pessoa(1, { data_hora_termino: h(0.5) })]);
-    expect(tela.naPortariaVisiveis()).toHaveLength(1);
+    expect(tela.naPortariaAChegar()).toHaveLength(1);
     tela.agora.set(new Date(AGORA.getTime() + 3_600_000));
-    expect(tela.naPortariaVisiveis()).toHaveLength(0);
+    expect(tela.naPortariaAChegar()).toHaveLength(0);
   });
 
   it('o util segue a regra da tela de Visitantes', () => {

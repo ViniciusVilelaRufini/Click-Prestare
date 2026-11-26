@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { UnidadeLabelPipe } from '../shared/unidade-label.pipe';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpResponse } from '@angular/common/http';
@@ -13,7 +14,7 @@ import { BlocoLabelPipe } from '../shared/bloco-label.pipe';
 @Component({
   selector: 'app-relatorios-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, SlideIndicatorDirective, BlocoLabelPipe],
+  imports: [CommonModule, FormsModule, SlideIndicatorDirective, BlocoLabelPipe, UnidadeLabelPipe],
   templateUrl: './relatorios-page.component.html',
 })
 export class RelatoriosPageComponent {

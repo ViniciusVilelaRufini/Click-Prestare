@@ -61,7 +61,7 @@
   @if (erro()) {
     <div class="p-3 rounded-xl bg-red-400/10 border border-red-400/20 text-sm text-red-300 flex items-center justify-between gap-3">
       <span>{{ erro() }}</span>
-      <button (click)="erro.set(null)" class="text-red-300 hover:text-white">✕</button>
+      <button (click)="erro.set(null)" class="text-red-300 hover:text-white" aria-label="Fechar aviso">Fechar</button>
     </div>
   }
 

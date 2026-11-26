@@ -170,7 +170,7 @@
                         <div class="space-y-1">
                           <div class="flex justify-between text-xs">
                             <span class="text-slate-300 font-medium truncate">{{ opInfo.nome }}</span>
-                            <span class="text-slate-400 font-mono text-[11px]">{{ opInfo.votos }} voto(s) ({{ calcPerc(opInfo.votos, getTotalVotos(v.opcoes)) }}%)</span>
+                            <span class="text-slate-400 font-mono text-[11px]">{{ opInfo.votos }} {{ opInfo.votos === 1 ? 'voto' : 'votos' }} ({{ calcPerc(opInfo.votos, getTotalVotos(v.opcoes)) }}%)</span>
                           </div>
                           <!-- Barra de Progresso Elegante -->
                           <div class="h-1.5 bg-graphite-50 overflow-hidden">
@@ -192,7 +192,7 @@
                     @if (resultadoOculto(v)) {
                       <span>Apuração ao encerrar</span>
                     } @else {
-                      <span>Total apurado: {{ getTotalVotos(v.opcoes) }} voto(s)</span>
+                      <span>Total apurado: {{ getTotalVotos(v.opcoes) }} {{ getTotalVotos(v.opcoes) === 1 ? 'voto' : 'votos' }}</span>
                     }
                     @if (v.status === 1 && podeGerir() && !ehFinalizada(sel.assembleia)) {
                       <button (click)="encerrarVotacao(v.id, sel.assembleia.id)" class="ps-btn ps-btn-sec ps-btn-sm">Encerrar votação</button>
@@ -351,7 +351,7 @@
                   <div class="space-y-1">
                     <div class="flex justify-between text-xs">
                       <span class="text-slate-300 font-medium truncate">{{ op.nome }}</span>
-                      <span class="text-slate-400 font-mono text-[11px]">{{ op.votos }} voto(s) ({{ calcPerc(op.votos, getTotalVotos(e.opcoes)) }}%)</span>
+                      <span class="text-slate-400 font-mono text-[11px]">{{ op.votos }} {{ op.votos === 1 ? 'voto' : 'votos' }} ({{ calcPerc(op.votos, getTotalVotos(e.opcoes)) }}%)</span>
                     </div>
                     <div class="h-2 bg-graphite-50 overflow-hidden">
                       <div

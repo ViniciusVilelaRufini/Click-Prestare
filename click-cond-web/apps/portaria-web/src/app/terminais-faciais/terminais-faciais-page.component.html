@@ -109,6 +109,8 @@
           <span class="mt-1.5 inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 shrink-0"></span>
         } @else if (h.terminais.semReporteRecente.length > 0) {
           <span class="mt-1.5 inline-flex rounded-full h-2.5 w-2.5 bg-amber-500 shrink-0"></span>
+        } @else if (h.terminais.total === 0) {
+          <span class="mt-1.5 inline-flex rounded-full h-2.5 w-2.5 bg-slate-400 shrink-0"></span>
         } @else {
           <span class="mt-1.5 inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shrink-0"></span>
         }
@@ -120,6 +122,8 @@
           } @else if (h.terminais.semReporteRecente.length > 0) {
             <p class="text-sm font-semibold text-amber-600 dark:text-amber-400">{{ h.terminais.semReporteRecente.length }} sem status recente</p>
             <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">O status chega pelo agente local.</p>
+          } @else if (h.terminais.total === 0) {
+            <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">Nenhum terminal cadastrado</p>
           } @else {
             <p class="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{{ h.terminais.total }} de {{ h.terminais.total }} online</p>
           }
@@ -142,7 +146,7 @@
             <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">A varredura roda a cada hora.</p>
           } @else {
             <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">
-              {{ h.fantasmas.removidosHoje > 0 ? h.fantasmas.removidosHoje + ' removida(s) hoje' : 'Nada a remover hoje' }}
+              {{ h.fantasmas.removidosHoje > 0 ? h.fantasmas.removidosHoje + (h.fantasmas.removidosHoje === 1 ? ' removida hoje' : ' removidas hoje') : 'Nada a remover hoje' }}
             </p>
             <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Última varredura: {{ tempoRelativo(h.fantasmas.ultimaVarreduraEm) }} · a cada hora</p>
           }
@@ -234,7 +238,7 @@
                 <p class="text-xs text-slate-500 dark:text-slate-400">
                   Último contato: {{ tempoRelativo(health()?.agente?.lastSeenAt ?? null) }}
                   @if (agentTelemetria()?.eventos_pendentes) {
-                    <span class="text-amber-600 dark:text-amber-400"> · {{ agentTelemetria()!.eventos_pendentes }} evento(s) pendente(s) na fila offline</span>
+                    <span class="text-amber-600 dark:text-amber-400"> · {{ agentTelemetria()!.eventos_pendentes }} {{ agentTelemetria()!.eventos_pendentes === 1 ? 'evento pendente' : 'eventos pendentes' }} na fila offline</span>
                   }
                 </p>
                 @if (textoAtualizacaoAgente(); as textoAtualizacao) {
@@ -368,7 +372,7 @@
           </div>
           @if (s.error > 0) {
             <p class="text-xs text-rose-600 dark:text-rose-400">
-              {{ s.error }} cadastro(s) com erro no envio.
+              {{ s.error }} {{ s.error === 1 ? 'cadastro com erro' : 'cadastros com erro' }} no envio.
               <button type="button" (click)="verMotivoErro()" class="font-semibold underline">Ver o motivo</button>
             </p>
           }
@@ -658,7 +662,7 @@
             }
             <span class="ml-auto">
               @if (a.id_dispositivo) {
-                <span class="text-emerald-600 dark:text-emerald-400 font-semibold">já cadastrado ✓</span>
+                <span class="text-emerald-600 dark:text-emerald-400 font-semibold">já cadastrado</span>
               } @else {
                 <button type="button" (click)="abrirCadastroDe(a)" class="px-3 py-1.5 rounded-xl text-xs font-semibold text-white bg-accent hover:bg-accent-600 transition active:scale-95">Cadastrar</button>
               }
@@ -1335,7 +1339,7 @@
                     — só moradores com reserva aprovada acessam, na janela do
                     horário; o resto é negado no aparelho.
                     <span class="text-red-600 dark:text-red-400"
-                      >⚠️ Não use na ENTRADA PRINCIPAL do prédio (trancaria todos
+                      >Atenção: não use na ENTRADA PRINCIPAL do prédio (trancaria todos
                       os moradores).</span
                     >
                   </span>
@@ -1381,6 +1385,7 @@
                 name="fabricante"
                 class="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-xs focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
               >
+                <option value="" disabled>Selecione o fabricante</option>
                 @for (f of tipoSelecionado.fabricantes; track f.value) {
                   <option [value]="f.value">{{ f.label }}</option>
                 }

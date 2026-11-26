@@ -1,4 +1,5 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { UnidadeLabelPipe } from '../shared/unidade-label.pipe';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -13,7 +14,7 @@ import { MoradoresApi } from '../moradores/moradores.service';
 import { VagasApi, VagasResumo, VagaBeneficiarios } from './vagas.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 import { BlocoLabelPipe } from '../shared/bloco-label.pipe';
-import { chaveBloco, rotuloBloco } from '../shared/bloco-label.util';
+import { chaveBloco, rotuloBloco, rotuloUnidade } from '../shared/bloco-label.util';
 import { InputMaskDirective } from '../shared/input-mask.directive';
 import { papelDoToken } from '../auth/papel';
 import { ServerClockService } from '../core/server-clock.service';
@@ -27,7 +28,7 @@ const SEM_BLOCO = 'Sem bloco';
 @Component({
   selector: 'app-apartamentos-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, SlideIndicatorDirective, InputMaskDirective, BlocoLabelPipe],
+  imports: [CommonModule, FormsModule, SlideIndicatorDirective, InputMaskDirective, BlocoLabelPipe, UnidadeLabelPipe],
   templateUrl: './apartamentos-page.component.html',
 })
 export class ApartamentosPageComponent implements OnInit {
@@ -185,7 +186,7 @@ export class ApartamentosPageComponent implements OnInit {
   async remover(a: Apartamento) {
     const ok = await this.confirm.ask({
       title: 'Remover apartamento',
-      message: `O apto ${a.bloco ? a.bloco + ' / ' : ''}${a.apto} será removido. Moradores vinculados serão desvinculados.`,
+      message: `O apto ${rotuloUnidade(a.bloco, a.apto)} será removido. Moradores vinculados serão desvinculados.`,
       confirmLabel: 'Remover',
       variant: 'danger',
     });

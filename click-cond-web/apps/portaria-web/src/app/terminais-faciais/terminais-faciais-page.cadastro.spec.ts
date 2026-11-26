@@ -128,6 +128,9 @@ describe('TerminaisFaciaisPageComponent — erro de validação dentro do modal'
     expect(tela.modalError()).toContain('IP');
     tela.form.ip = '192.168.3.10';
     tela.save();
+    expect(tela.modalError()).toContain('fabricante');
+    tela.form.fabricante = 'intelbras';
+    tela.save();
     expect(tela.modalError()).toContain('usuário');
     tela.ngOnDestroy();
   });
@@ -135,7 +138,7 @@ describe('TerminaisFaciaisPageComponent — erro de validação dentro do modal'
   it('falha da API ao salvar também aparece no modal', () => {
     const { tela } = build({ create: jest.fn(() => throwError(() => ({ error: { message: 'IP inválido.' } }))) });
     tela.openCreate();
-    Object.assign(tela.form, { nome: 'Portaria', ip: '999', api_user: 'admin', api_password: 'x' });
+    Object.assign(tela.form, { fabricante: 'intelbras', nome: 'Portaria', ip: '999', api_user: 'admin', api_password: 'x' });
     tela.save();
     expect(tela.modalError()).toBe('IP inválido.');
     expect(tela.showModal()).toBe(true);
@@ -264,7 +267,7 @@ describe('TerminaisFaciaisPageComponent — URL do webhook', () => {
     tela.openCreate();
     tela.form.tipo = tipo;
     tela.onTipoChange();
-    Object.assign(tela.form, { nome: 'Leitor', ip: '192.168.3.40' });
+    Object.assign(tela.form, { fabricante: 'intelbras', nome: 'Leitor', ip: '192.168.3.40' });
     tela.save();
     f.detectChanges();
     const url = `${window.location.origin}/api/facial/webhook/abc999`;
@@ -286,7 +289,7 @@ describe('TerminaisFaciaisPageComponent — URL do webhook', () => {
   it('terminal facial novo fecha direto, sem passo de webhook', () => {
     const { tela } = build();
     tela.openCreate();
-    Object.assign(tela.form, { nome: 'Portaria', ip: '192.168.3.10', api_user: 'admin', api_password: 'x' });
+    Object.assign(tela.form, { fabricante: 'intelbras', nome: 'Portaria', ip: '192.168.3.10', api_user: 'admin', api_password: 'x' });
     tela.save();
     expect(tela.showModal()).toBe(false);
     expect(tela.webhookCriado()).toBeNull();
@@ -298,7 +301,7 @@ describe('TerminaisFaciaisPageComponent — URL do webhook', () => {
     tela.openCreate();
     tela.form.tipo = 'tag_reader';
     tela.onTipoChange();
-    Object.assign(tela.form, { nome: 'Leitor', ip: '192.168.3.40' });
+    Object.assign(tela.form, { fabricante: 'intelbras', nome: 'Leitor', ip: '192.168.3.40' });
     tela.save();
     expect(tela.showModal()).toBe(false);
     tela.ngOnDestroy();
@@ -320,7 +323,7 @@ describe('TerminaisFaciaisPageComponent — credenciais da câmera LPR', () => {
     tela.openCreate();
     tela.form.tipo = 'lpr';
     tela.onTipoChange();
-    Object.assign(tela.form, { nome: 'LPR garagem', ip: '192.168.3.60' });
+    Object.assign(tela.form, { fabricante: 'intelbras', nome: 'LPR garagem', ip: '192.168.3.60' });
     tela.save();
     expect(tela.modalError()).toBeNull();
     expect(api.create).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'lpr', sentido: 'entrada' }));
@@ -330,7 +333,7 @@ describe('TerminaisFaciaisPageComponent — credenciais da câmera LPR', () => {
   it('terminal facial continua exigindo usuário e senha', () => {
     const { tela, api } = build();
     tela.openCreate();
-    Object.assign(tela.form, { nome: 'Portaria', ip: '192.168.3.10', api_user: 'admin' });
+    Object.assign(tela.form, { fabricante: 'intelbras', nome: 'Portaria', ip: '192.168.3.10', api_user: 'admin' });
     tela.save();
     expect(api.create).not.toHaveBeenCalled();
     expect(tela.modalError()).toContain('senha');

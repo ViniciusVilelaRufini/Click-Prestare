@@ -125,6 +125,18 @@ describe('OcorrenciasPageComponent — ciclos', () => {
     comp.ngOnDestroy();
   });
 
+  it('chat: rascunho não segue para outra ocorrência', () => {
+    const { comp } = render({});
+    comp.abrirChat(base);
+    comp.novaMensagemText = 'texto para o morador A';
+    comp.fecharChat();
+    expect(comp.novaMensagemText).toBe('');
+    comp.novaMensagemText = 'resto';
+    comp.abrirChat({ ...base, id: 999 } as any);
+    expect(comp.novaMensagemText).toBe('');
+    comp.ngOnDestroy();
+  });
+
   it('erro ao enviar no chat aparece dentro da gaveta do chat', () => {
     const { el, fixture, comp } = render({
       sendMessage: jest.fn(() => throwError(() => ({ error: { message: 'Mensagem inválida.' } }))),

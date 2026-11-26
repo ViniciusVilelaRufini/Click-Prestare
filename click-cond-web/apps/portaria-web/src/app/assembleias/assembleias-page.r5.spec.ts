@@ -70,7 +70,7 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
     const c = cartao(el, 'Contas');
     expect(c.textContent).toContain('Resultado disponível quando a votação for encerrada');
     expect(c.textContent).toContain('3 de 12 unidades votaram');
-    expect(c.textContent).not.toContain('voto(s)');
+    expect(c.textContent).not.toContain('votos');
     expect(c.textContent).not.toContain('Total apurado');
     expect(c.querySelector('.bg-accent')).toBeNull();
   });
@@ -82,7 +82,7 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
     comp.verAssembleia(2);
     fixture.detectChanges();
     const c = cartao(el, 'Obra');
-    expect(c.textContent).toContain('4 voto(s) (80%)');
+    expect(c.textContent).toContain('4 votos (80%)');
     expect(c.textContent).toContain('5 de 12 unidades votaram');
     expect(c.textContent).not.toContain('Resultado disponível');
     expect(c.querySelectorAll('.bg-accent').length).toBe(2);
@@ -95,8 +95,8 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
     comp.verAssembleia(2);
     fixture.detectChanges();
     const c = cartao(el, 'Fachada');
-    expect(c.textContent).toContain('2 voto(s) (100%)');
-    expect(c.textContent).toContain('Total apurado: 2 voto(s)');
+    expect(c.textContent).toContain('2 votos (100%)');
+    expect(c.textContent).toContain('Total apurado: 2 votos');
     expect(c.textContent).not.toContain('Resultado disponível');
     expect(c.textContent).not.toContain('unidades votaram');
   });

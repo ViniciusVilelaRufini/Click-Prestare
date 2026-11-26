@@ -2,6 +2,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FinanceiroApi, Lancamento } from './financeiro.service';
+import { ServerClockService } from '../core/server-clock.service';
 import { ToastService } from '../shared/toast.service';
 
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
@@ -20,6 +21,7 @@ export class FinanceiroPageComponent implements OnInit {
   // O ConfirmService saiu junto com a última ação destrutiva desta tela
   // (remover cobrança): não há mais nada aqui para confirmar.
   private toast = inject(ToastService);
+  private relogio = inject(ServerClockService);
 
   readonly loading = signal(true);
   readonly tab = signal<'lancamentos' | 'graficos' | 'inadimplencia'>('lancamentos');
@@ -204,7 +206,7 @@ export class FinanceiroPageComponent implements OnInit {
 
   ngOnInit() {
     // Configura o mês atual inicialmente
-    const hoje = new Date();
+    const hoje = this.relogio.agora();
     const mStr = hoje.getMonth() + 1 < 10 ? '0' + (hoje.getMonth() + 1) : String(hoje.getMonth() + 1);
     this.selectedMesAno = `${mStr}|${hoje.getFullYear()}`;
 
@@ -337,7 +339,7 @@ export class FinanceiroPageComponent implements OnInit {
     const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec((dataVencimento ?? '').trim());
     if (!m) return 0;
     const venc = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
-    const hoje = new Date();
+    const hoje = new Date(this.relogio.agora());
     hoje.setHours(0, 0, 0, 0);
     const dias = Math.floor((hoje.getTime() - venc.getTime()) / 86400000);
     return dias > 0 ? dias : 0;

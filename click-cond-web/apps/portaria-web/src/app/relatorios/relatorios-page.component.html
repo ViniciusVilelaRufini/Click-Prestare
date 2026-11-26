@@ -488,7 +488,7 @@
                                 <span class="text-[11px] text-slate-500 dark:text-slate-400">de {{ dt.encomenda.remetente }}</span>
                               }
                               @if (dt.encomenda.temFoto) {
-                                <span class="text-[11px] text-slate-500 dark:text-slate-400">📷 com foto</span>
+                                <span class="text-[11px] text-slate-500 dark:text-slate-400">com foto</span>
                               }
                             </div>
                           </div>
@@ -517,8 +517,8 @@
                                 <span>{{ dt.retirada.em }}</span>
                                 @if (dt.retirada.documento) { <span class="font-mono">Doc: {{ mascararDocumento(dt.retirada.documento) }}</span> }
                                 @if (dt.retirada.entreguePor) { <span>entregue por {{ dt.retirada.entreguePor.nome }}</span> }
-                                @if (dt.retirada.comAssinatura) { <span class="text-emerald-600 dark:text-emerald-400 font-semibold">✍ assinou</span> }
-                                @if (dt.retirada.comFoto) { <span class="text-emerald-600 dark:text-emerald-400 font-semibold">📷 foto</span> }
+                                @if (dt.retirada.comAssinatura) { <span class="text-emerald-600 dark:text-emerald-400 font-semibold">assinou</span> }
+                                @if (dt.retirada.comFoto) { <span class="text-emerald-600 dark:text-emerald-400 font-semibold">foto</span> }
                               </div>
                             </div>
                           } @else {
@@ -554,16 +554,16 @@
                             <div class="text-[10px] uppercase tracking-wider text-purple-600 dark:text-purple-400 font-bold mb-1.5">Credenciais habilitadas</div>
                             <div class="flex items-center gap-4 text-xs font-semibold flex-wrap">
                               <span [class.text-emerald-600]="dt.credenciais.temFacial" [class.dark:text-emerald-400]="dt.credenciais.temFacial" [class.text-slate-400]="!dt.credenciais.temFacial">
-                                {{ dt.credenciais.temFacial ? '✓' : '○' }} Reconhecimento facial
+                                {{ dt.credenciais.temFacial ? 'Com' : 'Sem' }} reconhecimento facial
                                 @if (dt.credenciais.statusFacial) {
                                   <span class="text-[10px] text-slate-400 ml-1">({{ dt.credenciais.statusFacial }})</span>
                                 }
                               </span>
                               <span [class.text-emerald-600]="dt.credenciais.temTagRfid" [class.dark:text-emerald-400]="dt.credenciais.temTagRfid" [class.text-slate-400]="!dt.credenciais.temTagRfid">
-                                {{ dt.credenciais.temTagRfid ? '✓' : '○' }} Tag RFID
+                                {{ dt.credenciais.temTagRfid ? 'Com' : 'Sem' }} tag RFID
                               </span>
                               <span [class.text-emerald-600]="dt.credenciais.temQrCode" [class.dark:text-emerald-400]="dt.credenciais.temQrCode" [class.text-slate-400]="!dt.credenciais.temQrCode">
-                                {{ dt.credenciais.temQrCode ? '✓' : '○' }} QR Code
+                                {{ dt.credenciais.temQrCode ? 'Com' : 'Sem' }} QR Code
                               </span>
                             </div>
                           </div>
@@ -702,10 +702,10 @@
                               {{ dt.status.pago ? 'Pago' : 'Em aberto' }}
                             </div>
                             <div class="flex items-center gap-2.5 mt-1.5 text-[11px] text-slate-600 dark:text-slate-400 flex-wrap">
-                              @if (dt.status.temBoleto) { <span>📄 boleto</span> }
-                              @if (dt.status.temComprovante) { <span>📷 comprovante</span> }
-                              @if (dt.status.temLinhaDigitavel) { <span>🔢 linha digitável</span> }
-                              @if (dt.status.temPix) { <span>⚡ PIX</span> }
+                              @if (dt.status.temBoleto) { <span>boleto</span> }
+                              @if (dt.status.temComprovante) { <span>comprovante</span> }
+                              @if (dt.status.temLinhaDigitavel) { <span>linha digitável</span> }
+                              @if (dt.status.temPix) { <span>PIX</span> }
                             </div>
                           </div>
 
@@ -821,7 +821,7 @@
                             <div class="text-[10px] uppercase tracking-wider text-purple-600 dark:text-purple-400 font-bold mb-1.5">Valor</div>
                             <div class="text-sm font-extrabold text-slate-900 dark:text-white">{{ dt.rateio.valorTotalFormatado }} total</div>
                             <div class="text-xs font-bold text-emerald-600 dark:text-emerald-300 mt-1">{{ dt.rateio.valorPorAptoFormatado }} / apto</div>
-                            <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{{ dt.rateio.quantidadeAptos }} apartamentos</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{{ dt.rateio.quantidadeAptos }} {{ dt.rateio.quantidadeAptos === 1 ? 'apartamento' : 'apartamentos' }}</div>
                           </div>
                           <div class="rounded-xl bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 shadow-2xs md:col-span-3">
                             <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-1.5">Apartamentos incluídos (primeiros 20)</div>
@@ -839,14 +839,14 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                           <div class="rounded-xl bg-white dark:bg-graphite border border-emerald-200/80 dark:border-emerald-500/30 p-3.5 shadow-2xs">
                             <div class="text-[10px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-bold mb-1.5">Acordo de Inadimplência</div>
-                            <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.acordo.bloco ? (dt.acordo.bloco | blocoLabel) + ', ' : '' }}Apto {{ dt.acordo.apto }}</div>
+                            <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.acordo.apto | unidade: dt.acordo.bloco }}</div>
                             <div class="text-xs font-semibold text-slate-700 dark:text-slate-300 mt-1">
                               {{ dt.acordo.parcelas }}× {{ dt.acordo.valorParcelaFormatado }} = {{ dt.acordo.valorTotalFormatado }}
                             </div>
                           </div>
                           <div class="rounded-xl bg-white dark:bg-graphite border border-amber-200/80 dark:border-amber-500/30 p-3.5 shadow-2xs">
                             <div class="text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-400 font-bold mb-1.5">Débitos renegociados</div>
-                            <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.acordo.debitosOriginaisRenegociados }} cobrança(s)</div>
+                            <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.acordo.debitosOriginaisRenegociados }} {{ dt.acordo.debitosOriginaisRenegociados === 1 ? 'cobrança' : 'cobranças' }}</div>
                             <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">marcadas como "Renegociado" (status 3)</div>
                           </div>
                         </div>
@@ -854,7 +854,7 @@
                         <div class="rounded-xl bg-white dark:bg-graphite border border-sky-200/80 dark:border-sky-500/30 p-3.5 shadow-2xs">
                           <div class="text-[10px] uppercase tracking-wider text-sky-600 dark:text-sky-400 font-bold mb-1.5">Conciliação Bancária (OFX)</div>
                           <div class="text-sm font-bold text-slate-900 dark:text-white">
-                            {{ dt.conciliacao.quantidade }} lançamento(s) confirmado(s) como pagos
+                            {{ dt.conciliacao.quantidade }} {{ dt.conciliacao.quantidade === 1 ? 'lançamento confirmado como pago' : 'lançamentos confirmados como pagos' }}
                           </div>
                           <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-mono">
                             IDs: {{ dt.conciliacao.ids.join(', ') }}

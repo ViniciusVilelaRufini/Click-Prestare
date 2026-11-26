@@ -40,7 +40,7 @@ interface EnrollSession {
     <button type="button"
             class="ps-btn ps-btn-sec ps-btn-sm"
             (click)="openModal()">
-      📡 Capturar via leitor
+      Capturar via leitor
     </button>
 
     @if (modalOpen()) {
@@ -99,7 +99,7 @@ interface EnrollSession {
           } @else {
             <div class="py-6 text-center">
               <div class="inline-flex w-16 h-16 rounded-full border border-line-200 items-center justify-center mb-4">
-                <span class="text-3xl">✓</span>
+                <span class="ps-label">OK</span>
               </div>
               <p class="text-white font-medium mb-2">Capturado!</p>
               <code class="block text-sm font-mono text-emerald-400 border border-line-200 px-3 py-2 break-all mb-4">

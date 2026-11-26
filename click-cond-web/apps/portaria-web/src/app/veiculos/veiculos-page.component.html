@@ -97,7 +97,7 @@
                 <td>
                   {{ v.morador?.nome || '—' }}
                   @if (v.morador?.apartamento) {
-                    <span class="text-slate-500 text-xs"> · Apto {{ v.morador?.apartamento }}{{ v.morador?.bloco ? ' ' + v.morador?.bloco : '' }}</span>
+                    <span class="text-slate-500 text-xs"> · {{ v.morador?.apartamento | unidade: v.morador?.bloco }}</span>
                   }
                 </td>
                 <td>
@@ -249,7 +249,7 @@
     }
     @if (totalPaginasVincular() > 1) {
       <div data-paginas-a-vincular class="flex items-center justify-end gap-3 text-xs text-slate-500">
-        <span>Página {{ pagVincular()?.pagina ?? 1 }} de {{ totalPaginasVincular() }} · {{ totalAVincular() }} dispositivo(s)</span>
+        <span>Página {{ pagVincular()?.pagina ?? 1 }} de {{ totalPaginasVincular() }} · {{ totalAVincular() }} {{ totalAVincular() === 1 ? 'dispositivo' : 'dispositivos' }}</span>
         <button type="button" (click)="paginaVincular(-1)" [disabled]="(pagVincular()?.pagina ?? 1) <= 1 || carregandoVincular()"
           class="ps-btn ps-btn-sec ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Anterior</button>
         <button type="button" (click)="paginaVincular(1)" [disabled]="(pagVincular()?.pagina ?? 1) >= totalPaginasVincular() || carregandoVincular()"
@@ -382,7 +382,7 @@
               <span class="ps-label block mb-1.5">Morador titular</span>
               @if (moradorSelecionado()) {
                 <div class="flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-accent/30 text-sm">
-                  <span class="text-white">{{ moradorSelecionado()?.nome }} <span class="text-slate-500">· Apto {{ moradorSelecionado()?.apartamento }}{{ moradorSelecionado()?.bloco ? ' ' + moradorSelecionado()?.bloco : '' }}</span></span>
+                  <span class="text-white">{{ moradorSelecionado()?.nome }} <span class="text-slate-500">· {{ moradorSelecionado()?.apartamento | unidade: moradorSelecionado()?.bloco }}</span></span>
                   <button type="button" (click)="moradorSelecionado.set(null); buscaMorador.set('')" class="text-slate-400 hover:text-white text-xs">Trocar</button>
                 </div>
               } @else {
@@ -405,7 +405,7 @@
                         class="w-full text-left px-3.5 py-2.5 text-xs border-b border-white/5 last:border-0 hover:bg-white/5 transition text-slate-300"
                       >
                         <span class="font-semibold text-white">{{ m.nome }}</span>
-                        <span class="text-slate-500"> · Apto {{ m.apartamento }}{{ m.bloco ? ' ' + m.bloco : '' }}</span>
+                        <span class="text-slate-500"> · {{ m.apartamento | unidade: m.bloco }}</span>
                       </button>
                     }
                   </div>
@@ -548,7 +548,7 @@
             class="w-full text-left px-3.5 py-2.5 rounded-xl border border-white/10 text-sm hover:bg-white/5 transition disabled:opacity-50">
             <span class="font-mono font-semibold tracking-wider">{{ op.placa }}</span>
             @if (op.morador_nome) { <span class="text-slate-500"> · {{ op.morador_nome }}</span> }
-            @if (op.apartamento) { <span class="text-slate-500"> · Apto {{ op.apartamento }}{{ op.bloco ? ' ' + op.bloco : '' }}</span> }
+            @if (op.apartamento) { <span class="text-slate-500"> · {{ op.apartamento | unidade: op.bloco }}</span> }
           </button>
         } @empty {
           @if (!buscandoVeiculoVincular()) {

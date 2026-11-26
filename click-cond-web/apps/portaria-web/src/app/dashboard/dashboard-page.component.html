@@ -464,21 +464,30 @@
             <h2 class="ps-h2">Na portaria agora</h2>
             <span class="ps-tag"><span class="ps-dot ps-dot-ok ps-dot-pulse"></span>{{ qtdNoLocal() }} no local</span>
           </div>
-          @for (p of naPortariaVisiveis(); track p.id) {
+          @for (p of naPortariaDentro(); track p.id) {
             <div class="flex items-center gap-3.5 px-5 py-3 border-b border-[var(--line-100)] last:border-b-0">
               <span class="ps-avatar shrink-0">{{ iniciais(p.nome) }}</span>
               <div class="min-w-0 flex-1">
                 <p class="text-sm font-medium truncate">{{ p.nome }}</p>
-                <p class="ps-cap truncate">{{ p.noLocal ? 'No local' : 'Liberado' }}</p>
+                <p class="ps-cap truncate">No local</p>
               </div>
-              @if (p.noLocal) {
-                <button type="button" (click)="abrirBaixaDe(p)" class="ps-btn ps-btn-sec ps-btn-sm">Baixa</button>
-              } @else {
-                <a routerLink="/visitantes" class="ps-btn ps-btn-sm">Abrir</a>
-              }
+              <button type="button" (click)="abrirBaixaDe(p)" class="ps-btn ps-btn-sec ps-btn-sm">Baixa</button>
             </div>
           } @empty {
-            <p class="px-5 py-6 text-center text-sm text-[var(--ink-muted)]">Ninguém no local nem liberado agora.</p>
+            <p class="px-5 py-6 text-center text-sm text-[var(--ink-muted)]">Ninguém no local agora.</p>
+          }
+          @if (naPortariaAChegar().length) {
+            <p class="ps-label px-5 pt-3 pb-1 border-t border-[var(--line-100)]">Liberados, ainda não chegaram</p>
+            @for (p of naPortariaAChegar(); track p.id) {
+              <div class="flex items-center gap-3.5 px-5 py-3 border-b border-[var(--line-100)] last:border-b-0">
+                <span class="ps-avatar shrink-0">{{ iniciais(p.nome) }}</span>
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-medium truncate">{{ p.nome }}</p>
+                  <p class="ps-cap truncate">Liberado, ainda não chegou</p>
+                </div>
+                <a routerLink="/visitantes" class="ps-btn ps-btn-sm">Abrir</a>
+              </div>
+            }
           }
         </div>
 
@@ -572,7 +581,7 @@
                 <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
                   <span class="ps-label block mb-1">Data/Hora Saída</span>
                   <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">
-                    {{ ev.detalhes.dataSaida ? (ev.detalhes.dataSaida | date:'dd/MM/yyyy HH:mm') : 'No local' }}
+                    {{ ev.detalhes.dataSaida ? (ev.detalhes.dataSaida | date:'dd/MM/yyyy HH:mm') : (ev.detalhes.dataEntrada ? 'No local' : '—') }}
                   </span>
                 </div>
               </div>
@@ -699,9 +708,7 @@
                 <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
                   <span class="ps-label block mb-1">Status</span>
                   <div>
-                    <span [class]="ev.detalhes.status === 'Entregue'
-                                    ? 'ps-tag'
-                                    : 'ps-tag'">
+                    <span class="ps-tag">
                       {{ ev.detalhes.status }}
                     </span>
                   </div>
@@ -713,7 +720,7 @@
                   <span class="ps-label block mb-1">Recebido Por</span>
                   <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.recebidoPor }}</span>
                 </div>
-                @if (ev.detalhes.status === 'Entregue') {
+                @if (ev.detalhes.status === 'Retirada') {
                   <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
                     <span class="ps-label block mb-1">Retirado Por</span>
                     <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.retiradoPor || 'Não informado' }}</span>
@@ -843,6 +850,11 @@
             <a routerLink="/visitantes" (click)="fecharDetalhes()"
                class="ps-btn ps-btn-sm">
               Ver Visitantes
+            </a>
+          } @else if (ev.tipo === 'Prestador') {
+            <a routerLink="/prestadores" (click)="fecharDetalhes()"
+               class="ps-btn ps-btn-sm">
+              Ver Prestadores
             </a>
           } @else if (ev.tipo === 'Encomenda') {
             <a routerLink="/encomendas" (click)="fecharDetalhes()"
@@ -1046,10 +1058,13 @@
                   <option [value]="null" disabled selected>-- Selecione o Apartamento --</option>
                   @for (apt of apartamentos(); track apt.id) {
                     <option [value]="apt.id">
-                      {{ apt.bloco ? (apt.bloco | blocoLabel) + ' - ' : '' }}Apto {{ apt.apto }}
+                      {{ apt.apto | unidade: apt.bloco }}
                     </option>
                   }
                 </select>
+                @if (aptoAmbiguo()) {
+                  <p class="mt-1.5 text-xs text-[var(--ink-muted)]">Esta pessoa já visitou mais de uma unidade: escolha para qual delas é a liberação.</p>
+                }
               </div>
 
               <!-- Janela de validade -->
@@ -1058,11 +1073,17 @@
                   <label class="ps-label block mb-1.5" for="dashboard-page-liberado-a-partir-de">Liberado a partir de</label>
                   <input id="dashboard-page-liberado-a-partir-de" type="datetime-local" [(ngModel)]="liberarInicio"
                     class="w-full h-10 px-3 text-sm bg-[var(--bg-200)] border border-[var(--line-200)] focus:outline-none focus:border-[var(--ink)] text-[var(--ink)]" />
+                  @if (liberarComecaAgora()) {
+                    <p class="mt-1.5 text-xs text-[var(--ink-muted)]">Começa agora</p>
+                  }
                 </div>
                 <div>
                   <label class="ps-label block mb-1.5" for="dashboard-page-liberado-ate">Liberado até</label>
                   <input id="dashboard-page-liberado-ate" type="datetime-local" [(ngModel)]="liberarTermino"
                     class="w-full h-10 px-3 text-sm bg-[var(--bg-200)] border border-[var(--line-200)] focus:outline-none focus:border-[var(--ink)] text-[var(--ink)]" />
+                  @if (!liberarTermino()) {
+                    <p class="mt-1.5 text-xs font-semibold" style="color: var(--signal-danger)">Sem data de término: o acesso fica permanente.</p>
+                  }
                 </div>
               </div>
 
@@ -1222,7 +1243,7 @@
                 <div class="grid grid-cols-2 gap-3 pt-3 border-t border-slate-200 dark:border-white/5 text-xs">
                   <div>
                     <span class="text-slate-400 dark:text-slate-500 block">Destino</span>
-                    <span class="text-slate-800 dark:text-slate-200 font-semibold">{{ validationResult().apto_bloco ? (validationResult().apto_bloco | blocoLabel) + ' - ' : '' }}Apto {{ validationResult().apto }}</span>
+                    <span class="text-slate-800 dark:text-slate-200 font-semibold">{{ validationResult().apto | unidade: validationResult().apto_bloco }}</span>
                   </div>
                   <div>
                     <span class="text-slate-400 dark:text-slate-500 block">Autorizado por</span>
