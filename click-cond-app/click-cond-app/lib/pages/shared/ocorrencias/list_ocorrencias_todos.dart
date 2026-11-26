@@ -10,6 +10,7 @@ import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/nome_proprio.dart';
 import 'package:click/utils/utils.dart';
+import 'package:click/widgets/app/app_filtro_chip.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -144,7 +145,7 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
             children: [
               Padding(
                 padding: const EdgeInsets.only(right: AppSpacing.sm),
-                child: _FiltroMes(
+                child: AppFiltroChip(
                   label: 'Todos os meses',
                   selected: _selectedMonth == null,
                   onTap: () => setState(() => _selectedMonth = null),
@@ -156,7 +157,7 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
                     _selectedMonth!.year == m['year'];
                 return Padding(
                   padding: const EdgeInsets.only(right: AppSpacing.sm),
-                  child: _FiltroMes(
+                  child: AppFiltroChip(
                     label: m['label'],
                     selected: isSelected,
                     onTap: () => setState(() {
@@ -365,39 +366,6 @@ class _Tag extends StatelessWidget {
         label.toUpperCase(),
         maxLines: 1,
         style: AppTypography.tiny(context).copyWith(color: cor, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-}
-
-/// Filtro de mês no mesmo desenho dos filtros da lista de visitantes:
-/// rótulo curto em caixa alta, fundo da marca quando ativo, contorno quando não.
-class _FiltroMes extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  const _FiltroMes({required this.label, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final cor = selected ? AppColors.onBrand : AppColors.textSecondary(context);
-    return Material(
-      color: selected ? AppColors.brand : Colors.transparent,
-      shape: RoundedRectangleBorder(
-        side: BorderSide(color: selected ? AppColors.brand : AppColors.borderStrong(context)),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          height: 34,
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Text(
-            label.toUpperCase(),
-            maxLines: 1,
-            style: AppTypography.label(context).copyWith(color: cor),
-          ),
-        ),
       ),
     );
   }
