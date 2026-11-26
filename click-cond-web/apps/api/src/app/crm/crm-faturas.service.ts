@@ -12,6 +12,16 @@ import { hojeBrasilia } from '../common/hora-brasilia.util';
 export const JANELA_FATURAS_CRM_DIAS = 5;
 
 /**
+ * Template salvo que ainda diz "vence em {{vencimento}}": na hora de montar a mensagem,
+ * fatura vencida vira "venceu em" e sem vencimento a frase some (o texto salvo não é alterado).
+ */
+export function corrigirVerboVencimento(template: string, situacao: 'vencida' | 'a_vencer' | 'sem_data'): string {
+  if (situacao === 'a_vencer') return template;
+  if (situacao === 'sem_data') return template.replace(/[ ]*vence[ ]+em[ ]+{{[ ]*vencimento[ ]*}}/gi, '');
+  return template.replace(/(^|[^a-z])vence([ ]+em[ ]+{{[ ]*vencimento[ ]*}})/gi, (m, pre, resto) => pre + 'venceu' + resto);
+}
+
+/**
  * Frase do vencimento para a cobrança por WhatsApp, com o verbo certo pela data
  * ("venceu em" para fatura atrasada) e vazia sem vencimento. Vem com espaço à
  * frente para encaixar depois do valor.
@@ -391,10 +401,14 @@ export class CrmFaturasService implements OnModuleInit {
     }
 
     const config = await this.getConfig();
-    const template = config['template_cobranca'] ??
+    const situacaoVenc: 'vencida' | 'a_vencer' | 'sem_data' = !fatura.vencimento
+      ? 'sem_data'
+      : new Date(fatura.vencimento).getTime() < hojeBrasilia().getTime() ? 'vencida' : 'a_vencer';
+    const templateBase = config['template_cobranca'] ??
       'Olá, *{{sindico}}*! A fatura da Click Prestare do condomínio *{{condominio}}* ' +
       '(ref. {{referencia}}) no valor de {{valor}}{{frase_vencimento}}. Qualquer dúvida estamos à disposição!';
 
+    const template = corrigirVerboVencimento(templateBase, situacaoVenc);
     const valorFmt = Number(fatura.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const dados: Record<string, string> = {
       sindico: cliente?.contatoPrincipal?.nome ?? 'Síndico(a)',

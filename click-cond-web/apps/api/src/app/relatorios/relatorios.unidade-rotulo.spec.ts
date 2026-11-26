@@ -38,9 +38,9 @@ describe('RelatoriosService.generate — rótulo da unidade', () => {
   it('visitantes: Excel e PDF separam apto e bloco', async () => {
     const { svc, excel, pdf } = build({ apto: '106', bloco: 'A' }, { apto: '1', bloco: null });
     await svc.generate(1, 'visitantes', 'xlsx');
-    expect((excel.mock.calls[0][0] as any)[0].Apartamento).toBe('Apto 106 · Bloco A');
+    expect((excel.mock.calls[0][0] as any)[0].Apartamento).toBe('Bloco A · Apto 106');
     await svc.generate(1, 'visitantes', 'pdf');
-    expect((pdf.mock.calls[0][0] as any).table.body[1][2]).toBe('Apto 106 · Bloco A');
+    expect((pdf.mock.calls[0][0] as any).table.body[1][2]).toBe('Bloco A · Apto 106');
   });
 
   it('visitantes sem apartamento mantém os textos atuais', async () => {
@@ -54,9 +54,9 @@ describe('RelatoriosService.generate — rótulo da unidade', () => {
   it('encomendas: Excel e PDF separam apto e bloco', async () => {
     const { svc, excel, pdf } = build(null, { apto: '106', bloco: 'A' });
     await svc.generate(1, 'encomendas', 'xlsx');
-    expect((excel.mock.calls[0][0] as any)[0].Destinatário).toBe('Apto 106 · Bloco A');
+    expect((excel.mock.calls[0][0] as any)[0].Destinatário).toBe('Bloco A · Apto 106');
     await svc.generate(1, 'encomendas', 'pdf');
-    expect((pdf.mock.calls[0][0] as any).table.body[1][1]).toBe('Apto 106 · Bloco A');
+    expect((pdf.mock.calls[0][0] as any).table.body[1][1]).toBe('Bloco A · Apto 106');
   });
 
   it('encomendas sem bloco: só "Apto 106"', async () => {

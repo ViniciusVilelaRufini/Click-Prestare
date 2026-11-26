@@ -5,14 +5,14 @@ import * as path from 'path';
 
 const params = {
   headerText: 'Relatório de Visitantes - Residencial Teste',
-  unidade: 'Apto 106 · Bloco A',
+  unidade: 'Bloco A · Apto 106',
   periodo: '01/11/2026 até 12/11/2026',
   metrics: [{ label: 'Total de Visitantes', value: '1' }],
   table: {
     widths: ['*', 'auto'],
     body: [
       ['Nome', 'Apto'].map((h) => ({ text: h, style: 'tableHeader' })),
-      ['Maria', 'Apto 106 · Bloco A'],
+      ['Maria', 'Bloco A · Apto 106'],
     ],
   },
 };

@@ -594,7 +594,7 @@ describeSql('RelatoriosService.getEventos() — paginação no banco', () => {
       expect(JSON.stringify(item)).not.toContain('rg.jpg');
     }
     const por = (id: string) => r.items.find((i: any) => i.id === id);
-    expect(por('visitante-ent-1')).toMatchObject({ tipo: 'Visitante', direcao: 'entrada', descricao: 'Maria entrou — Apto 101 · Bloco A' });
+    expect(por('visitante-ent-1')).toMatchObject({ tipo: 'Visitante', direcao: 'entrada', descricao: 'Maria entrou — Bloco A · Apto 101' });
     expect(por('visitante-sai-1')).toMatchObject({ direcao: 'saida', detalhes: { status: 'Saiu', fotoPessoa: 'rosto.jpg' } });
     expect(por('encomenda-2').detalhes.dataEntrada).toBeNull();
     expect(por('dispositivo-4')).toMatchObject({ direcao: 'offline', detalhes: { status: 'Offline' } });

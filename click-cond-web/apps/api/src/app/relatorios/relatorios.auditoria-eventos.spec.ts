@@ -112,16 +112,16 @@ describe('RelatoriosService — auditoria e eventos', () => {
   });
 
   describe('getEventos() — rótulo da unidade', () => {
-    it('visitante (entrada e saída): "Apto 106 · Bloco A", sem colar o bloco', async () => {
+    it('visitante (entrada e saída): "Bloco A · Apto 106", sem colar o bloco', async () => {
       process.env['PESSOAS_MIGRATION_ENABLED'] = 'false';
       const prisma = buildPrisma({ visitantes: { findMany: jest.fn(async () => [visitanteLegado]) } });
       const r: any = await comEspinha(prisma, [['visita_entrada', 30], ['visita_saida', 30]]).getEventos(1);
       const ent = r.items.find((i: any) => i.id === 'visitante-ent-30');
       const sai = r.items.find((i: any) => i.id === 'visitante-sai-30');
-      expect(ent.detalhes.blocoApto).toBe('Apto 106 · Bloco A');
-      expect(ent.descricao).toBe('Maria Legado entrou — Apto 106 · Bloco A');
-      expect(sai.detalhes.blocoApto).toBe('Apto 106 · Bloco A');
-      expect(sai.descricao).toBe('Maria Legado saiu — Apto 106 · Bloco A');
+      expect(ent.detalhes.blocoApto).toBe('Bloco A · Apto 106');
+      expect(ent.descricao).toBe('Maria Legado entrou — Bloco A · Apto 106');
+      expect(sai.detalhes.blocoApto).toBe('Bloco A · Apto 106');
+      expect(sai.descricao).toBe('Maria Legado saiu — Bloco A · Apto 106');
     });
 
     it('visitante sem bloco: só "Apto 106"', async () => {
@@ -136,7 +136,7 @@ describe('RelatoriosService — auditoria e eventos', () => {
       expect(ent.detalhes.blocoApto).toBe('Apto 106');
     });
 
-    it('encomenda: bloco cadastrado só como "A" vira "Apto 101 · Bloco A"', async () => {
+    it('encomenda: bloco cadastrado só como "A" vira "Bloco A · Apto 101"', async () => {
       const prisma = buildPrisma({
         encomendas: {
           findMany: jest.fn(async () => [
@@ -150,9 +150,9 @@ describe('RelatoriosService — auditoria e eventos', () => {
       });
       const r: any = await comEspinha(prisma, [['encomenda', 7]]).getEventos(1);
       const ev = r.items.find((i: any) => i.id === 'encomenda-7');
-      expect(ev.detalhes.blocoApto).toBe('Apto 101 · Bloco A');
-      expect(ev.detalhes.nome).toBe('Apto 101 · Bloco A');
-      expect(ev.descricao).toBe('Caixa — Apto 101 · Bloco A');
+      expect(ev.detalhes.blocoApto).toBe('Bloco A · Apto 101');
+      expect(ev.detalhes.nome).toBe('Bloco A · Apto 101');
+      expect(ev.descricao).toBe('Caixa — Bloco A · Apto 101');
     });
 
     it('acesso facial de morador, visitante e funcionário usa o mesmo rótulo', async () => {
@@ -178,9 +178,9 @@ describe('RelatoriosService — auditoria e eventos', () => {
       });
       const r: any = await comEspinha(prisma, [['facial', 1], ['facial', 2], ['facial', 3]]).getEventos(1);
       const por = (nome: string) => r.items.find((i: any) => i.detalhes?.nome === nome).detalhes.blocoApto;
-      expect(por('Mora')).toBe('Apto 106 · Bloco A');
-      expect(por('Visi')).toBe('Apto 202 · Bloco B');
-      expect(por('Func')).toBe('Apto 303 · Bloco C');
+      expect(por('Mora')).toBe('Bloco A · Apto 106');
+      expect(por('Visi')).toBe('Bloco B · Apto 202');
+      expect(por('Func')).toBe('Bloco C · Apto 303');
     });
   });
 

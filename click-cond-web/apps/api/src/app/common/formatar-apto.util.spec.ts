@@ -20,28 +20,28 @@ describe('formatarApto', () => {
   });
 
   it('should not double-prefix bloco that already starts with "Bloco" (case-insensitive)', () => {
-    expect(formatarApto('108', 'Bloco A')).toBe('Apto 108 · Bloco A');
-    expect(formatarApto('108', 'BLOCO A')).toBe('Apto 108 · BLOCO A');
-    expect(formatarApto('108', 'bloco A')).toBe('Apto 108 · bloco A');
+    expect(formatarApto('108', 'Bloco A')).toBe('Bloco A · Apto 108');
+    expect(formatarApto('108', 'BLOCO A')).toBe('BLOCO A · Apto 108');
+    expect(formatarApto('108', 'bloco A')).toBe('bloco A · Apto 108');
   });
 
   it('should prefix short bloco (single letter) with "Bloco " when apto is present', () => {
-    expect(formatarApto('108', 'A')).toBe('Apto 108 · Bloco A');
-    expect(formatarApto('108', 'B')).toBe('Apto 108 · Bloco B');
+    expect(formatarApto('108', 'A')).toBe('Bloco A · Apto 108');
+    expect(formatarApto('108', 'B')).toBe('Bloco B · Apto 108');
   });
 
   it('should prefix other bloco values that do not start with "Bloco"', () => {
-    expect(formatarApto('108', 'Fundos')).toBe('Apto 108 · Bloco Fundos');
-    expect(formatarApto('108', 'Frente')).toBe('Apto 108 · Bloco Frente');
+    expect(formatarApto('108', 'Fundos')).toBe('Bloco Fundos · Apto 108');
+    expect(formatarApto('108', 'Frente')).toBe('Bloco Frente · Apto 108');
   });
 
   it('should trim whitespace', () => {
-    expect(formatarApto('  108  ', '  Bloco A  ')).toBe('Apto 108 · Bloco A');
-    expect(formatarApto('  108  ', '  A  ')).toBe('Apto 108 · Bloco A');
+    expect(formatarApto('  108  ', '  Bloco A  ')).toBe('Bloco A · Apto 108');
+    expect(formatarApto('  108  ', '  A  ')).toBe('Bloco A · Apto 108');
   });
 
   it('should use word-boundary check: "Bloco" matches, "Blocos" does not', () => {
-    expect(formatarApto('108', 'Blocos')).toBe('Apto 108 · Bloco Blocos');
-    expect(formatarApto('108', 'Bloco')).toBe('Apto 108 · Bloco');
+    expect(formatarApto('108', 'Blocos')).toBe('Bloco Blocos · Apto 108');
+    expect(formatarApto('108', 'Bloco')).toBe('Bloco · Apto 108');
   });
 });

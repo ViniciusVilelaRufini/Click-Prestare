@@ -1259,9 +1259,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             .sort((a, b) => b.getTime() - a.getTime())[0];
 
           const apto = principal?.apartamento;
-          const aptoStr = apto
-            ? `${apto.apto ?? ''}${apto.bloco ? '/' + apto.bloco : ''}`.replace(/^\/|\/$/g, '')
-            : null;
+          const aptoStr = apto ? rotuloAptoBloco(apto.apto, apto.bloco) || null : null;
 
           const diasSemanaPessoa =
             arr.map((r) => r.dias_semana).find((d) => d && String(d).trim()) ?? null;
@@ -1620,9 +1618,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       // Apartamento atual (do registro principal — ainda usado pelo backend
       // pra registrar entrada/saída; a UI esconde isso)
       const apto = principal.apartamento;
-      const aptoStr = apto
-        ? `${apto.apto ?? ''}${apto.bloco ? '/' + apto.bloco : ''}`.replace(/^\/|\/$/g, '')
-        : null;
+      const aptoStr = apto ? rotuloAptoBloco(apto.apto, apto.bloco) || null : null;
 
       // dias_semana/categorias: valor do registro mais recente que tiver
       // (cada visita é uma linha; o cadastro mais novo é o que vale).

@@ -385,7 +385,7 @@ describe('Guarita — rotas do console de dispositivos e cópias', () => {
       rotulo: 'ANA',
       placa: 'ABC1D23',
       id_apto: 1,
-      apartamento: 'Apto 101 · Bloco A',
+      apartamento: 'Bloco A · Apto 101',
       id_veiculo: 70,
       veiculo_placa: 'ABC1D23',
       id_morador: 50,
