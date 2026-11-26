@@ -128,7 +128,7 @@ describe('FinanceiroService — notifyInadimplente', () => {
     // A "mais antiga" é a de janeiro/2020, embora o banco a tenha devolvido por último.
     const args = (mail.sendBillingReminder as jest.Mock).mock.calls[0] as any[];
     expect(args[3]).toBe(new Date(Date.UTC(2020, 0, 10)).toLocaleDateString('pt-BR'));
-    expect((notifications.sendPushNotification as jest.Mock).mock.calls[0][2]).toContain('2 fatura(s)');
+    expect((notifications.sendPushNotification as jest.Mock).mock.calls[0][2]).toContain('2 faturas pendentes');
   });
 
   it('RECUSA quando o apartamento só tem fatura em aberto ainda no prazo', async () => {

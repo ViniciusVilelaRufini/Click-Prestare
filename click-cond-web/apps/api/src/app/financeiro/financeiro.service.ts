@@ -39,7 +39,8 @@ import { FechamentoService } from './fechamento.service';
 import { SuperlogicaService } from '../superlogica/superlogica.service';
 import { csvCelula } from '../common/csv.util';
 
-import { rotuloBloco } from '../common/rotulo-bloco.util';
+import { rotuloBloco, textoUnidade } from '../common/rotulo-bloco.util';
+import { saudacao } from '../common/saudacao.util';
 import {
   ehDespesaNoLivroCaixa,
   ehTaxaCondominialDeApto,
@@ -1680,15 +1681,16 @@ export class FinanceiroService implements OnModuleInit {
       // 1. Enviar Push Notification
       if (morador.fcm_token) {
         try {
-          await this.notifications.sendPushNotification(
+          const idPush = await this.notifications.sendPushNotification(
             morador.fcm_token,
             'Lembrete de Inadimplência',
-            `Constatamos ${pendingFaturas.length} fatura(s) pendente(s) para o Apto ${apto} ${rotuloBloco(bloco)}, totalizando ${totalFormatted}. Regularize pelo App.`,
+            `Constatamos ${pendingFaturas.length === 1 ? '1 fatura pendente' : `${pendingFaturas.length} faturas pendentes`} para o ${textoUnidade(apto, bloco)}, totalizando ${totalFormatted}. Regularize pelo App.`,
             // Condomínio no push: com o app fechado, o toque abre o financeiro
             // sem condomínio aberto e a API respondia 403.
             { type: 'financeiro', id_condominio: String(idCondominio) },
           );
-          sentPushCount++;
+          // O envio que não saiu (Firebase desligado, token morto) devolve null: não conta como enviado.
+          if (idPush) sentPushCount++;
         } catch (err) {
           this.logger.error(`Erro ao enviar push notification para ${morador.name}: ${err}`);
         }
@@ -3601,7 +3603,7 @@ export class FinanceiroService implements OnModuleInit {
       });
 
       const valorFmt = Number(criado.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-      const textMessage = `Olá! A taxa condominial de seu apartamento (Apto ${apto.apto} Bloco ${apto.bloco}) referente a ${refStr} no valor de ${valorFmt} foi emitida e vence em ${dataVencimento.toLocaleDateString('pt-BR')}.`;
+      const textMessage = `Olá! A taxa condominial de seu apartamento (${textoUnidade(apto.apto, apto.bloco)}) referente a ${refStr} no valor de ${valorFmt} foi emitida e vence em ${dataVencimento.toLocaleDateString('pt-BR')}.`;
 
       for (const morador of moradores) {
         // 1. Push
@@ -3721,16 +3723,16 @@ export class FinanceiroService implements OnModuleInit {
 
         const valorFmt = Number(fat.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         const textMessage = avisoTipo === 'aviso_1'
-          ? `Lembrete de Cobrança: Identificamos que a fatura "${fat.nome}" no valor de ${valorFmt} venceu em ${venc.toLocaleDateString('pt-BR')} (atraso de ${diffDays} dia).`
+          ? `Lembrete de Cobrança: Identificamos que a fatura "${fat.nome}" no valor de ${valorFmt} venceu em ${venc.toLocaleDateString('pt-BR')} (atraso de ${diffDays} ${diffDays === 1 ? 'dia' : 'dias'}).`
           : avisoTipo === 'aviso_2'
-          ? `Aviso de Atraso: A fatura "${fat.nome}" (${valorFmt}) está vencida há ${diffDays} dias. Por favor, regularize o quanto antes.`
-          : `Notificação Importante: A fatura "${fat.nome}" (${valorFmt}) está vencida há ${diffDays} dias no sistema. Evite suspensão de serviços ou protesto.`;
+          ? `Aviso de Atraso: A fatura "${fat.nome}" (${valorFmt}) está vencida há ${diffDays} ${diffDays === 1 ? 'dia' : 'dias'}. Por favor, regularize o quanto antes.`
+          : `Notificação Importante: A fatura "${fat.nome}" (${valorFmt}) está vencida há ${diffDays} ${diffDays === 1 ? 'dia' : 'dias'} no sistema. Evite suspensão de serviços ou protesto.`;
 
         for (const morador of moradores) {
           const cleanPhone = morador.phone?.replace(/\D/g, '');
           if (cleanPhone && cleanPhone.length >= 10) {
             try {
-              let whatsMsg = `Olá, ${morador.name}!\n\n${textMessage}`;
+              let whatsMsg = `${saudacao(morador.name)}\n\n${textMessage}`;
               if (fat.pix_copia_cola) {
                 whatsMsg += `\n\nPara facilitar, efetue o pagamento copiando o código Pix abaixo:\n\n${fat.pix_copia_cola}`;
               }

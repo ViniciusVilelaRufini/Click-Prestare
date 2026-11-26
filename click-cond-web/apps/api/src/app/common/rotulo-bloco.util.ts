@@ -39,3 +39,9 @@ export function normalizarApto(apto: string | null | undefined): string {
 export function chaveUnidade(bloco: string | null | undefined, apto: string | null | undefined): string {
   return `${normalizarBloco(bloco)}|${normalizarApto(apto)}`;
 }
+
+/** "Apto 12 Bloco A" para textos exibidos; sem bloco só "Apto 12" (nunca "Bloco null"). */
+export function textoUnidade(apto: string | null | undefined, bloco: string | null | undefined): string {
+  const r = rotuloBloco(bloco);
+  return `Apto ${(apto ?? '').trim()}${r ? ` ${r}` : ''}`;
+}
