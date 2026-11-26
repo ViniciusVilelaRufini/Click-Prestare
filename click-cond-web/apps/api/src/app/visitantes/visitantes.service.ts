@@ -2695,16 +2695,19 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       for (const m of moradores) {
         if (idCriador != null && m.id === idCriador) continue;
         if (tipoAviso === 'chegada') {
+          // Cadastrar no console não é chegar: o porteiro pode liberar quem
+          // ainda vem. O aviso diz o que aconteceu (liberado pela portaria);
+          // a chegada de fato é avisada pela entrada (facial, PIN, check-in).
           if (m.fcm_token) {
             await this.notifications.sendPushNotification(
               m.fcm_token,
-              a.prestador ? 'Prestador de Serviço' : 'Chegada de Visitante',
-              `${a.nome} acabou de chegar para o seu apartamento.`,
+              a.prestador ? 'Prestador liberado' : 'Visitante liberado',
+              `${a.nome} foi liberado pela portaria para o seu apartamento.`,
               dados,
             );
           }
           if (m.phone) {
-            const waMessage = `Olá, ${m.name}! O ${tipo} "${a.nome}" acabou de chegar/foi liberado para o seu apartamento.`;
+            const waMessage = `Olá, ${m.name}! O ${tipo} "${a.nome}" foi liberado pela portaria para o seu apartamento.`;
             await this.notifications.sendWhatsApp(m.phone, waMessage);
           }
         } else if (m.fcm_token) {

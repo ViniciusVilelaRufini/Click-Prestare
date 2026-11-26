@@ -151,13 +151,13 @@ describe.each([
     expect(notifications.sendWhatsApp).not.toHaveBeenCalled();
   });
 
-  it('portaria cadastra quem está no portão agora: "acabou de chegar" por push e WhatsApp para a unidade', async () => {
+  it('portaria cadastra com início agora: "liberado pela portaria" por push e WhatsApp (nunca afirma que chegou)', async () => {
     const { svc, notifications } = montar(flag);
     await svc.create(dto(AGORA_LOCAL) as any, porteiroConsole);
     expect(destinos(notifications)).toEqual(['tok-ana', 'tok-bia']);
     expect(corpos(notifications)).toEqual([
-      'Pedreiro João acabou de chegar para o seu apartamento.',
-      'Pedreiro João acabou de chegar para o seu apartamento.',
+      'Pedreiro João foi liberado pela portaria para o seu apartamento.',
+      'Pedreiro João foi liberado pela portaria para o seu apartamento.',
     ]);
     expect(notifications.sendWhatsApp).toHaveBeenCalledTimes(2);
   });
@@ -220,11 +220,11 @@ describe('novaVisitaParaPessoa (Pessoas/Visitas) — aviso aos moradores', () =>
     expect(notifications.sendWhatsApp).not.toHaveBeenCalled();
   });
 
-  it('portaria libera de novo quem está no portão: "acabou de chegar" com WhatsApp', async () => {
+  it('portaria libera de novo com início agora: "liberado pela portaria" com WhatsApp', async () => {
     const { svc, notifications } = comPessoa('true');
     await svc.novaVisitaParaPessoa(2000300, { id_apartamento: 106, data_hora_inicio: AGORA_LOCAL }, porteiroConsole);
     expect(destinos(notifications)).toEqual(['tok-ana', 'tok-bia']);
-    expect(corpos(notifications)[0]).toBe('Pedreiro João acabou de chegar para o seu apartamento.');
+    expect(corpos(notifications)[0]).toBe('Pedreiro João foi liberado pela portaria para o seu apartamento.');
     expect(notifications.sendWhatsApp).toHaveBeenCalledTimes(2);
   });
 });
