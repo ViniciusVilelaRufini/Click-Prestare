@@ -246,10 +246,14 @@ export class RegrasAcessoService {
       throw new ForbiddenException(`Regra #${id} não pertence a este condomínio`);
     }
 
-    assertParHorario(
-      dto.hora_inicio !== undefined ? dto.hora_inicio : regraExistente.hora_inicio,
-      dto.hora_fim !== undefined ? dto.hora_fim : regraExistente.hora_fim,
-    );
+    // O par só é conferido quando o pedido mexe no horário: regra antiga com só início
+    // ou só fim ainda pode ser pausada/renomeada sem tocar nele.
+    if (dto.hora_inicio !== undefined || dto.hora_fim !== undefined) {
+      assertParHorario(
+        dto.hora_inicio !== undefined ? dto.hora_inicio : regraExistente.hora_inicio,
+        dto.hora_fim !== undefined ? dto.hora_fim : regraExistente.hora_fim,
+      );
+    }
     await this.assertDispositivosDoCondominio(dto.dispositivosIds, regraExistente.id_condominio);
     // Se novos dispositivosIds foram passados, removemos os antigos e inserimos os novos
     if (dto.dispositivosIds !== undefined) {
