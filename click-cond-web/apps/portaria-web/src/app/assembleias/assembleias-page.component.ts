@@ -330,14 +330,14 @@ export class AssembleiasPageComponent implements OnInit {
   async salvarAssembleia() {
     if (this.salvandoAssembleia()) return;
     const n = this.novaAssembleia;
-    if (!n.titulo?.trim() || !n.data || !n.hora?.trim() || !n.local?.trim()) {
-      this.erroAssembleia.set('Informe título, data, horário e local: a convocação sai exatamente com o que estiver aqui.');
+    if (!n.titulo?.trim() || !n.data || !n.hora?.trim() || (!n.local?.trim() && !n.link?.trim())) {
+      this.erroAssembleia.set('Informe título, data, horário e o local (ou o link da videoconferência): a convocação sai exatamente com o que estiver aqui.');
       return;
     }
     this.salvandoAssembleia.set(true); // segura o duplo clique enquanto a confirmacao esta aberta
     const ok = await this.confirm.ask({
       title: 'Convocar assembleia',
-      message: `Isto avisa todos os moradores agora: ${n.data} às ${n.hora}, em ${n.local}.`,
+      message: `Isto avisa todos os moradores agora: ${n.data} às ${n.hora}, ${n.local?.trim() ? `em ${n.local}` : `por videoconferência (${n.link})`}.`,
       confirmLabel: 'Convocar',
     });
     if (!ok) {

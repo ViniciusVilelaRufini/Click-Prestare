@@ -60,6 +60,17 @@ describe('AreasSociaisPageComponent — grade de horários do espaço', () => {
     expect(enviado.horarios).toEqual(NOMES.map((nome) => ({ nome, horarios: [{ horarioDe: '08:00', horarioAte: '22:00' }] })));
   });
 
+  it('I6: espaço sem reserva (agendar desligado) salva sem grade de horários', () => {
+    const { tela, api } = build();
+    tela.abrirModalArea();
+    tela.novaArea.nome = 'Academia';
+    tela.novaArea.agendar = false;
+    expect(tela.exigeGradeParaSalvar()).toBe(false);
+    tela.salvarArea();
+    expect(api.insertArea).toHaveBeenCalledTimes(1);
+    expect((api.insertArea.mock.calls[0] as any[])[0]).toMatchObject({ agendar: 0 });
+  });
+
   it('edição: carrega a grade do espaço, adiciona e remove bloco e manda a grade nova', () => {
     const { tela, api } = build();
     tela.abrirModalEditarArea(AREA);

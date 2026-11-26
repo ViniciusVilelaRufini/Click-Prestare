@@ -334,6 +334,14 @@ export class AreasSociaisPageComponent implements OnInit {
     return this.grade.some((d) => d.horarios.length > 0);
   }
 
+  /**
+   * Espaço novo só exige horários quando há reserva (agendar): área de livre
+   * acesso salva sem grade, sem inventar horários que ninguém escolheu.
+   */
+  exigeGradeParaSalvar(): boolean {
+    return !this.areaEditando() && !!this.novaArea.agendar && !this.gradeTemHorario();
+  }
+
   /** Grade vinda da API em 7 dias, cópia (editar não mexe no objeto da lista). */
   private gradeDe(horarios: unknown): DiaGrade[] {
     const dias = Array.isArray(horarios) ? horarios : [];
@@ -502,7 +510,7 @@ export class AreasSociaisPageComponent implements OnInit {
 
   salvarArea() {
     if (this.salvando() || !this.gradeValida()) return;
-    if (!this.areaEditando() && !this.gradeTemHorario()) return;
+    if (this.exigeGradeParaSalvar()) return;
     this.salvando.set(true);
 
     const payload = {

@@ -163,6 +163,18 @@ describe('AssembleiasPageComponent — erros, papel e ATA', () => {
     expect(el.querySelector('.ps-drawer')?.textContent).toContain('Data inválida.');
   });
 
+  it('I5: assembleia só online (link, sem local) pode ser convocada; sem local e sem link, não', async () => {
+    const { comp, api } = render(SINDICO);
+    comp.abrirModalAssembleia();
+    comp.novaAssembleia = { ...comp.novaAssembleia, titulo: 'AGO', data: '2026-11-20', hora: '19:30', local: '', link: '' };
+    await comp.salvarAssembleia();
+    expect(comp.erroAssembleia()).toContain('link');
+    expect(api.insertAssembleia).not.toHaveBeenCalled();
+    comp.novaAssembleia.link = 'https://meet.google.com/abc';
+    await comp.salvarAssembleia();
+    expect(api.insertAssembleia).toHaveBeenCalledTimes(1);
+  });
+
   describe('Finalizar e Gerar ATA', () => {
     it('não finaliza sem o PDF: abre o drawer pedindo o arquivo', () => {
       const { fixture, el, comp, api } = render(SINDICO);
