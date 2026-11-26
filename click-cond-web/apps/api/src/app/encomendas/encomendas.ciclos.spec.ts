@@ -41,9 +41,9 @@ describe('Encomendas — ciclos do porteiro', () => {
       apartamentos: {
         findFirst: jest.fn(async ({ where }: any) => {
           const existentes = [
-            { id_condominio: 1, bloco: 'A', apto: '101' },
-            { id_condominio: 1, bloco: 'B', apto: '202' },
-            { id_condominio: 1, bloco: null, apto: '7' },
+            { id: 1, id_condominio: 1, bloco: 'A', apto: '101' },
+            { id: 2, id_condominio: 1, bloco: 'B', apto: '202' },
+            { id: 3, id_condominio: 1, bloco: null, apto: '7' },
           ];
           return existentes.find((a) =>
             a.id_condominio === where.id_condominio && a.apto === where.apto &&
@@ -164,6 +164,22 @@ describe('Encomendas — ciclos do porteiro', () => {
       expect(notifications.sendPushNotification.mock.calls[1][2]).toContain('Desconsidere');
       expect(prisma.users.findMany.mock.calls[1][0].where.OR[0].moradores.some).toMatchObject({ apartamento: '101', bloco: 'A' });
       expect(r.avisados).toBe(1);
+    });
+
+    it('I3: quem também é da unidade nova não recebe "desconsidere", e o antigo sem bloco é achado pelo apartamento', async () => {
+      const caio = { id: 11, fcm_token: 't2', name: 'Caio', phone: null };
+      const { svc, registros, notifications, prisma } = build({ push: 'ok' });
+      // O mock devolve os moradores segundo o filtro recebido (notIn).
+      prisma.users.findMany.mockImplementation(async ({ where }: any) =>
+        [caio, { id: 12, fcm_token: 't3', name: 'Dora', phone: null }].filter((u) => !where.id?.notIn?.includes(u.id)));
+      registros.push({ id: 5, ...dto, destinatario_apto: '7', destinatario_bloco: null, status: 'Aguardando', notificado: 1 });
+      await svc.corrigirUnidade(1, 5, { destinatario_apto: '101', destinatario_bloco: 'A' }, porteiro);
+      const corrigida = notifications.sendPushNotification.mock.calls.filter((c: any[]) => c[1] === 'Encomenda corrigida');
+      // Caio e Dora são da unidade nova (a consulta devolve ambos): nenhum recebe o "desconsidere".
+      expect(corrigida).toHaveLength(0);
+      const consultaAntiga = prisma.users.findMany.mock.calls[1][0].where;
+      expect([...consultaAntiga.id.notIn].sort()).toEqual([11, 12]);
+      expect(consultaAntiga.OR[1].apartamentosUsers.some).toEqual({ id_apto: 3 });
     });
 
     it('encomenda que nunca chegou a ser avisada não gera correção para a unidade antiga', async () => {

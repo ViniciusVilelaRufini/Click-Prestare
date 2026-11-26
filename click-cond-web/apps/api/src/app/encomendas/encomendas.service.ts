@@ -481,18 +481,28 @@ export class EncomendasService implements OnModuleInit {
     corpo: string,
     whatsapp: (nome: string) => string,
     contexto: string,
+    opcoes: {
+      /** Quem não deve receber este aviso (ids de Users). */
+      excluirIds?: readonly number[];
+      /** Recebe os ids de quem foi consultado como destinatário. */
+      idsDestinatarios?: Set<number>;
+      /** Substitui o critério padrão de "quem mora na unidade". */
+      onde?: any[];
+    } = {},
   ): Promise<number> {
     let avisados = 0;
     try {
       const moradores = await this.prisma.users.findMany({
         where: {
-          OR: whereDaUnidade(e),
+          OR: opcoes.onde ?? whereDaUnidade(e),
           notif_encomendas: 1,
+          ...(opcoes.excluirIds?.length ? { id: { notIn: [...opcoes.excluirIds] } } : {}),
         },
-        select: { fcm_token: true, name: true, phone: true },
+        select: { id: true, fcm_token: true, name: true, phone: true },
       });
 
       for (const morador of moradores) {
+        if (typeof (morador as any).id === 'number') opcoes.idsDestinatarios?.add((morador as any).id);
         let alcancou = false;
         if (morador.fcm_token) {
           const r = await this.notifications.sendPushNotification(
@@ -913,23 +923,47 @@ export class EncomendasService implements OnModuleInit {
     corrigida: T,
     operador?: JwtPayload,
   ) {
+    const destinatariosNovos = new Set<number>();
     const avisados = await this.avisarUnidade(
       corrigida,
       'Nova Encomenda!',
       `Uma encomenda (${corrigida.descricao}) chegou para o seu apartamento.`,
       (nome) => `${saudacao(nome)} Uma nova encomenda (${corrigida.descricao}) chegou na portaria para o seu apartamento. Retire quando puder!`,
       'notificar moradores (correção de unidade)',
+      { idsDestinatarios: destinatariosNovos },
     );
     const encomenda = await this.marcarNotificada(corrigida, avisados);
 
     // A unidade errada só tem o que desfazer se o aviso anterior chegou a sair.
     if (atual.notificado === 1) {
+      // Registro antigo sem bloco casaria o número em todos os blocos (inclusive o novo):
+      // quando o apartamento é identificável, o antigo é o dele (por id e pelo bloco achado).
+      let ondeAntigo: any[] | undefined;
+      if (!atual.destinatario_bloco) {
+        const antigo = await this.resolverUnidade(atual.id_condominio, atual.destinatario_apto, '').catch(() => null);
+        if (antigo) {
+          ondeAntigo = [
+            {
+              moradores: {
+                some: {
+                  id_condominio: atual.id_condominio,
+                  apartamento: atual.destinatario_apto,
+                  ...(antigo.bloco ? { bloco: antigo.bloco } : { OR: [{ bloco: null }, { bloco: '' }] }),
+                },
+              },
+            },
+            { apartamentosUsers: { some: { id_apto: antigo.id } } },
+          ];
+        }
+      }
       await this.avisarUnidade(
         atual,
         'Encomenda corrigida',
         `A encomenda (${atual.descricao}) avisada antes não era do seu apartamento. Desconsidere o aviso.`,
         (nome) => `${saudacao(nome)} A encomenda (${atual.descricao}) avisada antes não era do seu apartamento. Desconsidere o aviso.`,
         'avisar a unidade anterior (correção de unidade)',
+        // Quem também é da unidade nova não recebe "desconsidere" da encomenda que é dele.
+        { excluirIds: [...destinatariosNovos], onde: ondeAntigo },
       );
     }
 
