@@ -60,10 +60,11 @@ describe('delivery — atendimento da portaria parado há 24 h', () => {
     ]);
   });
 
-  it('AUTORIZADA sem pedido, parado 25 h → CANCELADA (nunca concluída)', async () => {
+  it('AUTORIZADA sem pedido (entregador subiu), parado 25 h → CONCLUIDA como antes, sem "sem retirada"', async () => {
     const k = montarPortao({ atendimentos: [atendimento(1, 'AUTORIZADA', 25 * H)] });
     await k.delivery.encerrarParadosDaPortaria();
-    expect(status(k)).toEqual([[1, 'CANCELADA', 'Encerrada sem retirada']]);
+    expect(status(k)).toEqual([[1, 'CONCLUIDA', null]]);
+    expect(k.tabela('deliveryEventos')[0]).toMatchObject({ status_novo: 'CONCLUIDA', mensagem: 'Encerrado automaticamente' });
   });
 
   // O aviso da rotina vai em segundo plano (semEsperarAviso): deixa assentar.
@@ -83,7 +84,7 @@ describe('delivery — atendimento da portaria parado há 24 h', () => {
     expect(n).toBe(2);
     expect(k.notifications.sendPushNotification).not.toHaveBeenCalled();
     expect(k.card.atualizarDelivery).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 1, status: 'CANCELADA' }),
+      expect.objectContaining({ id: 1, status: 'CONCLUIDA' }),
       7,
       { voceRespondeu: false },
     );
@@ -107,7 +108,9 @@ describe('delivery — atendimento da portaria parado há 24 h', () => {
 
   it('encerrada sem retirada (rotina do portão, 2 h) avisa o morador sem dizer "concluída" nem "cancelada pela portaria"', async () => {
     const k = montarPortao({ atendimentos: [atendimento(1, 'AUTORIZADA', 3 * H)] });
-    expect(await k.delivery.transicionarPeloSistema(1, 'CANCELADA', 'Encerrada sem retirada')).toBe(true);
+    expect(
+      await k.delivery.transicionarPeloSistema(1, 'CANCELADA', 'Encerrada sem retirada', { encerrarSemRetirada: true }),
+    ).toBe(true);
     expect(k.notifications.sendPushNotification).toHaveBeenCalledWith(
       'fcm-7',
       'Delivery',
@@ -207,7 +210,29 @@ describe('delivery — atendimento da portaria parado há 24 h', () => {
     await k.svc.tick();
     expect(status(k)).toEqual([
       [1, 'CANCELADA', 'Sem resposta'],
-      [2, 'CANCELADA', 'Encerrada sem retirada'],
+      [2, 'CONCLUIDA', null],
     ]);
+  });
+
+  it('I1: sem a opção encerrarSemRetirada, AUTORIZADA/RETIRADA não vira CANCELADA pelo sistema', async () => {
+    const k = montarPortao({
+      atendimentos: [atendimento(1, 'AUTORIZADA', 3 * H), atendimento(2, 'RETIRADA_NA_PORTARIA', 3 * H, { id_apartamento: 102 })],
+    });
+    expect(await k.delivery.transicionarPeloSistema(1, 'CANCELADA', 'Sem resposta')).toBe(false);
+    expect(await k.delivery.transicionarPeloSistema(2, 'CANCELADA', 'Sem resposta')).toBe(false);
+    expect(status(k).map(([, s]) => s)).toEqual(['AUTORIZADA', 'RETIRADA_NA_PORTARIA']);
+  });
+
+  it('I1: corrida — morador autoriza entre a consulta e a transição: o "sem resposta" não cancela', async () => {
+    const k = montarPortao({ atendimentos: [atendimento(1, 'AGUARDANDO_AUTORIZACAO', 3 * H)] });
+    const db = (k.delivery as any).prisma.deliveryAtendimentos;
+    const find = db.findUnique.bind(db);
+    // A leitura da transição já enxerga a autorização do morador.
+    jest.spyOn(db, 'findUnique').mockImplementationOnce(async (a: any) => ({ ...(await find(a)), status: 'AUTORIZADA' }));
+    const ok = await k.delivery.transicionarPeloSistema(1, 'CANCELADA', 'Sem resposta', {
+      somenteDe: ['CHEGOU', 'AGUARDANDO_AUTORIZACAO'],
+    });
+    expect(ok).toBe(false);
+    expect(k.tabela('deliveryEventos')).toEqual([]);
   });
 });

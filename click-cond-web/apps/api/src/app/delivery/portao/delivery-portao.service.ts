@@ -256,7 +256,7 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
         select: { id: true },
         take: LOTE_ROTINA,
       });
-      await this.transicionarCada(lista, 'CANCELADA', MOTIVO_SEM_RESPOSTA);
+      await this.transicionarCada(lista, 'CANCELADA', MOTIVO_SEM_RESPOSTA, { somenteDe: ['CHEGOU', 'AGUARDANDO_AUTORIZACAO'] });
     });
 
     await this.etapa('concluir após a entrada', async () => {
@@ -283,7 +283,10 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
       });
       // Autorizado com o portão aberto é da etapa anterior (30 min).
       const semAbertura = (lista as any[]).filter((a) => a.status !== 'AUTORIZADA' || !a.pedidosPortao?.length);
-      await this.transicionarCada(semAbertura, 'CANCELADA', MOTIVO_ENCERRADA_SEM_RETIRADA);
+      await this.transicionarCada(semAbertura, 'CANCELADA', MOTIVO_ENCERRADA_SEM_RETIRADA, {
+        somenteDe: ['AUTORIZADA', 'RETIRADA_NA_PORTARIA'],
+        encerrarSemRetirada: true,
+      });
     });
 
     await this.etapa('cancelar aviso sem chegada', () => this.delivery.cancelarAvisosSemChegada());
@@ -351,10 +354,15 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     }
   }
 
-  private async transicionarCada(lista: { id: number }[], status: DeliveryStatus, mensagem: string) {
+  private async transicionarCada(
+    lista: { id: number }[],
+    status: DeliveryStatus,
+    mensagem: string,
+    opcoes: { somenteDe?: DeliveryStatus | readonly DeliveryStatus[]; encerrarSemRetirada?: boolean } = {},
+  ) {
     for (const a of lista) {
       try {
-        await this.delivery.transicionarPeloSistema(a.id, status, mensagem);
+        await this.delivery.transicionarPeloSistema(a.id, status, mensagem, opcoes);
       } catch (e: any) {
         this.logger.warn(`Rotina do portão: delivery ${a.id} → ${status}: ${e?.message ?? e}`);
       }
@@ -473,7 +481,7 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     }
     for (const id of semResposta) {
       await this.delivery
-        .transicionarPeloSistema(id, 'CANCELADA', MOTIVO_SEM_RESPOSTA)
+        .transicionarPeloSistema(id, 'CANCELADA', MOTIVO_SEM_RESPOSTA, { somenteDe: ['CHEGOU', 'AGUARDANDO_AUTORIZACAO'] })
         .catch((e: any) => this.logger.warn(`Cancelamento do delivery ${id} sem resposta: ${e?.message ?? e}`));
     }
     // Já ligado dentro do lock; aqui só abre o card (fora do lock: o APNs não segura a unidade).

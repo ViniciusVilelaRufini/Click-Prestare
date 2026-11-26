@@ -168,9 +168,9 @@ describe('DeliveryPortaoService — rotina', () => {
       ],
     });
     const original = k.delivery.transicionarPeloSistema.bind(k.delivery);
-    jest.spyOn(k.delivery, 'transicionarPeloSistema').mockImplementation(async (id, s, m) => {
+    jest.spyOn(k.delivery, 'transicionarPeloSistema').mockImplementation(async (id, s, m, o) => {
       if (id === 1) throw new Error('banco piscou');
-      return original(id, s, m);
+      return original(id, s, m, o);
     });
     await expect(k.svc.tick()).resolves.toBeUndefined();
     expect(k.tabela('deliveryAtendimentos').map((a) => a.status)).toEqual(['AGUARDANDO_AUTORIZACAO', 'CANCELADA', 'CANCELADA']);

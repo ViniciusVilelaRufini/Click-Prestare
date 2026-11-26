@@ -69,7 +69,14 @@ const MSG_PORTARIA_ATENDENDO = 'A portaria já está atendendo uma entrega para 
 const TRANSICOES_DO_SISTEMA: Partial<Record<DeliveryStatus, readonly DeliveryStatus[]>> = {
   CHEGOU: ['CANCELADA'],
   AGUARDANDO_AUTORIZACAO: ['CANCELADA'],
-  // Encerramento por tempo sem retirada: "encerrada sem retirada", nunca "concluída".
+};
+/**
+ * Só com `encerrarSemRetirada`: a rotina "encerrar sem porteiro" (e a dos
+ * parados na portaria) leva AUTORIZADA/RETIRADA_NA_PORTARIA a CANCELADA
+ * ("Encerrada sem retirada"). Nunca vale para as rotinas de "sem resposta":
+ * lá a autorização do morador numa corrida não pode virar cancelamento.
+ */
+const TRANSICOES_SEM_RETIRADA: Partial<Record<DeliveryStatus, readonly DeliveryStatus[]>> = {
   AUTORIZADA: ['CANCELADA'],
   RETIRADA_NA_PORTARIA: ['CANCELADA'],
 };
@@ -84,7 +91,7 @@ export const MOTIVO_SEM_CHEGADA = 'Sem chegada';
 export const LOTE_SEM_CHEGADA = 50;
 /**
  * Atendimento da portaria (sem pedido de portão) parado este tempo é
- * encerrado pela rotina: AUTORIZADA/RETIRADA_NA_PORTARIA → CANCELADA ("Encerrada sem retirada");
+ * encerrado pela rotina: RETIRADA_NA_PORTARIA → CANCELADA ("Encerrada sem retirada"), AUTORIZADA → CONCLUIDA;
  * CHEGOU/AGUARDANDO_AUTORIZACAO → CANCELADA com motivo "Sem resposta".
  */
 export const PARADO_PORTARIA_MS = 24 * 3_600_000;
@@ -94,7 +101,8 @@ export const MSG_ENCERRADO_AUTOMATICAMENTE = 'Encerrado automaticamente';
 const DESTINO_PARADO_PORTARIA: Partial<Record<DeliveryStatus, { status: DeliveryStatus; mensagem: string }>> = {
   CHEGOU: { status: 'CANCELADA', mensagem: MOTIVO_PARADO_SEM_RESPOSTA },
   AGUARDANDO_AUTORIZACAO: { status: 'CANCELADA', mensagem: MOTIVO_PARADO_SEM_RESPOSTA },
-  AUTORIZADA: { status: 'CANCELADA', mensagem: MOTIVO_ENCERRADA_SEM_RETIRADA },
+  // Entregador subiu e ninguém concluiu: o fato de "sem retirada" não existe, volta a CONCLUIDA.
+  AUTORIZADA: { status: 'CONCLUIDA', mensagem: MSG_ENCERRADO_AUTOMATICAMENTE },
   RETIRADA_NA_PORTARIA: { status: 'CANCELADA', mensagem: MOTIVO_ENCERRADA_SEM_RETIRADA },
 };
 const MSG_JA_TEM_PEDIDO = 'Este atendimento já tem um pedido de portão.';
@@ -712,7 +720,9 @@ export class DeliveryService {
     mensagem: string,
     opcoes: {
       /** Só transiciona a partir deste status (o atendimento pode ter mudado depois da consulta da rotina). */
-      somenteDe?: DeliveryStatus;
+      somenteDe?: DeliveryStatus | readonly DeliveryStatus[];
+      /** Habilita AUTORIZADA/RETIRADA_NA_PORTARIA → CANCELADA (só as rotinas de encerramento sem retirada). */
+      encerrarSemRetirada?: boolean;
       /** Não espera o card/aviso (nem o teto): a rotina em lote não fica presa no APNs/FCM. */
       semEsperarAviso?: boolean;
       /**
@@ -726,9 +736,11 @@ export class DeliveryService {
     const atendimento = await (this.prisma as any).deliveryAtendimentos.findUnique({ where: { id: Number(idAtendimento) } });
     if (!atendimento) return false;
     const statusAtual = atendimento.status as DeliveryStatus;
-    if (somenteDe && statusAtual !== somenteDe) return false;
+    if (somenteDe && !([] as DeliveryStatus[]).concat(somenteDe as any).includes(statusAtual)) return false;
     const permitida =
-      TRANSICOES[statusAtual]?.includes(statusNovo) || TRANSICOES_DO_SISTEMA[statusAtual]?.includes(statusNovo);
+      TRANSICOES[statusAtual]?.includes(statusNovo) ||
+      TRANSICOES_DO_SISTEMA[statusAtual]?.includes(statusNovo) ||
+      (opcoes.encerrarSemRetirada && TRANSICOES_SEM_RETIRADA[statusAtual]?.includes(statusNovo));
     if (!permitida) return false;
     const agora = new Date();
     const data: any = {
@@ -794,8 +806,8 @@ export class DeliveryService {
 
   /**
    * Atendimento da portaria (sem pedido de portão) parado há PARADO_PORTARIA_MS
-   * (pelo updated_at): AUTORIZADA/RETIRADA_NA_PORTARIA → CONCLUIDA
-   * ("Encerrado automaticamente"); CHEGOU/AGUARDANDO_AUTORIZACAO → CANCELADA
+   * (pelo updated_at): AUTORIZADA → CONCLUIDA ("Encerrado automaticamente");
+   * RETIRADA_NA_PORTARIA → CANCELADA ("Encerrada sem retirada"); CHEGOU/AGUARDANDO_AUTORIZACAO → CANCELADA
    * com motivo "Sem resposta". Com pedido de portão valem as regras de 2 h do
    * portão; AGENDADA é de cancelarAvisosSemChegada. Chamado pela rotina
    * periódica (DeliveryPortaoService.tick), em lote, sem esperar card/aviso.
@@ -820,6 +832,7 @@ export class DeliveryService {
       try {
         const ok = await this.transicionarPeloSistema(a.id, destino.status, destino.mensagem, {
           somenteDe: a.status,
+          encerrarSemRetirada: destino.status === 'CANCELADA',
           semEsperarAviso: true,
           semNotificacaoComum: true,
         });
