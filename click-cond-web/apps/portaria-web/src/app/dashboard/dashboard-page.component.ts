@@ -1,4 +1,5 @@
 import { MaskDocPipe } from '../shared/mask-doc.pipe';
+import { formatarSaoPauloLocal } from '../core/sao-paulo-time';
 import { UnidadeLabelPipe } from '../shared/unidade-label.pipe';
 import { Component, OnInit, OnDestroy, inject, signal, computed, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -69,9 +70,8 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   private localDateTime(horas = 0): string {
     // Hora do SERVIDOR: com o relógio do computador da portaria adiantado, a
     // janela começava no futuro e o PIN/rosto não abriam até o servidor alcançar.
-    const d = new Date(this.relogio.agora().getTime() + horas * 3600_000);
-    const p = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+    // Em horário de Brasília (a API lê o texto sem fuso como Brasília), não no fuso do navegador.
+    return formatarSaoPauloLocal(this.relogio.agora().getTime() + horas * 3600_000);
   }
   readonly liberandoVisitante = signal(false);
   readonly erroLiberar = signal<string | null>(null);

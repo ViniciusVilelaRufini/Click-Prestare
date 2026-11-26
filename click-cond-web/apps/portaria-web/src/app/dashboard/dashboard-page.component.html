@@ -1357,7 +1357,7 @@
                       <p class="text-sm font-semibold text-slate-800 dark:text-white truncate">{{ p.nome }}</p>
                       <p class="text-xs text-slate-500 dark:text-slate-400 truncate">
                         {{ p.is_prestador === 1 ? 'Prestador' : 'Visitante' }}
-                        @if (p.apartamentoAtual) { · Apto {{ p.apartamentoAtual }} }
+                        @if (p.apartamentoAtual) { · {{ p.apartamentoAtual }} }
                         @if (p.doc_identificacao) { · <span class="font-mono">{{ p.doc_identificacao | maskDoc }}</span> }
                       </p>
                     </div>

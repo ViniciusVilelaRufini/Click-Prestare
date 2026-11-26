@@ -3069,7 +3069,7 @@
                         <div class="min-w-0">
                           <div class="flex items-center gap-2 flex-wrap leading-tight">
                             <span class="font-bold text-slate-900 dark:text-white text-xs">
-                              Apto {{ a.blocoApto }}
+                              {{ a.blocoApto }}
                             </span>
                             @if (a.autorizadoPor) {
                               <span class="text-[11px] text-slate-500 dark:text-slate-400 truncate">
@@ -3154,7 +3154,7 @@
                       Unidade de Destino
                     </div>
                     <div class="text-sm font-bold text-slate-900 dark:text-white truncate">
-                      Apto {{ d.visitante.blocoAptoAtual || '—' }}
+                      {{ d.visitante.blocoAptoAtual || '—' }}
                     </div>
                   </div>
                 </div>
@@ -3445,7 +3445,7 @@
                           @if (h.blocoApto) {
                             <span
                               class="text-[10px] text-slate-500 dark:text-slate-300"
-                              >· Apto {{ h.blocoApto }}</span
+                              >· {{ h.blocoApto }}</span
                             >
                           }
                         </div>
