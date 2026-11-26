@@ -797,7 +797,7 @@ export class EncomendasService implements OnModuleInit {
     if (!this.prisma.isConnected) return { id, ...dto };
     const existing = await this.prisma.encomendas.findUnique({
       where: { id: Number(id) },
-      select: { id_condominio: true, foto_volume: true, destinatario_apto: true, destinatario_bloco: true, status: true },
+      select: { id: true, descricao: true, notificado: true, id_condominio: true, foto_volume: true, destinatario_apto: true, destinatario_bloco: true, status: true },
     });
     if (!existing) throw new NotFoundException(`Encomenda ${id} não encontrada`);
     await this.tenant.assertEntidade(existing.id_condominio, operador, `encomenda #${id}`);
