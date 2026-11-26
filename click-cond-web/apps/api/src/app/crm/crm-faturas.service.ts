@@ -12,6 +12,19 @@ import { hojeBrasilia } from '../common/hora-brasilia.util';
 export const JANELA_FATURAS_CRM_DIAS = 5;
 
 /**
+ * Frase do vencimento para a cobrança por WhatsApp, com o verbo certo pela data
+ * ("venceu em" para fatura atrasada) e vazia sem vencimento. Vem com espaço à
+ * frente para encaixar depois do valor.
+ */
+export function fraseVencimentoCobranca(vencimento: Date | null | undefined, hoje: Date = hojeBrasilia()): string {
+  if (!vencimento) return '';
+  const v = new Date(vencimento);
+  if (Number.isNaN(v.getTime())) return '';
+  const dia = v.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+  return v.getTime() < hoje.getTime() ? ` venceu em ${dia}` : ` vence em ${dia}`;
+}
+
+/**
  * Ciclo de negócio da geração mensal (2 instâncias): uma vez por mês no
  * cluster, com a chave 'AAAA-MM' do mês de Brasília. Porta = dia 1 a
  * JANELA_FATURAS_CRM_DIAS. A marca só é gravada depois de uma geração
@@ -380,7 +393,7 @@ export class CrmFaturasService implements OnModuleInit {
     const config = await this.getConfig();
     const template = config['template_cobranca'] ??
       'Olá, *{{sindico}}*! A fatura da Click Prestare do condomínio *{{condominio}}* ' +
-      '(ref. {{referencia}}) no valor de {{valor}} vence em {{vencimento}}. Qualquer dúvida estamos à disposição!';
+      '(ref. {{referencia}}) no valor de {{valor}}{{frase_vencimento}}. Qualquer dúvida estamos à disposição!';
 
     const valorFmt = Number(fatura.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const dados: Record<string, string> = {
@@ -388,7 +401,10 @@ export class CrmFaturasService implements OnModuleInit {
       condominio: cliente?.nome ?? `#${fatura.id_condominio}`,
       referencia: fatura.referencia,
       valor: valorFmt,
-      vencimento: fatura.vencimento ? new Date(fatura.vencimento).toLocaleDateString('pt-BR') : 'em aberto',
+      // Só a data (templates salvos antes continuam funcionando; sem vencimento fica vazio, não "em aberto").
+      vencimento: fatura.vencimento ? new Date(fatura.vencimento).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '',
+      // Já com o verbo ("vence em" / "venceu em") e o espaço à frente.
+      frase_vencimento: fraseVencimentoCobranca(fatura.vencimento),
     };
     // Placeholder sem dado vira vazio — nunca deixa "{{variavel}}" cru na mensagem.
     const mensagem = template.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k: string) => dados[k] ?? '');
