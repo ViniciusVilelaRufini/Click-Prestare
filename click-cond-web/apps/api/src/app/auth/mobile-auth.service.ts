@@ -2532,16 +2532,23 @@ export class MobileAuthService {
     });
     for (const r of reservas) {
       const st = (r.status || '').toLowerCase();
+      // Um rótulo por estado: só o pendente fala em "aguardando"; cancelada (pelo morador, pela
+      // administração, manutenção ou falta de confirmação) e estados sem rótulo nunca caem em "registrada".
+      const pendente = st === 'pendente';
       const rotulo =
         st === 'aprovado' || st === 'aprovada'
           ? 'Reserva aprovada'
           : st === 'recusado' || st === 'recusada'
             ? 'Reserva recusada'
-            : 'Reserva registrada';
+            : st.startsWith('cancel')
+              ? 'Reserva cancelada'
+              : pendente
+                ? 'Reserva aguardando aprovação'
+                : 'Reserva atualizada';
       const dia = r.data ? new Date(r.data).toLocaleDateString('pt-BR') : '';
-      // "Registrada" (pendente) é o próprio pedido do usuário; aprovação,
-      // recusa e cancelamento podem vir de terceiros e contam.
-      const proprio = rotulo === 'Reserva registrada' && !st.startsWith('cancel');
+      // Pendente é o próprio pedido do usuário; aprovação, recusa e
+      // cancelamento podem vir de terceiros e contam.
+      const proprio = pendente;
       itens.push({
         id: `reserva-${r.id}`,
         tipo: 'reserva',

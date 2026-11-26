@@ -99,14 +99,22 @@ describe('MobileAuthService — getNotificacoes() e o selo do sino', () => {
       expect(itens.find((i) => i.id === 'acesso-a2').categoria).toBeUndefined();
     });
 
-    it('"Reserva registrada" (pendente) é própria; aprovada/recusada por terceiros, não', async () => {
+    it('reserva pendente é própria ("aguardando aprovação"); aprovada/cancelada por terceiros, não, e cada estado tem seu título', async () => {
       const svc = build({
         reservas: [
           { id: 1, status: 'pendente', data: new Date('2026-11-30'), updated_at: new Date('2026-11-25T10:00:00Z'), area: { nome: 'Salão' } },
           { id: 2, status: 'aprovado', data: new Date('2026-11-30'), updated_at: new Date('2026-11-25T11:00:00Z'), area: { nome: 'Salão' } },
+          { id: 3, status: 'cancelado', data: new Date('2026-11-30'), updated_at: new Date('2026-11-25T12:00:00Z'), area: { nome: 'Salão' } },
+          { id: 4, status: 'concluido', data: new Date('2026-11-30'), updated_at: new Date('2026-11-25T13:00:00Z'), area: { nome: 'Salão' } },
         ],
       });
       const itens: any[] = await svc.getNotificacoes(9);
+      const titulo = (id: string) => itens.find((i) => i.id === id).titulo;
+      expect(titulo('reserva-1')).toBe('Reserva aguardando aprovação');
+      expect(titulo('reserva-2')).toBe('Reserva aprovada');
+      expect(titulo('reserva-3')).toBe('Reserva cancelada');
+      expect(titulo('reserva-4')).toBe('Reserva atualizada');
+      expect(itens.find((i) => i.id === 'reserva-3').proprio).toBeFalsy();
       expect(itens.find((i) => i.id === 'reserva-1')).toMatchObject({ proprio: true, categoria: 'voce' });
       expect(itens.find((i) => i.id === 'reserva-2').proprio).toBeFalsy();
     });
