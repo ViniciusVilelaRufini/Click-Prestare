@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'dart:async';
 import 'dart:convert';
+import 'package:click/utils/nome_proprio.dart';
 import 'package:click/controllers/controller_visitantes.dart';
 import 'package:click/pages/shared/visitantes/acessos_facial_list.dart';
 import 'package:click/pages/shared/visitantes/new_visitante.dart';
@@ -56,6 +57,10 @@ class ListVisitantesPageState extends State<ListVisitantes> {
   Timer? _timerSearch;
   List<dynamic> list = [];
   bool _isLoading = false;
+
+  /// Já houve uma resposta da API: antes disso as abas não mostram contagem
+  /// ("TODOS (0)" enganava durante o carregamento).
+  bool _carregouUmaVez = false;
   bool _isFabExpanded = true;
   int _pendentesCount = 0;
 
@@ -231,6 +236,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
         return;
       }
       list = novo;
+      _carregouUmaVez = true;
       // Página cheia: pode haver visitas mais antigas além das 30 (F8).
       _temMais = list.length >= visitantesPorPagina;
     } finally {
@@ -362,7 +368,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                       children: [
                                         Flexible(
                                           child: Text(
-                                            item['nome'] ?? '',
+                                            nomeProprio(item['nome']?.toString()),
                                             style:
                                                 AppTypography.headline(context),
                                             maxLines: 2,
@@ -514,7 +520,9 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                           const SizedBox(height: AppSpacing.md),
                           AcessosFacialList(idVisitante: item['id']),
 
-                          // Google Maps / Block route sharing section
+                          // Google Maps / Block route sharing section: só faz
+                          // sentido enquanto a autorização vale.
+                          if (!isExpired && item['data_saida'] == null) ...[
                           const SizedBox(height: AppSpacing.lg),
                           Container(
                             width: double.infinity,
@@ -559,7 +567,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                         icon: const Icon(
                                             PhosphorIcons.navigationArrow,
                                             size: 16),
-                                        label: const Text('Abrir Rota'),
+                                        label: Text('Abrir Rota'.toUpperCase()),
                                         onPressed: () async {
                                           final cond =
                                               item['condominio_nome'] ??
@@ -596,7 +604,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                         icon: const Icon(
                                             PhosphorIcons.shareNetwork,
                                             size: 16),
-                                        label: const Text('Compartilhar'),
+                                        label: Text('Compartilhar'.toUpperCase()),
                                         onPressed: () async {
                                           final cond =
                                               item['condominio_nome'] ??
@@ -649,6 +657,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                               ],
                             ),
                           ),
+                          ],
 
                           if (item['data_saida'] == null && !isExpired) ...[
                             const SizedBox(height: AppSpacing.lg),
@@ -820,13 +829,16 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                       color: AppColors.textSecondary(context),
                                       size: 18),
                                   const SizedBox(width: 8),
-                                  Text(
-                                    item['data_saida'] != null
-                                        ? 'Visita Encerrada (Código Expirado)'
-                                        : 'Período Expirado (Código Inativo)',
-                                    style: AppTypography.captionMedium(context)
-                                        .copyWith(
-                                      color: AppColors.textSecondary(context),
+                                  Flexible(
+                                    child: Text(
+                                      item['data_saida'] != null
+                                          ? 'Visita Encerrada (Código Expirado)'
+                                          : 'Período Expirado (Código Inativo)',
+                                      textAlign: TextAlign.center,
+                                      style: AppTypography.captionMedium(context)
+                                          .copyWith(
+                                        color: AppColors.textSecondary(context),
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -1286,9 +1298,9 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                   onChanged: (i) => setState(() => _tipoFiltro =
                       const ['todos', 'visitantes', 'prestadores'][i]),
                   segments: [
-                    AppSegment(label: 'Todos', count: todosCount),
-                    AppSegment(label: 'Visitantes', count: visitantesCount),
-                    AppSegment(label: 'Prestadores', count: prestadoresCount),
+                    AppSegment(label: 'Todos', count: _carregouUmaVez ? todosCount : null),
+                    AppSegment(label: 'Visitantes', count: _carregouUmaVez ? visitantesCount : null),
+                    AppSegment(label: 'Prestadores', count: _carregouUmaVez ? prestadoresCount : null),
                   ],
                 ),
               ),
@@ -1303,14 +1315,14 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                       children: [
                         Expanded(child: _TipoChip(
                           icon: PhosphorIcons.houseLine,
-                          label: 'No local (${listInside.length})',
+                          label: _carregouUmaVez ? 'No local (${listInside.length})' : 'No local',
                           selected: tc.index == 0,
                           onTap: () => tc.animateTo(0),
                         )),
                         const SizedBox(width: 8),
                         Expanded(child: _TipoChip(
                           icon: PhosphorIcons.identificationCard,
-                          label: 'Cadastrados (${listCadastrados.length})',
+                          label: _carregouUmaVez ? 'Cadastrados (${listCadastrados.length})' : 'Cadastrados',
                           selected: tc.index == 1,
                           onTap: () => tc.animateTo(1),
                         )),
@@ -1462,9 +1474,26 @@ class _VisitanteCard extends StatelessWidget {
     final subtitle = subtitleParts.join(' · ');
 
     // Tempo decorrido desde a entrada
+    // Rótulo conforme o carimbo usado: entrada, saída ou, sem nenhum dos
+    // dois, a data de cadastro (created_at).
+    final String prefixoTempo;
+    final dynamic carimboTempo;
+    if (isInside) {
+      prefixoTempo = 'Entrou ';
+      carimboTempo = item['data_entrada'];
+    } else if (item['data_saida'] != null) {
+      prefixoTempo = 'Saiu ';
+      carimboTempo = item['data_saida'];
+    } else if (item['data_entrada'] != null) {
+      prefixoTempo = 'Última entrada ';
+      carimboTempo = item['data_entrada'];
+    } else {
+      prefixoTempo = 'Cadastrado ';
+      carimboTempo = item['created_at'];
+    }
     final tempoDecorrido = _formatTempoDecorrido(
-      item['data_entrada'] ?? item['created_at'],
-      item['hora_entrada'],
+      carimboTempo,
+      isInside ? item['hora_entrada'] : null,
     );
 
     // Código PIN
@@ -1493,7 +1522,7 @@ class _VisitanteCard extends StatelessWidget {
           children: [
             // Topo no desenho dos eventos: foto em degradê, selo, nome.
             CabecalhoPessoa(
-              nome: (item['nome'] ?? '').toString(),
+              nome: nomeProprio(item['nome']?.toString()),
               subtitulo: subtitle,
               status: status,
               foto: _fotoProviderVisitante(item),
@@ -1523,7 +1552,11 @@ class _VisitanteCard extends StatelessWidget {
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
-                        '${isInside ? 'Entrou ' : (item['data_saida'] != null ? 'Saiu ' : '')}$tempoDecorrido',
+                        tempoDecorrido.isEmpty
+                            ? ''
+                            : (tempoDecorrido == 'agora'
+                                ? '${prefixoTempo.trim()} agora'
+                                : '$prefixoTempo$tempoDecorrido'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.tiny(context),
@@ -1678,7 +1711,8 @@ class _VisitanteCard extends StatelessWidget {
     if (h < 24) {
       return m > 0 ? 'há ${h}h${m.toString().padLeft(2, '0')}' : 'há ${h}h';
     }
-    return 'há ${diff.inDays}d';
+    final d = diff.inDays;
+    return d == 1 ? 'há 1 dia' : 'há $d dias';
   }
 }
 
