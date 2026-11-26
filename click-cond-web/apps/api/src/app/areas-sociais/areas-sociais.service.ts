@@ -1643,6 +1643,13 @@ export class AreasSociaisService {
         if (motivo) {
           body += ` Motivo: ${motivo}`;
         }
+      } else if (novoStatus === 'cancelado') {
+        // Quem muda aqui é outra pessoa que não o dono (administração/portaria).
+        title = 'Reserva Cancelada';
+        body = `Sua reserva em ${areaNome} foi cancelada pela administração.`;
+      } else if (novoStatus === 'pendente') {
+        title = 'Reserva Pendente';
+        body = `Sua reserva em ${areaNome} voltou a ficar pendente de aprovação.`;
       }
 
       try {

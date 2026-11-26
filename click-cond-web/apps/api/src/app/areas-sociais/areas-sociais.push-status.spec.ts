@@ -89,5 +89,7 @@ describe('AreasSociaisService — push de status da reserva', () => {
       expect.any(String),
       expect.objectContaining({ type: 'reserva_status', id: '500', status: 'cancelado' }),
     );
+    // Texto próprio: nada de "mudou para cancelado".
+    expect(notifications.sendPushNotification.mock.calls[0][2]).toBe('Sua reserva em Salão foi cancelada pela administração.');
   });
 });
