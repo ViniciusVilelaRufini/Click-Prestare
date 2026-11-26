@@ -25,7 +25,7 @@ import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { isOperador } from '../auth/tenant.util';
-import { tipoAvisoCriacaoVisita } from './aviso-criacao-visita.util';
+import { descricaoCriacaoVisita, tipoAvisoCriacaoVisita } from './aviso-criacao-visita.util';
 import { gerarPinUnicoVisita, novaVisitaEmOutraUnidade, visitaParaNovaPassagem } from '../common/visita-passagem.util';
 // Vaga de visitante com `fim` no passado não vale: sem isso a lista mostrava "Liberado" + selo de vaga
 // para quem o terminal já tinha deixado de liberar.
@@ -2011,7 +2011,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       acao: 'CREATE',
       modulo: 'visitantes',
       entidade_id: visita.id,
-      descricao: `Novo agendamento: ${tipoLabel} "${visita.pessoa.nome}" para ${ctx.apartamento?.label ?? '—'}`,
+      descricao: descricaoCriacaoVisita(tipoLabel, visita.pessoa.nome, ctx.apartamento?.label ?? '—', payload, visita.data_hora_inicio),
       detalhes: ctx,
     });
 
@@ -2621,7 +2621,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       acao: 'CREATE',
       modulo: 'visitantes',
       entidade_id: visitante.id,
-      descricao: `Novo agendamento: ${tipoLabel} "${visitante.nome}" para ${aptoLabelCreate}`,
+      descricao: descricaoCriacaoVisita(tipoLabel, visitante.nome, aptoLabelCreate, operador, visitante.data_hora_inicio),
       detalhes: ctxCreate ?? undefined,
     });
 
@@ -2822,7 +2822,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       acao: 'CREATE',
       modulo: 'visitantes',
       entidade_id: visita.id,
-      descricao: `Novo agendamento: ${tipoLabel} "${visita.pessoa.nome}" para ${ctxCreate.apartamento?.label ?? '—'}`,
+      descricao: descricaoCriacaoVisita(tipoLabel, visita.pessoa.nome, ctxCreate.apartamento?.label ?? '—', operador, visita.data_hora_inicio, pedirAutorizacao),
       detalhes: ctxCreate,
     });
 

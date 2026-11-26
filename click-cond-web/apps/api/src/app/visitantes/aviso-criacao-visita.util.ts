@@ -38,3 +38,21 @@ export function tipoAvisoCriacaoVisita(
   if (!Number.isNaN(ini) && ini > agora + MARGEM_INICIO_AGORA_MS) return 'agendamento';
   return 'chegada';
 }
+
+/**
+ * Descrição da auditoria do cadastro de uma visita: "agendamento" só quando é um
+ * agendamento; a portaria que libera quem está no portão agora não agendou nada.
+ */
+export function descricaoCriacaoVisita(
+  tipoLabel: string,
+  nome: string,
+  apto: string,
+  operador: JwtPayload | null | undefined,
+  inicio: Date | string | null | undefined,
+  aguardaAutorizacao = false,
+): string {
+  if (aguardaAutorizacao) return `Novo cadastro: ${tipoLabel} "${nome}" para ${apto}`;
+  return tipoAvisoCriacaoVisita(operador, inicio) === 'chegada'
+    ? `${tipoLabel} liberado pela portaria: "${nome}" para ${apto}`
+    : `Novo agendamento: ${tipoLabel} "${nome}" para ${apto}`;
+}

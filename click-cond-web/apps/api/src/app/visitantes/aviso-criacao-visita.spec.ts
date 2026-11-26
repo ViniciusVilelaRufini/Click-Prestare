@@ -1,5 +1,5 @@
 import { VisitantesService } from './visitantes.service';
-import { criadoPelaPortaria, tipoAvisoCriacaoVisita } from './aviso-criacao-visita.util';
+import { criadoPelaPortaria, descricaoCriacaoVisita, tipoAvisoCriacaoVisita } from './aviso-criacao-visita.util';
 
 /**
  * F5: todo cadastro de visita mandava "X acabou de chegar para o seu
@@ -226,5 +226,23 @@ describe('novaVisitaParaPessoa (Pessoas/Visitas) — aviso aos moradores', () =>
     expect(destinos(notifications)).toEqual(['tok-ana', 'tok-bia']);
     expect(corpos(notifications)[0]).toBe('Pedreiro João foi liberado pela portaria para o seu apartamento.');
     expect(notifications.sendWhatsApp).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('descricaoCriacaoVisita (auditoria)', () => {
+  const porteiro: any = { id_condominio: 1, nome: 'Porteiro' };
+  const morador: any = { sub: 5, typeAccess: 'Morador', user: { id: 5 } };
+
+  it('portaria liberando quem está no portão não escreve "agendamento"', () => {
+    expect(descricaoCriacaoVisita('Visitante', 'Ana', 'Apto 12', porteiro, new Date())).toBe('Visitante liberado pela portaria: "Ana" para Apto 12');
+  });
+
+  it('morador agendando, ou janela no futuro, segue "Novo agendamento"', () => {
+    expect(descricaoCriacaoVisita('Visitante', 'Ana', 'Apto 12', morador, new Date())).toBe('Novo agendamento: Visitante "Ana" para Apto 12');
+    expect(descricaoCriacaoVisita('Prestador', 'Zé', 'Apto 3', porteiro, new Date(Date.now() + 86_400_000))).toBe('Novo agendamento: Prestador "Zé" para Apto 3');
+  });
+
+  it('pedido de autorização pendente não diz "liberado" nem "agendamento"', () => {
+    expect(descricaoCriacaoVisita('Visitante', 'Ana', 'Apto 12', porteiro, new Date(), true)).toBe('Novo cadastro: Visitante "Ana" para Apto 12');
   });
 });
