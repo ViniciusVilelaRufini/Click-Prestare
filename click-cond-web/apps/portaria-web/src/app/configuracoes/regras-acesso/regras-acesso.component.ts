@@ -47,7 +47,8 @@ export class RegrasAcessoComponent implements OnInit {
       sentido: 'ambos',
       hora_inicio: '',
       hora_fim: '',
-      ativo: 1,
+      // Nasce pausada: com qualquer regra ativa o terminal passa a barrar quem nao esta em alguma regra.
+      ativo: 0,
       dispositivosIds: [],
     };
   }
@@ -132,6 +133,15 @@ export class RegrasAcessoComponent implements OnInit {
   save() {
     if (!this.form.nome.trim()) {
       this.errorMessage.set('O nome da regra é obrigatório.');
+      return;
+    }
+
+    if (!!this.form.hora_inicio !== !!this.form.hora_fim) {
+      this.errorMessage.set('Preencha o início e o fim do horário, ou deixe os dois em branco para 24h.');
+      return;
+    }
+    if (this.form.ativo && !this.form.permitir_morador && !this.form.permitir_visitante && !this.form.permitir_prestador && !this.form.permitir_funcionario) {
+      this.errorMessage.set('Marque ao menos uma categoria com acesso permitido: uma regra ativa sem categoria bloqueia todo mundo nos terminais escolhidos.');
       return;
     }
 

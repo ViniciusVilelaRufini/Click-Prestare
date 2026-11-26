@@ -397,6 +397,8 @@ describe('GuaritaConfigComponent — portões', () => {
     });
     tela.novoPortao();
     tela.formPortao.nome = 'Garagem';
+    tela.formPortao.tipo_receptor = 1;
+    tela.formPortao.num_receptor = 1;
     tela.salvarPortao();
     f.detectChanges();
     expect(el.querySelector('[data-guarita-form-portao] [role="alert"]')?.textContent?.trim()).toBe('Já existe um portão neste receptor e relé.');

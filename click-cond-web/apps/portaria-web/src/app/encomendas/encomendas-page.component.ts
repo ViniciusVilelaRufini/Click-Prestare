@@ -120,7 +120,7 @@ export class EncomendasPageComponent implements OnInit {
 
   retiranteNome = '';
   retiranteDocumento = '';
-  retiranteParentesco = 'Morador';
+  retiranteParentesco = '';
 
   readonly pagina = signal(1);
   readonly itensPorPagina = 20;
@@ -321,6 +321,8 @@ export class EncomendasPageComponent implements OnInit {
       if (params['novo'] === 'true') {
         this.formError.set(null);
         this.showForm = true;
+        // Campo comum no console sem zone.js: se o parametro mudar com a tela aberta, agenda o redesenho.
+        this.cdr.markForCheck();
       }
       // Atalho do painel ("Aguardando retirada") abre já filtrado.
       if (STATUS_DA_ROTA.includes(params['status'])) this.filtro.set(params['status']);
@@ -565,7 +567,7 @@ export class EncomendasPageComponent implements OnInit {
     this.retiradaErro.set(null);
     this.retiranteNome = '';
     this.retiranteDocumento = '';
-    this.retiranteParentesco = 'Morador';
+    this.retiranteParentesco = '';
     this.capturedPhoto = null;
     this.stopCamera();
   }
@@ -577,7 +579,7 @@ export class EncomendasPageComponent implements OnInit {
     this.retiradaErro.set(null);
     this.retiranteNome = '';
     this.retiranteDocumento = '';
-    this.retiranteParentesco = 'Morador';
+    this.retiranteParentesco = '';
     this.capturedPhoto = null;
     this.stopCamera();
   }
@@ -595,6 +597,10 @@ export class EncomendasPageComponent implements OnInit {
     if (this.retirando()) return;
     if (!this.retiranteNome.trim()) {
       this.retiradaErro.set('Nome do retirante é obrigatório.');
+      return;
+    }
+    if (!this.retiranteParentesco) {
+      this.retiradaErro.set('Escolha a relação do retirante com o destinatário (fica registrada como comprovante).');
       return;
     }
 

@@ -217,6 +217,14 @@ export class ApartamentosService {
       this.assertAptoValido(dto.apto ?? atual.apto, dto.bloco ?? atual.bloco);
     }
 
+    // Campo limpo (vazio/null) mantem o valor atual; so um inteiro >= 0 e gravado (antes virava 0 sem avisar).
+    let qtdVagas: number | undefined;
+    if (dto.qtd_vagas !== undefined && dto.qtd_vagas !== null && (dto.qtd_vagas as unknown) !== '') {
+      qtdVagas = Number(dto.qtd_vagas);
+      if (!Number.isInteger(qtdVagas) || qtdVagas < 0) {
+        throw new BadRequestException('Quantidade de vagas inválida: informe um número inteiro igual ou maior que zero.');
+      }
+    }
     try {
       // Unidade e cadastro dos moradores dela na mesma transação: ou os dois mudam, ou nenhum.
       return await this.prisma.$transaction(async (tx) => {
@@ -226,7 +234,7 @@ export class ApartamentosService {
             ...(dto.bloco !== undefined && { bloco: dto.bloco }),
             ...(dto.apto !== undefined && { apto: dto.apto }),
             ...(dto.fracao !== undefined && { fracao: dto.fracao }),
-            ...(dto.qtd_vagas !== undefined && { qtd_vagas: Number(dto.qtd_vagas) || 0 }),
+            ...(qtdVagas !== undefined && { qtd_vagas: qtdVagas }),
           },
         });
         await this.propagarRenomeParaMoradores(tx, Number(id), atual, atualizado);

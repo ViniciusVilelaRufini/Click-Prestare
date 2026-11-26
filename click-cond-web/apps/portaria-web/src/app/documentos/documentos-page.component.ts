@@ -48,7 +48,7 @@ export class DocumentosPageComponent implements OnInit {
   readonly salvando = signal(false);
   /** Erro ao publicar, mostrado dentro do drawer. */
   readonly erroUpload = signal<string | null>(null);
-  novoDoc = { nome: '', isAta: false, base64: '' };
+  novoDoc: { nome: string; isAta: boolean | null; base64: string } = { nome: '', isAta: null, base64: '' };
   /** Muda quando o FileReader termina, para a tela se redesenhar (sem zone.js). */
   readonly arquivoLido = signal(0);
 
@@ -78,7 +78,7 @@ export class DocumentosPageComponent implements OnInit {
   }
 
   abrirModalUpload() {
-    this.novoDoc = { nome: '', isAta: this.isAtaTab(), base64: '' };
+    this.novoDoc = { nome: '', isAta: null, base64: '' };
     this.selectedFileName.set('');
     this.erroUpload.set(null);
     this.modalUpload.set(true);
@@ -113,6 +113,10 @@ export class DocumentosPageComponent implements OnInit {
 
   salvarDocumento() {
     if (this.salvando()) return;
+    if (this.novoDoc.isAta === null) {
+      this.erroUpload.set('Escolha a classificação do documento: a ata avisa todos os moradores.');
+      return;
+    }
     this.salvando.set(true);
     this.erroUpload.set(null);
     this.api.insertDocumento(this.novoDoc.nome, this.novoDoc.isAta, this.novoDoc.base64).subscribe({

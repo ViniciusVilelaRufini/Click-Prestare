@@ -30,6 +30,8 @@ export class PrestadoresPageComponent implements OnInit {
   private auth = inject(AuthService);
 
   readonly consentimentoBiometria = signal(false);
+  /** So grava consentimento se o operador mexeu na caixa. */
+  readonly consentimentoTocado = signal(false);
 
   /**
    * Criar, mudar e revogar o login de portaria (a chave "Acesso Portaria Web") e remover quem o tem é do
@@ -372,7 +374,7 @@ export class PrestadoresPageComponent implements OnInit {
     this.editingId = null;
     this.emailDeAcessoOriginal = null;
     this.loginDesativado = false;
-    this.novo = { nome: '', telefone: '', email: '', senha: '', hasPortariaAccess: false, categorias: '', id_apartamento: 0, dias_semana: 'seg,ter,qua,qui,sex', foto_pessoa: undefined, foto_documento: undefined };
+    this.novo = { nome: '', telefone: '', email: '', senha: '', hasPortariaAccess: false, categorias: '', id_apartamento: 0, dias_semana: '', foto_pessoa: undefined, foto_documento: undefined };
     this.categoriasSelecionadas.set(new Set());
     this.fotoPessoaBase64.set(null);
     this.fotoDocumentoBase64.set(null);
@@ -437,6 +439,7 @@ export class PrestadoresPageComponent implements OnInit {
     this.fotoPessoaBase64.set(null);
     this.fotoDocumentoBase64.set(null);
     this.consentimentoBiometria.set(false);
+    this.consentimentoTocado.set(false);
     this.showForm = false;
     this.editingId = null;
     this.error.set(null);
@@ -472,15 +475,15 @@ export class PrestadoresPageComponent implements OnInit {
     const dto = !this.podeGerenciarAcesso() ? semAcesso : manterDesativado ? semChave : this.novo;
     const obs = this.editingId
       ? this.api.update(this.editingId, dto)
-      : this.api.create(dto);
+      : this.api.create(!dto.dias_semana ? { ...dto, dias_semana: undefined } : dto);
     obs.subscribe({
       next: (saved: any) => {
         const idPessoa = this.editingId || saved?.id;
-        if (this.novo.foto_pessoa && idPessoa) {
+        if (this.novo.foto_pessoa && idPessoa && this.consentimentoTocado()) {
           this.consentimentosApi.registrarTerceiro({
             tipoPessoa: 'prestador',
             idPessoa: Number(idPessoa),
-            doc: this.novo.telefone || undefined,
+            // Prestador nao tem documento no cadastro; o telefone nao e documento (a API busca pelo id).
             biometria: this.consentimentoBiometria(),
             maiorIdade: this.consentimentoBiometria(),
           }).subscribe({ error: (err) => console.error('Erro ao registrar consentimento do prestador:', err) });

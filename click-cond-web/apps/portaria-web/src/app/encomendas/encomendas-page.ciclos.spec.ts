@@ -120,6 +120,7 @@ describe('EncomendasPageComponent — ciclos do porteiro', () => {
       const c = f.componentInstance;
       c.abrirRetirada(c.encomendas()[0]);
       c.retiranteNome = 'Ana';
+      c.retiranteParentesco = 'Morador';
       f.detectChanges();
     }
 
@@ -174,6 +175,7 @@ describe('EncomendasPageComponent — ciclos do porteiro', () => {
       c.selecionadas.set(new Set([1, 2, 3]));
       c.abrirRetiradaLote();
       c.retiranteNome = 'Ana';
+      c.retiranteParentesco = 'Morador';
       api.retirar.mockImplementation((id: number) =>
         id === 2 ? throwError(() => ({ status: 409, error: { message: 'já retirada' } })) : of({ ...enc({ id }), status: 'Retirada' }));
       await c.confirmarRetirada();
@@ -190,6 +192,7 @@ describe('EncomendasPageComponent — ciclos do porteiro', () => {
       c.selecionadas.set(new Set([1, 2, 3]));
       c.abrirRetiradaLote();
       c.retiranteNome = 'Ana';
+      c.retiranteParentesco = 'Morador';
       api.retirar.mockImplementation((id: number) =>
         id === 2 ? throwError(() => ({ status: 500, error: { message: 'Falha no servidor' } })) : of({ ...enc({ id }), status: 'Retirada' }));
       await c.confirmarRetirada();

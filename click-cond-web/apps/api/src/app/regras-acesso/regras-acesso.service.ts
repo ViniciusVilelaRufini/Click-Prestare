@@ -18,6 +18,13 @@ export interface CreateRegraAcessoDto {
   dispositivosIds: number[]; // Array de IDs de dispositivos vinculados
 }
 
+/** Horario pela metade (so inicio ou so fim) viraria "sempre" sem o operador perceber: exige o par. */
+export function assertParHorario(inicio: unknown, fim: unknown) {
+  if (!!inicio !== !!fim) {
+    throw new BadRequestException('Informe hora_inicio e hora_fim juntos, ou deixe os dois em branco (24h).');
+  }
+}
+
 @Injectable()
 export class RegrasAcessoService {
   private readonly logger = new Logger(RegrasAcessoService.name);
@@ -172,6 +179,7 @@ export class RegrasAcessoService {
       };
     }
 
+    assertParHorario(dto.hora_inicio, dto.hora_fim);
     await this.assertDispositivosDoCondominio(dto.dispositivosIds, idCondominio);
     // Criar a regra e os vínculos N:N com os dispositivos em uma única transação
     const criada = await this.prisma.regras_Acesso.create({
@@ -238,6 +246,10 @@ export class RegrasAcessoService {
       throw new ForbiddenException(`Regra #${id} não pertence a este condomínio`);
     }
 
+    assertParHorario(
+      dto.hora_inicio !== undefined ? dto.hora_inicio : regraExistente.hora_inicio,
+      dto.hora_fim !== undefined ? dto.hora_fim : regraExistente.hora_fim,
+    );
     await this.assertDispositivosDoCondominio(dto.dispositivosIds, regraExistente.id_condominio);
     // Se novos dispositivosIds foram passados, removemos os antigos e inserimos os novos
     if (dto.dispositivosIds !== undefined) {

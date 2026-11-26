@@ -42,16 +42,17 @@ describe('AssembleiasPageComponent — duplo clique em Convocar / Nova enquete',
 
   afterEach(() => TestBed.resetTestingModule());
 
-  it('assembleia: segundo clique enquanto salva não envia de novo; o botão fica desabilitado', () => {
+  it('assembleia: segundo clique enquanto salva não envia de novo; o botão fica desabilitado', async () => {
     const resposta = new Subject<any>();
     const insertAssembleia = jest.fn(() => resposta);
     const { fixture, comp } = render({ insertAssembleia });
-    comp.novaAssembleia = { ...comp.novaAssembleia, titulo: 'AGO', data: '2026-11-20' };
+    comp.novaAssembleia = { ...comp.novaAssembleia, titulo: 'AGO', data: '2026-11-20', hora: '19:30', local: 'Salão' };
     comp.modalAssembleia.set(true);
     fixture.detectChanges();
 
-    comp.salvarAssembleia();
-    comp.salvarAssembleia();
+    const p1 = comp.salvarAssembleia();
+    const p2 = comp.salvarAssembleia();
+    await Promise.all([p1, p2]);
     fixture.detectChanges();
     expect(insertAssembleia).toHaveBeenCalledTimes(1);
     const botao = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
@@ -63,14 +64,14 @@ describe('AssembleiasPageComponent — duplo clique em Convocar / Nova enquete',
     expect(comp.salvandoAssembleia()).toBe(false);
   });
 
-  it('assembleia: erro destrava para tentar de novo', () => {
+  it('assembleia: erro destrava para tentar de novo', async () => {
     const insertAssembleia = jest.fn(() => throwError(() => ({ error: { message: 'Data inválida: use DD/MM/AAAA.' } })));
     const { comp } = render({ insertAssembleia });
-    comp.novaAssembleia = { ...comp.novaAssembleia, titulo: 'AGO', data: '2026-11-20' };
-    comp.salvarAssembleia();
+    comp.novaAssembleia = { ...comp.novaAssembleia, titulo: 'AGO', data: '2026-11-20', hora: '19:30', local: 'Salão' };
+    await comp.salvarAssembleia();
     expect(comp.salvandoAssembleia()).toBe(false);
     expect(comp.erroAssembleia()).toBe('Data inválida: use DD/MM/AAAA.');
-    comp.salvarAssembleia();
+    await comp.salvarAssembleia();
     expect(insertAssembleia).toHaveBeenCalledTimes(2);
   });
 
@@ -80,12 +81,52 @@ describe('AssembleiasPageComponent — duplo clique em Convocar / Nova enquete',
     const { comp } = render({ insertVotacao });
     comp.abrirModalEnquete();
     comp.novaVotacao.titulo = 'Pintura';
-    comp.salvarVotacao();
+    comp.novaVotacao.data_inicio = '20/11/2026';
+    comp.novaVotacao.data_termino = '27/11/2026';
+        comp.salvarVotacao();
     comp.salvarVotacao();
     expect(insertVotacao).toHaveBeenCalledTimes(1);
     expect(comp.salvandoVotacao()).toBe(true);
     resposta.error({ error: { message: 'Informe pelo menos duas opções diferentes.' } });
     expect(comp.salvandoVotacao()).toBe(false);
     expect(comp.erroModal()).toBe('Informe pelo menos duas opções diferentes.');
+  });
+});
+
+describe('AssembleiasPageComponent — datas da votacao explicitas', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  function montar(insertVotacao: jest.Mock) {
+    TestBed.configureTestingModule({
+      imports: [AssembleiasPageComponent],
+      providers: [
+        { provide: AssembleiasApi, useValue: { listAssembleias: jest.fn(() => of([])), listEnquetes: jest.fn(() => of([])), insertVotacao } },
+        { provide: ConfirmService, useValue: { ask: jest.fn(async () => true) } },
+        { provide: AuthService, useValue: { porteiroInfo: signal({ nome: 'X', turno: 'Diurno', id_condominio: 1 }), token: SINDICO } },
+        { provide: ServerClockService, useValue: { agora: () => new Date('2026-11-13T15:00:00Z') } },
+      ],
+    });
+    const fixture = TestBed.createComponent(AssembleiasPageComponent);
+    fixture.detectChanges();
+    return fixture.componentInstance;
+  }
+
+  it('enquete/pauta abrem sem datas e nao salvam sem elas', () => {
+    const insertVotacao = jest.fn(() => of({}));
+    const comp = montar(insertVotacao);
+    comp.abrirModalEnquete();
+    expect(comp.novaVotacao.data_inicio).toBe('');
+    expect(comp.novaVotacao.data_termino).toBe('');
+    comp.novaVotacao.titulo = 'X';
+    comp.salvarVotacao();
+    expect(insertVotacao).not.toHaveBeenCalled();
+    expect(comp.erroModal()).toContain('DD/MM/AAAA');
+    comp.novaVotacao.data_inicio = '20/11/2026';
+    comp.novaVotacao.data_termino = '19/11/2026';
+    comp.salvarVotacao();
+    expect(insertVotacao).not.toHaveBeenCalled();
+    comp.novaVotacao.data_termino = '27/11/2026';
+    comp.salvarVotacao();
+    expect(insertVotacao).toHaveBeenCalledTimes(1);
   });
 });

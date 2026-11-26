@@ -2579,7 +2579,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         this.fireFacialSync(updated.id);
       }
 
-      return this.semCamposSensiveis(updated, recortar);
+      // `reaproveitado`: a tela avisa que NAO foi criado um cadastro novo (o agendamento anterior foi religado).
+      return { ...this.semCamposSensiveis(updated, recortar), reaproveitado: true };
     }
 
     // Mesma rotina do gerarPinUnico — antes era um laço duplicado aqui, e foi

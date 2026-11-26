@@ -34,3 +34,19 @@ export function dataNascimentoDaPlanilha(valor: unknown): string {
 export function temDataNascimento(data: string | null | undefined): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(data ?? '');
 }
+
+/**
+ * Vinculo lido da planilha: 'proprietario' | 'inquilino' | 'dependente', ou null quando vazio/desconhecido.
+ * Nao ha padrao silencioso: o vinculo define quem vota em pauta "somente proprietarios".
+ */
+export function vinculoDaPlanilha(valor: unknown): 'proprietario' | 'inquilino' | 'dependente' | null {
+  const t = String(valor ?? '')
+    .toLowerCase()
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  if (t.startsWith('proprietari')) return 'proprietario';
+  if (t.startsWith('inquilin')) return 'inquilino';
+  if (t.startsWith('dependent')) return 'dependente';
+  return null;
+}

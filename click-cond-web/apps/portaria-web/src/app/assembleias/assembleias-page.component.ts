@@ -322,14 +322,28 @@ export class AssembleiasPageComponent implements OnInit {
 
   abrirModalAssembleia() {
     // Campo de data (AAAA-MM-DD): a API aceita esse formato e o DD/MM/AAAA.
-    this.novaAssembleia = { titulo: '', descricao: '', data: this.hojeIso(), hora: '19:30', local: 'Salão Principal', link: '' };
+    this.novaAssembleia = { titulo: '', descricao: '', data: '', hora: '', local: '', link: '' };
     this.erroAssembleia.set(null);
     this.modalAssembleia.set(true);
   }
 
-  salvarAssembleia() {
+  async salvarAssembleia() {
     if (this.salvandoAssembleia()) return;
-    this.salvandoAssembleia.set(true);
+    const n = this.novaAssembleia;
+    if (!n.titulo?.trim() || !n.data || !n.hora?.trim() || !n.local?.trim()) {
+      this.erroAssembleia.set('Informe título, data, horário e local: a convocação sai exatamente com o que estiver aqui.');
+      return;
+    }
+    this.salvandoAssembleia.set(true); // segura o duplo clique enquanto a confirmacao esta aberta
+    const ok = await this.confirm.ask({
+      title: 'Convocar assembleia',
+      message: `Isto avisa todos os moradores agora: ${n.data} às ${n.hora}, em ${n.local}.`,
+      confirmLabel: 'Convocar',
+    });
+    if (!ok) {
+      this.salvandoAssembleia.set(false);
+      return;
+    }
     this.erroAssembleia.set(null);
     this.api.insertAssembleia(this.novaAssembleia).subscribe({
       next: () => {
@@ -345,13 +359,8 @@ export class AssembleiasPageComponent implements OnInit {
   }
 
   abrirModalEnquete() {
-    const hoje = new Date();
-    const dIni = hoje.toLocaleDateString('pt-BR');
-    hoje.setDate(hoje.getDate() + 7);
-    const dFim = hoje.toLocaleDateString('pt-BR');
-
     this.novaVotacao = {
-      titulo: '', descricao: '', data_inicio: dIni, data_termino: dFim,
+      titulo: '', descricao: '', data_inicio: '', data_termino: '',
       is_enquete: true, id_assembleia: null, opcoes: ['Sim, concordo', 'Não concordo'],
       somente_proprietarios: false,
     };
@@ -360,13 +369,8 @@ export class AssembleiasPageComponent implements OnInit {
   }
 
   abrirModalPauta(idAssembleia: number) {
-    const hoje = new Date();
-    const dIni = hoje.toLocaleDateString('pt-BR');
-    hoje.setDate(hoje.getDate() + 3);
-    const dFim = hoje.toLocaleDateString('pt-BR');
-
     this.novaVotacao = {
-      titulo: '', descricao: '', data_inicio: dIni, data_termino: dFim,
+      titulo: '', descricao: '', data_inicio: '', data_termino: '',
       is_enquete: false, id_assembleia: idAssembleia, opcoes: ['Aprovar', 'Rejeitar', 'Abster'],
       somente_proprietarios: false,
     };
@@ -376,6 +380,21 @@ export class AssembleiasPageComponent implements OnInit {
 
   salvarVotacao() {
     if (this.salvandoVotacao()) return;
+    // Datas explicitas: a votacao abre e fecha exatamente nas datas escolhidas (sem padrao silencioso).
+    const brParaNum = (s: unknown) => {
+      const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(s ?? '').trim());
+      return m ? Number(m[3]) * 10000 + Number(m[2]) * 100 + Number(m[1]) : null;
+    };
+    const ini = brParaNum(this.novaVotacao.data_inicio);
+    const fim = brParaNum(this.novaVotacao.data_termino);
+    if (ini === null || fim === null) {
+      this.erroModal.set('Informe as datas de início e término no formato DD/MM/AAAA.');
+      return;
+    }
+    if (fim < ini) {
+      this.erroModal.set('O término precisa ser no mesmo dia ou depois do início.');
+      return;
+    }
     // Filtra opções vazias
     const filtradas = this.novaVotacao.opcoes.filter((o: string) => o.trim() !== '');
     const payload = { ...this.novaVotacao, opcoes: filtradas, somente_proprietarios: this.novaVotacao.somente_proprietarios === true };

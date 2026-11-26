@@ -82,7 +82,7 @@ describe('MoradoresPageComponent — cadastro com e-mail que não saiu', () => {
     const create = jest.fn(() => of(resposta));
     const { tela, toast } = build(jest.fn());
     (tela as any).api = { create, list: jest.fn(() => of([])) };
-    tela.novo = { ...tela.novo, nome: 'Bia', id_apartamento: 1 } as any;
+    tela.novo = { ...tela.novo, nome: 'Bia', id_apartamento: 1, tipo: 'inquilino' } as any;
     return { tela, toast };
   }
 

@@ -148,13 +148,16 @@ describe('AssembleiasPageComponent — erros, papel e ATA', () => {
     expect(el.textContent).toContain('Não encerrou.');
   });
 
-  it('agendar com erro: o drawer fica aberto e mostra a mensagem dentro dele', () => {
+  it('agendar com erro: o drawer fica aberto e mostra a mensagem dentro dele', async () => {
     const { fixture, el, comp } = render(SINDICO, {
       insertAssembleia: jest.fn(() => throwError(() => ({ error: { message: 'Data inválida.' } }))),
     });
     comp.abrirModalAssembleia();
     comp.novaAssembleia.titulo = 'AGE';
-    comp.salvarAssembleia();
+    comp.novaAssembleia.data = '2026-11-20';
+    comp.novaAssembleia.hora = '19:30';
+    comp.novaAssembleia.local = 'Salão';
+    await comp.salvarAssembleia();
     fixture.detectChanges();
     expect(comp.modalAssembleia()).toBe(true);
     expect(el.querySelector('.ps-drawer')?.textContent).toContain('Data inválida.');
