@@ -121,10 +121,9 @@ class _EditMoradorPageState extends State<EditMorador> {
           formatar: formatarDocumentoEdicao,
         ),
         data_nascimento: txtDN.text, email: txtEmail.text,
-        telefone: contatoParaEnvio(
+        telefone: telefoneParaEnvio(
           exibido: txtTelefone.text,
           original: _telefoneCarregado,
-          formatar: formatarTelefoneEdicao,
         ),
         extra1: txtExtra1.text, extra2: txtExtra2.text,
         extra3: txtExtra3.text, extra4: txtExtra4.text, photo: base64,

@@ -108,10 +108,9 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
           soDigitos: true,
         ),
         email: txtEmail.text,
-        telefone: contatoParaEnvio(
+        telefone: telefoneParaEnvio(
           exibido: txtTelefone.text,
           original: _telefoneCarregado,
-          formatar: formatarTelefoneEdicao,
           soDigitos: true,
         ),
         photo: base64,

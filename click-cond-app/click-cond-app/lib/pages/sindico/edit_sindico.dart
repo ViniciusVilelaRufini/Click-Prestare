@@ -140,10 +140,9 @@ class _EditSindicoPageState extends State<EditSindico> {
         ),
         txtDN.text, 
         txtEmail.text.trim(), 
-        contatoParaEnvio(
+        telefoneParaEnvio(
           exibido: txtTelefone.text,
           original: _telefoneCarregado,
-          formatar: formatarTelefoneEdicao,
           soDigitos: true,
         ),
         base64,

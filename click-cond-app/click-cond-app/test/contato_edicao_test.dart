@@ -70,4 +70,20 @@ void main() {
       );
     });
   });
+
+  group('telefoneParaEnvio', () {
+    test('sem mexer envia o original', () {
+      expect(telefoneParaEnvio(exibido: '(17) 99255-9990', original: '+5517992559990'), '+5517992559990');
+    });
+    test('original com +55 mantém +55 ao editar', () {
+      expect(telefoneParaEnvio(exibido: '(17) 99255-9991', original: '+5517992559990', soDigitos: true), '+5517992559991');
+    });
+    test('original com 55 sem + mantém 55', () {
+      expect(telefoneParaEnvio(exibido: '(17) 99255-9991', original: '5517992559990'), '5517992559991');
+    });
+    test('original sem prefixo segue como antes', () {
+      expect(telefoneParaEnvio(exibido: '(17) 99255-9991', original: '17992559990', soDigitos: true), '17992559991');
+      expect(telefoneParaEnvio(exibido: '(17) 99255-9991', original: '17992559990'), '(17) 99255-9991');
+    });
+  });
 }

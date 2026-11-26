@@ -52,3 +52,34 @@ String contatoParaEnvio({
   }
   return exibido;
 }
+
+/// Telefone a enviar à API. Sem mexer, vai o [original]. Editado, se o
+/// original tinha o prefixo do país ("+5517…" ou "5517…" com 12/13 dígitos) o
+/// novo número volta com o mesmo estilo de prefixo ("+55" ou "55") e só
+/// dígitos; sem prefixo no original, segue o comportamento de
+/// [contatoParaEnvio] (com [soDigitos] conforme a tela).
+String telefoneParaEnvio({
+  required String exibido,
+  required String original,
+  bool soDigitos = false,
+}) {
+  if (exibido == formatarTelefoneEdicao(original)) return original;
+  final o = original.trim();
+  final dOrig = o.replaceAll(RegExp(r'\D'), '');
+  final temPrefixo =
+      dOrig.startsWith('55') && (dOrig.length == 12 || dOrig.length == 13);
+  final puro = RegExp(r'^[\d\s.\-/()+]+$').hasMatch(exibido);
+  if (temPrefixo && puro) {
+    var d = exibido.replaceAll(RegExp(r'\D'), '');
+    if (d.startsWith('55') && (d.length == 12 || d.length == 13)) {
+      d = d.substring(2);
+    }
+    return '${o.startsWith('+') ? '+55' : '55'}$d';
+  }
+  return contatoParaEnvio(
+    exibido: exibido,
+    original: original,
+    formatar: formatarTelefoneEdicao,
+    soDigitos: soDigitos,
+  );
+}
