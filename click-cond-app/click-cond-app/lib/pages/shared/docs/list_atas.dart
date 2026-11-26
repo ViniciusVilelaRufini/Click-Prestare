@@ -3,13 +3,24 @@ import 'package:click/pages/shared/docs/new_document.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
+import 'package:click/utils/datas.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
+import 'package:click/widgets/app/app_filtro_meses.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+
+/// Data da ata ("12/11/2026") a partir de `created_at` (a API não manda outra
+/// data); vazio se ausente ou inválida.
+String formatarDataAta(dynamic valor) {
+  final d = parseDataApi(valor);
+  if (d == null) return '';
+  String pad(int n) => n.toString().padLeft(2, '0');
+  return '${pad(d.day)}/${pad(d.month)}/${d.year}';
+}
 
 class ListAtas extends StatefulWidget {
   const ListAtas({super.key});
@@ -21,25 +32,6 @@ class _ListAtasPageState extends State<ListAtas> {
   List<dynamic> list = [];
   bool _isLoading = false;
   DateTime? _selectedMonth;
-
-  // Helper para gerar os últimos 12 meses em português
-  List<Map<String, dynamic>> _getMonths() {
-    final monthsPt = [
-      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-    ];
-    List<Map<String, dynamic>> res = [];
-    final now = DateTime.now();
-    for (int i = 0; i < 12; i++) {
-      final date = DateTime(now.year, now.month - i, 1);
-      res.add({
-        'month': date.month,
-        'year': date.year,
-        'label': "${monthsPt[date.month - 1]} / ${date.year}",
-      });
-    }
-    return res;
-  }
 
   List<dynamic> _getFilteredList() {
     if (_selectedMonth == null) return list;
@@ -86,7 +78,6 @@ class _ListAtasPageState extends State<ListAtas> {
   Widget build(BuildContext context) {
     final isSindico = getUserType() == 'sindico';
     final filteredList = _getFilteredList();
-    final months = _getMonths();
 
     return AppScaffold(
       title: getText('docs_nav_atas'),
@@ -108,76 +99,9 @@ class _ListAtasPageState extends State<ListAtas> {
             )
           : Column(
               children: [
-                // Seletor de Meses Premium
-                Container(
-                  height: 52,
-                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(
-                        color: AppColors.textTertiary(context).withValues(alpha: 0.08),
-                        width: 1,
-                      ),
-                    ),
-                  ),
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                    children: [
-                      // Chip "Todos"
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: ChoiceChip(
-                          label: const Text('Todos os Meses'),
-                          selected: _selectedMonth == null,
-                          onSelected: (val) {
-                            setState(() => _selectedMonth = null);
-                          },
-                          selectedColor: AppColors.brand,
-                          backgroundColor: AppColors.surface(context),
-                          labelStyle: AppTypography.captionMedium(context).copyWith(
-                            color: _selectedMonth == null ? AppColors.onBrand : AppColors.textSecondary(context),
-                            fontWeight: FontWeight.w600,
-                          ),
-                          side: BorderSide(
-                            color: _selectedMonth == null 
-                                ? AppColors.brand 
-                                : AppColors.textTertiary(context).withValues(alpha: 0.15),
-                          ),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-                        ),
-                      ),
-                      ...months.map((m) {
-                        final isSelected = _selectedMonth != null && 
-                                           _selectedMonth!.month == m['month'] && 
-                                           _selectedMonth!.year == m['year'];
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8.0),
-                          child: ChoiceChip(
-                            label: Text(m['label']),
-                            selected: isSelected,
-                            onSelected: (val) {
-                              setState(() {
-                                _selectedMonth = val ? DateTime(m['year'], m['month']) : null;
-                              });
-                            },
-                            selectedColor: AppColors.brand,
-                            backgroundColor: AppColors.surface(context),
-                            labelStyle: AppTypography.captionMedium(context).copyWith(
-                              color: isSelected ? AppColors.onBrand : AppColors.textSecondary(context),
-                              fontWeight: FontWeight.w600,
-                            ),
-                            side: BorderSide(
-                              color: isSelected 
-                                  ? AppColors.brand 
-                                  : AppColors.textTertiary(context).withValues(alpha: 0.15),
-                            ),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-                          ),
-                        );
-                      }),
-                    ],
-                  ),
+                AppFiltroMeses(
+                  selecionado: _selectedMonth,
+                  onChanged: (m) => setState(() => _selectedMonth = m),
                 ),
 
                 // Lista de Atas
@@ -201,7 +125,7 @@ class _ListAtasPageState extends State<ListAtas> {
                       : RefreshIndicator(
                           onRefresh: loadList,
                           child: ListView.separated(
-                            padding: const EdgeInsets.all(AppSpacing.lg),
+                            padding: EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, isSindico ? fabClearance(context) : AppSpacing.lg),
                             itemCount: filteredList.length,
                             separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
                             itemBuilder: (_, i) => GestureDetector(
@@ -217,10 +141,21 @@ class _ListAtasPageState extends State<ListAtas> {
                                       child: Icon(PhosphorIcons.fileText, color: AppColors.primary, size: 22),
                                     ),
                                     const SizedBox(width: AppSpacing.md),
-                                    Expanded(child: Text(filteredList[i]['nome'] ?? '', style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(filteredList[i]['nome'] ?? '', style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                          if (formatarDataAta(filteredList[i]['created_at']).isNotEmpty) ...[
+                                            const SizedBox(height: 2),
+                                            Text(formatarDataAta(filteredList[i]['created_at']), style: AppTypography.caption(context)),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
                                     if (isSindico)
                                       IconButton(
-                                        icon: Icon(PhosphorIcons.trash, size: 18, color: AppColors.error),
+                                        icon: Icon(PhosphorIcons.trash, size: 18, color: AppColors.textTertiary(context)),
                                         onPressed: () => delete(filteredList[i]['id']),
                                         padding: EdgeInsets.zero,
                                         constraints: const BoxConstraints(),

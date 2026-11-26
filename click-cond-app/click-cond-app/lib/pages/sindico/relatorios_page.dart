@@ -90,7 +90,7 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
   final Map<String, Map<String, dynamic>> _categories = {
     'visitantes': {
       'label': 'Visitantes',
-      'desc': 'Histórico de controle de acesso de moradores e prestadores.',
+      'desc': 'Entradas e saídas de visitantes e prestadores.',
       'icon': PhosphorIcons.users,
     },
     'encomendas': {
@@ -313,10 +313,8 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
             }),
             const SizedBox(height: AppSpacing.lg),
             Text(
-              'Período (Opcional):',
-              style: AppTypography.captionMedium(context).copyWith(
-                color: AppColors.textTertiary(context),
-              ),
+              'PERÍODO (OPCIONAL)',
+              style: AppTypography.label(context),
             ),
             const SizedBox(height: AppSpacing.md),
             Row(
@@ -440,10 +438,8 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Unidade (Opcional):',
-                  style: AppTypography.captionMedium(context).copyWith(
-                    color: AppColors.textTertiary(context),
-                  ),
+                  'UNIDADE (OPCIONAL)',
+                  style: AppTypography.label(context),
                 ),
                 if (_selectedBloco != null || _selectedApto != null)
                   GestureDetector(

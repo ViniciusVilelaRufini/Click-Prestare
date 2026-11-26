@@ -7,6 +7,7 @@ import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
+import 'package:click/utils/nome_proprio.dart';
 import 'package:click/utils/validacao_formularios.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
@@ -124,6 +125,19 @@ class _ListMudancasPageState extends State<ListMudancas> {
   }
 }
 
+/// "Bloco A · Apto 106"; sem apto, só o bloco; sem nada, "Mudança".
+String mudancaRotuloUnidade(String? bloco, String? apto) {
+  final r = rotuloUnidadeCard(bloco, apto);
+  return r.isEmpty ? 'Mudança' : r;
+}
+
+/// Nome de quem pediu a mudança, se a API devolveu (`criadoPor.name`).
+String mudancaSolicitante(dynamic item) {
+  final c = item['criadoPor'];
+  final nome = c is Map ? c['name']?.toString() : item['solicitante']?.toString();
+  return nomeProprio(nome);
+}
+
 class _MudancaCard extends StatelessWidget {
   final dynamic item;
   final VoidCallback? onTap;
@@ -211,16 +225,11 @@ class _MudancaCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rawStatus = item['status']?.toString() ?? 'pendente';
-    final color = _statusColor(rawStatus);
-    final icon = _statusIcon(rawStatus);
-    final label = _statusLabel(rawStatus);
-
     final String apto = item['apto']?.toString() ?? '';
-    final String blocoRaw = item['bloco']?.toString() ?? '';
-    final String blocoText = rotuloBloco(blocoRaw);
-    final String aptoBloco = apto.isNotEmpty
-        ? 'Apto $apto ${blocoText.isNotEmpty ? "- $blocoText" : ""}'
-        : (blocoText.isNotEmpty ? blocoText : 'Mudança');
+    // A API manda o bloco como `apto_bloco` (a chave `bloco` nunca existiu).
+    final String blocoRaw = (item['apto_bloco'] ?? item['bloco'])?.toString() ?? '';
+    final String aptoBloco = mudancaRotuloUnidade(blocoRaw, apto);
+    final solicitante = mudancaSolicitante(item);
 
     final data = item['data']?.toString() ?? '';
     final hora = item['hora_inicio']?.toString() ?? '';
@@ -234,6 +243,11 @@ class _MudancaCard extends StatelessWidget {
     final canDecide = podeGerenciarMudanca && rawStatus.toLowerCase() == 'pendente';
     // Dia que já passou: o servidor recusa a aprovação, então só oferece RECUSAR.
     final dataPassada = canDecide && mudancaDataPassada(data);
+    // Pendente de um dia que já passou não vai mais ser aprovada: vira VENCIDO
+    // (neutro); o síndico ainda pode recusar para encerrar.
+    final color = dataPassada ? AppColors.textTertiary(context) : _statusColor(rawStatus);
+    final icon = dataPassada ? PhosphorIcons.calendarX : _statusIcon(rawStatus);
+    final label = dataPassada ? 'VENCIDO' : _statusLabel(rawStatus);
 
     return Container(
       decoration: BoxDecoration(
@@ -312,6 +326,19 @@ class _MudancaCard extends StatelessWidget {
                           ),
                         ],
                       ),
+                      if (solicitante.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Row(children: [
+                          Icon(PhosphorIcons.user, size: 14, color: AppColors.textTertiary(context)),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(solicitante,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.caption(context)),
+                          ),
+                        ]),
+                      ],
                       const SizedBox(height: 10),
                       // Data e Hora Box
                       if (data.isNotEmpty || hora.isNotEmpty)

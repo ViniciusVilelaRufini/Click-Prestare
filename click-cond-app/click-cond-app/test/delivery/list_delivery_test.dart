@@ -227,7 +227,7 @@ void main() {
 
     expect(find.text('NENHUMA ENTREGA EM ANDAMENTO'), findsOneWidget);
     // Com o FAB na tela, o vazio não repete o botão "Avisar entrega".
-    expect(find.text('Avisar entrega'), findsOneWidget);
+    expect(find.text('AVISAR ENTREGA'), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsOneWidget);
     await tester.tap(find.text('HISTÓRICO (0)'));
     await tester.pumpAndSettle();
@@ -318,13 +318,13 @@ void main() {
     expect(find.text('1 aguardando você'), findsOneWidget);
     expect(find.text('1 em andamento'), findsOneWidget);
     expect(find.text('1 concluída'), findsOneWidget);
-    expect(find.text('Hoje'), findsOneWidget);
+    expect(find.text('HOJE'), findsOneWidget);
 
     await tester.tap(find.text('HISTÓRICO (2)'));
     await tester.pumpAndSettle();
     for (final id in [3, 4]) {
       final label = deliveryDayLabel(DateTime.parse('2026-10-0${id}T12:00:00'));
-      expect(find.text(label), findsOneWidget, reason: label);
+      expect(find.text(label.toUpperCase()), findsOneWidget, reason: label);
     }
   });
 

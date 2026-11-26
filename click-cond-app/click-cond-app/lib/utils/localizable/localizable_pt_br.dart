@@ -466,7 +466,7 @@ class Localizable_PtBr {
     LocalizableModel(key: 'apto_so_proprietario_add', text: 'Apenas o proprietário pode cadastrar familiares.'),
 
     //MUDANCA
-    LocalizableModel(key: 'mudanca_nav', text: 'Agendamentos Mudança'),  
+    LocalizableModel(key: 'mudanca_nav', text: 'Agendamentos de mudança'),  
     LocalizableModel(key: 'mudanca_nav_edit', text: 'Editar Mudança'),
     LocalizableModel(key: 'mudanca_nav_new', text: 'Solicitar Mudança'),
     LocalizableModel(key: 'mudanca_pendente_aprovacao', text: 'Este item não está mais pendente aprovação.\nVocê não pode mais editá-lo.'), 

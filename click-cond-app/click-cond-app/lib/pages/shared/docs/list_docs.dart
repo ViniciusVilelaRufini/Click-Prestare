@@ -8,6 +8,7 @@ import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
+import 'package:click/widgets/app/app_filtro_meses.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
@@ -23,25 +24,6 @@ class _ListDocsPageState extends State<ListDocs> {
   List<dynamic> list = [];
   bool _isLoading = false;
   DateTime? _selectedMonth;
-
-  // Helper para gerar os últimos 12 meses em português
-  List<Map<String, dynamic>> _getMonths() {
-    final monthsPt = [
-      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-    ];
-    List<Map<String, dynamic>> res = [];
-    final now = DateTime.now();
-    for (int i = 0; i < 12; i++) {
-      final date = DateTime(now.year, now.month - i, 1);
-      res.add({
-        'month': date.month,
-        'year': date.year,
-        'label': "${monthsPt[date.month - 1]} / ${date.year}",
-      });
-    }
-    return res;
-  }
 
   List<dynamic> _getFilteredList() {
     if (_selectedMonth == null) return list;
@@ -90,7 +72,6 @@ class _ListDocsPageState extends State<ListDocs> {
   Widget build(BuildContext context) {
     final isSindico = getUserType() == 'sindico';
     final filteredList = _getFilteredList();
-    final months = _getMonths();
 
     return AppScaffold(
       title: getText('docs_nav'),
@@ -112,100 +93,59 @@ class _ListDocsPageState extends State<ListDocs> {
             )
           : Column(
               children: [
-                // Seletor de Meses Premium
-                Container(
-                  height: 52,
-                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(
-                        color: AppColors.textTertiary(context).withValues(alpha: 0.08),
-                        width: 1,
-                      ),
-                    ),
-                  ),
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                    children: [
-                      // Chip "Todos"
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: ChoiceChip(
-                          label: const Text('Todos os Meses'),
-                          selected: _selectedMonth == null,
-                          onSelected: (val) {
-                            setState(() => _selectedMonth = null);
-                          },
-                          selectedColor: AppColors.brand,
-                          backgroundColor: AppColors.surface(context),
-                          labelStyle: AppTypography.captionMedium(context).copyWith(
-                            color: _selectedMonth == null ? AppColors.onBrand : AppColors.textSecondary(context),
-                            fontWeight: FontWeight.w600,
-                          ),
-                          side: BorderSide(
-                            color: _selectedMonth == null 
-                                ? AppColors.brand 
-                                : AppColors.textTertiary(context).withValues(alpha: 0.15),
-                          ),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-                        ),
-                      ),
-                      ...months.map((m) {
-                        final isSelected = _selectedMonth != null && 
-                                           _selectedMonth!.month == m['month'] && 
-                                           _selectedMonth!.year == m['year'];
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8.0),
-                          child: ChoiceChip(
-                            label: Text(m['label']),
-                            selected: isSelected,
-                            onSelected: (val) {
-                              setState(() {
-                                _selectedMonth = val ? DateTime(m['year'], m['month']) : null;
-                              });
-                            },
-                            selectedColor: AppColors.brand,
-                            backgroundColor: AppColors.surface(context),
-                            labelStyle: AppTypography.captionMedium(context).copyWith(
-                              color: isSelected ? AppColors.onBrand : AppColors.textSecondary(context),
-                              fontWeight: FontWeight.w600,
-                            ),
-                            side: BorderSide(
-                              color: isSelected 
-                                  ? AppColors.brand 
-                                  : AppColors.textTertiary(context).withValues(alpha: 0.15),
-                            ),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-                          ),
-                        );
-                      }),
-                    ],
-                  ),
+                AppFiltroMeses(
+                  selecionado: _selectedMonth,
+                  onChanged: (m) => setState(() => _selectedMonth = m),
                 ),
-
-                // Lista de Documentos
                 Expanded(
                   child: RefreshIndicator(
                     onRefresh: loadList,
                     child: ListView(
-                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg,
+                          isSindico ? fabClearance(context) : AppSpacing.lg),
                       children: [
+                        // Atalhos fixos primeiro: são a navegação da tela e não
+                        // dependem do período nem de haver documentos.
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                          child: _DocCard(
+                            item: {'nome': 'Atas'},
+                            icon: PhosphorIcons.fileText,
+                            showArrow: true,
+                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ListAtas())),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                          child: _DocCard(
+                            item: {'nome': getText('contatos_nav')},
+                            icon: PhosphorIcons.addressBook,
+                            showArrow: true,
+                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ListContatos())),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: AppSpacing.md, bottom: AppSpacing.sm),
+                          child: Semantics(
+                            header: true,
+                            child: Text('DOCUMENTOS', style: AppTypography.label(context)),
+                          ),
+                        ),
                         if (filteredList.isEmpty)
-                          Center(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
-                              child: Column(children: [
-                                Icon(PhosphorIcons.folder, size: 56, color: AppColors.textTertiary(context)),
-                                const SizedBox(height: AppSpacing.md),
-                                Text(
-                                  _selectedMonth == null 
-                                      ? getText('alert_list_empty_generic')
-                                      : 'Nenhum documento encontrado neste mês.', 
-                                  style: AppTypography.caption(context),
-                                ),
-                              ]),
-                            ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+                            child: Column(children: [
+                              Icon(PhosphorIcons.folder, size: 40, color: AppColors.textTertiary(context)),
+                              const SizedBox(height: AppSpacing.md),
+                              Text(
+                                _selectedMonth == null
+                                    ? 'Nenhum documento enviado ainda.'
+                                    : 'Nenhum documento neste período.',
+                                textAlign: TextAlign.center,
+                                style: AppTypography.caption(context),
+                              ),
+                            ]),
                           ),
                         for (var item in filteredList)
                           Padding(
@@ -216,27 +156,6 @@ class _ListDocsPageState extends State<ListDocs> {
                               onDelete: isSindico ? () => delete(item['id']) : null,
                             ),
                           ),
-                        // Atalhos fixos: só fazem sentido sem filtro de mês,
-                        // porque não são documentos daquele mês.
-                        if (_selectedMonth == null) ...[
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                            child: _DocCard(
-                              item: {'nome': 'ATAS'},
-                              showArrow: true,
-                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ListAtas())),
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                            child: _DocCard(
-                              item: {'nome': getText('contatos_nav').toUpperCase()},
-                              icon: PhosphorIcons.wrench,
-                              showArrow: true,
-                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ListContatos())),
-                            ),
-                          ),
-                        ],
                       ],
                     ),
                   ),
@@ -277,7 +196,7 @@ class _DocCard extends StatelessWidget {
             ),
             if (onDelete != null)
               IconButton(
-                icon: Icon(PhosphorIcons.trash, size: 18, color: AppColors.error),
+                icon: Icon(PhosphorIcons.trash, size: 18, color: AppColors.textTertiary(context)),
                 onPressed: onDelete,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),

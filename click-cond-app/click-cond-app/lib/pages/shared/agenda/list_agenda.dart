@@ -65,7 +65,16 @@ class _ListAgendaPageState extends State<ListAgenda> {
                   child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Icon(PhosphorIcons.calendarBlank, size: 56, color: AppColors.textTertiary(context)),
                     const SizedBox(height: AppSpacing.md),
-                    Text(getText('alert_list_empty_generic'), style: AppTypography.caption(context), textAlign: TextAlign.center, maxLines: 2),
+                    Text('Nenhuma manutenção programada.',
+                        style: AppTypography.bodyMedium(context), textAlign: TextAlign.center),
+                    if (canAdd) ...[
+                      const SizedBox(height: 4),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                        child: Text('Toque em + para programar uma manutenção.',
+                            style: AppTypography.caption(context), textAlign: TextAlign.center),
+                      ),
+                    ],
                   ]),
                 )
               : RefreshIndicator(

@@ -7,6 +7,7 @@ import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
+import 'package:click/widgets/app/app_filtro_meses.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:click/widgets/votacao/votacao_card.dart';
@@ -25,51 +26,14 @@ class ListEnquetes extends StatefulWidget {
 class _ListEnquetesPageState extends State<ListEnquetes> {
   List<dynamic> list = [];
   bool _isLoading = false;
-  int _selectedMonth = DateTime.now().month;
-  int _selectedYear = DateTime.now().year;
-
-  // Generate months: 6 previous + current + 3 ahead
-  List<DateTime> get _months {
-    final months = <DateTime>[];
-    final now = DateTime.now();
-    for (int i = -6; i <= 3; i++) {
-      int m = now.month + i;
-      int y = now.year;
-      while (m < 1) { m += 12; y--; }
-      while (m > 12) { m -= 12; y++; }
-      months.add(DateTime(y, m));
-    }
-    return months;
-  }
-
-  final _monthScrollController = ScrollController();
+  // Nulo = "Todos os meses" (padrão): todas as enquetes aparecem ao abrir.
+  DateTime? _selectedMonth;
 
   @override
   void initState() {
     super.initState();
-    // Os chips formatam o mês em pt_BR; sem os dados do locale o DateFormat
-    // lança. A carga é síncrona para os dados locais do intl.
     initializeDateFormatting('pt_BR');
     loadList();
-    // Scroll to the current month (index 6) after build
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_monthScrollController.hasClients) return;
-      if (mounted && (MediaQuery.maybeDisableAnimationsOf(context) ?? false)) {
-        _monthScrollController.jumpTo(6 * _MonthStrip.passo);
-      } else {
-        _monthScrollController.animateTo(
-          6 * _MonthStrip.passo,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _monthScrollController.dispose();
-    super.dispose();
   }
 
   Future<void> loadList() async {
@@ -83,21 +47,35 @@ class _ListEnquetesPageState extends State<ListEnquetes> {
     }
   }
 
+  /// Data de início/término ("dd/MM/yyyy") da enquete, ou nulo se ilegível.
+  static DateTime? dataEnquete(dynamic item) {
+    final raw = (item['data_inicio'] ?? item['data_termino'] ?? '').toString();
+    final parts = raw.split('/');
+    if (parts.length != 3) return null;
+    final d = int.tryParse(parts[0]), m = int.tryParse(parts[1]), y = int.tryParse(parts[2]);
+    if (d == null || m == null || y == null) return null;
+    return DateTime(y, m, d);
+  }
+
+  /// Mais recentes primeiro; sem data vão para o fim (ordem original mantida).
   List<dynamic> get _filteredList {
-    return list.where((item) {
-      // Try to parse data_inicio or data_termino field: expected "dd/MM/yyyy"
-      final raw = (item['data_inicio'] ?? item['data_termino'] ?? '').toString();
-      if (raw.isEmpty) return true;
-      try {
-        final parts = raw.split('/');
-        if (parts.length == 3) {
-          final month = int.parse(parts[1]);
-          final year = int.parse(parts[2]);
-          return month == _selectedMonth && year == _selectedYear;
-        }
-      } catch (_) {}
-      return true;
+    final sel = _selectedMonth;
+    final itens = list.where((item) {
+      if (sel == null) return true;
+      final d = dataEnquete(item);
+      // Sem data legível: continua aparecendo, como antes.
+      return d == null || (d.month == sel.month && d.year == sel.year);
     }).toList();
+    final indexados = [for (var i = 0; i < itens.length; i++) (i, itens[i])];
+    indexados.sort((a, b) {
+      final da = dataEnquete(a.$2), db = dataEnquete(b.$2);
+      if (da == null && db == null) return a.$1.compareTo(b.$1);
+      if (da == null) return 1;
+      if (db == null) return -1;
+      final c = db.compareTo(da);
+      return c != 0 ? c : a.$1.compareTo(b.$1);
+    });
+    return [for (final e in indexados) e.$2];
   }
 
   void _abrir(dynamic item) {
@@ -126,16 +104,9 @@ class _ListEnquetesPageState extends State<ListEnquetes> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Month selector ───────────────────────────────────────────
-          _MonthStrip(
-            months: _months,
-            selectedMonth: _selectedMonth,
-            selectedYear: _selectedYear,
-            scrollController: _monthScrollController,
-            onMonthSelected: (dt) => setState(() {
-              _selectedMonth = dt.month;
-              _selectedYear = dt.year;
-            }),
+          AppFiltroMeses(
+            selecionado: _selectedMonth,
+            onChanged: (m) => setState(() => _selectedMonth = m),
           ),
           // ── List ─────────────────────────────────────────────────────
           Expanded(
@@ -155,7 +126,7 @@ class _ListEnquetesPageState extends State<ListEnquetes> {
                             physics: const AlwaysScrollableScrollPhysics(),
                             padding: EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, folgaFinal),
                             children: [
-                              _EstadoVazio(mes: DateTime(_selectedYear, _selectedMonth)),
+                              _EstadoVazio(mes: _selectedMonth),
                             ],
                           )
                         : ListView.separated(
@@ -176,123 +147,6 @@ class _ListEnquetesPageState extends State<ListEnquetes> {
                   ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ── Month Strip ──────────────────────────────────────────────────────────────
-
-/// Faixa horizontal de meses. Cada chip tem largura fixa ([largura] +
-/// [espaco] = [passo]) para o scroll inicial cair exatamente no mês atual.
-class _MonthStrip extends StatelessWidget {
-  static const double largura = 64;
-  static const double espaco = 8;
-  static const double passo = largura + espaco;
-
-  final List<DateTime> months;
-  final int selectedMonth;
-  final int selectedYear;
-  final ScrollController scrollController;
-  final ValueChanged<DateTime> onMonthSelected;
-
-  const _MonthStrip({
-    required this.months,
-    required this.selectedMonth,
-    required this.selectedYear,
-    required this.scrollController,
-    required this.onMonthSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final destaque = corDestaqueVotacao(context);
-    final now = DateTime.now();
-    final reduzir = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-
-    return Container(
-      height: 72,
-      decoration: BoxDecoration(
-        color: AppColors.bg(context),
-        border: Border(bottom: BorderSide(color: AppColors.border(context))),
-      ),
-      child: ListView.builder(
-        controller: scrollController,
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm + 2),
-        itemCount: months.length,
-        itemBuilder: (_, i) {
-          final dt = months[i];
-          final isSelected = dt.month == selectedMonth && dt.year == selectedYear;
-          final isCurrentMonth = dt.month == now.month && dt.year == now.year;
-          final mes = DateFormat('MMM', 'pt_BR').format(dt).replaceAll('.', '');
-          final mesLabel = mes.isEmpty ? '' : '${mes[0].toUpperCase()}${mes.substring(1)}';
-          final mesLongo = DateFormat('MMMM', 'pt_BR').format(dt);
-          final mostrarAno = dt.year != now.year;
-
-          final Color fg = isSelected ? AppColors.onBrand : AppColors.textPrimary(context);
-          final Color bg = isSelected ? AppColors.brand : AppColors.surface(context);
-          final Color borda = isSelected
-              ? AppColors.brand
-              : isCurrentMonth
-                  ? destaque.withValues(alpha: isDark ? 0.6 : 0.45)
-                  : AppColors.border(context);
-
-          return Padding(
-            padding: const EdgeInsets.only(right: espaco),
-            child: Semantics(
-              button: true,
-              selected: isSelected,
-              label: '$mesLongo de ${dt.year}${isCurrentMonth ? ', mês atual' : ''}',
-              excludeSemantics: true,
-              onTap: () => onMonthSelected(dt),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => onMonthSelected(dt),
-                  borderRadius: BorderRadius.circular(AppRadius.tag),
-                  child: AnimatedContainer(
-                    duration: reduzir ? Duration.zero : const Duration(milliseconds: 200),
-                    curve: Curves.easeOut,
-                    width: largura,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: bg,
-                      borderRadius: BorderRadius.circular(AppRadius.tag),
-                      border: Border.all(color: borda, width: isCurrentMonth && !isSelected ? 1.5 : 1),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          mesLabel,
-                          maxLines: 1,
-                          style: AppTypography.bodyMedium(context).copyWith(
-                            fontSize: 14,
-                            height: 1.2,
-                            color: fg,
-                            fontWeight: isSelected || isCurrentMonth ? FontWeight.w700 : FontWeight.w500,
-                          ),
-                        ),
-                        if (mostrarAno)
-                          Text(
-                            '${dt.year}',
-                            maxLines: 1,
-                            style: AppTypography.tiny(context).copyWith(
-                              height: 1.2,
-                              color: isSelected ? AppColors.onBrand.withValues(alpha: 0.8) : AppColors.textTertiary(context),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
       ),
     );
   }
@@ -339,13 +193,13 @@ class _CardSkeleton extends StatelessWidget {
 }
 
 class _EstadoVazio extends StatelessWidget {
-  final DateTime mes;
+  final DateTime? mes;
   const _EstadoVazio({required this.mes});
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final mesTxt = DateFormat("MMMM 'de' y", 'pt_BR').format(mes);
+    final mesTxt = mes == null ? null : DateFormat("MMMM 'de' y", 'pt_BR').format(mes!);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: AppSpacing.xxl),
@@ -375,7 +229,9 @@ class _EstadoVazio extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Não há enquetes em $mesTxt. Escolha outro mês acima.',
+            mesTxt == null
+                ? 'Nenhuma enquete criada ainda.'
+                : 'Não há enquetes em $mesTxt. Escolha outro mês acima.',
             textAlign: TextAlign.center,
             style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context)),
           ),

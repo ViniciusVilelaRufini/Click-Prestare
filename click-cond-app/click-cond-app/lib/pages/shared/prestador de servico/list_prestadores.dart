@@ -10,6 +10,7 @@ import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
+import 'package:click/widgets/app/app_filtro_chip.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:click/utils/datas.dart';
 import 'package:click/utils/status_visita.dart';
@@ -669,57 +670,33 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
-              child: Container(
-                height: 48,
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: AppColors.surface(context),
-                  borderRadius: BorderRadius.zero,
-                ),
-                child: TabBar(
-                  dividerColor: Colors.transparent,
-                  unselectedLabelColor: AppColors.textSecondary(context),
-                  labelColor: AppColors.onBrand,
-                  labelStyle: AppTypography.caption(context).copyWith(fontWeight: FontWeight.bold),
-                  unselectedLabelStyle: AppTypography.caption(context),
-                  indicatorSize: TabBarIndicatorSize.tab,
-                  indicator: BoxDecoration(
-                    color: AppColors.brand,
-                    borderRadius: BorderRadius.zero,
+              child: Builder(builder: (ctx) {
+                final tc = DefaultTabController.of(ctx);
+                return AnimatedBuilder(
+                  animation: tc.animation!,
+                  builder: (_, __) => Row(
+                    children: [
+                      Expanded(
+                        child: AppFiltroChip(
+                          icon: PhosphorIcons.houseLine,
+                          label: 'No local (${listInside.length})',
+                          selected: tc.index == 0,
+                          onTap: () => tc.animateTo(0),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: AppFiltroChip(
+                          icon: PhosphorIcons.identificationCard,
+                          label: 'Cadastrados (${listCadastrados.length})',
+                          selected: tc.index == 1,
+                          onTap: () => tc.animateTo(1),
+                        ),
+                      ),
+                    ],
                   ),
-                   tabs: [
-                    Tab(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(PhosphorIcons.houseLine, size: 16),
-                            const SizedBox(width: 6),
-                            Builder(builder: (ctx) {
-                              final w = MediaQuery.of(ctx).size.width;
-                              return Text(w < 385 ? 'Ativos (${listInside.length})' : 'No Local / Ativos (${listInside.length})');
-                            }),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Tab(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(PhosphorIcons.identificationCard, size: 16),
-                            const SizedBox(width: 6),
-                            Text('Cadastrados (${listCadastrados.length})'),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                );
+              }),
             ),
             Expanded(
               child: _isLoading

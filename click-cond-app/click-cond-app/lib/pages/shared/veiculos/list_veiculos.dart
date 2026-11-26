@@ -11,6 +11,7 @@ import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
+import 'package:click/widgets/app/app_segmented_control.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -145,10 +146,13 @@ class _ListVeiculosState extends State<ListVeiculos> {
             )
           : (_resumoVagas.livres > 0
               ? FloatingActionButton.extended(
+                  heroTag: 'liberar_vaga_fab',
                   onPressed: _abrirLiberarVaga,
                   backgroundColor: AppColors.brand,
-                  icon: Icon(PhosphorIcons.key, color: AppColors.onBrand),
-                  label: Text('Liberar vaga',
+                  foregroundColor: AppColors.onBrand,
+                  shape: const RoundedRectangleBorder(),
+                  icon: Icon(PhosphorIcons.key, color: AppColors.onBrand, size: 20),
+                  label: Text('LIBERAR VAGA',
                       style: AppTypography.button(context).copyWith(color: AppColors.onBrand)),
                 )
               : null),
@@ -168,26 +172,13 @@ class _ListVeiculosState extends State<ListVeiculos> {
   }
 
   Widget _buildViewToggle() {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        borderRadius: BorderRadius.zero,
-      ),
-      child: Row(
-        children: [
-          _ToggleItem(
-            label: 'MEUS VEÍCULOS',
-            isSelected: _tab == _VeiculosTab.veiculos,
-            onTap: () => setState(() => _tab = _VeiculosTab.veiculos),
-          ),
-          _ToggleItem(
-            label: 'MINHAS VAGAS',
-            isSelected: _tab == _VeiculosTab.vagas,
-            onTap: () => setState(() => _tab = _VeiculosTab.vagas),
-          ),
-        ],
-      ),
+    return AppSegmentedControl(
+      segments: const [
+        AppSegment(label: 'Meus veículos'),
+        AppSegment(label: 'Minhas vagas'),
+      ],
+      selectedIndex: _tab == _VeiculosTab.veiculos ? 0 : 1,
+      onChanged: (i) => setState(() => _tab = i == 0 ? _VeiculosTab.veiculos : _VeiculosTab.vagas),
     );
   }
 
@@ -248,41 +239,6 @@ class _ListVeiculosState extends State<ListVeiculos> {
           Text('Toque em + para adicionar o seu carro',
               style: AppTypography.caption(context)),
         ],
-      ),
-    );
-  }
-}
-
-/// Item do toggle superior (mesmo estilo da tela de Financeiro).
-class _ToggleItem extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _ToggleItem({required this.label, required this.isSelected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.brand : Colors.transparent,
-            borderRadius: BorderRadius.zero,
-          ),
-          child: Center(
-            child: Text(
-              label,
-              style: AppTypography.tiny(context).copyWith(
-                color: isSelected ? AppColors.onBrand : AppColors.textSecondary(context),
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }
