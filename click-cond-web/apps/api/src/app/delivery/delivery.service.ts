@@ -101,10 +101,13 @@ export const MSG_ENCERRADO_AUTOMATICAMENTE = 'Encerrado automaticamente';
 const DESTINO_PARADO_PORTARIA: Partial<Record<DeliveryStatus, { status: DeliveryStatus; mensagem: string }>> = {
   CHEGOU: { status: 'CANCELADA', mensagem: MOTIVO_PARADO_SEM_RESPOSTA },
   AGUARDANDO_AUTORIZACAO: { status: 'CANCELADA', mensagem: MOTIVO_PARADO_SEM_RESPOSTA },
-  // Entregador subiu e ninguém concluiu: o fato de "sem retirada" não existe, volta a CONCLUIDA.
+  // Autorizada para SUBIR (modo UNIDADE): o entregador subiu e ninguém concluiu — CONCLUIDA.
+  // Autorizada para RETIRAR NA PORTARIA e ninguém retirou: ver DESTINO_AUTORIZADA_RETIRAR.
   AUTORIZADA: { status: 'CONCLUIDA', mensagem: MSG_ENCERRADO_AUTOMATICAMENTE },
   RETIRADA_NA_PORTARIA: { status: 'CANCELADA', mensagem: MOTIVO_ENCERRADA_SEM_RETIRADA },
 };
+/** Autorizada com modo PORTARIA parada 24 h: ninguém retirou — não é "concluída". */
+const DESTINO_AUTORIZADA_RETIRAR = { status: 'CANCELADA' as DeliveryStatus, mensagem: MOTIVO_ENCERRADA_SEM_RETIRADA };
 const MSG_JA_TEM_PEDIDO = 'Este atendimento já tem um pedido de portão.';
 const MSG_ENTREGADOR_SAIU = 'O entregador não está mais no portão.';
 const AUTOR_AUTOATENDIMENTO = 'Autoatendimento';
@@ -821,13 +824,16 @@ export class DeliveryService {
         status: { in: Object.keys(DESTINO_PARADO_PORTARIA) },
         updated_at: { lte: corte },
       },
-      select: { id: true, status: true },
+      select: { id: true, status: true, modo_entrega: true },
       orderBy: { id: 'asc' },
       take: LOTE_SEM_CHEGADA,
-    })) as { id: number; status: DeliveryStatus }[];
+    })) as { id: number; status: DeliveryStatus; modo_entrega?: string | null }[];
     let mudados = 0;
     for (const a of lista) {
-      const destino = DESTINO_PARADO_PORTARIA[a.status];
+      const destino =
+        a.status === 'AUTORIZADA' && a.modo_entrega === 'PORTARIA'
+          ? DESTINO_AUTORIZADA_RETIRAR
+          : DESTINO_PARADO_PORTARIA[a.status];
       if (!destino) continue;
       try {
         const ok = await this.transicionarPeloSistema(a.id, destino.status, destino.mensagem, {

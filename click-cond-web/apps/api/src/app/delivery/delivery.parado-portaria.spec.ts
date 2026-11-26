@@ -67,6 +67,14 @@ describe('delivery — atendimento da portaria parado há 24 h', () => {
     expect(k.tabela('deliveryEventos')[0]).toMatchObject({ status_novo: 'CONCLUIDA', mensagem: 'Encerrado automaticamente' });
   });
 
+  it('AUTORIZADA para RETIRAR NA PORTARIA (modo PORTARIA), parado 25 h → CANCELADA "Encerrada sem retirada", não CONCLUIDA', async () => {
+    const k = montarPortao({ atendimentos: [atendimento(1, 'AUTORIZADA', 25 * H, { modo_entrega: 'PORTARIA' })] });
+    await k.delivery.encerrarParadosDaPortaria();
+    const [a] = k.tabela('deliveryAtendimentos');
+    expect(a.status).toBe('CANCELADA');
+    expect(k.tabela('deliveryEventos')[0]).toMatchObject({ status_novo: 'CANCELADA', mensagem: 'Encerrada sem retirada' });
+  });
+
   // O aviso da rotina vai em segundo plano (semEsperarAviso): deixa assentar.
   const assentar = async () => {
     for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
