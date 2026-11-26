@@ -124,14 +124,16 @@ export function alertaDelivery(
   fase: FaseCard,
   c: Pick<ConteudoCard, 'nome'> & Partial<Pick<ConteudoCard, 'tipo' | 'portao'>>,
 ): AlertaCard | null {
+  // Sem estabelecimento o card mostra "Delivery"; o texto não pode tratar isso como nome de loja.
+  const loja = c.nome && c.nome !== 'Delivery' ? c.nome : null;
   switch (fase) {
     case 'chegou':
-      return { titulo: 'Delivery na portaria', corpo: `${c.nome} chegou. Acompanhe pelo card.` };
+      return { titulo: 'Delivery na portaria', corpo: `${loja ?? 'Seu entregador'} chegou. Acompanhe pelo card.` };
     case 'aguardando':
       if (c.portao) return { titulo: 'Entregador no portão', corpo: `${c.tipo || 'Entregador'} pede para entrar.` };
-      return { titulo: 'Autorize a entrega', corpo: `A portaria aguarda sua autorização para ${c.nome}.` };
+      return { titulo: 'Autorize a entrega', corpo: `A portaria aguarda sua autorização para ${loja ?? 'a entrega'}.` };
     case 'retirar':
-      return { titulo: 'Retire na portaria', corpo: `Sua entrega de ${c.nome} está na portaria.` };
+      return { titulo: 'Retire na portaria', corpo: loja ? `Sua entrega de ${loja} está na portaria.` : 'Sua entrega está na portaria.' };
     default:
       return null;
   }

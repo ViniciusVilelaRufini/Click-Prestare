@@ -531,7 +531,7 @@ export class DashboardService {
       const dataEvento = v.data_entrada || v.created_at;
       ultimosEventos.push({
         tipo: v.is_prestador === 1 ? 'Prestador' : 'Visitante',
-        descricao: `${v.nome} entrou — ${aptoStr}`.trim(),
+        descricao: aptoStr ? `${v.nome} entrou — ${aptoStr}` : `${v.nome} entrou`,
         quando: dataEvento.toISOString(),
         direcao: 'entrada',
         detalhes: {
@@ -543,7 +543,7 @@ export class DashboardService {
           dataEntrada: v.data_entrada ? v.data_entrada.toISOString() : undefined,
           dataSaida: v.data_saida ? v.data_saida.toISOString() : undefined,
           status: v.data_saida ? 'Saída registrada' : 'No local',
-          autorizadoPor: v.criadoPor?.name || 'Morador',
+          autorizadoPor: v.criadoPor?.name || 'Não informado',
           fotoPessoa: v.foto_pessoa || undefined,
           // Chave AUSENTE (não `undefined`) para quem não é síndico.
           ...(incluirFotoDocumento && v.foto_documento ? { fotoDocumento: v.foto_documento } : {}),
@@ -563,7 +563,7 @@ export class DashboardService {
         : '';
       ultimosEventos.push({
         tipo: v.is_prestador === 1 ? 'Prestador' : 'Visitante',
-        descricao: `${v.nome} saiu — ${aptoStr}`.trim(),
+        descricao: aptoStr ? `${v.nome} saiu — ${aptoStr}` : `${v.nome} saiu`,
         quando: v.data_saida.toISOString(),
         direcao: 'saida',
         detalhes: {
@@ -575,7 +575,7 @@ export class DashboardService {
           dataEntrada: v.data_entrada ? v.data_entrada.toISOString() : undefined,
           dataSaida: v.data_saida.toISOString(),
           status: 'Saiu',
-          autorizadoPor: v.criadoPor?.name || 'Morador',
+          autorizadoPor: v.criadoPor?.name || 'Não informado',
           fotoPessoa: v.foto_pessoa || undefined,
           // Chave AUSENTE (não `undefined`) para quem não é síndico.
           ...(incluirFotoDocumento && v.foto_documento ? { fotoDocumento: v.foto_documento } : {}),

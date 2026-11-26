@@ -313,7 +313,7 @@ export class RelatoriosService {
         Apartamento: v.apartamento ? formatarApto(v.apartamento.apto, v.apartamento.bloco) || 'Não informado' : 'Não informado',
         Entrada: v.data_entrada ? formatDateTime(v.data_entrada) : 'Pendente',
         Saída: v.data_entrada ? (v.data_saida ? formatDateTime(v.data_saida) : 'No local') : '-',
-        'Autorizado Por': v.criadoPor?.name || 'Morador',
+        'Autorizado Por': v.criadoPor?.name || 'Não informado',
         Criado: formatDateTime(v.created_at),
       }));
 
@@ -346,7 +346,7 @@ export class RelatoriosService {
                 v.apartamento ? formatarApto(v.apartamento.apto, v.apartamento.bloco) || '-' : '-',
                 v.data_entrada ? formatDateTime(v.data_entrada) : '-',
                 v.data_entrada ? (v.data_saida ? formatDateTime(v.data_saida) : 'No local') : '-',
-                v.criadoPor?.name || 'Morador',
+                v.criadoPor?.name || 'Não informado',
               ]),
             ],
           },
@@ -1244,7 +1244,7 @@ export class RelatoriosService {
         porChave.set(`visita_entrada:${v.id}`, {
           id: `visitante-ent-${v.id}`,
           tipo: v.is_prestador === 1 ? 'Prestador' : 'Visitante',
-          descricao: `${v.nome} entrou — ${aptoStr}`.trim(),
+          descricao: aptoStr ? `${v.nome} entrou — ${aptoStr}` : `${v.nome} entrou`,
           quando: v.data_entrada.toISOString(),
           direcao: 'entrada',
           detalhes: {
@@ -1256,7 +1256,7 @@ export class RelatoriosService {
             dataEntrada: v.data_entrada ? v.data_entrada.toISOString() : undefined,
             dataSaida: v.data_saida ? v.data_saida.toISOString() : undefined,
             status: v.data_saida ? 'Saída registrada' : 'No local',
-            autorizadoPor: v.criadoPor?.name || 'Morador',
+            autorizadoPor: v.criadoPor?.name || 'Não informado',
             fotoPessoa: v.foto_pessoa || undefined,
             metodoLiberacao: 'pin',
             metodoLabel: 'PIN / Manual',
@@ -1267,7 +1267,7 @@ export class RelatoriosService {
         porChave.set(`visita_saida:${v.id}`, {
           id: `visitante-sai-${v.id}`,
           tipo: v.is_prestador === 1 ? 'Prestador' : 'Visitante',
-          descricao: `${v.nome} saiu — ${aptoStr}`.trim(),
+          descricao: aptoStr ? `${v.nome} saiu — ${aptoStr}` : `${v.nome} saiu`,
           quando: v.data_saida.toISOString(),
           direcao: 'saida',
           detalhes: {
@@ -1279,7 +1279,7 @@ export class RelatoriosService {
             dataEntrada: v.data_entrada ? v.data_entrada.toISOString() : undefined,
             dataSaida: v.data_saida.toISOString(),
             status: 'Saiu',
-            autorizadoPor: v.criadoPor?.name || 'Morador',
+            autorizadoPor: v.criadoPor?.name || 'Não informado',
             fotoPessoa: v.foto_pessoa || undefined,
             metodoLiberacao: 'pin',
             metodoLabel: 'PIN / Manual',

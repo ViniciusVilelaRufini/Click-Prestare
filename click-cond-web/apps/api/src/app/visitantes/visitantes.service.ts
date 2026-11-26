@@ -4207,7 +4207,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       foto_pessoa: v.pessoa.foto_pessoa,
       apto: v.apartamento?.apto ?? null,
       apto_bloco: v.apartamento?.bloco ?? null,
-      morador_nome: v.criadoPor?.name ?? 'Morador',
+      morador_nome: v.criadoPor?.name ?? 'Não informado',
       // Dentro: o PIN serve para a SAÍDA (a janela não importa mais).
       status_vigencia: dentro ? 'SAIDA' : status,
       acao: dentro ? 'saida' : 'entrada',
@@ -4944,7 +4944,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       foto_pessoa: v.foto_pessoa,
       apto: v.apartamento?.apto ?? null,
       apto_bloco: v.apartamento?.bloco ?? null,
-      morador_nome: v.criadoPor?.name ?? 'Morador',
+      morador_nome: v.criadoPor?.name ?? 'Não informado',
       // Dentro: o PIN serve para a SAÍDA (a janela não importa mais).
       status_vigencia: dentro ? 'SAIDA' : status,
       acao: dentro ? 'saida' : 'entrada',

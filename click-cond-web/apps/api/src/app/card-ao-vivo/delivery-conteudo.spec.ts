@@ -123,6 +123,13 @@ describe('conteúdo do card do delivery', () => {
     expect(alertaDelivery('aguardando', { ...c, portao: undefined })?.titulo).toBe('Autorize a entrega');
   });
 
+  it('sem estabelecimento os avisos não tratam "Delivery" como nome de loja', () => {
+    expect(alertaDelivery('chegou', { nome: 'Delivery' })?.corpo).toBe('Seu entregador chegou. Acompanhe pelo card.');
+    expect(alertaDelivery('aguardando', { nome: 'Delivery' })?.corpo).toBe('A portaria aguarda sua autorização para a entrega.');
+    expect(alertaDelivery('retirar', { nome: 'Delivery' })?.corpo).toBe('Sua entrega está na portaria.');
+    expect(alertaDelivery('retirar', { nome: 'Burger Rei' })?.corpo).toBe('Sua entrega de Burger Rei está na portaria.');
+  });
+
   it('encerrada sem retirada tem texto próprio, sem "concluída" nem "pela portaria"', () => {
     expect(mensagemDelivery('CANCELADA', 'Encerrada sem retirada')).toBe('Sua entrega foi encerrada sem retirada.');
   });
