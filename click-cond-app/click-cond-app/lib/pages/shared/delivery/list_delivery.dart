@@ -145,10 +145,13 @@ class ListDeliveryState extends State<ListDelivery> {
         floatingActionButton: widget.showFab
             ? FloatingActionButton.extended(
                 onPressed: () => openAddDelivery(context),
+                heroTag: 'delivery_avisar_fab',
                 backgroundColor: AppColors.brand,
                 foregroundColor: AppColors.onBrand,
-                icon: const Icon(PhosphorIcons.plus),
-                label: const Text('Avisar entrega'),
+                shape: const RoundedRectangleBorder(),
+                icon: Icon(PhosphorIcons.plus, color: AppColors.onBrand, size: 20),
+                label: Text('AVISAR ENTREGA',
+                    style: AppTypography.button(context).copyWith(color: AppColors.onBrand)),
               )
             : null,
         body: Column(
@@ -281,9 +284,7 @@ class _DayHeader extends StatelessWidget {
         padding: const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.md),
         child: Semantics(
           header: true,
-          child: Text(label,
-              style: AppTypography.captionMedium(context)
-                  .copyWith(color: AppColors.textSecondary(context), fontWeight: FontWeight.w700)),
+          child: Text(label.toUpperCase(), style: AppTypography.label(context)),
         ),
       );
 }

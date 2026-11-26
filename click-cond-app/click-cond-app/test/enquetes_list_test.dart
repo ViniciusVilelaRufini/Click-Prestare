@@ -5,6 +5,7 @@ import 'package:click/pages/shared/enquetes/list_enquetes.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/api_client.dart';
 import 'package:click/utils/local_storage.dart';
+import 'package:click/widgets/app/app_filtro_meses.dart';
 import 'package:click/widgets/votacao/votacao_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -88,12 +89,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  String rotuloMes(DateTime d) {
-    final m = DateFormat('MMM', 'pt_BR').format(d).replaceAll('.', '');
-    return '${m[0].toUpperCase()}${m.substring(1)}';
-  }
+  String rotuloMes(DateTime d) => rotuloMesFiltro(d).toUpperCase();
 
-  testWidgets('título é "Enquetes" e mostra os cards do mês atual', (tester) async {
+  testWidgets('título é "Enquetes" e abre em "Todos os meses" com tudo, mais novas primeiro', (tester) async {
     storageMorador({'token': 't', 'user': {'id': 1, 'nome': 'Ana'}});
     servir(enquetes());
     await abrir(tester);
@@ -103,11 +101,11 @@ void main() {
     expect(chamadasLista, 1);
 
     final cards = tester.widgetList<VotacaoCard>(find.byType(VotacaoCard)).toList();
-    expect(cards.map((c) => c.titulo), ['Pintura da fachada', 'Horário da piscina']);
+    expect(find.text('TODOS OS MESES'), findsOneWidget);
+    expect(cards.map((c) => c.titulo), ['Pintura da fachada', 'Horário da piscina', 'Enquete do mês passado']);
     expect(cards[0].totalVotos, 5);
     expect(cards[0].subtitulo, 'Escolha a cor');
     expect(cards[1].subtitulo, isNull);
-    expect(find.text('Enquete do mês passado'), findsNothing);
     // Morador não cria enquete.
     expect(find.byType(FloatingActionButton), findsNothing);
   });
@@ -118,7 +116,8 @@ void main() {
     await abrir(tester);
 
     final chip = find.text(rotuloMes(mesAnterior));
-    await tester.ensureVisible(chip);
+    await tester.scrollUntilVisible(chip, 100,
+        scrollable: find.descendant(of: find.byType(AppFiltroMeses), matching: find.byType(Scrollable)));
     await tester.pumpAndSettle();
     await tester.tap(chip);
     await tester.pumpAndSettle();
@@ -131,6 +130,11 @@ void main() {
     storageMorador({'token': 't', 'user': {'id': 1, 'nome': 'Ana'}});
     servir([enquetes()[2]]);
     await abrir(tester);
+    expect(find.byType(VotacaoCard), findsOneWidget);
+
+    final chip = find.text(rotuloMes(mesAtual));
+    await tester.tap(chip);
+    await tester.pumpAndSettle();
 
     expect(find.byType(VotacaoCard), findsNothing);
     expect(find.text('Nenhum registro encontrado!'), findsOneWidget);
@@ -165,6 +169,6 @@ void main() {
     servir(lista);
     await abrir(tester, largura: 320, tema: ThemeData(brightness: Brightness.dark));
     expect(tester.takeException(), isNull);
-    expect(find.byType(VotacaoCard), findsNWidgets(2));
+    expect(find.byType(VotacaoCard), findsNWidgets(3));
   });
 }
