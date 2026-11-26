@@ -1,4 +1,5 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { UnidadeLabelPipe } from '../shared/unidade-label.pipe';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Observable } from 'rxjs';
@@ -37,7 +38,7 @@ function mensagemDaApi(e: any, padrao: string): string {
 @Component({
   selector: 'app-veiculos-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, SlideIndicatorDirective, EnrollCaptureComponent, GuaritaCapturaComponent],
+  imports: [CommonModule, FormsModule, SlideIndicatorDirective, EnrollCaptureComponent, GuaritaCapturaComponent, UnidadeLabelPipe],
   templateUrl: './veiculos-page.component.html',
 })
 export class VeiculosPageComponent implements OnInit {

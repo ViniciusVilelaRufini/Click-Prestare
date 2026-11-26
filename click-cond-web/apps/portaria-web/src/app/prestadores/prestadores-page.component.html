@@ -108,7 +108,7 @@
             <!-- Sem unidade = funcionário do condomínio, visível para todos os moradores. -->
             <option [ngValue]="0">Condomínio (todos os moradores)</option>
             @for (a of apartamentos(); track a.id) {
-              <option [ngValue]="a.id">{{ a.bloco ? a.bloco + ' / ' : '' }}{{ a.apto }}</option>
+              <option [ngValue]="a.id">{{ a.apto | unidade: a.bloco }}</option>
             }
           </select>
         </label>
@@ -556,7 +556,7 @@
               </svg>
               <span>Unidade:</span>
               @if (p.apartamento) {
-                <span class="text-slate-300 font-medium truncate">{{ p.apartamento.bloco ? p.apartamento.bloco + ' / ' : '' }}{{ p.apartamento.apto }}</span>
+                <span class="text-slate-300 font-medium truncate">{{ p.apartamento.apto | unidade: p.apartamento.bloco }}</span>
               } @else {
                 <span class="text-slate-300 font-medium">Condomínio (todos os moradores)</span>
               }
@@ -787,7 +787,7 @@
                     }
                     <div class="flex-1 space-y-1">
                       <div class="flex items-center justify-between">
-                        <span class="font-medium text-slate-300">Apto: {{ v.apto_bloco ? v.apto_bloco + ' / ' : '' }}{{ v.apto || v.id_apartamento }}</span>
+                        <span class="font-medium text-slate-300">{{ (v.apto || v.id_apartamento) | unidade: v.apto_bloco }}</span>
                         @if (v.data_entrada && !v.data_saida) {
                           <span class="inline-flex items-center gap-1.5 text-[10px] font-medium">
                             <span class="ps-dot ps-dot-ok ps-dot-pulse"></span>

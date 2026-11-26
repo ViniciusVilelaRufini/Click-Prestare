@@ -1,4 +1,5 @@
 import { ChangeDetectorRef, Component, DestroyRef, OnInit, computed, inject, signal, effect, untracked } from '@angular/core';
+import { UnidadeLabelPipe } from '../shared/unidade-label.pipe';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -8,7 +9,7 @@ import {
 } from './encomendas.service';
 import { ConfirmService } from '../shared/confirm.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
-import { rotuloBloco } from '../shared/bloco-label.util';
+import { rotuloBloco, rotuloUnidade } from '../shared/bloco-label.util';
 import { aplicarLeitura, reduzirImagem } from './foto-encomenda';
 import { Apartamento, ApartamentosApi } from '../apartamentos/apartamentos.service';
 import { ServerClockService } from '../core/server-clock.service';
@@ -57,7 +58,7 @@ function mensagemErro(e: any, padrao: string): string {
 @Component({
   selector: 'app-encomendas-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, SlideIndicatorDirective],
+  imports: [CommonModule, FormsModule, SlideIndicatorDirective, UnidadeLabelPipe],
   templateUrl: './encomendas-page.component.html',
 })
 export class EncomendasPageComponent implements OnInit {
@@ -785,7 +786,7 @@ export class EncomendasPageComponent implements OnInit {
       htmlContent += `
         <div class="label">
           <div class="id">Encomenda #${esc(e.id)}</div>
-          <div class="apto">${e.destinatario_bloco ? esc(e.destinatario_bloco) + ' / ' : ''}${esc(e.destinatario_apto)}</div>
+          <div class="apto">${esc(rotuloUnidade(e.destinatario_bloco, e.destinatario_apto))}</div>
           <div class="desc">${esc(e.descricao)}</div>
           <div class="meta">Recebido de: ${esc(e.recebido_de ?? '—')}<br>Em: ${esc(new Date(e.recebido_em).toLocaleString('pt-BR'))}</div>
         </div>
@@ -816,7 +817,7 @@ export class EncomendasPageComponent implements OnInit {
       </style></head><body>
       <div class="label">
         <div class="id">Encomenda #${esc(e.id)}</div>
-        <div class="apto">${e.destinatario_bloco ? esc(e.destinatario_bloco) + ' / ' : ''}${esc(e.destinatario_apto)}</div>
+        <div class="apto">${esc(rotuloUnidade(e.destinatario_bloco, e.destinatario_apto))}</div>
         <div class="desc">${esc(e.descricao)}</div>
         <div class="meta">Recebido de: ${esc(e.recebido_de ?? '—')}<br>Em: ${esc(new Date(e.recebido_em).toLocaleString('pt-BR'))}</div>
       </div>
@@ -862,10 +863,9 @@ export class EncomendasPageComponent implements OnInit {
     return d >= 7 ? 'critico' : d >= 3 ? 'atencao' : 'ok';
   }
 
-  /** "Apto 101 · Bloco A" (o bloco pode vir "A" ou "Bloco A"). */
+  /** "Bloco A · Apto 101" (o bloco pode vir "A" ou "Bloco A"). */
   rotuloDestino(e: Pick<Encomenda, 'destinatario_bloco' | 'destinatario_apto'>): string {
-    const blocoTxt = rotuloBloco(e.destinatario_bloco);
-    return blocoTxt ? `Apto ${e.destinatario_apto} · ${blocoTxt}` : `Apto ${e.destinatario_apto}`;
+    return rotuloUnidade(e.destinatario_bloco, e.destinatario_apto);
   }
 
   /** Rótulo do filtro de blocos: evita duplicar o prefixo quando o nome já vem como "Bloco A". */

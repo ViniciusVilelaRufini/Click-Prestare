@@ -343,7 +343,7 @@
                   <option [ngValue]="0" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Selecione o apartamento...</option>
                   @for (a of apartamentos(); track a.id) {
                     <option [ngValue]="a.id" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
-                      {{ a.bloco ? a.bloco + ' / ' : '' }}{{ a.apto }}
+                      {{ a.apto | unidade: a.bloco }}
                     </option>
                   }
                 </select>
@@ -1702,7 +1702,7 @@
               class="w-full rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white px-3 py-2.5 text-sm focus:outline-none focus:border-accent"
             >
               @for (a of apartamentos(); track a.id) {
-                <option [ngValue]="a.id" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{{ a.bloco ? (a.bloco | blocoLabel) + ' - ' : '' }}Apto {{ a.apto }}</option>
+                <option [ngValue]="a.id" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{{ a.apto | unidade: a.bloco }}</option>
               }
             </select>
           </label>
@@ -2510,11 +2510,7 @@
                   <div>
                     <span class="text-slate-500 block">Destino</span>
                     <span class="text-slate-300 font-medium"
-                      >{{
-                        validationResult().apto_bloco
-                          ? validationResult().apto_bloco + ' / '
-                          : ''
-                      }}{{ validationResult().apto }}</span
+                      >{{ validationResult().apto | unidade: validationResult().apto_bloco }}</span
                     >
                   </div>
                   <div>

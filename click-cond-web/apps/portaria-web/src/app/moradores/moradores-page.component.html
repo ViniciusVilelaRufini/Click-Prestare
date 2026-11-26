@@ -183,7 +183,7 @@
                 <option [ngValue]="0">Selecione o apartamento...</option>
                 @for (a of apartamentos(); track a.id) {
                   <option [ngValue]="a.id">
-                    {{ a.bloco ? a.bloco + ' / ' : '' }}{{ a.apto }}
+                    {{ a.apto | unidade: a.bloco }}
                   </option>
                 }
               </select>
@@ -720,7 +720,7 @@
                   <span class="inline-flex items-center gap-1">
                     <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
                     @if (m.id_apartamento && m.id_apartamento > 0) {
-                      {{ m.bloco ? m.bloco + ' / ' : '' }}{{ m.apartamento }}
+                      {{ m.apartamento | unidade: m.bloco }}
                     } @else {
                       <span class="text-[10px] font-bold px-1.5 py-0.5 rounded border border-[var(--line-200)] text-rose-450 uppercase">Não Vinculado</span>
                     }
@@ -819,7 +819,7 @@
                 <span class="inline-flex items-center gap-1.5 text-slate-300">
                   <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
                   @if (m.id_apartamento && m.id_apartamento > 0) {
-                    {{ m.bloco ? m.bloco + ' / ' : '' }}{{ m.apartamento }}
+                    {{ m.apartamento | unidade: m.bloco }}
                   } @else {
                     <span class="text-[10px] font-bold px-1.5 py-0.5 rounded border border-[var(--line-200)] text-rose-450 uppercase">Não Vinculado</span>
                   }
@@ -948,7 +948,7 @@
                     class="w-full h-10 px-3 bg-graphite-200 border border-white/10 text-sm text-white focus:border-[var(--ink)] outline-none">
               <option [ngValue]="null" disabled>Selecione o apartamento</option>
               @for (a of apartamentos(); track a.id) {
-                <option [ngValue]="a.id">{{ a.bloco ? (a.bloco | blocoLabel) + ' - ' : '' }}Apto {{ a.apto }}</option>
+                <option [ngValue]="a.id">{{ a.apto | unidade: a.bloco }}</option>
               }
             </select>
           </div>
@@ -1398,7 +1398,7 @@
             class="flex-1 px-3 py-2 text-xs rounded-xl bg-white dark:bg-graphite border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus:outline-none focus:border-accent cursor-pointer">
             <option [value]="0">Selecionar Unidade...</option>
             @for (a of apartamentos(); track a.id) {
-              <option [value]="a.id">{{ a.bloco ? a.bloco + ' / ' : '' }}{{ a.apto }}</option>
+              <option [value]="a.id">{{ a.apto | unidade: a.bloco }}</option>
             }
           </select>
           <button (click)="vincularApartamentoRapido(selectedMorador()!, +aptoSelect.value)"

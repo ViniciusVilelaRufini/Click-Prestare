@@ -1,4 +1,5 @@
 import { Component, OnInit, computed, inject, signal, effect, untracked } from '@angular/core';
+import { UnidadeLabelPipe } from '../shared/unidade-label.pipe';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -17,7 +18,7 @@ import { papelDoToken } from '../auth/papel';
 @Component({
   selector: 'app-prestadores-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, InputMaskDirective, RouterLink, SlideIndicatorDirective],
+  imports: [CommonModule, FormsModule, InputMaskDirective, RouterLink, SlideIndicatorDirective, UnidadeLabelPipe],
   templateUrl: './prestadores-page.component.html',
 })
 export class PrestadoresPageComponent implements OnInit {

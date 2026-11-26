@@ -27,8 +27,8 @@ describe('EncomendasPageComponent — linha da tabela', () => {
   });
 
   it.each([
-    [{ destinatario_bloco: 'Bloco A', destinatario_apto: '101' }, 'Apto 101 · Bloco A'],
-    [{ destinatario_bloco: 'A', destinatario_apto: '101' }, 'Apto 101 · Bloco A'],
+    [{ destinatario_bloco: 'Bloco A', destinatario_apto: '101' }, 'Bloco A · Apto 101'],
+    [{ destinatario_bloco: 'A', destinatario_apto: '101' }, 'Bloco A · Apto 101'],
     [{ destinatario_bloco: null, destinatario_apto: '101' }, 'Apto 101'],
   ])('destinatário %o → "%s"', (e, texto) => {
     expect(tela.rotuloDestino(e as any)).toBe(texto);

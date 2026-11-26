@@ -231,7 +231,7 @@
             <select [(ngModel)]="selectedApto" aria-label="Destinatário (Bloco / Apto)">
               <option [ngValue]="null">Selecione o destinatário...</option>
               @for (a of apartamentos(); track a.id) {
-                <option [ngValue]="a">{{ a.bloco ? a.bloco + ' / ' : '' }}{{ a.apto }}</option>
+                <option [ngValue]="a">{{ a.apto | unidade: a.bloco }}</option>
               }
             </select>
             <svg class="w-4 h-4 shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 9l-7 7-7-7"/></svg>
@@ -334,7 +334,7 @@
             <div class="mt-2 flex items-center gap-3 text-[11px] text-[var(--ink-subtle)] flex-wrap">
               <span class="inline-flex items-center gap-1 font-mono text-[var(--ink-muted)]">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-                {{ e.destinatario_bloco ? e.destinatario_bloco + ' / ' : '' }}{{ e.destinatario_apto }}
+                {{ e.destinatario_apto | unidade: e.destinatario_bloco }}
               </span>
               @if (e.recebido_de) {
                 <span class="ps-tag">{{ e.recebido_de }}</span>
@@ -610,7 +610,7 @@
               <span class="ps-label block">Encomenda</span>
               <p class="text-sm font-medium text-[var(--ink)]">{{ retirandoEncomenda()?.descricao }}</p>
               <p class="text-xs text-[var(--ink-muted)]">
-                Destinatário: <span class="font-mono text-[var(--ink)]">{{ retirandoEncomenda()?.destinatario_bloco ? retirandoEncomenda()?.destinatario_bloco + ' / ' : '' }}{{ retirandoEncomenda()?.destinatario_apto }}</span>
+                Destinatário: <span class="font-mono text-[var(--ink)]">{{ retirandoEncomenda()?.destinatario_apto | unidade: retirandoEncomenda()?.destinatario_bloco }}</span>
               </p>
             </div>
           } @else {
@@ -748,7 +748,7 @@
               <select [(ngModel)]="novaUnidade" aria-label="Unidade certa">
                 <option [ngValue]="null">Selecione a unidade...</option>
                 @for (a of apartamentos(); track a.id) {
-                  <option [ngValue]="a">{{ a.bloco ? a.bloco + ' / ' : '' }}{{ a.apto }}</option>
+                  <option [ngValue]="a">{{ a.apto | unidade: a.bloco }}</option>
                 }
               </select>
               <svg class="w-4 h-4 shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 9l-7 7-7-7"/></svg>

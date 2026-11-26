@@ -264,8 +264,7 @@
             <div class="min-w-0">
               <h3 class="ps-h2">
                 @if (moradoresApto) {
-                  Apto {{ moradoresApto.apto }}
-                  @if (moradoresApto.bloco) { · {{ moradoresApto.bloco | blocoLabel }} }
+                  {{ moradoresApto.apto | unidade: moradoresApto.bloco }}
                 } @else {
                   {{ nomeBloco(moradoresBlocoNome) }} · Todos os moradores
                 }
@@ -413,8 +412,7 @@
                     <div class="flex items-center gap-3 mt-0.5 flex-wrap">
                       @if (m.apto || m.apto_numero) {
                         <span class="text-[11px] text-slate-400">
-                          Apto {{ m.apto || m.apto_numero }}
-                          @if (m.bloco) { · {{ m.bloco | blocoLabel }} }
+                          {{ (m.apto || m.apto_numero) | unidade: m.bloco }}
                         </span>
                       }
                       @if (m.email) {
@@ -594,7 +592,7 @@
             </div>
             <div class="min-w-0">
               <h3 class="ps-h2">
-                Vagas · Apto {{ vagasApto()?.apto }}{{ vagasApto()?.bloco ? ' · ' + (vagasApto()?.bloco | blocoLabel) : '' }}
+                Vagas · {{ vagasApto()?.apto | unidade: vagasApto()?.bloco }}
               </h3>
               @if (vagasResumo()) {
                 <p class="text-xs text-slate-400 mt-0.5">

@@ -1,4 +1,5 @@
 import { Component, OnInit, OnDestroy, computed, inject, signal, effect, untracked } from '@angular/core';
+import { UnidadeLabelPipe } from '../shared/unidade-label.pipe';
 import { Observable, defer, switchMap, tap } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -39,7 +40,7 @@ import { rotuloStatusVisita, RotuloStatusVisita, TomStatusVisita } from './rotul
 @Component({
   selector: 'app-visitantes-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, InputMaskDirective, RouterLink, FacialCaptureComponent, MaskDocPipe, SlideIndicatorDirective, BlocoLabelPipe],
+  imports: [CommonModule, FormsModule, InputMaskDirective, RouterLink, FacialCaptureComponent, MaskDocPipe, SlideIndicatorDirective, BlocoLabelPipe, UnidadeLabelPipe],
   templateUrl: './visitantes-page.component.html',
   styleUrl: './visitantes-page.component.css',
 })

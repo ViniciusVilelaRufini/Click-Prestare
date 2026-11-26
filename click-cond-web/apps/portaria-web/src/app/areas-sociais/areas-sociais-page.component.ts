@@ -1,4 +1,5 @@
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { UnidadeLabelPipe } from '../shared/unidade-label.pipe';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AgendamentoArea, AreaSocial, AreasSociaisApi } from './areas-sociais.service';
@@ -34,7 +35,7 @@ function hhmmDaGrade(min: number): string {
 @Component({
   selector: 'app-areas-sociais-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, SlideIndicatorDirective, BlocoLabelPipe],
+  imports: [CommonModule, FormsModule, SlideIndicatorDirective, BlocoLabelPipe, UnidadeLabelPipe],
   templateUrl: './areas-sociais-page.component.html',
 })
 export class AreasSociaisPageComponent implements OnInit {

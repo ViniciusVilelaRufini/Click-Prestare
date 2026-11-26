@@ -1,4 +1,5 @@
 import { ChangeDetectorRef, Component, OnInit, computed, inject, signal, effect, untracked } from '@angular/core';
+import { UnidadeLabelPipe } from '../shared/unidade-label.pipe';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CreateMorador, Morador, MoradoresApi, MoradorAtividade, SindicoOption } from './moradores.service';
@@ -29,7 +30,7 @@ const FILTRO_SEM_NASCIMENTO = 'sem_nascimento';
 @Component({
   selector: 'app-moradores-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, InputMaskDirective, EnrollCaptureComponent, FacialCaptureComponent, MaskDocPipe, SlideIndicatorDirective, BlocoLabelPipe],
+  imports: [CommonModule, FormsModule, InputMaskDirective, EnrollCaptureComponent, FacialCaptureComponent, MaskDocPipe, SlideIndicatorDirective, BlocoLabelPipe, UnidadeLabelPipe],
   templateUrl: './moradores-page.component.html',
 })
 export class MoradoresPageComponent implements OnInit {

@@ -1,4 +1,5 @@
 import { MaskDocPipe } from '../shared/mask-doc.pipe';
+import { UnidadeLabelPipe } from '../shared/unidade-label.pipe';
 import { Component, OnInit, OnDestroy, inject, signal, computed, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
@@ -18,7 +19,7 @@ import { GuaritaPortariaComponent } from '../guarita/guarita-portaria.component'
 @Component({
   selector: 'app-dashboard-page',
   standalone: true,
-  imports: [CommonModule, RouterLink, FormsModule, MaskDocPipe, SlideIndicatorDirective, GuaritaPortariaComponent, BlocoLabelPipe],
+  imports: [CommonModule, RouterLink, FormsModule, MaskDocPipe, SlideIndicatorDirective, GuaritaPortariaComponent, BlocoLabelPipe, UnidadeLabelPipe],
   templateUrl: './dashboard-page.component.html',
   host: {
     '(window:keydown.escape)': 'onEscapePressed()'

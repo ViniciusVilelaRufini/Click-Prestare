@@ -279,7 +279,7 @@
                     <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
                     </svg>
-                    {{ ag.bloco ? (ag.bloco | blocoLabel) + ' - ' : '' }}Apto {{ ag.apto }}
+                    {{ ag.apto | unidade: ag.bloco }}
                   </span>
 
                   <!-- Date Badge -->
@@ -387,7 +387,7 @@
         </button>
       </div>
       <div class="ps-drawer-body">
-        <p class="text-sm text-slate-300">{{ ag.nomeArea }} · {{ ag.bloco ? (ag.bloco | blocoLabel) + ' - ' : '' }}Apto {{ ag.apto }} · {{ ag.data }} {{ ag.horaDe }} - {{ ag.horaAte }}</p>
+        <p class="text-sm text-slate-300">{{ ag.nomeArea }} · {{ ag.apto | unidade: ag.bloco }} · {{ ag.data }} {{ ag.horaDe }} - {{ ag.horaAte }}</p>
         <div>
           <label class="ps-label block mb-1.5" for="areas-sociais-motivo-recusa">Motivo (opcional)</label>
           <textarea id="areas-sociais-motivo-recusa" [(ngModel)]="motivoRecusa" rows="3" maxlength="500"
@@ -661,7 +661,7 @@
                     [class.text-slate-300]="novaReserva.id_apartamento !== apto.id"
                     [class.hover:bg-white/5]="novaReserva.id_apartamento !== apto.id"
                   >
-                    <span class="font-semibold">Apto {{ apto.apto }}<span class="text-slate-500 font-normal">{{ apto.bloco ? ' · ' + rotuloBloco(apto.bloco) : '' }}</span></span>
+                    <span class="font-semibold">{{ apto.apto | unidade: apto.bloco }}</span>
                     @if (novaReserva.id_apartamento === apto.id) {
                       <svg class="w-4 h-4 text-accent shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
