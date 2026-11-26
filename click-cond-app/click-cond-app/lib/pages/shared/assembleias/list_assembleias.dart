@@ -3,6 +3,7 @@ import 'package:click/pages/shared/assembleias/assembleia_helpers.dart';
 import 'package:click/pages/shared/assembleias/detail_assembleia.dart';
 import 'package:click/pages/shared/assembleias/new_assembleia.dart';
 import 'package:click/theme/app_colors.dart';
+import 'package:click/widgets/app/app_tag.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/local_storage.dart';
@@ -155,6 +156,10 @@ class AssembleiaCard extends StatelessWidget {
         : quandoAssembleia(m['data'], agora: agora);
     final passou = finalizada || assembleiaPassou(m['data'], agora: agora);
     final dataHora = dataHoraAssembleia(m['data'], m['hora']);
+    // A data já está no bloco ao lado: na linha fica só a hora (sem data
+    // válida, o texto completo continua valendo).
+    final horaTexto = textoLimpo(m['hora']);
+    final horaNaLinha = data == null ? dataHora : horaTexto;
 
     final destaque = corDestaqueVotacao(context);
     final corBloco = passou ? AppColors.textTertiary(context) : destaque;
@@ -247,21 +252,25 @@ class AssembleiaCard extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(descricao, maxLines: 2, overflow: TextOverflow.ellipsis, style: secundario),
                         ],
-                        if (dataHora.isNotEmpty || quando.isNotEmpty) ...[
+                        ...[
                           const SizedBox(height: AppSpacing.sm),
                           Wrap(
                             spacing: AppSpacing.md,
                             runSpacing: AppSpacing.xs,
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              if (dataHora.isNotEmpty)
+                              AppTag(
+                                label: passou ? 'ENCERRADA' : 'AGENDADA',
+                                signal: passou ? AppSignal.neutral : AppSignal.ok,
+                              ),
+                              if (horaNaLinha.isNotEmpty)
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(PhosphorIcons.clock, size: 15, color: AppColors.textTertiary(context)),
                                     const SizedBox(width: AppSpacing.xs),
                                     Flexible(
-                                      child: Text(dataHora,
+                                      child: Text(horaNaLinha,
                                           maxLines: 1, overflow: TextOverflow.ellipsis, style: secundario),
                                     ),
                                   ],

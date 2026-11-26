@@ -104,10 +104,13 @@ void main() {
     expect(find.byType(AssembleiaCard), findsNWidgets(2));
     expect(find.text('Assembleia Geral Ordinária'), findsOneWidget);
     expect(find.text('Aprovação de contas'), findsOneWidget);
-    expect(find.text('${_data(daqui3)} às 19:30'), findsOneWidget);
+    // A data fica só no bloco; na linha vai a hora e o status.
+    expect(find.text('19:30'), findsOneWidget);
+    expect(find.text('${_data(daqui3)} às 19:30'), findsNothing);
+    expect(find.text('AGENDADA'), findsWidgets);
     expect(find.text('Em 3 dias'), findsOneWidget);
-    // Sem hora: só a data; hoje ganha o selo "Hoje".
-    expect(find.text(_data(hoje)), findsOneWidget);
+    // Sem hora: nada de data repetida; hoje ganha o selo "Hoje".
+    expect(find.text(_data(hoje)), findsNothing);
     expect(find.text('Hoje'), findsOneWidget);
     // Bloco de data com o dia.
     expect(find.text('${daqui3.day}'), findsOneWidget);

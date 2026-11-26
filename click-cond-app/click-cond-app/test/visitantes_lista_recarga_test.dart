@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:click/pages/shared/areas%20sociais/list_areas_sociais.dart';
@@ -100,8 +101,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(offsets, ['0', '30']);
-    await tester.scrollUntilVisible(find.text('Antigo Com PIN'), 400, scrollable: find.byType(Scrollable).last);
-    expect(find.text('Antigo Com PIN'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Antigo Com Pin'), 400, scrollable: find.byType(Scrollable).last);
+    expect(find.text('Antigo Com Pin'), findsOneWidget);
     expect(find.text('Carregar mais'), findsNothing, reason: 'página incompleta: acabou');
   });
 
@@ -137,5 +138,45 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Churrasqueira'), findsOneWidget, reason: 'abriu na aba Minhas reservas');
     expect(condominios.toSet(), {'7'});
+  });
+
+  testWidgets('antes da primeira resposta as abas não mostram contagem; depois, sim', (tester) async {
+    final resposta = Completer<http.Response>();
+    ApiClient.client = MockClient((req) async {
+      if (req.url.path.endsWith('/visitantes/get-all')) return resposta.future;
+      return http.Response('[]', 200);
+    });
+    tester.view.physicalSize = const Size(400 * 3, 900 * 3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(const MaterialApp(home: ListVisitantes()));
+    await tester.pump();
+    expect(find.textContaining('(0)'), findsNothing);
+    expect(find.text('TODOS'), findsOneWidget);
+    expect(find.text('NO LOCAL'), findsOneWidget);
+
+    resposta.complete(http.Response(jsonEncode([_visita(1, 'rafael costa')]), 200, headers: _json));
+    await tester.pumpAndSettle();
+    expect(find.text('TODOS (1)'), findsOneWidget);
+    expect(find.text('NO LOCAL (0)'), findsOneWidget);
+  });
+
+  testWidgets('card diz de que data é o tempo e o detalhe esconde o mapa de autorização vencida', (tester) async {
+    ApiClient.client = MockClient((req) async {
+      if (req.url.path.endsWith('/visitantes/get-all')) {
+        final v = _visita(1, 'MARIA DA SILVA');
+        v['created_at'] = _iso(const Duration(days: -12));
+        v['data_hora_inicio'] = _iso(const Duration(days: -12));
+        v['data_hora_termino'] = _iso(const Duration(days: -11));
+        return http.Response(jsonEncode([v]), 200, headers: _json);
+      }
+      return http.Response('[]', 200);
+    });
+    await abrirCadastrados(tester);
+    expect(find.text('Cadastrado há 12 dias'), findsOneWidget);
+    expect(find.text('Maria da Silva'), findsWidgets);
+    await tester.tap(find.text('Maria da Silva').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Mapeamento do Bloco'), findsNothing);
   });
 }

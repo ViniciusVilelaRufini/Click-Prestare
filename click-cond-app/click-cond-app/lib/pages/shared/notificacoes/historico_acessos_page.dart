@@ -3,6 +3,8 @@ import 'package:click/utils/datas.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
+import 'package:click/utils/eventos_agrupamento.dart';
+import 'package:click/widgets/app/app_filtro_chip.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:click/widgets/app/evento_linha.dart';
@@ -93,7 +95,16 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
     }
   }
 
+  /// A tela é do condomínio atual: o nome só aparece (e entra na busca) se a
+  /// lista trouxer mais de um.
+  bool get _variosCondominios => _eventos
+      .map((e) => (e is Map ? e['condominio'] : null)?.toString().trim() ?? '')
+      .where((c) => c.isNotEmpty)
+      .toSet()
+      .length > 1;
+
   List<dynamic> get _eventosFiltrados {
+    final comCondominio = _variosCondominios;
     final busca = _searchController.text.trim().toLowerCase();
     return _eventos.where((e) {
       final nome = (e['nome'] ?? '').toString().toLowerCase();
@@ -105,7 +116,7 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
       // Filtro de texto
       if (busca.isNotEmpty) {
         final matchesBusca = nome.contains(busca) ||
-            condominio.contains(busca) ||
+            (comCondominio && condominio.contains(busca)) ||
             tipoPessoa.contains(busca);
         if (!matchesBusca) return false;
       }
@@ -358,7 +369,9 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
               controller: _searchController,
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
-                hintText: 'Buscar por nome ou condomínio...',
+                hintText: _variosCondominios
+                    ? 'Buscar por nome ou condomínio...'
+                    : 'Buscar por nome...',
                 hintStyle: AppTypography.caption(context).copyWith(
                   color: AppColors.textTertiary(context),
                 ),
@@ -439,18 +452,15 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
                     onRefresh: _carregar,
                     child: filtrados.isEmpty
                         ? _vazio()
-                        : ListView.separated(
+                        : ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
                             padding: const EdgeInsets.fromLTRB(
                               AppSpacing.lg,
                               AppSpacing.xs,
                               AppSpacing.lg,
                               AppSpacing.xxl,
                             ),
-                            itemCount: filtrados.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: AppSpacing.sm),
-                            itemBuilder: (_, i) =>
-                                _eventoCard(filtrados[i]),
+                            children: _linhasAgrupadas(filtrados),
                           ),
                   ),
           ),
@@ -459,34 +469,43 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
     );
   }
 
-  Widget _buildFilterChip(String valor, String label) {
-    final isSelected = _filtroSelecionado == valor;
-    return InkWell(
-      onTap: () => setState(() => _filtroSelecionado = valor),
-      borderRadius: BorderRadius.zero,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.brand
-              : AppColors.surface(context),
-          borderRadius: BorderRadius.zero,
-          border: Border.all(
-            color: isSelected
-                ? AppColors.brand
-                : AppColors.border(context),
+  Widget _buildFilterChip(String valor, String label) => AppFiltroChip(
+        label: label,
+        selected: _filtroSelecionado == valor,
+        onTap: () => setState(() => _filtroSelecionado = valor),
+      );
+
+  /// Eventos (do mais novo ao mais antigo) com o cabeçalho do dia, na mesma
+  /// regra do início: HOJE, ONTEM, dia da semana até 6 dias, depois a data.
+  List<Widget> _linhasAgrupadas(List<dynamic> eventos) {
+    final grupos = agruparEventosPorDia(eventos,
+        agora: DateTime.now(), maxLinhas: eventos.length);
+    final widgets = <Widget>[];
+    for (final g in grupos) {
+      if (g.rotuloEsquerdo.isNotEmpty) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(top: AppSpacing.md, bottom: AppSpacing.sm),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(g.rotuloEsquerdo,
+                  style: AppTypography.label(context)
+                      .copyWith(color: AppColors.textTertiary(context))),
+              Text(g.rotuloDireito,
+                  style: AppTypography.caption(context)
+                      .copyWith(color: AppColors.textTertiary(context))),
+            ],
           ),
-        ),
-        child: Text(
-          label,
-          style: AppTypography.caption(context).copyWith(
-            color: isSelected ? AppColors.onBrand : AppColors.textSecondary(context),
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-          ),
-        ),
-      ),
-    );
+        ));
+      } else {
+        widgets.add(const SizedBox(height: AppSpacing.md));
+      }
+      for (var i = 0; i < g.eventos.length; i++) {
+        if (i > 0) widgets.add(const SizedBox(height: AppSpacing.sm));
+        widgets.add(_eventoCard(g.eventos[i]));
+      }
+    }
+    return widgets;
   }
 
   Widget _vazio() {
@@ -538,7 +557,7 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
         isVoce ? 'Você' : (tipoPessoa == 'prestador' ? 'Prestador' : 'Visitante');
     final detalhe = [
       if (tipoDispositivo != null && tipoDispositivo.isNotEmpty) _styleForMetodo(tipoDispositivo).label,
-      if (condominio.isNotEmpty) condominio,
+      if (condominio.isNotEmpty && _variosCondominios) condominio,
     ].join(' · ');
     // O evento aberto por uma notificação ganha a borda na cor do evento.
     final tom = isEntrada ? AppColors.success : AppColors.textTertiary(context);

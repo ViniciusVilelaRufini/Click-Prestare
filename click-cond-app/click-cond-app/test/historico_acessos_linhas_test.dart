@@ -4,6 +4,7 @@ import 'package:click/pages/shared/notificacoes/historico_acessos_page.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/api_client.dart';
 import 'package:click/utils/local_storage.dart';
+import 'package:click/widgets/app/app_filtro_chip.dart';
 import 'package:click/widgets/app/evento_linha.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -53,8 +54,11 @@ void main() {
     await t.pumpWidget(const MaterialApp(home: HistoricoAcessosPage()));
     await t.pumpAndSettle();
     expect(find.byType(EventoLinha), findsNWidgets(2));
-    expect(find.text('PIN / Manual · Boa vista'), findsOneWidget);
-    expect(find.text('Facial · Boa vista'), findsOneWidget);
+    // Um só condomínio na lista: o nome não se repete em cada linha.
+    expect(find.text('PIN / Manual'), findsOneWidget);
+    expect(find.text('Facial'), findsOneWidget);
+    expect(find.text('Buscar por nome...'), findsOneWidget);
+    expect(find.byType(AppFiltroChip), findsNWidgets(5));
     final comFoto = t.widget<EventoLinha>(find.byType(EventoLinha).last);
     expect(comFoto.foto, 'https://cdn.exemplo/v.jpg');
   });
