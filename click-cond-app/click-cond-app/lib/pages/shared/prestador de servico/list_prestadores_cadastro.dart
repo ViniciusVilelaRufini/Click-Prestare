@@ -57,7 +57,7 @@ class _ListPrestadoresCadastroState extends State<ListPrestadoresCadastro> {
               shape: const RoundedRectangleBorder(),
               icon: Icon(PhosphorIcons.plus, color: AppColors.onBrand, size: 20),
               label: Text(
-                'CADASTRAR PRESTADOR',
+                'CADASTRAR FUNCIONÁRIO',
                 style: AppTypography.button(context).copyWith(color: AppColors.onBrand),
               ),
             )
@@ -68,7 +68,7 @@ class _ListPrestadoresCadastroState extends State<ListPrestadoresCadastro> {
             _secao(context, 'Acesso ao sistema web', topo: true),
             _buildFuncionariosWebButton(context),
           ],
-          _secao(context, 'Prestadores de serviço', topo: !canEdit),
+          _secao(context, 'Funcionários', topo: !canEdit),
           Expanded(
             child: _isLoading
                 ? ListView.separated(
