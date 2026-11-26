@@ -369,8 +369,8 @@ export class CrmService {
       ['Reservas de Areas (30d)', c.reservasAreas30d],
       ['Prestadores de Servico Cadastrados', c.prestadoresCadastrados],
       ['Assembleias Agendadas', c.assembleiasAgendadas],
-      ['Cliente Desde', c.clienteDesde ? new Date(c.clienteDesde).toLocaleDateString('pt-BR') : '—'],
-      ['Ultima Atividade', c.ultimaAtividade ? new Date(c.ultimaAtividade).toLocaleString('pt-BR') : '—'],
+      ['Cliente Desde', c.clienteDesde ? new Date(c.clienteDesde).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—'],
+      ['Ultima Atividade', c.ultimaAtividade ? new Date(c.ultimaAtividade).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—'],
     ];
 
     // Nome do condomínio e dados do síndico são texto do cliente: `csvCelula`

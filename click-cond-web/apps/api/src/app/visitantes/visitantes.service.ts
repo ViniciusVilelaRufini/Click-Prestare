@@ -26,6 +26,7 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { isOperador } from '../auth/tenant.util';
 import { descricaoCriacaoVisita, tipoAvisoCriacaoVisita } from './aviso-criacao-visita.util';
+import { saudacao } from '../common/saudacao.util';
 import { gerarPinUnicoVisita, novaVisitaEmOutraUnidade, visitaParaNovaPassagem } from '../common/visita-passagem.util';
 // Vaga de visitante com `fim` no passado não vale: sem isso a lista mostrava "Liberado" + selo de vaga
 // para quem o terminal já tinha deixado de liberar.
@@ -2707,7 +2708,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             );
           }
           if (m.phone) {
-            const waMessage = `Olá, ${m.name}! O ${tipo} "${a.nome}" foi liberado pela portaria para o seu apartamento.`;
+            const waMessage = `${saudacao(m.name)} O ${tipo} "${a.nome}" foi liberado pela portaria para o seu apartamento.`;
             await this.notifications.sendWhatsApp(m.phone, waMessage);
           }
         } else if (m.fcm_token) {
@@ -5542,7 +5543,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         if (m.phone) {
           const r = await this.notifications.sendWhatsApp(
             m.phone,
-            `Olá, ${m.name}! ${v.nome} está na portaria pedindo autorização para entrar. Abra o app para Autorizar ou Negar.`,
+            `${saudacao(m.name)} ${v.nome} está na portaria pedindo autorização para entrar. Abra o app para Autorizar ou Negar.`,
           );
           if (r) alcancou = true;
         }
