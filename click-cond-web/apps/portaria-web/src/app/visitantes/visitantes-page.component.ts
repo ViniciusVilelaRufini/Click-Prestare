@@ -598,6 +598,11 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
 
   /** Término proposto pelo `estadoInicial` (agora + 4 h): "não editado" = igual a este. */
   private terminoPadrao: string | null = null;
+  private inicioPadrao: string | null = null;
+  /** O início ainda é o sugerido (agora): só então vale o aviso "Começa agora". */
+  comecaAgora(): boolean {
+    return !!this.novo.data_hora_inicio && this.novo.data_hora_inicio === this.inicioPadrao;
+  }
   novo: CreateVisitante = this.estadoInicial();
   showForm = false;
   editingId: number | null = null;
@@ -1665,7 +1670,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       is_prestador: prest ? 1 : 0,
       tag_rfid: '',
       // Janela de validade padrão: a partir de agora, por 4h. O operador ajusta.
-      data_hora_inicio: this.localDateTime(0),
+      data_hora_inicio: (this.inicioPadrao = this.localDateTime(0)),
       data_hora_termino: (this.terminoPadrao = this.localDateTime(4)),
     };
   }

@@ -390,9 +390,11 @@
                 <span class="ps-label mb-1.5 block">
                   Liberado a partir de
                 </span>
-                <span class="text-[10px] text-amber-600 dark:text-amber-400 mb-1.5 block" data-aviso-comeca-agora>
-                  Começa agora: o PIN e o facial já valem a partir deste momento. Mude o campo se a visita é para outro horário.
-                </span>
+                @if (comecaAgora()) {
+                  <span class="text-[10px] text-amber-600 dark:text-amber-400 mb-1.5 block" data-aviso-comeca-agora>
+                    Começa agora: o PIN e o facial já valem a partir deste momento. Mude o campo se a visita é para outro horário.
+                  </span>
+                }
                 <input
                   type="datetime-local"
                   [(ngModel)]="novo.data_hora_inicio"

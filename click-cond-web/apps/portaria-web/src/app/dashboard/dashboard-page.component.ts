@@ -319,7 +319,8 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       });
 
     // Repetir o clique depois de uma falha em liberar() não cria outra visita.
-    const chave = `${idPessoa}:${idApto}`;
+    // A janela entra na chave: mudou início/término depois da falha, é outra visita (não libera a antiga com a janela velha).
+    const chave = `${idPessoa}:${idApto}:${this.liberarInicio()}:${this.liberarTermino()}`;
     if (this.visitaCriadaParaRetry?.chave === chave) {
       liberarVisita(this.visitaCriadaParaRetry.id);
       return;

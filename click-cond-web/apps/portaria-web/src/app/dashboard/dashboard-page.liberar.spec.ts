@@ -87,4 +87,27 @@ describe('Dashboard — liberação rápida: unidade e prazo', () => {
     expect(service.novaVisitaPessoa).toHaveBeenCalledTimes(1);
     expect(service.liberar).toHaveBeenCalledTimes(2);
   });
+
+  it('M3: mudou a janela depois da falha → é outra visita (não libera a antiga com a janela velha)', () => {
+    const tela = nova();
+    const service = {
+      novaVisitaPessoa: jest.fn(() => of({ id: 77 })),
+      liberar: jest.fn().mockReturnValueOnce(throwError(() => new Error('x'))).mockReturnValueOnce(of({})),
+    };
+    const inicio = signal('2026-11-26T10:00');
+    Object.assign(tela, {
+      pessoaSelecionada: signal({ id: 1, id_pessoa: 5, nome: 'A' }),
+      idApartamentoSelecionado: signal(10),
+      liberarInicio: inicio, liberarTermino: signal('2026-11-26T14:00'),
+      liberandoVisitante: signal(false), sucessoLiberar: signal(null),
+      visitantesService: service, load: jest.fn(), fecharModalLiberar: jest.fn(),
+      network: { getFriendlyErrorMessage: (_e: any, p: string) => p },
+    });
+    jest.useFakeTimers();
+    tela.confirmarLiberacao();
+    inicio.set('2026-11-27T10:00');
+    tela.confirmarLiberacao();
+    jest.useRealTimers();
+    expect(service.novaVisitaPessoa).toHaveBeenCalledTimes(2);
+  });
 });
