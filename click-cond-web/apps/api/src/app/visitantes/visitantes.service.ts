@@ -4028,6 +4028,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   /**
    * Quem respondeu ao pedido é equipe (portaria, funcionário ou síndico sem vínculo com a
    * unidade) e não o morador? Decide o texto da auditoria e o "pela portaria" do card.
+   * Token com id_condominio (portaria e síndico no console) é equipe mesmo que o síndico more na
+   * unidade: quem responde pelo app (sem id_condominio) é conferido pelo vínculo abaixo.
    */
   private async respondeuComoEquipe(payload: JwtPayload | undefined, idApartamento: number | null | undefined): Promise<boolean> {
     if (!payload) return false;

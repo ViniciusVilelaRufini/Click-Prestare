@@ -1085,7 +1085,8 @@ export class DeliveryService {
     outroRespondeu: string | null = null,
     opts: { semNotificacaoComum?: boolean } = {},
   ) {
-    // Encerrada pela rotina sem retirada: o card some sem dizer nada, então o aviso vai a todos.
+    // Encerrada sem retirada pela rotina do portão (2 h): o card some sem dizer nada, então o aviso vai a todos.
+    // Pela rotina de 24 h da portaria (semNotificacaoComum) só o card vai ao estado final, sem push.
     const semRetirada = statusNovo === 'CANCELADA' && motivo?.trim() === MOTIVO_ENCERRADA_SEM_RETIRADA && !opts.semNotificacaoComum;
     const notificavel =
       semRetirada ||
