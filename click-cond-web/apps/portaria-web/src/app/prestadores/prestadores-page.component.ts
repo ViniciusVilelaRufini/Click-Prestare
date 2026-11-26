@@ -483,7 +483,7 @@ export class PrestadoresPageComponent implements OnInit {
           this.consentimentosApi.registrarTerceiro({
             tipoPessoa: 'prestador',
             idPessoa: Number(idPessoa),
-            doc: this.novo.telefone || undefined,
+            // Prestador nao tem documento no cadastro; o telefone nao e documento (a API busca pelo id).
             biometria: this.consentimentoBiometria(),
             maiorIdade: this.consentimentoBiometria(),
           }).subscribe({ error: (err) => console.error('Erro ao registrar consentimento do prestador:', err) });

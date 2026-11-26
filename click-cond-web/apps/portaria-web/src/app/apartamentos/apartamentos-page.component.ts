@@ -16,6 +16,8 @@ import { BlocoLabelPipe } from '../shared/bloco-label.pipe';
 import { chaveBloco, rotuloBloco } from '../shared/bloco-label.util';
 import { InputMaskDirective } from '../shared/input-mask.directive';
 import { papelDoToken } from '../auth/papel';
+import { ServerClockService } from '../core/server-clock.service';
+import { formatarSaoPauloLocal, instanteSaoPaulo } from '../core/sao-paulo-time';
 
 declare var require: any;
 
@@ -30,6 +32,8 @@ const SEM_BLOCO = 'Sem bloco';
 })
 export class ApartamentosPageComponent implements OnInit {
   private api = inject(ApartamentosApi);
+  /** Hora do servidor (o PC da portaria costuma estar com o relogio errado). */
+  private relogio = inject(ServerClockService);
   private confirm = inject(ConfirmService);
   private toast = inject(ToastService);
   private http = inject(HttpClient);
@@ -566,16 +570,13 @@ export class ApartamentosPageComponent implements OnInit {
    * agora + 1 h (perto da meia-noite, "hoje 23:59" já teria passado).
    */
   private prazoPadraoVaga(termino: string | null): string {
-    const minimo = Date.now() + 60 * 60 * 1000;
-    const t = termino ? new Date(termino) : null;
-    let d = t && !isNaN(t.getTime()) && t.getTime() > Date.now() ? t : (() => {
-      const h = new Date();
-      h.setHours(23, 59, 0, 0);
-      return h;
-    })();
-    if (d.getTime() < minimo) d = new Date(minimo);
-    const p = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+    const agora = this.relogio.agora().getTime();
+    const minimo = agora + 60 * 60 * 1000;
+    const t = termino ? new Date(termino).getTime() : NaN;
+    // Tudo em horario de Brasilia, como o resto do console e a API.
+    let ms = Number.isFinite(t) && t > agora ? t : instanteSaoPaulo(`${formatarSaoPauloLocal(agora).slice(0, 10)}T23:59`);
+    if (ms < minimo) ms = minimo;
+    return formatarSaoPauloLocal(ms);
   }
 
   fecharModalVaga() {
@@ -600,16 +601,17 @@ export class ApartamentosPageComponent implements OnInit {
     // Vaga de visitante sem prazo nunca vencia: a API recusa, e a tela avisa antes.
     let fim: string | undefined;
     if (this.novaVaga.tipo === 'visitante') {
-      const d = this.novaVaga.fim ? new Date(this.novaVaga.fim) : null;
-      if (!d || isNaN(d.getTime())) {
+      const ms = instanteSaoPaulo(this.novaVaga.fim);
+      if (isNaN(ms)) {
         this.erroVaga.set('Informe até quando a vaga do visitante vale.');
         return;
       }
-      if (d.getTime() <= Date.now()) {
+      if (ms <= this.relogio.agora().getTime()) {
         this.erroVaga.set('O prazo da vaga precisa ser no futuro.');
         return;
       }
-      fim = d.toISOString();
+      // Sem fuso: a API le como horario de Brasilia (o mesmo que o campo mostra).
+      fim = this.novaVaga.fim;
     }
 
     this.salvandoVaga.set(true);

@@ -16,6 +16,7 @@ import {
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { CreateVisitante, Visitante } from './visitante.model';
 import { ConfirmService } from '../shared/confirm.service';
+import { ToastService } from '../shared/toast.service';
 import { InputMaskDirective } from '../shared/input-mask.directive';
 import { FacialCaptureComponent } from '../shared/facial-capture.component';
 import { compressImage } from '../shared/image-compress.util';
@@ -27,6 +28,7 @@ import { AuthService } from '../auth/auth.service';
 import { ConsentimentosApi } from '../core/consentimentos.service';
 import { erroDocumento } from '../shared/documento.util';
 import { ServerClockService } from '../core/server-clock.service';
+import { formatarSaoPauloLocal, instanteSaoPaulo } from '../core/sao-paulo-time';
 import {
   autorizacaoExpirada as autorizacaoExpiradaUtil,
   janelaEncerrada as janelaEncerradaUtil,
@@ -47,6 +49,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   private service = inject(VisitantesService);
   private aptApi = inject(ApartamentosApi);
   private confirm = inject(ConfirmService);
+  private toast = inject(ToastService);
   private route = inject(ActivatedRoute);
   private sanitizer = inject(DomSanitizer);
   private realtime = inject(RealtimeService);
@@ -422,36 +425,30 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   /** Formata data ISO para exibição amigável ("Hoje às 14:11", "Amanhã às 14:11" ou "11 de Set às 14:11") */
   formatarDataExtensoAmigavel(dataIso: string | null | undefined): string {
     if (!dataIso) return '—';
-    const d = new Date(dataIso);
-    if (isNaN(d.getTime())) return '—';
+    const ms = new Date(dataIso).getTime();
+    if (isNaN(ms)) return '—';
 
-    const hoje = new Date();
-    const amanha = new Date();
-    amanha.setDate(hoje.getDate() + 1);
-    const ontem = new Date();
-    ontem.setDate(hoje.getDate() - 1);
+    // Dia e hora em Brasilia (relogio do servidor), nao no fuso do navegador.
+    const local = formatarSaoPauloLocal(ms); // AAAA-MM-DDTHH:mm
+    const diaDe = (m: number) => formatarSaoPauloLocal(m).slice(0, 10);
+    const agora = this.agoraMs();
+    const hora = local.slice(11, 16);
+    const dia0 = local.slice(0, 10);
 
-    const mesmoDia = (d1: Date, d2: Date) =>
-      d1.getDate() === d2.getDate() &&
-      d1.getMonth() === d2.getMonth() &&
-      d1.getFullYear() === d2.getFullYear();
-
-    const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-
-    if (mesmoDia(d, hoje)) {
+    if (dia0 === diaDe(agora)) {
       return `Hoje às ${hora}`;
     }
-    if (mesmoDia(d, amanha)) {
+    if (dia0 === diaDe(agora + 24 * 3600_000)) {
       return `Amanhã às ${hora}`;
     }
-    if (mesmoDia(d, ontem)) {
+    if (dia0 === diaDe(agora - 24 * 3600_000)) {
       return `Ontem às ${hora}`;
     }
 
-    const dia = String(d.getDate()).padStart(2, '0');
+    const dia = local.slice(8, 10);
     const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    const mes = meses[d.getMonth()];
-    const ano = d.getFullYear() !== hoje.getFullYear() ? `/${d.getFullYear()}` : '';
+    const mes = meses[Number(local.slice(5, 7)) - 1];
+    const ano = local.slice(0, 4) !== diaDe(agora).slice(0, 4) ? `/${local.slice(0, 4)}` : '';
     return `${dia} de ${mes}${ano} às ${hora}`;
   }
 
@@ -1045,8 +1042,8 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     // Recorrente (dias da semana): a API trata a janela como absoluta e os dias
     // só restringem dentro dela — "Seg a Sex" com término em 4 h valia 4 h num dia.
     if (!(this.editingId && this.editandoIdentidade()) && fim && (this.novo.dias_semana ?? '').trim()) {
-      const inicioMs = ini ? new Date(ini).getTime() : this.agoraMs();
-      if (new Date(fim).getTime() - inicioMs < 24 * 3600_000) {
+      const inicioMs = ini ? instanteSaoPaulo(ini) : this.agoraMs();
+      if (instanteSaoPaulo(fim) - inicioMs < 24 * 3600_000) {
         this.erroForm.set(
           'Acesso recorrente: o "Liberado até" precisa cobrir mais de um dia (até quando vale o acesso) — ou deixe em branco para acesso contínuo.',
         );
@@ -1145,7 +1142,8 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
           if (this.novo.foto_pessoa && this.editingId && this.consentimentoTocado()) {
             this.consentimentosApi.registrarTerceiro({
               tipoPessoa: this.novo.is_prestador ? 'prestador' : 'visitante',
-              idPessoa: this.editingId,
+              // Mesmo id da Pessoa que o resto da edicao usa (o da visita so no caminho legado).
+              idPessoa: this.editingIdPessoa ?? this.editingId,
               doc: this.novo.doc_identificacao || undefined,
               biometria: this.consentimentoBiometria(),
               maiorIdade: this.consentimentoBiometria(),
@@ -1181,6 +1179,9 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
             biometria: this.consentimentoBiometria(),
             maiorIdade: this.consentimentoBiometria(),
           }).subscribe({ error: (err) => console.error('Erro ao registrar consentimento de terceiro:', err) });
+        }
+        if ((created as any)?.reaproveitado) {
+          this.toast.warning('Já havia um agendamento sem entrada com este nome e unidade: ele foi religado com a nova janela (nenhum cadastro novo foi criado).');
         }
         this.saving.set(false);
         this.cancelarForm();
@@ -1672,9 +1673,8 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   private localDateTime(horas = 0): string {
     // Hora do SERVIDOR: com o relógio do computador da portaria adiantado, a
     // janela começava no futuro e o PIN/rosto não abriam até o servidor alcançar.
-    const d = new Date(this.agoraMs() + horas * 3600_000);
-    const p = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+    // Formatado em Brasilia (a API le o texto como horario de Brasilia), nao no fuso do navegador.
+    return formatarSaoPauloLocal(this.agoraMs() + horas * 3600_000);
   }
 
   getMapUrl(d: any): SafeResourceUrl | null {

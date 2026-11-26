@@ -76,7 +76,7 @@ describe('ApartamentosPageComponent — vagas de visitante com prazo', () => {
   });
 
   it('Liberar vaga para visitante: o prazo sugerido é o fim da visita e vai no envio', () => {
-    const termino = new Date(2099, 0, 2, 18, 0).toISOString();
+    const termino = '2099-01-02T21:00:00.000Z'; // 18:00 em Brasilia
     const liberar = jest.fn(() => of({} as any));
     const { tela } = build({
       liberar,
@@ -89,7 +89,7 @@ describe('ApartamentosPageComponent — vagas de visitante com prazo', () => {
     tela.escolherVisitanteVaga(3);
     expect(tela.novaVaga.fim).toBe('2099-01-02T18:00');
     tela.salvarVaga();
-    expect(liberar).toHaveBeenCalledWith(10, expect.objectContaining({ tipo: 'visitante', id_visitante: 3, fim: termino }));
+    expect(liberar).toHaveBeenCalledWith(10, expect.objectContaining({ tipo: 'visitante', id_visitante: 3, fim: '2099-01-02T18:00' }));
   });
 
   it('Liberar vaga para visitante sem prazo ou com prazo no passado não envia', () => {

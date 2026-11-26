@@ -411,6 +411,8 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
       cb.click();
       fixture.detectChanges();
       comp.novaVotacao.titulo = 'Obra da fachada';
+      comp.novaVotacao.data_inicio = '20/11/2026';
+      comp.novaVotacao.data_termino = '27/11/2026';
       comp.salvarVotacao();
       expect(insertVotacao).toHaveBeenCalledWith(
         expect.objectContaining({ id_assembleia: 2, somente_proprietarios: true }),
@@ -428,6 +430,8 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
       expect(texto).toContain('Só proprietários votam nesta enquete; inquilinos e dependentes não.');
       expect(texto).not.toContain('despesas extraordinárias');
       comp.novaVotacao.titulo = 'Horário da piscina';
+      comp.novaVotacao.data_inicio = '20/11/2026';
+      comp.novaVotacao.data_termino = '27/11/2026';
       comp.salvarVotacao();
       expect(insertVotacao).toHaveBeenCalledWith(
         expect.objectContaining({ is_enquete: true, somente_proprietarios: false }),
