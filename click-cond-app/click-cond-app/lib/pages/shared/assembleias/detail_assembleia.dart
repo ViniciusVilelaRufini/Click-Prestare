@@ -189,11 +189,14 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
       title: getText('lb_assembleia'),
       actions: gerencia
           ? [
-              IconButton(
-                onPressed: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => ModalFinalizarAssembleia(assembleia: obj))),
-                icon: const Icon(PhosphorIcons.flagCheckered, size: 22),
-                tooltip: 'Finalizar assembleia',
+              Padding(
+                padding: const EdgeInsets.only(right: AppSpacing.sm),
+                child: IconButton(
+                  onPressed: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => ModalFinalizarAssembleia(assembleia: obj))),
+                  icon: const Icon(PhosphorIcons.flagCheckered, size: 22),
+                  tooltip: 'Finalizar assembleia',
+                ),
               ),
             ]
           : null,
@@ -432,10 +435,7 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
             children: [
               Text(
                 (getText('lb_votacoes')).toUpperCase(),
-                style: AppTypography.title(context).copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary(context),
-                ),
+                style: AppTypography.section(context),
               ),
               if (votacoes.isNotEmpty)
                 Container(
@@ -457,18 +457,24 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
           ),
         ),
         if (isSindico)
-          TextButton.icon(
-            key: DetailAssembleia.chaveNovaVotacao,
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => NewVotacao(idAssembleia: widget.id, isEnquete: false)),
-            ).then((_) => load()),
-            style: TextButton.styleFrom(
-              foregroundColor: corDestaqueVotacao(context),
-              minimumSize: const Size(48, 48),
+          Align(
+            alignment: Alignment.centerRight,
+            child: OutlinedButton.icon(
+              key: DetailAssembleia.chaveNovaVotacao,
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => NewVotacao(idAssembleia: widget.id, isEnquete: false)),
+              ).then((_) => load()),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.textPrimary(context),
+                side: BorderSide(color: AppColors.borderStrong(context)),
+                shape: const RoundedRectangleBorder(),
+                minimumSize: const Size(48, 40),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              ),
+              icon: const Icon(PhosphorIcons.plus, size: 16),
+              label: Text('Nova votação'.toUpperCase(), style: AppTypography.button(context)),
             ),
-            icon: const Icon(PhosphorIcons.plus, size: 16),
-            label: Text('Nova votação'.toUpperCase(), style: AppTypography.button(context)),
           ),
       ],
     );
