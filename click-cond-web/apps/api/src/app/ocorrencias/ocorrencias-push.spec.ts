@@ -39,6 +39,14 @@ describe('OcorrenciasService — push ao autor', () => {
     );
   });
 
+  it('o próprio autor que responde/muda o status não recebe aviso do que fez', async () => {
+    const { svc, notifications } = build();
+    const autor: any = { sub: 41, typeAccess: 'Sindico', user: { id: 41 } };
+    await svc.updateResposta(7, 'Eu mesmo respondo.', autor);
+    await svc.updateStatus(7, 'Solucionado' as any, autor);
+    expect(notifications.sendPushNotification).not.toHaveBeenCalled();
+  });
+
   it('respeita a preferência desligada', async () => {
     const { svc, notifications } = build(0);
     await svc.updateResposta(7, 'ok', sindico);

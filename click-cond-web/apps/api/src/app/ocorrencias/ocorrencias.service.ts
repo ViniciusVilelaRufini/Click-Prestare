@@ -505,8 +505,11 @@ export class OcorrenciasService {
     titulo: string,
     corpo: string,
     idCondominio?: number | null,
+    /** Quem fez a ação: se é o próprio autor (síndico que abriu e responde), não avisa de si mesmo. */
+    quemFez?: JwtPayload,
   ) {
     if (!idUser) return;
+    if (quemFez && idUsuarioDoToken(quemFez) === Number(idUser)) return;
     try {
       const u = await this.prisma.users.findUnique({
         where: { id: idUser },
@@ -592,6 +595,7 @@ export class OcorrenciasService {
       'Ocorrência atualizada',
       reabrindo ? `Sua ocorrência #${id} foi reaberta.` : `Sua ocorrência #${id} agora está: ${status}.`,
       atualizado.id_condominio,
+      user,
     );
     return atualizado;
   }
@@ -622,7 +626,7 @@ export class OcorrenciasService {
     } catch {
       throw new NotFoundException(`Ocorrência ${id} não encontrada`);
     }
-    await this.notificarAutor(id, atualizado.user, 'Ocorrência respondida', resposta.slice(0, 140), atualizado.id_condominio);
+    await this.notificarAutor(id, atualizado.user, 'Ocorrência respondida', resposta.slice(0, 140), atualizado.id_condominio, user);
     return atualizado;
   }
 
@@ -662,10 +666,10 @@ export class OcorrenciasService {
       throw new NotFoundException(`Ocorrência ${idOc} não encontrada`);
     }
     if (resposta) {
-      await this.notificarAutor(idOc, atualizado.user, 'Ocorrência respondida', resposta.slice(0, 140), atualizado.id_condominio);
+      await this.notificarAutor(idOc, atualizado.user, 'Ocorrência respondida', resposta.slice(0, 140), atualizado.id_condominio, user);
     } else {
       await this.notificarAutor(
-        idOc, atualizado.user, 'Ocorrência atualizada', `Sua ocorrência #${idOc} agora está: ${status}.`, atualizado.id_condominio,
+        idOc, atualizado.user, 'Ocorrência atualizada', `Sua ocorrência #${idOc} agora está: ${status}.`, atualizado.id_condominio, user,
       );
     }
     return atualizado;
@@ -819,7 +823,8 @@ export class OcorrenciasService {
       throw new NotFoundException(`Ocorrência ${id} não encontrada`);
     }
 
-    if (idResponsavel != null) {
+    // Quem se atribui a si mesmo não recebe "atribuída a você" do que acabou de fazer.
+    if (idResponsavel != null && Number(idResponsavel) !== idUsuarioDoToken(user)) {
       try {
         const resp = await this.prisma.users.findUnique({
           where: { id: idResponsavel },
