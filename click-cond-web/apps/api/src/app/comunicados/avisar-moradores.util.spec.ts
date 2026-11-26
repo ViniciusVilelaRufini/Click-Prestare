@@ -35,6 +35,22 @@ describe('avisarMoradoresDoCondominio', () => {
     expect(d.prisma.users.findMany.mock.calls[0][0].where.id).toBeUndefined();
   });
 
+  it('somenteProprietarios: inquilino e membro (vínculo mais alto) não recebem; sem tipo conta como proprietário', async () => {
+    const users = [
+      { fcm_token: 'prop', apartamentosUsers: [{ tipo: 'Proprietário' }] },
+      { fcm_token: 'inq', apartamentosUsers: [{ tipo: 'inquilino' }] },
+      { fcm_token: 'membro', apartamentosUsers: [{ tipo: 'dependente' }] },
+      { fcm_token: 'semtipo', apartamentosUsers: [{ tipo: null }] },
+      { fcm_token: 'dois', apartamentosUsers: [{ tipo: 'inquilino' }, { tipo: 'proprietario' }] },
+    ];
+    const prisma: any = { users: { findMany: jest.fn(async () => users) } };
+    const notifications: any = { sendPushNotification: jest.fn(async () => 'ok') };
+    await avisarMoradoresDoCondominio({ prisma, notifications, logger: { error: jest.fn() } as any }, 1, { ...aviso, somenteProprietarios: true });
+    const tokens = notifications.sendPushNotification.mock.calls.map((c: any[]) => c[0]).sort();
+    expect(tokens).toEqual(['dois', 'prop', 'semtipo']);
+    expect(prisma.users.findMany.mock.calls[0][0].select.apartamentosUsers).toBeDefined();
+  });
+
   it('envia em paralelo com teto de 5 em voo, e uma falha não para as outras', async () => {
     let emVoo = 0;
     let pico = 0;

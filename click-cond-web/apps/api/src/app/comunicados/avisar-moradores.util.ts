@@ -2,6 +2,7 @@ import type { Logger } from '@nestjs/common';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { NotificationsService } from '../notifications/notifications.service';
 import { limitarConcorrencia } from '../common/limitar-concorrencia';
+import { maiorVinculo } from '../common/tipo-vinculo.util';
 
 /**
  * Pushes em voo ao mesmo tempo (por instância, somando todos os avisos em
@@ -32,6 +33,8 @@ export async function avisarMoradoresDoCondominio(
     data: Record<string, string>;
     /** Users.id de quem publicou: não é avisado do que ele mesmo fez. */
     excluirUserId?: number | null;
+    /** Só quem tem vínculo de proprietário (enquete/pauta em que inquilino e membro não votam). */
+    somenteProprietarios?: boolean;
   },
 ): Promise<void> {
   if (!deps.notifications) return;
@@ -46,14 +49,23 @@ export async function avisarMoradoresDoCondominio(
         apartamentosUsers: { some: { apartamento: { id_condominio: idCondominio } } },
         ...(aviso.excluirUserId ? { id: { not: aviso.excluirUserId } } : {}),
       },
-      select: { fcm_token: true },
+      select: {
+        fcm_token: true,
+        ...(aviso.somenteProprietarios
+          ? { apartamentosUsers: { where: { apartamento: { id_condominio: idCondominio } }, select: { tipo: true } } }
+          : {}),
+      },
     });
+    // Mesmo critério de voto: o vínculo mais alto da conta no condomínio.
+    const destinatarios = aviso.somenteProprietarios
+      ? users.filter((u: any) => maiorVinculo((u.apartamentosUsers ?? []).map((v: any) => v.tipo)) === 'proprietario')
+      : users;
     const notifications = deps.notifications;
     // id_condominio no data: o app abre o detalhe no condomínio certo quando
     // o push chega com o app fechado (ou noutro condomínio).
     const data = { ...aviso.data, id_condominio: String(idCondominio) };
     await Promise.all(
-      users.map((u) =>
+      destinatarios.map((u) =>
         limitarPushAvisos(() => notifications.sendPushNotification(u.fcm_token!, aviso.titulo, aviso.corpo, data)).catch(
           (e: any) => deps.logger.error(`[push.${aviso.data['type'] ?? 'aviso'}] ${e?.message ?? e}`),
         ),

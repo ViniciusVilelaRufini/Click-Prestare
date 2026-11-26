@@ -380,12 +380,13 @@ export class AssembleiasService {
     corpo: string,
     data: Record<string, string>,
     requester?: JwtPayload,
+    somenteProprietarios = false,
   ) {
     void avisarMoradoresDoCondominio(
       { prisma: this.prisma, notifications: this.notifications, logger: this.logger },
       idCondominio,
       // O síndico que convoca/publica e mora no condomínio não recebe o próprio aviso.
-      { titulo, corpo, data, excluirUserId: idUsuarioDoToken(requester) },
+      { titulo, corpo, data, excluirUserId: idUsuarioDoToken(requester), somenteProprietarios },
     );
   }
 
@@ -989,7 +990,7 @@ export class AssembleiasService {
       this.avisarMoradores(Number(idCondominio), 'Nova enquete', corpo, {
         type: 'enquete',
         id: String(idVotacao ?? ''),
-      }, requester);
+      }, requester, !!somenteProprietarios);
     }
 
     return { success: true };
