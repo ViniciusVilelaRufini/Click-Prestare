@@ -4027,6 +4027,25 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     return (this.prisma[tabela] as any).findUnique({ where: { id: Number(id) }, ...(include && { include }) });
   }
 
+  /**
+   * Quem respondeu ao pedido é equipe (portaria, funcionário ou síndico sem vínculo com a
+   * unidade) e não o morador? Decide o texto da auditoria e o "pela portaria" do card.
+   */
+  private async respondeuComoEquipe(payload: JwtPayload | undefined, idApartamento: number | null | undefined): Promise<boolean> {
+    if (!payload) return false;
+    const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase();
+    if (payload.id_condominio || tipo === 'funcionario') return true;
+    if (tipo !== 'sindico') return false;
+    // Síndico que também mora na unidade responde como morador.
+    const userId = idUsuarioDoToken(payload);
+    if (!userId || !idApartamento) return true;
+    const vinculo = await this.prisma.apartamentos_Users.findFirst({
+      where: { id_user: userId, id_apto: idApartamento },
+      select: { id_apto: true },
+    });
+    return !vinculo;
+  }
+
   private async autorizarViaPessoasVisitas(id: number, payload?: JwtPayload, darEntrada?: boolean) {
     const ref = await this.assertPodeAcessarVisita(id, payload);
     if (ref.bloqueado === 1 || (ref.pessoa as any)?.bloqueado === 1) {
@@ -4052,12 +4071,14 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     this.fireFacialSyncPessoa(v.id_pessoa);
     const ctx = this.construirContextoAuditoria(v);
     const aptoLabel = ctx?.apartamento?.label ?? '—';
+    const equipe = await this.respondeuComoEquipe(payload, v.id_apartamento);
+    const quem = equipe ? 'pela equipe do condomínio' : 'pelo morador';
     const acaoDesc = darEntrada
-      ? `Visitante autorizado com entrada registrada pelo morador: "${v.pessoa.nome}" no ${aptoLabel}`
-      : `Visitante autorizado pelo morador: "${v.pessoa.nome}" no ${aptoLabel}`;
+      ? `Visitante autorizado com entrada registrada ${quem}: "${v.pessoa.nome}" no ${aptoLabel}`
+      : `Visitante autorizado ${quem}: "${v.pessoa.nome}" no ${aptoLabel}`;
     await this.auditoria.registrar({
       id_condominio: v.id_condominio,
-      usuario_nome: payload?.nome ?? 'Morador',
+      usuario_nome: payload?.nome ?? (equipe ? 'Equipe' : 'Morador'),
       acao: darEntrada ? 'CHECK_IN' : 'UPDATE',
       modulo: 'visitas',
       entidade_id: v.id,
@@ -4065,7 +4086,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       detalhes: ctx ?? undefined,
     });
     this.card(async (c) => {
-      await c.respondido('visita', v.id, 'liberado', { idUser: respondidoPor, pelaPortaria: false });
+      await c.respondido('visita', v.id, 'liberado', { idUser: respondidoPor, pelaPortaria: equipe });
       if (darEntrada) await c.entrou('visita', v.id);
     });
     this.realtime.emitToCondominio(v.id_condominio, 'visitante.autorizado', {
@@ -4092,16 +4113,17 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     this.fireFacialSyncPessoa(v.id_pessoa);
     const ctx = this.construirContextoAuditoria(v);
     const aptoLabel = ctx?.apartamento?.label ?? '—';
+    const equipe = await this.respondeuComoEquipe(payload, v.id_apartamento);
     await this.auditoria.registrar({
       id_condominio: v.id_condominio,
-      usuario_nome: payload?.nome ?? 'Morador',
+      usuario_nome: payload?.nome ?? (equipe ? 'Equipe' : 'Morador'),
       acao: 'UPDATE',
       modulo: 'visitas',
       entidade_id: v.id,
-      descricao: `Visitante negado pelo morador: "${v.pessoa.nome}" no ${aptoLabel}`,
+      descricao: `Visitante negado ${equipe ? 'pela equipe do condomínio' : 'pelo morador'}: "${v.pessoa.nome}" no ${aptoLabel}`,
       detalhes: ctx ?? undefined,
     });
-    this.card((c) => c.respondido('visita', v.id, 'negado', { idUser: respondidoPor, pelaPortaria: false }));
+    this.card((c) => c.respondido('visita', v.id, 'negado', { idUser: respondidoPor, pelaPortaria: equipe }));
     this.realtime.emitToCondominio(v.id_condominio, 'visitante.negado', { id: v.id });
     return { ok: true };
   }
@@ -5627,12 +5649,14 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     this.fireFacialSync(v.id);
     const ctx = await this.carregarContextoVisitante(v.id);
     const aptoLabel = ctx?.apartamento?.label ?? '—';
+    const equipe = await this.respondeuComoEquipe(payload, v.id_apartamento);
+    const quem = equipe ? 'pela equipe do condomínio' : 'pelo morador';
     const acaoDesc = darEntrada
-      ? `Visitante autorizado com entrada registrada pelo morador: "${v.nome}" no ${aptoLabel}`
-      : `Visitante autorizado pelo morador: "${v.nome}" no ${aptoLabel}`;
+      ? `Visitante autorizado com entrada registrada ${quem}: "${v.nome}" no ${aptoLabel}`
+      : `Visitante autorizado ${quem}: "${v.nome}" no ${aptoLabel}`;
     await this.auditoria.registrar({
       id_condominio: v.id_condominio,
-      usuario_nome: payload?.nome ?? 'Morador',
+      usuario_nome: payload?.nome ?? (equipe ? 'Equipe' : 'Morador'),
       acao: darEntrada ? 'CHECK_IN' : 'UPDATE',
       modulo: 'visitantes',
       entidade_id: v.id,
@@ -5647,7 +5671,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       this.realtime.emitToCondominio(v.id_condominio, 'visitante.checkin', { id: v.id });
     }
     this.card(async (c) => {
-      await c.respondido('visitante', v.id, 'liberado', { idUser: respondidoPor, pelaPortaria: false });
+      await c.respondido('visitante', v.id, 'liberado', { idUser: respondidoPor, pelaPortaria: equipe });
       if (darEntrada) await c.entrou('visitante', v.id);
     });
     return { ok: true };
@@ -5671,17 +5695,18 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     this.fireFacialSync(v.id);
     const ctx = await this.carregarContextoVisitante(v.id);
     const aptoLabel = ctx?.apartamento?.label ?? '—';
+    const equipe = await this.respondeuComoEquipe(payload, v.id_apartamento);
     await this.auditoria.registrar({
       id_condominio: v.id_condominio,
-      usuario_nome: payload?.nome ?? 'Morador',
+      usuario_nome: payload?.nome ?? (equipe ? 'Equipe' : 'Morador'),
       acao: 'UPDATE',
       modulo: 'visitantes',
       entidade_id: v.id,
-      descricao: `Visitante negado pelo morador: "${v.nome}" no ${aptoLabel}`,
+      descricao: `Visitante negado ${equipe ? 'pela equipe do condomínio' : 'pelo morador'}: "${v.nome}" no ${aptoLabel}`,
       detalhes: ctx ?? undefined,
     });
     this.realtime.emitToCondominio(v.id_condominio, 'visitante.negado', { id: v.id });
-    this.card((c) => c.respondido('visitante', v.id, 'negado', { idUser: respondidoPor, pelaPortaria: false }));
+    this.card((c) => c.respondido('visitante', v.id, 'negado', { idUser: respondidoPor, pelaPortaria: equipe }));
     return { ok: true };
   }
 

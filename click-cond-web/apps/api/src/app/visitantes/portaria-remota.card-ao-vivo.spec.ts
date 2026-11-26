@@ -58,18 +58,19 @@ describe('VisitantesService — card ao vivo (caminho antigo)', () => {
       entrou: jest.fn(cardFalha ? falha : async () => undefined),
       encerrar: jest.fn(cardFalha ? falha : async () => undefined),
     };
+    const auditoria = { registrar: jest.fn(async () => ({})) };
     const svc = new VisitantesService(
       prisma,
       notifications as any,
       {} as any,
       { syncVisitante: jest.fn(async () => ({ ok: true })) } as any,
-      { registrar: jest.fn(async () => ({})) } as any,
+      auditoria as any,
       { assertCondominio: jest.fn(async () => undefined) } as any,
       { emitToCondominio: jest.fn() } as any,
       {} as any,
       card as any,
     );
-    return { svc, prisma, notifications, card };
+    return { svc, prisma, notifications, card, auditoria };
   }
 
   const porteiro = { id_condominio: 1, nome: 'Porteiro', sub: 99 } as any;
@@ -99,6 +100,22 @@ describe('VisitantesService — card ao vivo (caminho antigo)', () => {
     await esperar();
     expect(card.respondido).toHaveBeenCalledWith('visitante', 5, 'liberado', { idUser: 20, pelaPortaria: false });
     expect(card.entrou).not.toHaveBeenCalled();
+  });
+
+  it('autorizar/negar feito pela equipe não diz "pelo morador" nem "Você" no card', async () => {
+    const equipe = { id_condominio: 1, nome: 'Funcionário Zé', sub: 77, typeAccess: 'funcionario' } as any;
+    const a = build();
+    await a.svc.autorizar(5, equipe);
+    await esperar();
+    expect(a.card.respondido).toHaveBeenCalledWith('visitante', 5, 'liberado', { idUser: expect.anything(), pelaPortaria: true });
+    const descA = (a.auditoria.registrar.mock.calls[0] as any[])[0].descricao as string;
+    expect(descA).toContain('pela equipe do condomínio');
+    expect(descA).not.toContain('pelo morador');
+    const n = build();
+    await n.svc.negar(5, equipe);
+    await esperar();
+    expect(n.card.respondido).toHaveBeenCalledWith('visitante', 5, 'negado', { idUser: expect.anything(), pelaPortaria: true });
+    expect(((n.auditoria.registrar.mock.calls[0] as any[])[0] as any).descricao).toContain('negado pela equipe do condomínio');
   });
 
   it('autorizar e dar entrada leva o card a ENTROU', async () => {
