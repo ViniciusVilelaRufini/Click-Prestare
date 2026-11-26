@@ -157,8 +157,27 @@ describe('Encomendas — ciclos do porteiro', () => {
       const ondeMora = prisma.users.findMany.mock.calls[0][0].where.OR;
       expect(ondeMora[0].moradores.some).toMatchObject({ apartamento: '202', bloco: 'B' });
       expect(ondeMora[1].apartamentosUsers.some.apartamento).toMatchObject({ apto: '202', bloco: 'B' });
-      expect(notifications.sendPushNotification).toHaveBeenCalledTimes(1);
+      // A nova unidade recebe o aviso; a antiga (que já tinha sido avisada) recebe a correção.
+      expect(notifications.sendPushNotification).toHaveBeenCalledTimes(2);
+      expect(notifications.sendPushNotification.mock.calls[0][1]).toBe('Nova Encomenda!');
+      expect(notifications.sendPushNotification.mock.calls[1][1]).toBe('Encomenda corrigida');
+      expect(notifications.sendPushNotification.mock.calls[1][2]).toContain('Desconsidere');
+      expect(prisma.users.findMany.mock.calls[1][0].where.OR[0].moradores.some).toMatchObject({ apartamento: '101', bloco: 'A' });
       expect(r.avisados).toBe(1);
+    });
+
+    it('encomenda que nunca chegou a ser avisada não gera correção para a unidade antiga', async () => {
+      const { svc, registros, notifications } = build({ moradores: [{ fcm_token: 't2', name: 'Caio', phone: null }], push: 'ok' });
+      registros.push({ id: 5, ...dto, status: 'Aguardando', notificado: 0 });
+      await svc.corrigirUnidade(1, 5, { destinatario_apto: '202', destinatario_bloco: 'B' }, porteiro);
+      expect(notifications.sendPushNotification).toHaveBeenCalledTimes(1);
+    });
+
+    it('WhatsApp sem remetente nem nome não sai agramatical', async () => {
+      const { svc, notifications } = build({ moradores: [{ fcm_token: null, name: null, phone: '17999990000' }], whatsapp: 'ok' });
+      await svc.create({ ...dto, recebido_de: '' } as any, porteiro);
+      const txt = notifications.sendWhatsApp.mock.calls[0][1];
+      expect(txt).toBe('Olá! Uma nova encomenda (Caixa) chegou na portaria para o seu apartamento. Retire quando puder!');
     });
 
     it('unidade sem bloco fica com bloco vazio, igual ao recebimento do console', async () => {

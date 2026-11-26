@@ -14,6 +14,7 @@ import { EstadoCompartilhado } from '../common/estado-compartilhado';
 import { COTA_ETIQUETA_CONDOMINIO_DIA, consumirCotaDiaria, limiteCota } from '../common/cota-ia';
 
 import { rotuloBloco } from '../common/rotulo-bloco.util';
+import { saudacao } from '../common/saudacao.util';
 export interface CreateEncomendaDto {
   descricao: string;
   destinatario_apto: string;
@@ -449,8 +450,8 @@ export class EncomendasService implements OnModuleInit {
       'Nova Encomenda!',
       `Uma encomenda (${dto.descricao}) chegou para o seu apartamento.`,
       (nome) => {
-        const transportadora = dto.recebido_de ? `de ${dto.recebido_de}` : 'entregador';
-        return `Olá, ${nome}! Uma nova encomenda (${dto.descricao}) ${transportadora} chegou na portaria para o seu apartamento. Retire quando puder!`;
+        const remetente = dto.recebido_de?.trim() ? ` de ${dto.recebido_de.trim()}` : '';
+        return `${saudacao(nome)} Uma nova encomenda (${dto.descricao})${remetente} chegou na portaria para o seu apartamento. Retire quando puder!`;
       },
       'notificar moradores',
     );
@@ -658,7 +659,7 @@ export class EncomendasService implements OnModuleInit {
         atual,
         'Aviso de Encomenda Pendente!',
         `Você tem uma encomenda pendente (${atual.descricao}) aguardando retirada.`,
-        (nome) => `Olá, ${nome}! Lembramos que você tem uma encomenda pendente (${atual.descricao}) aguardando retirada na portaria do condomínio.`,
+        (nome) => `${saudacao(nome)} Lembramos que você tem uma encomenda pendente (${atual.descricao}) aguardando retirada na portaria do condomínio.`,
         'reenviar notificação',
       );
       const e = await this.marcarNotificada(atual, avisados);
@@ -726,7 +727,7 @@ export class EncomendasService implements OnModuleInit {
       recebida,
       'Encomenda recebida!',
       `Sua encomenda (${recebida.descricao}) chegou na portaria.`,
-      (nome) => `Olá, ${nome}! Sua encomenda (${recebida.descricao}) chegou na portaria do condomínio. Retire quando puder!`,
+      (nome) => `${saudacao(nome)} Sua encomenda (${recebida.descricao}) chegou na portaria do condomínio. Retire quando puder!`,
       'notificar moradores (receber)',
     );
     const encomenda = await this.marcarNotificada(recebida, avisados);
@@ -908,7 +909,7 @@ export class EncomendasService implements OnModuleInit {
 
   /** Depois de gravar a unidade nova: avisa quem mora lá, marca notificado e audita. */
   private async avisarUnidadeCorrigida<T extends DestinoEncomenda>(
-    atual: { destinatario_apto: string; destinatario_bloco: string | null },
+    atual: DestinoEncomenda & { notificado?: number | null },
     corrigida: T,
     operador?: JwtPayload,
   ) {
@@ -916,10 +917,21 @@ export class EncomendasService implements OnModuleInit {
       corrigida,
       'Nova Encomenda!',
       `Uma encomenda (${corrigida.descricao}) chegou para o seu apartamento.`,
-      (nome) => `Olá, ${nome}! Uma nova encomenda (${corrigida.descricao}) chegou na portaria para o seu apartamento. Retire quando puder!`,
+      (nome) => `${saudacao(nome)} Uma nova encomenda (${corrigida.descricao}) chegou na portaria para o seu apartamento. Retire quando puder!`,
       'notificar moradores (correção de unidade)',
     );
     const encomenda = await this.marcarNotificada(corrigida, avisados);
+
+    // A unidade errada só tem o que desfazer se o aviso anterior chegou a sair.
+    if (atual.notificado === 1) {
+      await this.avisarUnidade(
+        atual,
+        'Encomenda corrigida',
+        `A encomenda (${atual.descricao}) avisada antes não era do seu apartamento. Desconsidere o aviso.`,
+        (nome) => `${saudacao(nome)} A encomenda (${atual.descricao}) avisada antes não era do seu apartamento. Desconsidere o aviso.`,
+        'avisar a unidade anterior (correção de unidade)',
+      );
+    }
 
     const ctx = await this.carregarContextoEncomenda(encomenda.id);
     const de = atual.destinatario_bloco
