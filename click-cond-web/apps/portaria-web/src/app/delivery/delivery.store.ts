@@ -70,6 +70,7 @@ export class DeliveryStore {
     this.erro.set(null);
     this.aviso.set(null);
     this.aba.set(aba);
+    if (aba === 'fila') this.cadastroDoAtendimento = false;
     this.limparBuscaEntregadores();
     if (aba === 'fila') this.carregarFila({ silencioso: true });
   }
@@ -249,7 +250,11 @@ export class DeliveryStore {
     });
   }
 
+  /** O cadastro foi aberto a partir de um atendimento: so entao o novo entregador e selecionado nele. */
+  private cadastroDoAtendimento = false;
+
   iniciarCadastroNoAtendimento(): void {
+    this.cadastroDoAtendimento = true;
     this.novoEntregador = this.novoEntregadorVazio();
     this.entregadorEmEdicao.set(null);
     this.trocarAba('entregadores');
@@ -264,9 +269,12 @@ export class DeliveryStore {
       next: (resposta) => {
         const entregador: DeliveryEntregador = { ...resposta, veiculos: resposta.veiculos ?? [] };
         this.entregadores.update((lista) => [...lista, entregador].sort((x, y) => x.nome.localeCompare(y.nome)));
-        this.entregadorSelecionadoId.set(entregador.id);
         this.novoEntregador = this.novoEntregadorVazio();
-        this.trocarAba('fila');
+        if (this.cadastroDoAtendimento) {
+          this.cadastroDoAtendimento = false;
+          this.entregadorSelecionadoId.set(entregador.id);
+          this.trocarAba('fila');
+        }
       },
       error: (error) => this.definirErro(error, 'Não foi possível cadastrar o entregador.'),
     });
@@ -274,7 +282,7 @@ export class DeliveryStore {
 
   editarEntregador(e: DeliveryEntregador): void {
     if (!this.podeGerenciarEntregadores()) return;
-    const veiculos = e.veiculos.length ? e.veiculos.map((v) => ({ ...v })) : [{ tipo: 'Moto', placa: '', modelo: '', cor: '' }];
+    const veiculos = e.veiculos.length ? e.veiculos.map((v) => ({ ...v })) : [{ tipo: '', placa: '', modelo: '', cor: '' }];
     this.entregadorEmEdicao.set({ ...e, veiculos });
     this.motivoBloqueio = e.motivo_bloqueio ?? '';
   }
@@ -334,7 +342,7 @@ export class DeliveryStore {
   }
 
   private novoEntregadorVazio(): CriarEntregadorDelivery {
-    return { nome: '', telefone: '', plataforma: '', veiculo: { placa: '', tipo: 'Moto', modelo: '', cor: '' } };
+    return { nome: '', telefone: '', plataforma: '', veiculo: { placa: '', tipo: '', modelo: '', cor: '' } };
   }
 
   private normalizar(valor: string): string {

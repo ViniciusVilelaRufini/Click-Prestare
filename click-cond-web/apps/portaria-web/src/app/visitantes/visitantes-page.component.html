@@ -390,6 +390,9 @@
                 <span class="ps-label mb-1.5 block">
                   Liberado a partir de
                 </span>
+                <span class="text-[10px] text-amber-600 dark:text-amber-400 mb-1.5 block" data-aviso-comeca-agora>
+                  Começa agora: o PIN e o facial já valem a partir deste momento. Mude o campo se a visita é para outro horário.
+                </span>
                 <input
                   type="datetime-local"
                   [(ngModel)]="novo.data_hora_inicio"
@@ -407,9 +410,13 @@
                   [(ngModel)]="novo.data_hora_termino"
                   class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)] transition"
                 />
-                <span class="text-[10px] text-slate-500 dark:text-slate-400 mt-1 block">
-                  Em branco = sem prazo (acesso contínuo).
-                </span>
+                @if (novo.data_hora_termino) {
+                  <span class="text-[10px] text-slate-500 dark:text-slate-400 mt-1 block">Em branco = sem prazo (acesso contínuo).</span>
+                } @else {
+                  <span class="text-[11px] font-semibold text-amber-600 dark:text-amber-400 mt-1 block" role="alert" data-aviso-sem-prazo>
+                    Atenção: sem "Liberado até" o acesso fica permanente (sem prazo).
+                  </span>
+                }
                 @if (dicaRecorrente(); as dica) {
                   <span class="text-[10px] text-amber-600 dark:text-amber-400 mt-1 block" role="status" data-dica-recorrente>{{ dica }}</span>
                 }
@@ -631,7 +638,7 @@
                       <input
                         type="checkbox"
                         [ngModel]="consentimentoBiometria()"
-                        (ngModelChange)="consentimentoBiometria.set($event)"
+                        (ngModelChange)="consentimentoBiometria.set($event); consentimentoTocado.set(true)"
                         class="mt-0.5 accent-[var(--brand)] cursor-pointer"
                       />
                       <span class="text-[11px] text-slate-100 font-medium leading-tight">
@@ -722,10 +729,6 @@
               </a>
             </div>
           </div>
-          <label class="flex items-center gap-2 pt-2.5 border-t border-slate-300 cursor-pointer select-none text-slate-100 text-xs">
-            <input type="checkbox" [checked]="lgpdCiente()" (change)="lgpdCiente.set($any($event.target).checked)" class="accent-[var(--brand)]" />
-            <span>O titular foi informado e está ciente da coleta de imagem facial e documento para controle de acesso.</span>
-          </label>
         </div>
       </div>
       <!-- Erro do formulário: o da página fica atrás do scrim. -->

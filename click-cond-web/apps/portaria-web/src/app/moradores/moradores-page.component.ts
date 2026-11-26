@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { CreateMorador, Morador, MoradoresApi, MoradorAtividade, SindicoOption } from './moradores.service';
 import { VeiculosApi, Veiculo, Tag, CreateVeiculo } from './veiculos.service';
 import { OriginalEdicaoMorador, ajusteMenorDeIdade, confirmacaoEnviarAcesso, payloadCadastroMorador, payloadEdicaoMorador } from './edicao-morador';
-import { dataNascimentoDaPlanilha, temDataNascimento } from './importacao-morador';
+import { dataNascimentoDaPlanilha, temDataNascimento, vinculoDaPlanilha } from './importacao-morador';
 import { ActivatedRoute } from '@angular/router';
 
 type AbaDetalhe = 'geral' | 'visitas' | 'encomendas' | 'ocorrencias' | 'acessos';
@@ -404,7 +404,7 @@ export class MoradoresPageComponent implements OnInit {
       email: m.email ?? '',
       telefone: m.telefone ?? '',
       data_nascimento: m.data_nascimento ? (typeof m.data_nascimento === 'string' ? m.data_nascimento.slice(0, 10) : new Date(m.data_nascimento).toISOString().slice(0, 10)) : '',
-      tipo: m.tipo ?? 'proprietario',
+      tipo: m.tipo ?? '',
       id_apartamento: m.id_apartamento,
       sendCredentials: false,
       foto_pessoa: m.foto_pessoa ?? m.photo ?? undefined,
@@ -553,6 +553,10 @@ export class MoradoresPageComponent implements OnInit {
   async salvar() {
     if (!this.novo.nome?.trim() || !this.novo.id_apartamento) {
       this.error.set('Nome e apartamento são obrigatórios.');
+      return;
+    }
+    if (!this.novo.tipo) {
+      this.error.set('Escolha o tipo de vínculo (proprietário, inquilino ou dependente).');
       return;
     }
     if (this.novo.email && !validators.isEmail(this.novo.email)) {
@@ -785,7 +789,7 @@ export class MoradoresPageComponent implements OnInit {
   }
 
   private estadoInicial(): CreateMorador {
-    return { nome: '', documento: '', email: '', telefone: '', data_nascimento: '', tipo: 'proprietario', id_apartamento: 0, sendCredentials: true, tag_rfid: '', qrcode_acesso: '' };
+    return { nome: '', documento: '', email: '', telefone: '', data_nascimento: '', tipo: '', id_apartamento: 0, sendCredentials: true, tag_rfid: '', qrcode_acesso: '' };
   }
 
   formatarParaBr(data: string | Date | null | undefined): string {
@@ -1029,7 +1033,7 @@ export class MoradoresPageComponent implements OnInit {
                   telefone: cols[3] || '',
                   quadra: cols[4] || '',
                   lote: cols[5] || '',
-                  tipo: cols[6] || 'proprietario',
+                  tipo: cols[6] || '',
                   data_nascimento: dataNascimentoDaPlanilha(cols[7]),
                   // Sem e-mail não há conta a criar; sem a data, o morador entra sem acesso ao app.
                   sendCredentials: !!(cols[2] || '').trim() && temDataNascimento(dataNascimentoDaPlanilha(cols[7])),
@@ -1063,7 +1067,7 @@ export class MoradoresPageComponent implements OnInit {
                   telefone: row['Telefone'] || row['Phone'] || '',
                   quadra: row['Quadra/Bloco'] || row['Quadra'] || row['Bloco'] || '',
                   lote: row['Lote/Apto'] || row['Lote'] || row['Apto'] || '',
-                  tipo: row['Vínculo'] || row['Tipo'] || 'proprietario',
+                  tipo: row['Vínculo'] || row['Tipo'] || '',
                   data_nascimento: dataIso,
                   sendCredentials: !!String(row['E-mail'] || row['Email'] || row['email'] || '').trim() && temDataNascimento(dataIso),
                 });
@@ -1075,7 +1079,16 @@ export class MoradoresPageComponent implements OnInit {
             return;
           }
         }
-        this.bulkLinhas.set(linhas);
+        // Sem vinculo valido nao ha padrao: a linha fica de fora (o vinculo define quem vota em pauta de proprietarios).
+        const validas = linhas.flatMap((l) => {
+          const v = vinculoDaPlanilha(l.tipo);
+          return v ? [{ ...l, tipo: v }] : [];
+        });
+        const recusadas = linhas.length - validas.length;
+        if (recusadas > 0) {
+          this.toast.warning(`${recusadas} linha(s) ignorada(s): Vínculo vazio ou inválido (use Proprietário, Inquilino ou Dependente).`);
+        }
+        this.bulkLinhas.set(validas);
         this.bulkStatus.set('ready');
       } catch {
         this.toast.error('Erro ao decodificar a planilha.');

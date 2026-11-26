@@ -299,7 +299,7 @@
                     <input
                       type="checkbox"
                       [ngModel]="consentimentoBiometria()"
-                      (ngModelChange)="consentimentoBiometria.set($event)"
+                      (ngModelChange)="consentimentoBiometria.set($event); consentimentoTocado.set(true)"
                       class="mt-0.5 cursor-pointer"
                     />
                     <span class="text-[11px] text-[var(--ink)] font-medium leading-tight">

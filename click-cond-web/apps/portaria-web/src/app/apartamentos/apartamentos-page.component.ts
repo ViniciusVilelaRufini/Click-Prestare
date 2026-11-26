@@ -524,7 +524,8 @@ export class ApartamentosPageComponent implements OnInit {
     const apto = this.vagasApto();
     if (!apto) return;
     this.novaVaga = {
-      id_morador_titular: this.vagasResumo()?.moradores?.[0]?.id ?? null,
+      // Sem titular pre-escolhido quando ha mais de um morador: a vaga fica no nome de quem o operador marcar.
+      id_morador_titular: (this.vagasResumo()?.moradores?.length ?? 0) === 1 ? (this.vagasResumo()?.moradores?.[0]?.id ?? null) : null,
       tipo: 'visitante',
       id_visitante: null,
       id_morador_beneficiario: null,

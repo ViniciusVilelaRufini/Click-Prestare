@@ -702,6 +702,7 @@
             <label class="ps-label block mb-1.5" for="apartamentos-page-morador-titular-da-vaga">Morador titular da vaga</label>
             <select id="apartamentos-page-morador-titular-da-vaga" [(ngModel)]="novaVaga.id_morador_titular"
                     class="w-full h-10 px-3 bg-slate-900 border border-white/10 text-white text-sm focus:outline-none focus:border-[var(--ink)] transition">
+              <option [ngValue]="null">Selecione o titular</option>
               @for (m of vagasResumo()?.moradores; track m.id) {
                 <option [ngValue]="m.id">{{ m.nome }}</option>
               }

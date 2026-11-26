@@ -42,16 +42,17 @@ describe('AssembleiasPageComponent — duplo clique em Convocar / Nova enquete',
 
   afterEach(() => TestBed.resetTestingModule());
 
-  it('assembleia: segundo clique enquanto salva não envia de novo; o botão fica desabilitado', () => {
+  it('assembleia: segundo clique enquanto salva não envia de novo; o botão fica desabilitado', async () => {
     const resposta = new Subject<any>();
     const insertAssembleia = jest.fn(() => resposta);
     const { fixture, comp } = render({ insertAssembleia });
-    comp.novaAssembleia = { ...comp.novaAssembleia, titulo: 'AGO', data: '2026-11-20' };
+    comp.novaAssembleia = { ...comp.novaAssembleia, titulo: 'AGO', data: '2026-11-20', hora: '19:30', local: 'Salão' };
     comp.modalAssembleia.set(true);
     fixture.detectChanges();
 
-    comp.salvarAssembleia();
-    comp.salvarAssembleia();
+    const p1 = comp.salvarAssembleia();
+    const p2 = comp.salvarAssembleia();
+    await Promise.all([p1, p2]);
     fixture.detectChanges();
     expect(insertAssembleia).toHaveBeenCalledTimes(1);
     const botao = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
@@ -63,14 +64,14 @@ describe('AssembleiasPageComponent — duplo clique em Convocar / Nova enquete',
     expect(comp.salvandoAssembleia()).toBe(false);
   });
 
-  it('assembleia: erro destrava para tentar de novo', () => {
+  it('assembleia: erro destrava para tentar de novo', async () => {
     const insertAssembleia = jest.fn(() => throwError(() => ({ error: { message: 'Data inválida: use DD/MM/AAAA.' } })));
     const { comp } = render({ insertAssembleia });
-    comp.novaAssembleia = { ...comp.novaAssembleia, titulo: 'AGO', data: '2026-11-20' };
-    comp.salvarAssembleia();
+    comp.novaAssembleia = { ...comp.novaAssembleia, titulo: 'AGO', data: '2026-11-20', hora: '19:30', local: 'Salão' };
+    await comp.salvarAssembleia();
     expect(comp.salvandoAssembleia()).toBe(false);
     expect(comp.erroAssembleia()).toBe('Data inválida: use DD/MM/AAAA.');
-    comp.salvarAssembleia();
+    await comp.salvarAssembleia();
     expect(insertAssembleia).toHaveBeenCalledTimes(2);
   });
 

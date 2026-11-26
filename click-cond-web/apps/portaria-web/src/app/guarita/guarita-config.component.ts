@@ -120,7 +120,7 @@ function lerTextoDoBlob(b: Blob): Promise<string> {
 }
 
 function portaoVazio(): GuaritaPortaoDto {
-  return { nome: '', tipo_receptor: 1, num_receptor: 1, botao: null, rele: null, sentido: null };
+  return { nome: '', tipo_receptor: 0, num_receptor: 0, botao: null, rele: null, sentido: null };
 }
 
 /**
@@ -436,6 +436,10 @@ export class GuaritaConfigComponent implements OnInit, OnDestroy {
     const nome = (f.nome ?? '').trim();
     if (!nome) {
       this.erroFormPortao.set('Informe o nome do portão.');
+      return;
+    }
+    if (!(Number(f.tipo_receptor) > 0) || !(Number(f.num_receptor) > 0)) {
+      this.erroFormPortao.set('Escolha o receptor e o endereço CAN do portão: o botão "abrir" aciona exatamente esse receptor.');
       return;
     }
     const numOuNulo = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v));

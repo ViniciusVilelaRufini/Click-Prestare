@@ -246,12 +246,22 @@ describe('DeliveryStore', () => {
 
   it('mostra o veículo devolvido no cadastro e volta para a fila', () => {
     api.criarEntregador.mockReturnValue(of({ id: 31, nome: 'Maria Moto', status: 'ATIVO', veiculos: [{ id: 81, placa: 'XYZ9A87' }] }));
-    store.aba.set('entregadores');
+    store.iniciarCadastroNoAtendimento();
     store.novoEntregador.nome = 'Maria Moto';
     store.criarEntregador();
     expect(store.entregadores().find((e) => e.id === 31)?.veiculos).toEqual([expect.objectContaining({ placa: 'XYZ9A87' })]);
     expect(store.entregadorSelecionadoId()).toBe(31);
     expect(store.aba()).toBe('fila');
+  });
+
+  it('cadastro feito so na aba Entregadores nao seleciona o novo no atendimento aberto', () => {
+    api.criarEntregador.mockReturnValue(of({ id: 32, nome: 'Outro', status: 'ATIVO', veiculos: [] }));
+    store.entregadorSelecionadoId.set(20);
+    store.aba.set('entregadores');
+    store.novoEntregador.nome = 'Outro';
+    store.criarEntregador();
+    expect(store.entregadorSelecionadoId()).toBe(20);
+    expect(store.aba()).toBe('entregadores');
   });
 
   it('preserva veículos quando o PATCH não os devolve', () => {

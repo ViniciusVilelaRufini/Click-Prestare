@@ -322,14 +322,28 @@ export class AssembleiasPageComponent implements OnInit {
 
   abrirModalAssembleia() {
     // Campo de data (AAAA-MM-DD): a API aceita esse formato e o DD/MM/AAAA.
-    this.novaAssembleia = { titulo: '', descricao: '', data: this.hojeIso(), hora: '19:30', local: 'Salão Principal', link: '' };
+    this.novaAssembleia = { titulo: '', descricao: '', data: '', hora: '', local: '', link: '' };
     this.erroAssembleia.set(null);
     this.modalAssembleia.set(true);
   }
 
-  salvarAssembleia() {
+  async salvarAssembleia() {
     if (this.salvandoAssembleia()) return;
-    this.salvandoAssembleia.set(true);
+    const n = this.novaAssembleia;
+    if (!n.titulo?.trim() || !n.data || !n.hora?.trim() || !n.local?.trim()) {
+      this.erroAssembleia.set('Informe título, data, horário e local: a convocação sai exatamente com o que estiver aqui.');
+      return;
+    }
+    this.salvandoAssembleia.set(true); // segura o duplo clique enquanto a confirmacao esta aberta
+    const ok = await this.confirm.ask({
+      title: 'Convocar assembleia',
+      message: `Isto avisa todos os moradores agora: ${n.data} às ${n.hora}, em ${n.local}.`,
+      confirmLabel: 'Convocar',
+    });
+    if (!ok) {
+      this.salvandoAssembleia.set(false);
+      return;
+    }
     this.erroAssembleia.set(null);
     this.api.insertAssembleia(this.novaAssembleia).subscribe({
       next: () => {

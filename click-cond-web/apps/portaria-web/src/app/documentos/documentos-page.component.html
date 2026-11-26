@@ -126,9 +126,11 @@
               [(ngModel)]="novoDoc.isAta"
               class="w-full px-3.5 py-2.5 bg-slate-900 border border-white/10 text-white text-xs focus:outline-none cursor-pointer"
             >
+              <option [ngValue]="null">Selecione a classificação</option>
               <option [ngValue]="false">Normas, Convenção ou Regimento</option>
               <option [ngValue]="true">Ata Oficial de Assembleia</option>
             </select>
+            <p class="text-[10px] text-slate-400 mt-1">Atas avisam todos os moradores por notificação.</p>
           </div>
 
           <!-- Área de Drop Simulado -->

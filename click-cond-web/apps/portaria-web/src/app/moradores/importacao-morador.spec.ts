@@ -35,3 +35,17 @@ describe('dataNascimentoDaPlanilha', () => {
     expect(temDataNascimento('maio de 85')).toBe(false);
   });
 });
+
+import { vinculoDaPlanilha } from './importacao-morador';
+describe('vinculoDaPlanilha', () => {
+  it('normaliza acentos e caixa', () => {
+    expect(vinculoDaPlanilha('Proprietário')).toBe('proprietario');
+    expect(vinculoDaPlanilha(' INQUILINO ')).toBe('inquilino');
+    expect(vinculoDaPlanilha('Dependente')).toBe('dependente');
+  });
+  it('vazio ou desconhecido nao vira proprietario', () => {
+    expect(vinculoDaPlanilha('')).toBeNull();
+    expect(vinculoDaPlanilha(undefined)).toBeNull();
+    expect(vinculoDaPlanilha('Locatário')).toBeNull();
+  });
+});

@@ -124,13 +124,15 @@ describe('AssembleiasPageComponent — rodada 3', () => {
   });
 
   describe('B5 — data como campo de data', () => {
-    it('drawer abre com input date preenchido com hoje (AAAA-MM-DD)', () => {
+    it('drawer abre com input date vazio: a data e escolhida pelo sindico', () => {
       const { fixture, el, comp } = render(SINDICO);
       comp.abrirModalAssembleia();
       fixture.detectChanges();
       const input = el.querySelector('.ps-drawer input[type="date"]') as HTMLInputElement;
       expect(input).toBeTruthy();
-      expect(comp.novaAssembleia.data).toBe('2026-11-13');
+      expect(comp.novaAssembleia.data).toBe('');
+      expect(comp.novaAssembleia.hora).toBe('');
+      expect(comp.novaAssembleia.local).toBe('');
     });
   });
 });

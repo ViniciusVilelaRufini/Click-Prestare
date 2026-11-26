@@ -55,6 +55,10 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   private relogio = inject(ServerClockService);
 
   readonly consentimentoBiometria = signal(false);
+  /** So grava consentimento se o operador mexeu na caixa (nunca sobrescreve um aceite anterior com "nao"). */
+  readonly consentimentoTocado = signal(false);
+  /** O operador confirmou salvar sem "Liberado até" (acesso permanente). */
+  private semPrazoConfirmado = false;
 
   readonly isPorteiro = computed(() => {
     const info = this.auth.porteiroInfo();
@@ -142,7 +146,6 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   // Imagens capturadas (Base64 ou URL)
   readonly fotoPessoaBase64 = signal<string | null>(null);
   readonly fotoDocumentoBase64 = signal<string | null>(null);
-  readonly lgpdCiente = signal(true);
   // Modal de captura ao vivo pela câmera do facial
   readonly facialModalOpen = signal(false);
 
@@ -1012,6 +1015,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.fotoDocumentoBase64.set(null);
     this.pessoaEncontrada.set(null);
     this.consentimentoBiometria.set(false);
+    this.consentimentoTocado.set(false);
     this.error.set(null);
     this.erroForm.set(null);
     this.dicaRecorrente.set(null);
@@ -1048,6 +1052,25 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
         );
         return;
       }
+    }
+
+    // Sem "Liberado até" o acesso fica permanente: confirma antes de gravar (PIN e facial sem prazo).
+    const semPrazoConfirmado = this.semPrazoConfirmado;
+    this.semPrazoConfirmado = false;
+    if (!(this.editingId && this.editandoIdentidade()) && modo === 'liberar' && !fim && !semPrazoConfirmado) {
+      void this.confirm
+        .ask({
+          title: 'Acesso sem prazo',
+          message: 'O campo "Liberado até" está em branco: o acesso ficará permanente (sem prazo) até alguém revogar. Deseja continuar?',
+          confirmLabel: 'Liberar sem prazo',
+        })
+        .then((ok) => {
+          if (ok) {
+            this.semPrazoConfirmado = true;
+            this.salvar(modo);
+          }
+        });
+      return;
     }
 
     // Modo: Nova Visita para pessoa existente (form curto, só apto+validade)
@@ -1119,7 +1142,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
         ...(mudou(Number(this.novo.bloqueado ?? 0), o?.bloqueado) && { bloqueado: this.novo.bloqueado }),
       }).subscribe({
         next: () => {
-          if (this.novo.foto_pessoa && this.editingId) {
+          if (this.novo.foto_pessoa && this.editingId && this.consentimentoTocado()) {
             this.consentimentosApi.registrarTerceiro({
               tipoPessoa: this.novo.is_prestador ? 'prestador' : 'visitante',
               idPessoa: this.editingId,
@@ -1150,7 +1173,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     const pedir = modo === 'pedir';
     this.service.create({ ...this.novo, ...(pedir && { pedir_autorizacao: true }) }).subscribe({
       next: (created) => {
-        if (this.novo.foto_pessoa && created?.id) {
+        if (this.novo.foto_pessoa && created?.id && this.consentimentoTocado()) {
           this.consentimentosApi.registrarTerceiro({
             tipoPessoa: this.novo.is_prestador ? 'prestador' : 'visitante',
             idPessoa: created.id,
