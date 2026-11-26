@@ -36,7 +36,7 @@ describe('dataNascimentoDaPlanilha', () => {
   });
 });
 
-import { vinculoDaPlanilha } from './importacao-morador';
+import { validarVinculosDaPlanilha, vinculoDaPlanilha } from './importacao-morador';
 describe('vinculoDaPlanilha', () => {
   it('normaliza acentos e caixa', () => {
     expect(vinculoDaPlanilha('Proprietário')).toBe('proprietario');
@@ -47,5 +47,27 @@ describe('vinculoDaPlanilha', () => {
     expect(vinculoDaPlanilha('')).toBeNull();
     expect(vinculoDaPlanilha(undefined)).toBeNull();
     expect(vinculoDaPlanilha('Locatário')).toBeNull();
+  });
+});
+
+describe('vínculo da planilha: aliases e bloqueio', () => {
+  it('Morador/Titular viram proprietário e Membro vira dependente (como a API)', () => {
+    expect(vinculoDaPlanilha('Morador')).toBe('proprietario');
+    expect(vinculoDaPlanilha('TITULAR')).toBe('proprietario');
+    expect(vinculoDaPlanilha('Membro')).toBe('dependente');
+  });
+  it('lista as linhas sem vínculo ou com valor desconhecido (coluna ausente inclusive), sem descartar em silêncio', () => {
+    const { validas, erros } = validarVinculosDaPlanilha([
+      { nome: 'Ana', tipo: 'Morador' },
+      { nome: 'Bia', tipo: '' },
+      { nome: 'Caio', tipo: 'Visitante' },
+      { nome: 'Dora' },
+    ]);
+    expect(validas.map((v) => v.nome)).toEqual(['Ana']);
+    expect(erros).toEqual([
+      { linha: 3, nome: 'Bia', valor: '' },
+      { linha: 4, nome: 'Caio', valor: 'Visitante' },
+      { linha: 5, nome: 'Dora', valor: '' },
+    ]);
   });
 });

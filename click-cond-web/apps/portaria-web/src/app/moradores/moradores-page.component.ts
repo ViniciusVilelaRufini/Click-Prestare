@@ -5,7 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { CreateMorador, Morador, MoradoresApi, MoradorAtividade, SindicoOption } from './moradores.service';
 import { VeiculosApi, Veiculo, Tag, CreateVeiculo } from './veiculos.service';
 import { OriginalEdicaoMorador, ajusteMenorDeIdade, confirmacaoEnviarAcesso, payloadCadastroMorador, payloadEdicaoMorador } from './edicao-morador';
-import { dataNascimentoDaPlanilha, temDataNascimento, vinculoDaPlanilha } from './importacao-morador';
+import { dataNascimentoDaPlanilha, temDataNascimento, validarVinculosDaPlanilha, type ErroVinculoPlanilha } from './importacao-morador';
 import { ActivatedRoute } from '@angular/router';
 
 type AbaDetalhe = 'geral' | 'visitas' | 'encomendas' | 'ocorrencias' | 'acessos';
@@ -929,6 +929,7 @@ export class MoradoresPageComponent implements OnInit {
   // Controle de Importação em Lote (Excel/CSV)
   showBulkModal = false;
   bulkLinhas = signal<any[]>([]);
+  bulkErrosVinculo = signal<ErroVinculoPlanilha[]>([]);
   bulkStatus = signal<'idle' | 'reading' | 'ready' | 'uploading' | 'done'>('idle');
   bulkResult = signal<{ total?: number; criados?: any[]; erros?: { nome: string; erro: string }[]; sem_acesso?: { nome: string; motivo: string }[]; sem_email?: { linha: number; nome: string }[]; email_pendente?: { linha: number; nome: string }[] }>({});
   readonly temDataNascimento = temDataNascimento;
@@ -1080,14 +1081,14 @@ export class MoradoresPageComponent implements OnInit {
             return;
           }
         }
-        // Sem vinculo valido nao ha padrao: a linha fica de fora (o vinculo define quem vota em pauta de proprietarios).
-        const validas = linhas.flatMap((l) => {
-          const v = vinculoDaPlanilha(l.tipo);
-          return v ? [{ ...l, tipo: v }] : [];
-        });
-        const recusadas = linhas.length - validas.length;
-        if (recusadas > 0) {
-          this.toast.warning(`${recusadas} linha(s) ignorada(s): Vínculo vazio ou inválido (use Proprietário, Inquilino ou Dependente).`);
+        // Sem vinculo valido nao ha padrao (define quem vota em pauta de proprietarios):
+        // qualquer linha sem vinculo reconhecido bloqueia a importacao e e listada.
+        const { validas, erros } = validarVinculosDaPlanilha(linhas);
+        this.bulkErrosVinculo.set(erros);
+        if (erros.length) {
+          this.bulkLinhas.set([]);
+          this.bulkStatus.set('ready');
+          return;
         }
         this.bulkLinhas.set(validas);
         this.bulkStatus.set('ready');
@@ -1119,6 +1120,7 @@ export class MoradoresPageComponent implements OnInit {
   fecharBulkModal() {
     this.showBulkModal = false;
     this.bulkLinhas.set([]);
+    this.bulkErrosVinculo.set([]);
     this.bulkStatus.set('idle');
     this.bulkResult.set({});
   }

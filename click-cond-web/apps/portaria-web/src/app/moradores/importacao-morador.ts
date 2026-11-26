@@ -45,8 +45,35 @@ export function vinculoDaPlanilha(valor: unknown): 'proprietario' | 'inquilino' 
     .trim()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
-  if (t.startsWith('proprietari')) return 'proprietario';
+  // Como a API (normalizarTipoVinculo): 'morador' e 'titular' são o proprietário; 'membro', o dependente.
+  if (t.startsWith('proprietari') || t === 'morador' || t === 'titular') return 'proprietario';
   if (t.startsWith('inquilin')) return 'inquilino';
-  if (t.startsWith('dependent')) return 'dependente';
+  if (t.startsWith('dependent') || t === 'membro') return 'dependente';
   return null;
+}
+
+export interface ErroVinculoPlanilha {
+  /** Número da linha na planilha (cabeçalho é a 1). */
+  linha: number;
+  nome: string;
+  /** O que estava na célula ('' quando a coluna/valor não existe). */
+  valor: string;
+}
+
+/**
+ * Separa as linhas com Vínculo reconhecido das demais. Sem padrão silencioso:
+ * se houver qualquer linha vazia/desconhecida (inclusive coluna Vínculo
+ * ausente), `erros` lista todas e a importação não deve seguir.
+ */
+export function validarVinculosDaPlanilha<T extends { nome: string; tipo?: unknown }>(
+  linhas: T[],
+): { validas: (T & { tipo: 'proprietario' | 'inquilino' | 'dependente' })[]; erros: ErroVinculoPlanilha[] } {
+  const validas: (T & { tipo: 'proprietario' | 'inquilino' | 'dependente' })[] = [];
+  const erros: ErroVinculoPlanilha[] = [];
+  linhas.forEach((l, i) => {
+    const v = vinculoDaPlanilha(l.tipo);
+    if (v) validas.push({ ...l, tipo: v });
+    else erros.push({ linha: i + 2, nome: String(l.nome ?? ''), valor: String(l.tipo ?? '').trim() });
+  });
+  return { validas, erros };
 }
