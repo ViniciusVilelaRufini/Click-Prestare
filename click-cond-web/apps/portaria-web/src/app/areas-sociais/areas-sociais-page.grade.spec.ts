@@ -47,10 +47,14 @@ function build() {
 const AREA: AreaSocial = { id: 30, nome: 'Quadra', imagem: '', horarios: gradeDoApp() } as AreaSocial;
 
 describe('AreasSociaisPageComponent — grade de horários do espaço', () => {
-  it('cadastro: começa com 08:00–22:00 nos 7 dias e manda no formato do app', () => {
+  it('cadastro: começa sem horários, não salva assim; o atalho preenche 08:00–22:00 nos 7 dias', () => {
     const { tela, api } = build();
     tela.abrirModalArea();
     tela.novaArea.nome = 'Salão';
+    expect(tela.gradeTemHorario()).toBe(false);
+    tela.salvarArea();
+    expect(api.insertArea).not.toHaveBeenCalled();
+    tela.preencherHorarioComercial();
     tela.salvarArea();
     const enviado = (api.insertArea.mock.calls[0] as any[])[0];
     expect(enviado.horarios).toEqual(NOMES.map((nome) => ({ nome, horarios: [{ horarioDe: '08:00', horarioAte: '22:00' }] })));
@@ -81,6 +85,7 @@ describe('AreasSociaisPageComponent — grade de horários do espaço', () => {
   it('término 00:00 escolhido no campo vira 24:00 (fim do dia), e 24:00 aparece como 00:00', () => {
     const { tela } = build();
     tela.abrirModalArea();
+    tela.adicionarBloco(0);
     tela.definirHora(0, 0, 'horarioDe', '20:00');
     tela.definirHora(0, 0, 'horarioAte', '00:00');
     expect(tela.grade[0].horarios[0]).toEqual({ horarioDe: '20:00', horarioAte: '24:00' });
@@ -92,6 +97,7 @@ describe('AreasSociaisPageComponent — grade de horários do espaço', () => {
   it('próximo bloco depois de um que termina 24:00 não passa da meia-noite', () => {
     const { tela } = build();
     tela.abrirModalArea();
+    tela.adicionarBloco(0);
     tela.definirHora(0, 0, 'horarioAte', '00:00'); // 08:00–24:00
     tela.adicionarBloco(0);
     const novo = tela.grade[0].horarios[1];

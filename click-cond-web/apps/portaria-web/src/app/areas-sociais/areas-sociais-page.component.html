@@ -531,6 +531,12 @@
             <p class="mb-2 text-[11px] text-slate-500">
               Horários que o morador pode reservar. Para ir até a meia-noite, use 00:00 no fim.
             </p>
+            @if (!areaEditando() && !gradeTemHorario()) {
+              <div class="mb-2 flex items-center justify-between gap-2 p-3 border border-[var(--line-100)]">
+                <span class="text-[11px] text-[var(--signal-danger)]">Nenhum horário definido: adicione os horários de cada dia ou use o atalho.</span>
+                <button type="button" (click)="preencherHorarioComercial()" class="ps-btn ps-btn-ghost ps-btn-sm shrink-0">08:00 às 22:00, todos os dias</button>
+              </div>
+            }
             <div class="space-y-2">
               @for (dia of grade; track $index; let d = $index) {
                 <div class="p-3 border border-slate-300 bg-graphite-50">
@@ -597,7 +603,7 @@
           </button>
           <button
             (click)="salvarArea()"
-            [disabled]="!novaArea.nome || salvando() || !gradeValida()"
+            [disabled]="!novaArea.nome || salvando() || !gradeValida() || (!areaEditando() && !gradeTemHorario())"
             class="ps-btn disabled:opacity-50 disabled:cursor-not-allowed"
           >
             @if (salvando()) {

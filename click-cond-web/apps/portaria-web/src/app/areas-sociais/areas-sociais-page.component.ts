@@ -318,8 +318,20 @@ export class AreasSociaisPageComponent implements OnInit {
   }
 
   // ---- Grade de horários (igual ao editor do app, new_area_social.dart) ----
+  /** Espaço novo nasce SEM horários: quem define quando o morador pode reservar é o síndico. */
   private gradePadrao(): DiaGrade[] {
-    return DIAS_DA_GRADE.map((nome) => ({ nome, horarios: [{ horarioDe: '08:00', horarioAte: '22:00' }] }));
+    return DIAS_DA_GRADE.map((nome) => ({ nome, horarios: [] }));
+  }
+
+  /** Atalho explícito: 08:00 às 22:00 em todos os dias (só quando o operador pede). */
+  preencherHorarioComercial() {
+    this.grade = DIAS_DA_GRADE.map((nome) => ({ nome, horarios: [{ horarioDe: '08:00', horarioAte: '22:00' }] }));
+    this.gradeVaiNoPayload = true;
+  }
+
+  /** Há pelo menos um horário em algum dia (um espaço novo sem nenhum não abriria para reserva). */
+  gradeTemHorario(): boolean {
+    return this.grade.some((d) => d.horarios.length > 0);
   }
 
   /** Grade vinda da API em 7 dias, cópia (editar não mexe no objeto da lista). */
@@ -490,6 +502,7 @@ export class AreasSociaisPageComponent implements OnInit {
 
   salvarArea() {
     if (this.salvando() || !this.gradeValida()) return;
+    if (!this.areaEditando() && !this.gradeTemHorario()) return;
     this.salvando.set(true);
 
     const payload = {

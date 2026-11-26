@@ -911,7 +911,8 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       (f) => f.value === this.form.fabricante,
     );
     if (!fabricanteAtualValido) {
-      this.form.fabricante = tipoCfg.fabricantes[0].value;
+      // Só há uma marca possível (ex.: Guarita): não há o que escolher. Com várias, o operador escolhe.
+      this.form.fabricante = tipoCfg.fabricantes.length === 1 ? tipoCfg.fabricantes[0].value : '';
     }
     // Se o tipo novo não precisa de auth, limpa pra não enviar credenciais
     // antigas sem querer.
@@ -1285,10 +1286,9 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       tipo: 'facial',
       sentido: 'auto',
       confianca_minima: 0,
-      // Default = primeira opção do tipo 'facial', a marca com mais campo
-      // rodado. `control_id` como default deixava o select fora de ordem com a
-      // lista de fabricantes exibida.
-      fabricante: 'intelbras',
+      // Sem marca pré-escolhida: o operador escolhe (a marca define o protocolo
+      // usado para falar com o aparelho).
+      fabricante: '',
       modelo: '',
       ip: '',
       porta: 80,
@@ -1417,6 +1417,10 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     }
     if (!this.form.ip?.trim()) {
       this.modalError.set('Informe o endereço IP do dispositivo.');
+      return;
+    }
+    if (!this.form.fabricante) {
+      this.modalError.set('Escolha o fabricante do dispositivo.');
       return;
     }
     // Facial e catraca precisam de usuário e senha — sem eles o terminal

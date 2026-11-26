@@ -167,7 +167,7 @@ describe('TerminaisFaciaisPageComponent — diagnóstico do Testar Conexão no c
 
 describe('TerminaisFaciaisPageComponent — teste automático ao cadastrar terminal facial', () => {
   const preencher = (tela: TerminaisFaciaisPageComponent) =>
-    Object.assign(tela.form, { nome: 'Novo', ip: '192.168.3.12', api_user: 'admin', api_password: 'x' });
+    Object.assign(tela.form, { fabricante: 'intelbras', nome: 'Novo', ip: '192.168.3.12', api_user: 'admin', api_password: 'x' });
 
   it('cadastrar facial dispara o teste do recém-criado, fecha o modal e mostra o resultado no card dele', () => {
     const novo = { ...facial, id: 9, nome: 'Novo' };
@@ -206,7 +206,7 @@ describe('TerminaisFaciaisPageComponent — teste automático ao cadastrar termi
     tela.openCreate();
     tela.form.tipo = tipo;
     tela.onTipoChange();
-    Object.assign(tela.form, { nome: 'Leitor', ip: '192.168.3.40' });
+    Object.assign(tela.form, { fabricante: 'intelbras', nome: 'Leitor', ip: '192.168.3.40' });
     tela.save();
     expect(api.create).toHaveBeenCalled();
     expect(api.test).not.toHaveBeenCalled();
