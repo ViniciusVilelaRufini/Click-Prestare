@@ -93,6 +93,29 @@ describe('AssembleiasPageComponent — duplo clique em Convocar / Nova enquete',
   });
 });
 
+describe('AssembleiasPageComponent — confirmação da convocação', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('mostra a data no formato do Brasil (10/12/2026), não 2026-12-10', async () => {
+    const ask = jest.fn(async () => false);
+    TestBed.configureTestingModule({
+      imports: [AssembleiasPageComponent],
+      providers: [
+        { provide: AssembleiasApi, useValue: { listAssembleias: jest.fn(() => of([])), listEnquetes: jest.fn(() => of([])), insertAssembleia: jest.fn() } },
+        { provide: ConfirmService, useValue: { ask } },
+        { provide: AuthService, useValue: { porteiroInfo: signal({ nome: 'X', turno: 'Diurno', id_condominio: 1 }), token: SINDICO } },
+        { provide: ServerClockService, useValue: { agora: () => new Date('2026-11-13T15:00:00Z') } },
+      ],
+    });
+    const comp = TestBed.createComponent(AssembleiasPageComponent).componentInstance;
+    comp.novaAssembleia = { ...comp.novaAssembleia, titulo: 'AGO', data: '2026-12-10', hora: '19:00', local: 'Salão' };
+    await comp.salvarAssembleia();
+    const msg = (ask.mock.calls[0] as any[])[0].message as string;
+    expect(msg).toContain('10/12/2026 às 19:00');
+    expect(msg).not.toContain('2026-12-10');
+  });
+});
+
 describe('AssembleiasPageComponent — datas da votacao explicitas', () => {
   afterEach(() => TestBed.resetTestingModule());
 

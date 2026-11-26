@@ -1050,6 +1050,9 @@ export class MoradoresService {
       adiarEnvio?: (enviar: () => Promise<void>) => void;
     },
   ) {
+    // CPF em branco vira "sem CPF": o console manda "" e Users.cpf é único (uni_cpf) — gravado como "",
+    // a segunda conta sem CPF batia na primeira e o cadastro saía 409 "Este CPF já pertence a outra conta".
+    dto = { ...dto, documento: dto.documento?.trim() || undefined };
     if (!this.prisma.isConnected) {
       const newM = {
         id: MoradoresService.mockMoradores.length + 1,
@@ -2012,7 +2015,7 @@ export class MoradoresService {
             email: m.email,
             login: m.email,
             phone: m.telefone,
-            cpf: m.documento,
+            cpf: m.documento?.trim() || null,
             is_morador: 1,
             login_type: 'morador',
             photo: m.foto_pessoa,

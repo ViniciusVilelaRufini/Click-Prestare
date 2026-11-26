@@ -337,7 +337,7 @@ export class AssembleiasPageComponent implements OnInit {
     this.salvandoAssembleia.set(true); // segura o duplo clique enquanto a confirmacao esta aberta
     const ok = await this.confirm.ask({
       title: 'Convocar assembleia',
-      message: `Isto avisa todos os moradores agora: ${n.data} às ${n.hora}, ${n.local?.trim() ? `em ${n.local}` : `por videoconferência (${n.link})`}.`,
+      message: `Isto avisa todos os moradores agora: ${n.data.split('-').reverse().join('/')} às ${n.hora}, ${n.local?.trim() ? `em ${n.local}` : `por videoconferência (${n.link})`}.`,
       confirmLabel: 'Convocar',
     });
     if (!ok) {

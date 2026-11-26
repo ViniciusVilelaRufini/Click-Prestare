@@ -19,11 +19,11 @@ describe('VisitantesService — rótulo da unidade no contexto de auditoria', ()
   });
 
   it('bloco já com prefixo não duplica', () => {
-    expect(svc.construirContextoAuditoria(visita('Bloco A')).apartamento.label).toBe('Bloco A, Apto 106');
+    expect(svc.construirContextoAuditoria(visita('Bloco A')).apartamento.label).toBe('Bloco A · Apto 106');
   });
 
   it('bloco só com a letra ganha o prefixo', () => {
-    expect(svc.construirContextoAuditoria(visita('A')).apartamento.label).toBe('Bloco A, Apto 106');
+    expect(svc.construirContextoAuditoria(visita('A')).apartamento.label).toBe('Bloco A · Apto 106');
   });
 
   it('sem bloco fica só o apto', () => {

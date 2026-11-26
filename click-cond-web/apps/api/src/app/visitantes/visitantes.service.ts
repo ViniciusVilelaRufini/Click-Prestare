@@ -1,5 +1,4 @@
 import { diaSemanaBrasilia, formatarDataHoraBrasilia } from '../common/hora-brasilia.util';
-import { rotuloBloco } from '../common/rotulo-bloco.util';
 import { rotuloAptoBloco } from './rotulo-apto-bloco.util';
 import {
   Injectable,
@@ -895,10 +894,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             id: v.id_apartamento,
             bloco: v.apartamento.bloco,
             numero: v.apartamento.apto,
-            // rotuloBloco: o cadastro costuma guardar "Bloco A" e o prefixo duplicava.
-            label: v.apartamento.bloco
-              ? `${rotuloBloco(v.apartamento.bloco)}, Apto ${v.apartamento.apto}`
-              : `Apto ${v.apartamento.apto}`,
+            label: rotuloAptoBloco(v.apartamento.apto, v.apartamento.bloco),
           }
         : null,
       convidadoPor,
@@ -1287,7 +1283,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             regs.sort((a, b) => score(b) - score(a));
             const best = regs[0];
             const a = best.apartamento!;
-            const label = `${a.apto ?? ''}${a.bloco ? '/' + a.bloco : ''}`.replace(/^\/|\/$/g, '');
+            const label = rotuloAptoBloco(a.apto, a.bloco);
 
             const isPendente = regs.some((r) => {
               if ((r as any).auth_status !== 'pendente') return false;
@@ -1646,7 +1642,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         regs.sort((a, b) => score(b) - score(a));
         const best = regs[0];
         const apto = best.apartamento!;
-        const label = `${apto.apto ?? ''}${apto.bloco ? '/' + apto.bloco : ''}`.replace(/^\/|\/$/g, '');
+        const label = rotuloAptoBloco(apto.apto, apto.bloco);
 
         const isPendente = regs.some((r) => {
           if ((r as any).auth_status !== 'pendente') return false;
@@ -2992,10 +2988,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             id: visita.id_apartamento,
             bloco: visita.apartamento.bloco,
             numero: visita.apartamento.apto,
-            // rotuloBloco: o cadastro costuma guardar "Bloco A" e o prefixo duplicava.
-            label: visita.apartamento.bloco
-              ? `${rotuloBloco(visita.apartamento.bloco)}, Apto ${visita.apartamento.apto}`
-              : `Apto ${visita.apartamento.apto}`,
+            label: rotuloAptoBloco(visita.apartamento.apto, visita.apartamento.bloco),
           }
         : null,
       // Morador que convidou (campo `user` em Visitas = id_user do morador).

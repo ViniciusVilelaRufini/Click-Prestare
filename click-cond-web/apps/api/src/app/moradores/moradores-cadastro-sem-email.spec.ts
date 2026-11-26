@@ -51,4 +51,11 @@ describe('MoradoresService.create — sem e-mail não exige data de nascimento (
     expect(r.erros).toHaveLength(0);
     expect(r.total).toBe(1);
   });
+  it('CPF em branco (o console manda "") não é gravado como "" — Users.cpf é único e a 2ª conta sem CPF dava 409', async () => {
+    const { service, prisma } = harness();
+    await service.create({ nome: 'Sem CPF', documento: '  ', id_apartamento: 10, id_condominio: 1, tipo: 'dependente', sendCredentials: false } as any);
+    const userData = prisma.users.create.mock.calls[0][0].data;
+    expect(userData.cpf ?? null).toBeNull();
+    expect(prisma.moradores.create.mock.calls[0][0].data.documento).toBeNull();
+  });
 });
