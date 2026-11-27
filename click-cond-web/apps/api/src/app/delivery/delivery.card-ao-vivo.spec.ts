@@ -35,7 +35,7 @@ describe('DeliveryService — card ao vivo', () => {
       },
       deliveryEntregadores: { findUnique: jest.fn(async () => entregador) },
       deliveryPedidosPortao: { findUnique: jest.fn(async () => ({ id: 5, status: 'pendente', expira_em: new Date('2099-01-01') })) },
-      deliveryEventos: { create: jest.fn(async () => ({})) },
+      deliveryEventos: { create: jest.fn(async () => ({})), findMany: jest.fn(async () => []) },
       apartamentos_Users: {
         findFirst: jest.fn(async () => ({ id: 1, user: { fcm_token: 'fcm-iphone' } })),
         findMany: jest.fn(async () => (opts.vinculos ?? [10]).map((id_user) => ({ id_user }))),

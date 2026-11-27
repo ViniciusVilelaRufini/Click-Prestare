@@ -31,4 +31,11 @@ describe('DTOs de Delivery — ValidationPipe', () => {
     expect(resultado).not.toHaveProperty('campo_externo');
     expect(Object.keys(resultado)).toEqual(expect.arrayContaining(campos));
   });
+
+  it('PATCH aceita retirado_por e relacao_retirada válida; recusa relação desconhecida', async () => {
+    const ok: any = await transformar(AtualizarStatusDeliveryDto, { status: 'CONCLUIDA', retirado_por: 'Maria', relacao_retirada: 'Familiar' });
+    expect(ok.retirado_por).toBe('Maria');
+    expect(ok.relacao_retirada).toBe('Familiar');
+    await expect(transformar(AtualizarStatusDeliveryDto, { status: 'CONCLUIDA', relacao_retirada: 'Vizinho' })).rejects.toBeDefined();
+  });
 });

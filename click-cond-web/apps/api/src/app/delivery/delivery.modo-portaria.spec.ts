@@ -47,7 +47,7 @@ describe('DeliveryService — aviso "Na portaria"', () => {
         }),
       },
       deliveryEntregadores: { findUnique: jest.fn(async () => entregador) },
-      deliveryEventos: { create: jest.fn(async () => ({})) },
+      deliveryEventos: { create: jest.fn(async () => ({})), findMany: jest.fn(async () => []) },
       deliveryPedidosPortao: {
         findUnique: jest.fn(async () => (atendimento.id_pedido_portao ? { ...pedido } : null)),
         updateMany: jest.fn(async () => ({ count: 1 })),

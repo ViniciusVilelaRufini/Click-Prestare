@@ -40,7 +40,7 @@ describe('Delivery — pedido de autorização sem ninguém para receber; previs
           return { count: 1 };
         }),
       },
-      deliveryEventos: { create: jest.fn(async () => ({})) },
+      deliveryEventos: { create: jest.fn(async () => ({})), findMany: jest.fn(async () => []) },
       cards_Ao_Vivo: { findMany: jest.fn(async () => (opts.cards ?? []).map((fcm_token) => ({ fcm_token }))) },
     };
     prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));

@@ -87,6 +87,16 @@ export class AtualizarStatusDeliveryDto {
   @Type(() => Number)
   @IsInt()
   id_entregador?: number;
+
+  /** Retirada na portaria concluída pela portaria: nome de quem retirou. */
+  @IsOptional()
+  @IsString()
+  retirado_por?: string;
+
+  /** Morador | Familiar | Autorizado | Funcionario | Outro (códigos das Encomendas). */
+  @IsOptional()
+  @IsIn(['Morador', 'Familiar', 'Autorizado', 'Funcionario', 'Outro'])
+  relacao_retirada?: string;
 }
 
 export class CriarEntregadorDto {

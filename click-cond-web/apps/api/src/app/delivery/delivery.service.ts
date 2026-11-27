@@ -45,6 +45,15 @@ const TRANSICOES: Record<DeliveryStatus, readonly DeliveryStatus[]> = {
   RECUSADA: [],
 };
 
+/** Códigos de relação de quem retira (os mesmos da retirada de Encomendas) e o rótulo gravado no evento. */
+export const RELACOES_RETIRADA: Record<string, string> = {
+  Morador: 'Morador',
+  Familiar: 'Familiar',
+  Autorizado: 'Pessoa autorizada',
+  Funcionario: 'Funcionário do morador',
+  Outro: 'Outro',
+};
+
 const TERMINAIS: readonly DeliveryStatus[] = ['CONCLUIDA', 'CANCELADA', 'RECUSADA'];
 const LIMITE_HISTORICO = 500;
 const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -162,6 +171,33 @@ export interface QuemMudou {
 }
 
 /** Autor do evento: o usuário do token, ou o sistema (sem usuário). */
+/** Transições que o morador faz (a criação do aviso, a resposta ao pedido de autorização e o cancelamento). */
+function transicaoDoMorador(e: any): boolean {
+  if (e.status_novo === 'AGENDADA' && e.status_anterior == null) return true;
+  if (e.status_novo === 'CANCELADA') return true;
+  return (
+    e.status_anterior === 'AGUARDANDO_AUTORIZACAO' &&
+    ['AUTORIZADA', 'RECUSADA', 'RETIRADA_NA_PORTARIA'].includes(e.status_novo)
+  );
+}
+
+/**
+ * Quem agiu, calculado (sem coluna): 'sistema' (autor "Sistema" ou ausente),
+ * 'autoatendimento', 'morador' quando o evento é uma transição do morador
+ * (aviso AGENDADA; resposta AGUARDANDO_AUTORIZACAO→AUTORIZADA/RECUSADA/
+ * RETIRADA_NA_PORTARIA por quem tem vínculo com a unidade ou é o dono do
+ * aviso; CANCELADA pelo dono) e 'portaria' nos demais.
+ */
+function papelDoAutor(e: any, a: any, temVinculo: boolean): 'sistema' | 'autoatendimento' | 'morador' | 'portaria' {
+  if (!e.autor_nome || e.autor_nome === 'Sistema') return 'sistema';
+  if (e.autor_nome === 'Autoatendimento') return 'autoatendimento';
+  if (!transicaoDoMorador(e)) return 'portaria';
+  const dono = e.id_usuario_autor != null && e.id_usuario_autor === a.id_morador_user;
+  if (e.status_novo === 'AGENDADA') return 'morador';
+  if (e.status_novo === 'CANCELADA') return dono ? 'morador' : 'portaria';
+  return dono || temVinculo ? 'morador' : 'portaria';
+}
+
 type AutorEvento = JwtPayload | { sistema: string };
 
 @Injectable()
@@ -340,7 +376,10 @@ export class DeliveryService {
         orderBy: { created_at: 'desc' },
         ...(take ? { take } : {}),
       });
-      return (linhas as any[]).map(({ pedidosPortao, ...a }) => ({ ...a, pedido_portao: pedidoNaLista(pedidosPortao) }));
+      return (await this.comPapelNosEventos(linhas as any[])).map(({ pedidosPortao, ...a }) => ({
+        ...a,
+        pedido_portao: pedidoNaLista(pedidosPortao),
+      }));
     }
     const lista = await (this.prisma as any).deliveryAtendimentos.findMany({
       where,
@@ -465,6 +504,21 @@ export class DeliveryService {
         throw new ConflictException('Entregador bloqueado não pode ser autorizado.');
       }
     }
+    // Pedir autorização ao morador com entregador bloqueado só levaria ao 409 na hora do "Autorizar".
+    if (statusNovo === 'AGUARDANDO_AUTORIZACAO' && idEntregador) {
+      const entregador = await this.assertEntregadorDoCondominio(idEntregador, atendimento.id_condominio);
+      if (entregador.status === 'BLOQUEADO') {
+        throw new ConflictException('Entregador bloqueado: recuse a entrega ou identifique outro entregador.');
+      }
+    }
+    // Retirada feita pela portaria: quem retirou e a relação ficam no evento CONCLUIDA (como nas Encomendas).
+    let mensagemRetirada: string | undefined;
+    if (statusAtual === 'RETIRADA_NA_PORTARIA' && statusNovo === 'CONCLUIDA' && operador) {
+      const nome = dto.retirado_por?.trim();
+      const rotulo = RELACOES_RETIRADA[dto.relacao_retirada ?? ''];
+      if (!nome || !rotulo) throw new BadRequestException('Informe quem retirou e a relação com o morador.');
+      mensagemRetirada = `Retirado por ${nome} (${rotulo})`;
+    }
 
     // Aviso "Na portaria" sem pedido do portão: o "Autorizar" do morador deixa
     // a entrega na portaria (ninguém sobe). Pedido do portão e respostas da
@@ -499,7 +553,7 @@ export class DeliveryService {
       }
       const registro = await tx.deliveryAtendimentos.findUnique({ where: { id: Number(id) } });
       if (!registro) throw new NotFoundException(`Atendimento de delivery ${id} não encontrado`);
-      await this.registrarEvento(tx, registro.id, statusAtual, statusGravado, user, dto.observacao ?? dto.motivo);
+      await this.registrarEvento(tx, registro.id, statusAtual, statusGravado, user, mensagemRetirada ?? dto.observacao ?? dto.motivo);
       return registro;
     });
     // Recusada e retirada na portaria também mudam o que o morador precisa
@@ -536,11 +590,27 @@ export class DeliveryService {
     if (!isOperador(user)) return this.paraMorador(atualizado);
     // Pedido de autorização: a portaria precisa saber se alguém pode receber
     // (com 0, a tela manda interfonar em vez de esperar sem prazo).
+    // O console mostra o desfecho na linha do tempo sem recarregar a fila: devolve os eventos já com autor_papel.
+    const [comEventos] = await this.comPapelNosEventos([
+      { ...atualizado, eventos: await (this.prisma as any).deliveryEventos.findMany({ where: { id_atendimento: atualizado.id }, orderBy: { created_at: 'asc' } }) },
+    ]);
     if (statusGravado === 'AGUARDANDO_AUTORIZACAO') {
       const avisados = await this.aparelhosAvisados(atualizado.id, atualizado.id_apartamento);
-      if (avisados !== null) return { ...atualizado, avisados };
+      if (avisados !== null) return { ...comEventos, avisados };
     }
-    return atualizado;
+    return comEventos;
+  }
+
+  /** Acrescenta `autor_papel` a cada evento dos atendimentos (ver papelDoAutor). */
+  private async comPapelNosEventos(linhas: any[]) {
+    const vinculos = await this.vinculosDosAutores(linhas);
+    return linhas.map((a) => ({
+      ...a,
+      eventos: (a.eventos ?? []).map((e: any) => ({
+        ...e,
+        autor_papel: papelDoAutor(e, a, vinculos.has(`${a.id_apartamento}:${e.id_usuario_autor}`)),
+      })),
+    }));
   }
 
   // ─────────────────────────── autoatendimento no portão
@@ -1255,6 +1325,26 @@ export class DeliveryService {
     for (const token of tokens) {
       await this.notifications.sendPushNotification(token, 'Delivery', mensagemDelivery(status), dadosPushDelivery(idAtendimento, status, idCondominio));
     }
+  }
+
+  /** Pares "apartamento:usuário" com vínculo, só para os autores de eventos que podem ser do morador (uma consulta). */
+  private async vinculosDosAutores(linhas: any[]): Promise<Set<string>> {
+    const aptos = new Set<number>();
+    const users = new Set<number>();
+    for (const a of linhas) {
+      for (const e of a.eventos ?? []) {
+        if (e.id_usuario_autor != null && transicaoDoMorador(e)) {
+          aptos.add(a.id_apartamento);
+          users.add(e.id_usuario_autor);
+        }
+      }
+    }
+    if (!aptos.size) return new Set();
+    const vinculos = await this.prisma.apartamentos_Users.findMany({
+      where: { id_apto: { in: [...aptos] }, id_user: { in: [...users] } },
+      select: { id_apto: true, id_user: true },
+    });
+    return new Set(vinculos.map((v: any) => `${v.id_apto}:${v.id_user}`));
   }
 
   private async temVinculoNaUnidade(idApartamento: number, idUser: number) {

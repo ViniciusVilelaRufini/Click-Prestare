@@ -147,6 +147,7 @@ describe('DeliveryService', () => {
         }),
       },
       deliveryEventos: {
+        findMany: jest.fn(async () => []),
         create: jest.fn(async ({ data }: any) => {
           if (opcoes.falhaEvento) throw new Error('evento indisponível');
           eventos.push(data);
