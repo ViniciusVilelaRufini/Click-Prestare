@@ -102,6 +102,16 @@ describe('Delivery — correções do teste em produção', () => {
       expect(el.querySelector('[data-testid="dica-pedir"]')!.textContent).toContain('Entregador bloqueado: recuse a entrega ou identifique outro entregador.');
     });
 
+    it('bloqueado em CHEGOU mostra só a dica do bloqueio', () => {
+      const a = base({ entregador: BLOQ as any });
+      const fx = montar([a]);
+      store.selecionar(a);
+      fx.detectChanges();
+      const el: HTMLElement = fx.nativeElement;
+      expect(el.querySelector('[data-testid="dica-pedir"]')).not.toBeNull();
+      expect(el.querySelector('[data-testid="dica-autorizar"]')).toBeNull();
+    });
+
     it('não identificado: "Autorizar subida" desabilitado com a dica; "Pedir autorização" segue habilitado', () => {
       const a = base({});
       const fx = montar([a]);
@@ -161,6 +171,22 @@ describe('Delivery — correções do teste em produção', () => {
       botao(fx.nativeElement, 'Confirmar retirada').click();
       expect(api.atualizarStatus).toHaveBeenCalledWith(50, 'CONCLUIDA',
         expect.objectContaining({ retirado_por: 'Maria', relacao_retirada: 'Familiar' }));
+    });
+
+    it('AUTORIZADA em modo PORTARIA mostra o formulário e envia quem retirou', () => {
+      const a = base({ status: 'AUTORIZADA', modo_entrega: 'PORTARIA', autorizado_em: minAtras(1), entregador: ATIVO as any });
+      const fx = montar([a]);
+      store.selecionar(a);
+      fx.detectChanges();
+      expect(fx.nativeElement.querySelector('[data-testid="form-retirada"]')).not.toBeNull();
+      expect(fx.nativeElement.querySelector('input[name="retiradoPor"]').getAttribute('maxlength')).toBe('120');
+      botao(fx.nativeElement, 'Confirmar retirada').click();
+      expect(api.atualizarStatus).not.toHaveBeenCalled();
+      store.retiradoPor.set('Ana');
+      store.relacaoRetirada.set('Outro');
+      botao(fx.nativeElement, 'Confirmar retirada').click();
+      expect(api.atualizarStatus).toHaveBeenCalledWith(50, 'CONCLUIDA',
+        expect.objectContaining({ retirado_por: 'Ana', relacao_retirada: 'Outro' }));
     });
 
     it('entrega na unidade autorizada conclui sem formulário nem campos de retirada', () => {

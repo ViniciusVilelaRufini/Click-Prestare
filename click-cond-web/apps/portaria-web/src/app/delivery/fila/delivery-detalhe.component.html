@@ -70,12 +70,12 @@
         @if (!confirmandoMotivo()) {
           <div class="space-y-2">
             @if (acoes()?.primaria; as primaria) {
-              @if (primaria === 'CONCLUIDA' && a.status === 'RETIRADA_NA_PORTARIA') {
+              @if (primaria === 'CONCLUIDA' && (a.status === 'RETIRADA_NA_PORTARIA' || (a.status === 'AUTORIZADA' && a.modo_entrega === 'PORTARIA'))) {
                 <div class="space-y-2 border border-slate-300 p-3" data-testid="form-retirada">
                   <label class="block">
                     <span class="ps-label mb-1.5 block">Quem retirou? *</span>
                     <input name="retiradoPor" class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white focus:outline-none focus:border-[var(--ink)]"
-                      [ngModel]="store.retiradoPor()" (ngModelChange)="store.retiradoPor.set($event)" placeholder="Nome de quem retirou">
+                      [ngModel]="store.retiradoPor()" (ngModelChange)="store.retiradoPor.set($event)" placeholder="Nome de quem retirou" maxlength="120">
                   </label>
                   <label class="block">
                     <span class="ps-label mb-1.5 block">Relação com o morador *</span>

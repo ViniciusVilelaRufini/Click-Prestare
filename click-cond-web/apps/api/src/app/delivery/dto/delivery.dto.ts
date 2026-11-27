@@ -5,6 +5,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  MaxLength,
   ValidateNested,
 } from 'class-validator';
 
@@ -91,6 +92,7 @@ export class AtualizarStatusDeliveryDto {
   /** Retirada na portaria concluída pela portaria: nome de quem retirou. */
   @IsOptional()
   @IsString()
+  @MaxLength(120)
   retirado_por?: string;
 
   /** Morador | Familiar | Autorizado | Funcionario | Outro (códigos das Encomendas). */

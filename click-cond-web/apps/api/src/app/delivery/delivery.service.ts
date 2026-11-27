@@ -513,7 +513,10 @@ export class DeliveryService {
     }
     // Retirada feita pela portaria: quem retirou e a relação ficam no evento CONCLUIDA (como nas Encomendas).
     let mensagemRetirada: string | undefined;
-    if (statusAtual === 'RETIRADA_NA_PORTARIA' && statusNovo === 'CONCLUIDA' && operador) {
+    // Vale também para AUTORIZADA em modo PORTARIA (autorizada para retirar na portaria).
+    const ehRetiradaNaPortaria =
+      statusAtual === 'RETIRADA_NA_PORTARIA' || (statusAtual === 'AUTORIZADA' && atendimento.modo_entrega === 'PORTARIA');
+    if (ehRetiradaNaPortaria && statusNovo === 'CONCLUIDA' && operador) {
       const nome = dto.retirado_por?.trim();
       const rotulo = RELACOES_RETIRADA[dto.relacao_retirada ?? ''];
       if (!nome || !rotulo) throw new BadRequestException('Informe quem retirou e a relação com o morador.');
@@ -591,12 +594,25 @@ export class DeliveryService {
     // Pedido de autorização: a portaria precisa saber se alguém pode receber
     // (com 0, a tela manda interfonar em vez de esperar sem prazo).
     // O console mostra o desfecho na linha do tempo sem recarregar a fila: devolve os eventos já com autor_papel.
-    const [comEventos] = await this.comPapelNosEventos([
-      { ...atualizado, eventos: await (this.prisma as any).deliveryEventos.findMany({ where: { id_atendimento: atualizado.id }, orderBy: { created_at: 'asc' } }) },
-    ]);
-    if (statusGravado === 'AGUARDANDO_AUTORIZACAO') {
-      const avisados = await this.aparelhosAvisados(atualizado.id, atualizado.id_apartamento);
-      if (avisados !== null) return { ...comEventos, avisados };
+    // A gravação já foi feita: falha nestas consultas não pode virar 500 (o console tolera a ausência de eventos).
+    let comEventos: any = atualizado;
+    try {
+      [comEventos] = await this.comPapelNosEventos([
+        {
+          ...atualizado,
+          eventos: await (this.prisma as any).deliveryEventos.findMany({
+            where: { id_atendimento: atualizado.id },
+            orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          }),
+        },
+      ]);
+      if (statusGravado === 'AGUARDANDO_AUTORIZACAO') {
+        const avisados = await this.aparelhosAvisados(atualizado.id, atualizado.id_apartamento);
+        if (avisados !== null) return { ...comEventos, avisados };
+      }
+    } catch (e: any) {
+      this.logger.warn(`Resposta do delivery ${atualizado.id} sem eventos/avisados: ${e?.message ?? e}`);
+      return atualizado;
     }
     return comEventos;
   }

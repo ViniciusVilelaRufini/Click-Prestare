@@ -94,6 +94,47 @@ describe('delivery — correções do teste em produção', () => {
       expect(r.status).toBe('CONCLUIDA');
     });
 
+    it('AUTORIZADA em modo PORTARIA exige quem retirou, como a retirada na portaria', async () => {
+      const k = montarPortao({ atendimentos: [atendimento({ status: 'AUTORIZADA', modo_entrega: 'PORTARIA' })] });
+      await expect(k.delivery.atualizarStatus(1, { status: 'CONCLUIDA' } as any, porteiro)).rejects.toThrow(
+        new BadRequestException('Informe quem retirou e a relação com o morador.'),
+      );
+      expect(k.tabela('deliveryAtendimentos')[0].status).toBe('AUTORIZADA');
+      await k.delivery.atualizarStatus(
+        1,
+        { status: 'CONCLUIDA', retirado_por: 'Ana', relacao_retirada: 'Familiar' } as any,
+        porteiro,
+      );
+      expect(k.tabela('deliveryEventos').find((e: any) => e.status_novo === 'CONCLUIDA').mensagem).toBe(
+        'Retirado por Ana (Familiar)',
+      );
+    });
+
+    it('falha nas consultas depois de gravar não vira 500: devolve sem eventos', async () => {
+      const k = montar();
+      (k.banco.prisma as any).deliveryEventos.findMany = async () => {
+        throw new Error('timeout');
+      };
+      const r: any = await k.delivery.atualizarStatus(
+        1,
+        { status: 'CONCLUIDA', retirado_por: 'Maria', relacao_retirada: 'Outro' } as any,
+        porteiro,
+      );
+      expect(r.status).toBe('CONCLUIDA');
+      expect(r.eventos).toBeUndefined();
+    });
+
+    it('eventos devolvidos ordenam por created_at e id', async () => {
+      const k = montar();
+      const spy = jest.spyOn((k.banco.prisma as any).deliveryEventos, 'findMany');
+      await k.delivery.atualizarStatus(
+        1,
+        { status: 'CONCLUIDA', retirado_por: 'Maria', relacao_retirada: 'Outro' } as any,
+        porteiro,
+      );
+      expect(spy).toHaveBeenCalledWith(expect.objectContaining({ orderBy: [{ created_at: 'asc' }, { id: 'asc' }] }));
+    });
+
     it('a resposta do PATCH da portaria traz os eventos ordenados com autor_papel', async () => {
       const k = montar();
       const r: any = await k.delivery.atualizarStatus(

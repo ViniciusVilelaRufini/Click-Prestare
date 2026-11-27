@@ -61,7 +61,8 @@ describe('DeliveryFilaComponent', () => {
     const el: HTMLElement = fixture.nativeElement;
     expect(el.textContent).toContain('Porteiro');
     expect(botaoCom(el, 'Autorizar subida').disabled).toBe(true);
-    expect(el.textContent).toContain('Identifique um entregador ativo');
+    expect(el.textContent).toContain('Entregador bloqueado: recuse a entrega');
+    expect(el.textContent).not.toContain('Identifique um entregador ativo');
   });
 
   it('recusar abre motivo inline antes de enviar', () => {

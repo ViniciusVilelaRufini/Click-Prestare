@@ -282,7 +282,7 @@ export class DeliveryStore {
       this.erro.set('Informe o motivo do cancelamento.');
       return;
     }
-    const retirada = status === 'CONCLUIDA' && a.status === 'RETIRADA_NA_PORTARIA';
+    const retirada = status === 'CONCLUIDA' && (a.status === 'RETIRADA_NA_PORTARIA' || (a.status === 'AUTORIZADA' && a.modo_entrega === 'PORTARIA'));
     const retiradoPor = this.retiradoPor().trim();
     const relacao = this.relacaoRetirada();
     if (retirada) {

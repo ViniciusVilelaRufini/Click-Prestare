@@ -27,7 +27,10 @@ export class DeliveryDetalheComponent {
   /** Dica do "Autorizar subida" desabilitado (só quando essa ação está entre as próximas). */
   readonly dicaAutorizar = computed(() => {
     const a = this.store.selecionado();
-    return a && this.store.proximosStatus(a).includes('AUTORIZADA') ? this.store.dicaAutorizar(a) : null;
+    // Entregador bloqueado já tem a sua dica (dicaPedir): não mostrar duas ao mesmo tempo.
+    return a && !this.store.entregadorBloqueado(a) && this.store.proximosStatus(a).includes('AUTORIZADA')
+      ? this.store.dicaAutorizar(a)
+      : null;
   });
   readonly dicaPedir = computed(() => {
     const a = this.store.selecionado();

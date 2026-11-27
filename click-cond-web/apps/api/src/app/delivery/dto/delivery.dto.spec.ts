@@ -38,4 +38,10 @@ describe('DTOs de Delivery — ValidationPipe', () => {
     expect(ok.relacao_retirada).toBe('Familiar');
     await expect(transformar(AtualizarStatusDeliveryDto, { status: 'CONCLUIDA', relacao_retirada: 'Vizinho' })).rejects.toBeDefined();
   });
+
+  it('PATCH limita retirado_por a 120 caracteres', async () => {
+    await expect(transformar(AtualizarStatusDeliveryDto, { status: 'CONCLUIDA', retirado_por: 'a'.repeat(121) })).rejects.toBeDefined();
+    const ok: any = await transformar(AtualizarStatusDeliveryDto, { status: 'CONCLUIDA', retirado_por: 'a'.repeat(120) });
+    expect(ok.retirado_por).toHaveLength(120);
+  });
 });
