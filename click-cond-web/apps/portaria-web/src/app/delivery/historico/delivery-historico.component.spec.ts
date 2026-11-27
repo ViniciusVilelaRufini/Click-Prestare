@@ -45,7 +45,7 @@ describe('DeliveryHistoricoComponent', () => {
     expect(texto).toContain('Farmácia Histórica');
     expect(texto).toContain('8 min');
     expect(texto).toContain('Concluídos');
-    expect(texto).toContain('Bloco C 303');
+    expect(texto).toContain('Bloco C · Apto 303');
     expect(texto).not.toContain('Bloco Bloco');
   });
 

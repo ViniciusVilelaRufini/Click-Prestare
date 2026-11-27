@@ -39,6 +39,7 @@
           <p class="text-sm font-medium text-white">{{ store.nomeEntregador(a) }}</p>
         }
         @if (store.telefoneEntregador(a); as telefone) { <p class="text-xs text-slate-400">{{ telefone }}</p> }
+        @if (store.placaEntregador(a); as placa) { <p class="text-xs text-slate-400" data-testid="entregador-placa">Placa {{ placa }}</p> }
         @if (a.entregador?.status === 'BLOQUEADO') {
           <p class="mt-1 text-xs font-medium text-red-700 dark:text-red-300">Bloqueado{{ a.entregador?.motivo_bloqueio ? ': ' + a.entregador?.motivo_bloqueio : '' }}</p>
         }
@@ -69,10 +70,30 @@
         @if (!confirmandoMotivo()) {
           <div class="space-y-2">
             @if (acoes()?.primaria; as primaria) {
-              <button type="button" (click)="executar(primaria)" [disabled]="desabilitada(primaria)"
-                class="ps-btn w-full disabled:cursor-not-allowed disabled:opacity-40">{{ verbo(primaria) }}</button>
-              @if (primaria === 'AUTORIZADA' && !store.podeAutorizar(a)) {
-                <p class="text-xs text-slate-500">Identifique um entregador ativo para autorizar a subida.</p>
+              @if (primaria === 'CONCLUIDA' && a.status === 'RETIRADA_NA_PORTARIA') {
+                <div class="space-y-2 border border-slate-300 p-3" data-testid="form-retirada">
+                  <label class="block">
+                    <span class="ps-label mb-1.5 block">Quem retirou? *</span>
+                    <input name="retiradoPor" class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white focus:outline-none focus:border-[var(--ink)]"
+                      [ngModel]="store.retiradoPor()" (ngModelChange)="store.retiradoPor.set($event)" placeholder="Nome de quem retirou">
+                  </label>
+                  <label class="block">
+                    <span class="ps-label mb-1.5 block">Relação com o morador *</span>
+                    <select name="relacaoRetirada" class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white focus:outline-none focus:border-[var(--ink)]"
+                      [ngModel]="store.relacaoRetirada()" (ngModelChange)="store.relacaoRetirada.set($event)">
+                      <option value="">Selecione a relação</option>
+                      @for (r of relacoes; track r.codigo) { <option [value]="r.codigo">{{ r.rotulo }}</option> }
+                    </select>
+                  </label>
+                  @if (store.erroRetirada(); as erroRetirada) {
+                    <p role="alert" class="text-xs font-medium text-red-700 dark:text-red-300">{{ erroRetirada }}</p>
+                  }
+                  <button type="button" (click)="executar('CONCLUIDA')" [disabled]="store.carregando()"
+                    class="ps-btn w-full disabled:cursor-not-allowed disabled:opacity-40">Confirmar retirada</button>
+                </div>
+              } @else {
+                <button type="button" (click)="executar(primaria)" [disabled]="desabilitada(primaria)"
+                  class="ps-btn w-full disabled:cursor-not-allowed disabled:opacity-40">{{ verbo(primaria) }}</button>
               }
             }
             @if (acoes()?.secundarias?.length) {
@@ -82,6 +103,12 @@
                     class="ps-btn ps-btn-sec disabled:opacity-40">{{ verbo(s) }}</button>
                 }
               </div>
+            }
+            @if (dicaAutorizar(); as dica) {
+              <p class="text-xs text-slate-500" data-testid="dica-autorizar">{{ dica }}</p>
+            }
+            @if (dicaPedir(); as dica) {
+              <p class="text-xs text-slate-500" data-testid="dica-pedir">{{ dica }}</p>
             }
             @if (avisoPortao()) {
               <p class="text-xs text-slate-500">Autorizar aqui não abre o portão pelo sistema. Abra pelo meio de sempre.</p>

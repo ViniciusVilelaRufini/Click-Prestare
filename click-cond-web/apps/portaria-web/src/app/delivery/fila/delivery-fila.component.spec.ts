@@ -37,8 +37,8 @@ describe('DeliveryFilaComponent', () => {
     const el: HTMLElement = montar().nativeElement;
     expect(el.textContent).toContain('Pizzaria Central');
     expect(el.textContent).toContain('Maria Avulsa');
-    expect(el.textContent).toContain('11888887777');
-    expect(el.textContent).toContain('Bloco B 202');
+    expect(el.textContent).toContain('(11) 88888-7777');
+    expect(el.textContent).toContain('Bloco B · Apto 202');
     expect(el.textContent).not.toContain('Bloco Bloco');
     expect(el.textContent).toContain('Na portaria');
     expect(el.textContent).toContain('Selecione um atendimento');

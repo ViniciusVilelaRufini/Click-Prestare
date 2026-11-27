@@ -51,7 +51,7 @@ export class DeliveryApi {
   atualizarStatus(
     id: number,
     status: DeliveryStatus,
-    options: { motivo?: string; observacao?: string; id_entregador?: number } = {},
+    options: { motivo?: string; observacao?: string; id_entregador?: number; retirado_por?: string; relacao_retirada?: string } = {},
   ): Observable<DeliveryAtendimento> {
     return this.http.patch<DeliveryAtendimento>(`${API_BASE}/delivery/${id}`, { status, ...options });
   }

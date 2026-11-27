@@ -15,7 +15,7 @@
                 <span class="ps-tag text-red-700 dark:text-red-300">Bloqueado</span>
               }
             </p>
-            <p class="truncate text-xs text-slate-400">{{ e.veiculos[0]?.placa || 'Sem placa' }}{{ e.telefone ? ' · ' + e.telefone : '' }}</p>
+            <p class="truncate text-xs text-slate-400">{{ e.veiculos[0]?.placa || 'Sem placa' }}{{ e.telefone ? ' · ' + store.formatarTelefone(e.telefone) : '' }}</p>
           </div>
         </div>
         @if (store.podeGerenciarEntregadores()) {

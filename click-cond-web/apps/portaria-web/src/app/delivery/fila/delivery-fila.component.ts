@@ -28,7 +28,8 @@ export class DeliveryFilaComponent {
   /** Tempo da etapa atual, com o que ela significa quando não é a espera na portaria. */
   espera(a: DeliveryAtendimento): string {
     const texto = textoEspera(minutosDesde(inicioEspera(a), this.store.agora()));
-    if (a.status === 'AUTORIZADA') return `Subiu ${texto}`;
+    // Só o que o sistema sabe: a subida foi autorizada (não que o entregador subiu).
+    if (a.status === 'AUTORIZADA') return `Autorizada ${texto}`;
     if (a.status === 'RETIRADA_NA_PORTARIA') return `Na portaria ${texto}`;
     if (a.status === 'RECUSADA') return `Recusada ${texto}`;
     if (a.status === 'CANCELADA') return `Cancelada ${texto}`;

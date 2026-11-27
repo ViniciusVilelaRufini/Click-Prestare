@@ -34,6 +34,8 @@ export interface DeliveryEvento {
   status_anterior?: DeliveryStatus | null;
   status_novo: DeliveryStatus;
   autor_nome?: string | null;
+  /** Calculado pela API; opcional (eventos antigos/respostas sem o campo). */
+  autor_papel?: 'morador' | 'portaria' | 'sistema' | 'autoatendimento' | null;
   mensagem?: string | null;
   created_at: string;
 }
