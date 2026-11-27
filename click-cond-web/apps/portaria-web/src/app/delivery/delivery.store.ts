@@ -1,6 +1,9 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
+import { ServerClockService } from '../core/server-clock.service';
+import { formatarTelefoneExibicao } from '../shared/input-mask.directive';
+import { rotuloUnidade } from '../shared/bloco-label.util';
 import {
   CriarEntregadorDelivery,
   DeliveryAtendimento,
@@ -17,6 +20,7 @@ export type AbaDelivery = 'fila' | 'entregadores' | 'historico';
 export class DeliveryStore {
   private readonly api = inject(DeliveryApi);
   private readonly auth = inject(AuthService);
+  private readonly relogio = inject(ServerClockService);
 
   readonly aba = signal<AbaDelivery>('fila');
   readonly ativos = signal<DeliveryAtendimento[]>([]);
@@ -35,7 +39,12 @@ export class DeliveryStore {
   readonly entregadorSelecionadoId = signal<number | null>(null);
   readonly motivo = signal('');
   readonly entregadorEmEdicao = signal<DeliveryEntregador | null>(null);
-  readonly agora = signal(new Date());
+  /** Hora do SERVIDOR (o relógio do PC da portaria costuma estar errado). */
+  readonly agora = signal(this.relogio.agora());
+  /** Quem retirou na portaria (formulário de conclusão da retirada). */
+  readonly retiradoPor = signal('');
+  readonly relacaoRetirada = signal('');
+  readonly erroRetirada = signal<string | null>(null);
 
   private cargaFila?: Subscription;
   private cargaNormalPendente = false;
@@ -61,6 +70,9 @@ export class DeliveryStore {
     for (const a of this.ativos()) contagem[a.status] = (contagem[a.status] ?? 0) + 1;
     return contagem;
   });
+
+  /** Atendimentos ativos (não terminais): recusados/cancelados recentes ficam visíveis mas não contam. */
+  readonly totalAtivos = computed(() => this.ativos().filter((a) => !ehTerminal(a.status)).length);
 
   contador(status: DeliveryStatus): number {
     return this.contadores()[status] ?? 0;
@@ -89,7 +101,7 @@ export class DeliveryStore {
     this.cargaFila = this.api.listAtivos().subscribe({
       next: (lista) => {
         this.ativos.set(lista);
-        this.agora.set(new Date());
+        this.agora.set(this.relogio.agora());
         // Mantém o painel no mesmo atendimento com dados novos. Se ele saiu da
         // fila, continua aberto com o último estado conhecido, sem ações.
         const aberto = this.selecionado();
@@ -153,6 +165,13 @@ export class DeliveryStore {
     this.selecionadoSaiu.set(false);
     this.entregadorSelecionadoId.set(a.entregador?.id ?? null);
     this.motivo.set('');
+    this.limparRetirada();
+  }
+
+  private limparRetirada(): void {
+    this.retiradoPor.set('');
+    this.relacaoRetirada.set('');
+    this.erroRetirada.set(null);
   }
 
   fecharPainel(): void {
@@ -166,7 +185,7 @@ export class DeliveryStore {
   }
 
   unidade(a: DeliveryAtendimento): string {
-    return [a.apartamento.bloco, a.apartamento.apto].filter(Boolean).join(' ');
+    return rotuloUnidade(a.apartamento.bloco, a.apartamento.apto);
   }
 
   /** Cadastrado primeiro; depois quem se identificou no portão (a selfie é dele); depois o nome digitado. */
@@ -185,7 +204,42 @@ export class DeliveryStore {
   }
 
   telefoneEntregador(a: DeliveryAtendimento): string | null {
-    return a.entregador?.telefone?.trim() || a.telefone_entregador?.trim() || null;
+    const bruto = a.entregador?.telefone?.trim() || a.telefone_entregador?.trim();
+    return bruto ? formatarTelefoneExibicao(bruto) : null;
+  }
+
+  formatarTelefone(valor: string | null | undefined): string {
+    return formatarTelefoneExibicao(valor);
+  }
+
+  /** Placa do veículo do entregador cadastrado, quando existe. */
+  placaEntregador(a: DeliveryAtendimento): string | null {
+    return a.entregador?.veiculos?.find((v) => v.placa?.trim())?.placa?.trim() ?? null;
+  }
+
+  private entregadorEscolhido(a: DeliveryAtendimento): DeliveryEntregador | null | undefined {
+    const id = this.entregadorSelecionadoId() ?? a.entregador?.id;
+    return this.entregadores().find((e) => e.id === id) ?? a.entregador;
+  }
+
+  /** O entregador escolhido para este atendimento está bloqueado. */
+  entregadorBloqueado(a: DeliveryAtendimento): boolean {
+    return this.entregadorEscolhido(a)?.status === 'BLOQUEADO';
+  }
+
+  /** "Pedir autorização ao morador" não vale para entregador bloqueado (sem entregador, segue valendo, inclusive no autoatendimento). */
+  podePedirAutorizacao(a: DeliveryAtendimento): boolean {
+    return !this.entregadorBloqueado(a);
+  }
+
+  /** Por que "Autorizar subida" está desabilitado (null = habilitado). */
+  dicaAutorizar(a: DeliveryAtendimento): string | null {
+    if (this.podeAutorizar(a)) return null;
+    return 'Identifique um entregador ativo para autorizar a subida.';
+  }
+
+  dicaPedirAutorizacao(a: DeliveryAtendimento): string | null {
+    return this.podePedirAutorizacao(a) ? null : 'Entregador bloqueado: recuse a entrega ou identifique outro entregador.';
   }
 
   podeGerenciarEntregadores(): boolean {
@@ -210,6 +264,10 @@ export class DeliveryStore {
     this.aviso.set(null);
     const a = this.selecionado();
     if (!a || !this.proximosStatus(a).includes(status)) return;
+    if (status === 'AGUARDANDO_AUTORIZACAO' && !this.podePedirAutorizacao(a)) {
+      this.erro.set('Entregador bloqueado: recuse a entrega ou identifique outro entregador.');
+      return;
+    }
     if (status === 'AUTORIZADA' && !this.podeAutorizar(a)) {
       const id = this.entregadorSelecionadoId() ?? a.entregador?.id;
       this.erro.set(id ? 'Entregador bloqueado não pode ser autorizado.' : 'Identifique o entregador antes de autorizar.');
@@ -224,13 +282,29 @@ export class DeliveryStore {
       this.erro.set('Informe o motivo do cancelamento.');
       return;
     }
+    const retirada = status === 'CONCLUIDA' && a.status === 'RETIRADA_NA_PORTARIA';
+    const retiradoPor = this.retiradoPor().trim();
+    const relacao = this.relacaoRetirada();
+    if (retirada) {
+      if (!retiradoPor) {
+        this.erroRetirada.set('Informe o nome de quem retirou.');
+        return;
+      }
+      if (!relacao) {
+        this.erroRetirada.set('Escolha a relação de quem retirou com o morador.');
+        return;
+      }
+    }
+    this.erroRetirada.set(null);
     this.carregando.set(true);
     this.api.atualizarStatus(a.id, status, {
       id_entregador: this.entregadorSelecionadoId() ?? undefined,
       motivo: motivo || undefined,
+      ...(retirada ? { retirado_por: retiradoPor, relacao_retirada: relacao } : {}),
     }).subscribe({
       next: (atualizado) => {
         this.motivo.set('');
+        this.limparRetirada();
         this.erro.set(null);
         // Ninguém da unidade tem o app para receber o pedido: não adianta esperar.
         if (status === 'AGUARDANDO_AUTORIZACAO' && atualizado?.avisados === 0) {
@@ -238,7 +312,17 @@ export class DeliveryStore {
         }
         // O painel mostra o desfecho mesmo que o atendimento saia da fila na recarga.
         this.selecionado.update((s) => (s && s.id === a.id
-          ? { ...s, status: atualizado?.status ?? status, motivo: atualizado?.motivo ?? s.motivo }
+          ? {
+            ...s,
+            status: atualizado?.status ?? status,
+            motivo: atualizado?.motivo ?? s.motivo,
+            // A linha do tempo vem da resposta da API (inclui o evento recém-criado).
+            eventos: Array.isArray(atualizado?.eventos) ? atualizado.eventos : s.eventos,
+            concluido_em: atualizado?.concluido_em ?? s.concluido_em,
+            autorizado_em: atualizado?.autorizado_em ?? s.autorizado_em,
+            recusado_em: atualizado?.recusado_em ?? s.recusado_em,
+            cancelado_em: atualizado?.cancelado_em ?? s.cancelado_em,
+          }
           : s));
         this.carregarFila();
       },

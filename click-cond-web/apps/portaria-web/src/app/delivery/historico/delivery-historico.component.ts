@@ -3,6 +3,7 @@ import { DatePipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Subscription, forkJoin } from 'rxjs';
+import { ServerClockService } from '../../core/server-clock.service';
 import { DeliveryApi } from '../delivery.service';
 import { DeliveryAtendimento, DeliveryResumo } from '../delivery.model';
 import { DeliveryStore } from '../delivery.store';
@@ -20,6 +21,7 @@ import { SlideIndicatorDirective } from '../../shared/slide-indicator.directive'
 })
 export class DeliveryHistoricoComponent implements OnInit {
   private readonly api = inject(DeliveryApi);
+  private readonly relogio = inject(ServerClockService);
   readonly store = inject(DeliveryStore);
   private readonly destroyRef = inject(DestroyRef);
   private requisicao?: Subscription;
@@ -57,7 +59,7 @@ export class DeliveryHistoricoComponent implements OnInit {
 
   carregar(): void {
     this.requisicao?.unsubscribe();
-    const { de, ate } = intervaloPeriodo(this.periodo(), new Date());
+    const { de, ate } = intervaloPeriodo(this.periodo(), this.relogio.agora());
     this.carregando.set(true);
     this.requisicao = forkJoin({
       lista: this.api.listHistorico(de, ate),

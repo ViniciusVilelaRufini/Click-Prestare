@@ -10,8 +10,8 @@
         <button type="button" role="tab" [attr.aria-selected]="store.aba() === item.id" (click)="store.trocarAba(item.id)"
           [class.on]="store.aba() === item.id">
           {{ item.rotulo }}
-          @if (item.id === 'fila' && store.ativos().length) {
-            <span class="ml-1.5 text-[11px]">{{ store.ativos().length }}</span>
+          @if (item.id === 'fila' && store.totalAtivos()) {
+            <span class="ml-1.5 text-[11px]">{{ store.totalAtivos() }}</span>
           }
         </button>
       }

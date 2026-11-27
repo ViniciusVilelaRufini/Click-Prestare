@@ -5,6 +5,7 @@ import { DeliveryAtendimento, DeliveryStatus } from '../delivery.model';
 import { DeliveryStore } from '../delivery.store';
 import { ehTerminal, organizarAcoes, rotuloStatus, verboAcao } from '../shared/delivery-status';
 import { DeliveryStatusBadgeComponent } from '../shared/delivery-status-badge.component';
+import { RELACOES_RETIRADA } from '../shared/relacao-retirada';
 import { DeliveryTimelineComponent } from '../shared/delivery-timeline.component';
 
 type ComMotivo = 'RECUSADA' | 'CANCELADA';
@@ -22,6 +23,16 @@ export class DeliveryDetalheComponent {
   private readonly motivoPara = signal<ComMotivo | null>(null);
   private readonly idSelecionado = computed(() => this.store.selecionado()?.id);
   readonly verbo = verboAcao;
+  readonly relacoes = RELACOES_RETIRADA;
+  /** Dica do "Autorizar subida" desabilitado (só quando essa ação está entre as próximas). */
+  readonly dicaAutorizar = computed(() => {
+    const a = this.store.selecionado();
+    return a && this.store.proximosStatus(a).includes('AUTORIZADA') ? this.store.dicaAutorizar(a) : null;
+  });
+  readonly dicaPedir = computed(() => {
+    const a = this.store.selecionado();
+    return a && this.store.proximosStatus(a).includes('AGUARDANDO_AUTORIZACAO') ? this.store.dicaPedirAutorizacao(a) : null;
+  });
   readonly acoes = computed(() => {
     const a = this.store.selecionado();
     return a ? organizarAcoes(this.store.proximosStatus(a), a.modo_entrega) : null;
@@ -61,7 +72,9 @@ export class DeliveryDetalheComponent {
 
   desabilitada(status: DeliveryStatus): boolean {
     const a = this.store.selecionado();
-    return this.store.carregando() || (status === 'AUTORIZADA' && !!a && !this.store.podeAutorizar(a));
+    return this.store.carregando()
+      || (status === 'AUTORIZADA' && !!a && !this.store.podeAutorizar(a))
+      || (status === 'AGUARDANDO_AUTORIZACAO' && !!a && !this.store.podePedirAutorizacao(a));
   }
 
   executar(status: DeliveryStatus): void {

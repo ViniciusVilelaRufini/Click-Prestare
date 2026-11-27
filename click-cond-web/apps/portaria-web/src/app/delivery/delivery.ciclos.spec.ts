@@ -37,7 +37,7 @@ describe('Delivery — ciclos', () => {
     api.atualizarStatus.mockReturnValueOnce(of({ ...a, status: 'AGUARDANDO_AUTORIZACAO', avisados: 0 } as any));
     store.atualizarStatus('AGUARDANDO_AUTORIZACAO');
     expect(store.aviso()).toContain('interfone');
-    expect(store.aviso()).toContain('Bloco A 101');
+    expect(store.aviso()).toContain('Bloco A · Apto 101');
   });
 
   it('pedido com alguém para receber: sem aviso', () => {
