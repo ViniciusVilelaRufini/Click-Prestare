@@ -94,8 +94,9 @@ describe('ramais', () => {
     const r = await m.svc.ramais(1);
     expect(r).toEqual(
       expect.arrayContaining([
-        { id_apartamento: 100, unidade: 'Bloco A · Apto 106', ramal: '106', sugestao: null, conflito: false },
-        { id_apartamento: 102, unidade: 'Bloco B · Apto 106', ramal: null, sugestao: null, conflito: true },
+        { id_apartamento: 100, unidade: 'Bloco A · Apto 106', ramal: '106', sugestao: '1106', conflito: false },
+        // O 106 já é ramal do A·106: a sugestão do B·106 ganha o prefixo do bloco (B = 2º bloco).
+        { id_apartamento: 102, unidade: 'Bloco B · Apto 106', ramal: null, sugestao: '2106', conflito: false },
         { id_apartamento: 103, unidade: 'Bloco B · Apto 12', ramal: null, sugestao: '12', conflito: false },
       ]),
     );
@@ -121,6 +122,27 @@ describe('ramais', () => {
     await expect(m.svc.salvarRamais(1, [{ id_apartamento: 102, ramal: '12a' }], ATOR)).rejects.toMatchObject({ status: 400 });
     await expect(m.svc.salvarRamais(1, [{ id_apartamento: 900, ramal: '5' }], ATOR)).rejects.toMatchObject({ status: 400 });
     await expect(m.svc.salvarRamais(1, 'x' as any, ATOR)).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('lista parcial: grava só as unidades enviadas e não mexe nas outras', async () => {
+    const m = montar();
+    const r = (id: number) => m.tabelas['apartamentos'].find((a: any) => a.id === id).interfone_ramal;
+    const lista = await m.svc.salvarRamais(1, [{ id_apartamento: 102, ramal: '2106' }], ATOR);
+    expect([r(100), r(101), r(102), r(103)]).toEqual(['106', '201', '2106', null]);
+    expect(lista.find((x) => x.id_apartamento === 102)).toMatchObject({ ramal: '2106', conflito: false });
+    expect(lista.find((x) => x.id_apartamento === 103)).toMatchObject({ ramal: null, sugestao: '12' });
+  });
+
+  it('ramal vazio ou null limpa o ramal da unidade', async () => {
+    const m = montar();
+    const r = (id: number) => m.tabelas['apartamentos'].find((a: any) => a.id === id).interfone_ramal;
+    await m.svc.salvarRamais(1, [{ id_apartamento: 100, ramal: '' }], ATOR);
+    expect([r(100), r(101)]).toEqual([null, '201']);
+    await m.svc.salvarRamais(1, [{ id_apartamento: 101, ramal: '   ' }], ATOR);
+    expect(r(101)).toBeNull();
+    await m.svc.salvarRamais(1, [{ id_apartamento: 102, ramal: '2106' }], ATOR);
+    await m.svc.salvarRamais(1, [{ id_apartamento: 102, ramal: null }], ATOR);
+    expect(r(102)).toBeNull();
   });
 
   it('grava, permite trocar dois ramais entre si e limpar, e audita', async () => {
