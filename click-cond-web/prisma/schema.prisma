@@ -339,6 +339,17 @@ model Condominios {
   /// Interfone: monitores IP e chamadas do condomínio.
   interfoneMonitores         Interfone_Monitores[]
   interfoneChamadas          Interfone_Chamadas[]
+  /// Portaria autônoma: 1 = condomínio contratou a central humana (CRM liga).
+  central_contratada         Int @default(0) @db.TinyInt
+  /// Portaria autônoma: 1 = a IA atende o portão (fora da Entrega 1).
+  ia_portao_ativa            Int @default(0) @db.TinyInt
+  /// Instruções do condomínio para entregas (lidas pela central/IA).
+  instrucao_entregas         String? @db.Text
+  /// Número que o visitante digita no facial para chamar a portaria ("0").
+  interfone_numero_portaria  String @default("0") @db.VarChar(8)
+  /// Portaria autônoma: janelas local/central e pedidos de autorização.
+  portariaAgenda             Portaria_Agenda[]
+  interfonePedidos           Interfone_Pedidos[]
 
   @@index([endereco], map: "fk_cond_endereco")
 }
@@ -375,6 +386,7 @@ model Apartamentos {
   /// Interfone: monitores IP da unidade e chamadas de/para ela.
   interfoneMonitores  Interfone_Monitores[]
   interfoneChamadas   Interfone_Chamadas[]
+  interfonePedidos    Interfone_Pedidos[]
 
   @@unique([id_condominio, bloco, apto], map: "un_apto_cond")
   // Um ramal de interfone por condomínio. NULL não colide (MySQL).
@@ -2342,11 +2354,11 @@ model Interfone_Monitores {
 model Interfone_Chamadas {
   id                    Int             @id @default(autoincrement())
   id_condominio         Int
-  /// 'facial_unidade' | 'portaria_unidade' | 'unidade_portaria'
+  /// 'facial_unidade' | 'portaria_unidade' | 'unidade_portaria' | 'facial_portaria'
   tipo                  String          @db.VarChar(20)
   /// 'chamando' | 'portaria' | 'atendida' | 'encerrada'
   estado                String          @db.VarChar(12)
-  /// 'atendida_morador' | 'atendida_portaria' | 'nao_atendida' | 'recusada' |
+  /// 'atendida_morador' | 'atendida_portaria' | 'atendida_central' | 'nao_atendida' | 'recusada' |
   /// 'falha' | 'cancelada'. Null enquanto a chamada não acabou.
   resultado             String?         @db.VarChar(20)
   /// Facial que originou (tipo facial_unidade). SetNull: apagar o facial não
@@ -2363,7 +2375,7 @@ model Interfone_Chamadas {
   /// Por que foi para a portaria: 'nao_atendeu' | 'recusou' | 'sem_app'.
   motivo_portaria       String?         @db.VarChar(12)
   atendida_em           DateTime?       @db.DateTime(0)
-  /// 'morador' | 'portaria'
+  /// 'morador' | 'portaria' | 'central'
   atendida_por_tipo     String?         @db.VarChar(10)
   /// Users.id (morador) ou Funcionarios_Portaria.id (portaria).
   atendida_por_id       Int?
@@ -2381,7 +2393,14 @@ model Interfone_Chamadas {
   /// JSON array de Users.id em que o toque saiu (VoIP/dados): "todos
   /// recusaram" compara com estes, não com todos os moradores.
   tocou_ids             String?         @db.Text
+  /// Central_Operadores.id que atendeu (atendida_por_tipo 'central').
+  id_operador_central   Int?
+  /// Resumo da conversa feito pela IA.
+  ia_resumo             String?         @db.Text
+  /// Transcrição completa da conversa com a IA.
+  ia_transcricao        String?         @db.MediumText
   created_at            DateTime        @default(now()) @db.DateTime(0)
+  pedidos               Interfone_Pedidos[]
   condominio            Condominios     @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_ifc_cond")
   facial                Facial_Devices? @relation(fields: [id_facial], references: [id], onDelete: SetNull, map: "fk_ifc_facial")
   apartamento           Apartamentos?   @relation(fields: [id_apartamento], references: [id], onDelete: SetNull, map: "fk_ifc_apto")
@@ -2393,4 +2412,66 @@ model Interfone_Chamadas {
   @@index([id_user_origem], map: "idx_ifc_user_origem")
   /// Rotina de chamadas órfãs (estado não terminal além do prazo).
   @@index([estado, created_at], map: "idx_ifc_estado_created")
+}
+
+/// Portaria autônoma: quem atende o portão em cada janela da semana.
+/// SQL: prisma/sql/2026-11-28-portaria-autonoma.sql
+model Portaria_Agenda {
+  id            Int         @id @default(autoincrement())
+  id_condominio Int
+  /// 0 = domingo ... 6 = sábado
+  dia_semana    Int         @db.TinyInt
+  /// HH:MM
+  inicio        String      @db.Char(5)
+  /// HH:MM ou 24:00
+  fim           String      @db.Char(5)
+  /// 'local' | 'central'
+  destino       String      @db.VarChar(8)
+  created_at    DateTime    @default(now()) @db.DateTime(0)
+  condominio    Condominios @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_pag_cond")
+
+  @@index([id_condominio, dia_semana], map: "idx_pag_cond_dia")
+}
+
+/// Portaria autônoma: operadores da central humana (login próprio).
+model Central_Operadores {
+  id            Int       @id @default(autoincrement())
+  nome          String    @db.VarChar(120)
+  email         String    @unique(map: "idx_cop_email") @db.VarChar(190)
+  senha_hash    String    @db.VarChar(100)
+  trocar_senha  Int       @default(1) @db.TinyInt
+  ativo         Int       @default(1) @db.TinyInt
+  /// Carimbo da credencial: troca ao mudar a senha ou desativar (derruba tokens).
+  cred          String    @default("") @db.VarChar(32)
+  ultimo_acesso DateTime? @db.DateTime(0)
+  created_at    DateTime  @default(now()) @db.DateTime(0)
+}
+
+/// Portaria autônoma: pedido de autorização de entrada feito durante uma chamada.
+model Interfone_Pedidos {
+  id                  Int                @id @default(autoincrement())
+  id_chamada          Int
+  id_condominio       Int
+  id_apartamento      Int
+  nome_falado         String             @db.VarChar(120)
+  motivo              String?            @db.VarChar(255)
+  /// 'visita' | 'entrega' | 'servico' | 'outro'
+  tipo                String             @db.VarChar(10)
+  /// 'central' | 'ia'
+  origem              String             @db.VarChar(10)
+  foto                String?            @db.VarChar(255)
+  /// 'pendente' | 'autorizado' | 'negado' | 'expirado'
+  estado              String             @default("pendente") @db.VarChar(10)
+  mensagem            String?            @db.VarChar(120)
+  respondido_por_id   Int?
+  respondido_por_nome String?            @db.VarChar(120)
+  respondido_em       DateTime?          @db.DateTime(0)
+  created_at          DateTime           @default(now()) @db.DateTime(0)
+  chamada             Interfone_Chamadas @relation(fields: [id_chamada], references: [id], onDelete: Cascade, map: "fk_ipd_chamada")
+  condominio          Condominios        @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_ipd_cond")
+  apartamento         Apartamentos       @relation(fields: [id_apartamento], references: [id], onDelete: Cascade, map: "fk_ipd_apto")
+
+  @@index([id_chamada], map: "idx_ipd_chamada")
+  @@index([id_apartamento, created_at], map: "idx_ipd_apto_created")
+  @@index([id_condominio], map: "idx_ipd_cond")
 }
