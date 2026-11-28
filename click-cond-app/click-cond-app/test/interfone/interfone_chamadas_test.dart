@@ -85,6 +85,7 @@ void main() {
     late List<String> encerradas;
     late List<int> recusadas;
     late List<int> abertas;
+    late List<Map<String, dynamic>> extras;
     late List<CallKitParams> mostradas;
     late Map<int, EstadoChamada?> estados;
 
@@ -92,6 +93,7 @@ void main() {
       encerradas = [];
       recusadas = [];
       abertas = [];
+      extras = [];
       mostradas = [];
       estados = {};
       InterfoneChamadas.redefinirParaTeste(
@@ -102,7 +104,10 @@ void main() {
           recusadas.add(id);
           return true;
         },
-        abrirTela: (id) async => abertas.add(id),
+        abrirTela: (id, extra) async {
+          abertas.add(id);
+          extras.add(extra);
+        },
         intervalo: const Duration(milliseconds: 10),
       );
     });
@@ -141,6 +146,16 @@ void main() {
       await InterfoneChamadas.tratarEvento(ev);
       await InterfoneChamadas.tratarEvento(ev);
       expect(abertas, [41]);
+    });
+
+    test('atender leva tipo, portão e unidade do push para a tela', () async {
+      await InterfoneChamadas.mostrarEntrando(
+          {'id': '41', 'tipo': 'facial_unidade', 'portao': 'Portão social', 'unidade': 'Bloco A · Apto 106'});
+      // Evento sem extra: usa o guardado do push.
+      await InterfoneChamadas.tratarEvento(CallEventActionCallAccept(CallKitParams(id: uuidDaChamada(41))));
+      expect(extras.single['tipo'], 'facial_unidade');
+      expect(extras.single['portao'], 'Portão social');
+      expect(extras.single['unidade'], 'Bloco A · Apto 106');
     });
 
     test('encerrarTela (push interfone_fim) fecha sem recusar', () async {

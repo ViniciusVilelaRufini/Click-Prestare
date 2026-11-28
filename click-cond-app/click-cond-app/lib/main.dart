@@ -155,6 +155,11 @@ class MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (mounted) reconstruirArvore(context);
   }
 
+  /// Voltar do Android com a chamada do interfone na tela: a chamada fica e a
+  /// navegação de baixo não anda (este observador vem antes do do Navigator).
+  @override
+  Future<bool> didPopRoute() async => ChamadaNaTela.consumirVoltar();
+
   @override
   void didChangePlatformBrightness() {
     // Com modo manual, o brilho do aparelho não muda nenhuma cor.
@@ -194,6 +199,8 @@ class MyAppState extends State<MyApp> with WidgetsBindingObserver {
       initialRoute: '/',
       onGenerateRoute: RouterGenerator.generateRouter,
       debugShowCheckedModeBanner: false,
+      // Interfone: a chamada em curso fica por cima de qualquer navegação.
+      builder: (context, child) => PainelChamada(child: child),
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: ThemeController.instance.mode,

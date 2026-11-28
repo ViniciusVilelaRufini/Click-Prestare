@@ -110,7 +110,7 @@ class InterfoneChamadas {
 
   /// Abre a tela da chamada (Atender). Definido pelo app em [iniciar]; no
   /// isolate de segundo plano fica sem tela.
-  static Future<void> Function(int id)? _abrirTela;
+  static Future<void> Function(int id, Map<String, dynamic> extra)? _abrirTela;
 
   /// Teto da vigia: a tela nativa some sozinha em 60 s.
   static const Duration _vigiaMaxima = Duration(seconds: 70);
@@ -118,13 +118,14 @@ class InterfoneChamadas {
   static final Map<int, Timer> _vigias = {};
   static final Set<int> _fechadasPeloApp = {};
   static final Set<int> _telasAbertas = {};
+  static final Map<int, Map<String, dynamic>> _extras = {};
   static StreamSubscription<CallEvent?>? _escuta;
 
   /// Liga a escuta dos eventos no app principal e retoma o que ficou do
   /// aparelho acordado por push: chamada já aceita (Android com o app fechado)
   /// abre a tela; chamada tocando (iPhone acordado pelo VoIP) passa a ser vigiada.
   static Future<void> iniciar({
-    required Future<void> Function(int id) abrirTela,
+    required Future<void> Function(int id, Map<String, dynamic> extra) abrirTela,
     Future<void> Function()? aoMudarTokenVoip,
   }) async {
     if (kIsWeb) return;
@@ -137,7 +138,7 @@ class InterfoneChamadas {
         final id = idDaChamadaDoParams(p);
         if (id == null) continue;
         if (p.isAccepted) {
-          await _abrir(id);
+          await _abrir(id, p.extra);
         } else {
           _vigiar(id);
         }
@@ -154,6 +155,7 @@ class InterfoneChamadas {
     final params = parametrosDaChamada(data);
     if (params == null) return;
     final id = idDaChamadaDoParams(params)!;
+    _extras[id] = params.extra ?? const {};
     _garantirEscuta();
     _fechadasPeloApp.remove(id);
     try {
@@ -206,7 +208,7 @@ class InterfoneChamadas {
         final id = idDaChamadaDoParams(callKitParams);
         if (id == null) return;
         _pararVigia(id);
-        await _abrir(id);
+        await _abrir(id, callKitParams.extra);
       case CallEventActionCallDecline(:final callKitParams):
         final id = idDaChamadaDoParams(callKitParams);
         if (id == null) return;
@@ -235,12 +237,13 @@ class InterfoneChamadas {
     }
   }
 
-  static Future<void> _abrir(int id) async {
+  static Future<void> _abrir(int id, Map<String, dynamic>? extra) async {
     final abrir = _abrirTela;
     if (abrir == null) return;
     if (!_telasAbertas.add(id)) return;
     try {
-      await abrir(id);
+      // Evento sem extra: usa o que veio no push.
+      await abrir(id, (extra == null || extra.isEmpty) ? (_extras[id] ?? const {}) : extra);
     } catch (e) {
       _telasAbertas.remove(id);
       logDebug('[Interfone] abrir tela: ${e.runtimeType}');
@@ -303,7 +306,7 @@ class InterfoneChamadas {
     Future<void> Function(String uuid)? encerrar,
     Future<EstadoChamada?> Function(int id)? consultar,
     Future<bool> Function(int id)? recusar,
-    Future<void> Function(int id)? abrirTela,
+    Future<void> Function(int id, Map<String, dynamic> extra)? abrirTela,
     Duration? intervalo,
   }) {
     for (final t in _vigias.values) {
@@ -313,6 +316,7 @@ class InterfoneChamadas {
     _fechadasPeloApp.clear();
     _telasAbertas.clear();
     _telasRegistradas.clear();
+    _extras.clear();
     _mostrar = mostrar ?? FlutterCallkitIncoming.showCallkitIncoming;
     _encerrar = encerrar ?? FlutterCallkitIncoming.endCall;
     _consultar = consultar ?? InterfoneApi.estado;

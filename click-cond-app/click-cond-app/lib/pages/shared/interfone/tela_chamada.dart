@@ -8,7 +8,6 @@ import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/log.dart';
-import 'package:click/utils/navigation_service.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_tag.dart';
 import 'package:flutter/material.dart';
@@ -77,6 +76,10 @@ class TelaChamada extends StatefulWidget {
   /// Quanto a tela espera com a mensagem final antes de fechar.
   final Duration esperaAoFechar;
 
+  /// Fecha a tela. Desenhada acima do Navigator ([PainelChamada]), é quem a
+  /// tirou de lá; sem ele, a tela é uma rota e sai com `maybePop`.
+  final VoidCallback? aoFechar;
+
   const TelaChamada({
     super.key,
     required this.id,
@@ -91,6 +94,7 @@ class TelaChamada extends StatefulWidget {
     this.marcarConectada = FlutterCallkitIncoming.setCallConnected,
     this.prepararSessao = ensureStorageReady,
     this.esperaAoFechar = const Duration(seconds: 2),
+    this.aoFechar,
   });
 
   @override
@@ -229,7 +233,12 @@ class TelaChamadaState extends State<TelaChamada> {
 
   void _fechar() {
     if (!mounted) return;
-    Navigator.of(context).maybePop();
+    final aoFechar = widget.aoFechar;
+    if (aoFechar != null) {
+      aoFechar();
+    } else {
+      Navigator.of(context).maybePop();
+    }
   }
 
   void _encerrarAgora() {
@@ -430,26 +439,110 @@ class TelaChamadaState extends State<TelaChamada> {
       );
 }
 
-/// Abre a tela da chamada (Atender na tela de ligação). O navegador pode ainda
-/// não existir quando o app abre pela chamada: tenta por até 5 s.
-Future<void> abrirTelaDaChamada(int id, {int tentativa = 0}) async {
-  final nav = NavigationService.navigatorKey.currentState;
-  if (nav == null) {
-    if (tentativa >= 25) return;
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-    return abrirTelaDaChamada(id, tentativa: tentativa + 1);
+/// Chamada que a tela mostra: o id e o que já se sabe dela (do push ou da
+/// ligação para a portaria) enquanto o estado não chega da API.
+class PedidoChamada {
+  final int id;
+  final DadosEntrada? jaConectado;
+  final String? tipo;
+  final String? portao;
+  final String? unidade;
+
+  const PedidoChamada({required this.id, this.jaConectado, this.tipo, this.portao, this.unidade});
+}
+
+/// A chamada em curso, desenhada ACIMA do Navigator ([PainelChamada] no
+/// `MaterialApp.builder`). Assim a navegação de entrada do app aberto pelo
+/// Atender (HomePage com `pushReplacement`, lista de condomínios com `push`)
+/// não troca nem esconde a tela da chamada.
+class ChamadaNaTela {
+  ChamadaNaTela._();
+
+  static final ValueNotifier<PedidoChamada?> atual = ValueNotifier<PedidoChamada?>(null);
+
+  static bool get ativa => atual.value != null;
+
+  /// Mostra a chamada. A mesma chamada de novo não abre outra tela.
+  static void mostrar(PedidoChamada p) {
+    if (atual.value?.id == p.id) return;
+    atual.value = p;
   }
-  unawaited(nav.push(MaterialPageRoute<void>(
-    settings: const RouteSettings(name: '/interfone/chamada'),
-    builder: (_) => TelaChamada(id: id),
-  )));
+
+  /// Tira a chamada [id] da tela (se ainda for ela).
+  static void fechar(int id) {
+    if (atual.value?.id == id) atual.value = null;
+  }
+
+  /// Voltar do Android com a chamada na tela: não mexe na navegação de baixo.
+  static bool consumirVoltar() => ativa;
+
+  @visibleForTesting
+  static void redefinirParaTeste() => atual.value = null;
+}
+
+/// Hospeda a [TelaChamada] por cima do app inteiro.
+class PainelChamada extends StatelessWidget {
+  final Widget? child;
+
+  /// Monta a tela da chamada (trocado no teste).
+  final Widget Function(PedidoChamada p, VoidCallback fechar) construir;
+
+  const PainelChamada({super.key, required this.child, this.construir = _construirPadrao});
+
+  static Widget _construirPadrao(PedidoChamada p, VoidCallback fechar) => TelaChamada(
+        id: p.id,
+        jaConectado: p.jaConectado,
+        tipoInicial: p.tipo,
+        tituloInicial: p.portao,
+        unidadeInicial: p.unidade,
+        aoFechar: fechar,
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<PedidoChamada?>(
+      valueListenable: ChamadaNaTela.atual,
+      builder: (context, p, _) => Stack(
+        fit: StackFit.expand,
+        children: [
+          if (child != null) child!,
+          if (p != null)
+            Positioned.fill(
+              // Overlay próprio: fora do Navigator não há um para os widgets
+              // que dependem dele.
+              child: Overlay(
+                key: ValueKey<int>(p.id),
+                initialEntries: [
+                  OverlayEntry(builder: (_) => construir(p, () => ChamadaNaTela.fechar(p.id))),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+String? _textoDoExtra(Map<String, dynamic> extra, String chave) {
+  final v = '${extra[chave] ?? ''}'.trim();
+  return v.isEmpty ? null : v;
+}
+
+/// Abre a tela da chamada (Atender na tela de ligação) com o que veio no push
+/// (tipo, portão, unidade). Não depende do Navigator: ver [ChamadaNaTela].
+Future<void> abrirTelaDaChamada(int id, Map<String, dynamic> extra) async {
+  ChamadaNaTela.mostrar(PedidoChamada(
+    id: id,
+    tipo: _textoDoExtra(extra, 'tipo'),
+    portao: _textoDoExtra(extra, 'portao'),
+    unidade: _textoDoExtra(extra, 'unidade'),
+  ));
 }
 
 /// "Ligar para a portaria": pede o microfone, pede a ligação à API e abre a
 /// tela já conectando. Sem porteiro com o console aberto, avisa sem ligar.
 Future<void> ligarParaPortaria(BuildContext context, int idApartamento, {String? unidade}) async {
   final messenger = ScaffoldMessenger.maybeOf(context);
-  final nav = Navigator.of(context);
   void avisar(String texto) => messenger?.showSnackBar(SnackBar(content: Text(texto)));
 
   if (!await _pedirMicrofonePadrao()) {
@@ -485,14 +578,11 @@ Future<void> ligarParaPortaria(BuildContext context, int idApartamento, {String?
   } catch (e) {
     logDebug('[Interfone] startCall: ${e.runtimeType}');
   }
-  unawaited(nav.push(MaterialPageRoute<void>(
-    settings: const RouteSettings(name: '/interfone/chamada'),
-    builder: (_) => TelaChamada(
-      id: dados.id,
-      jaConectado: dados,
-      tipoInicial: 'unidade_portaria',
-      tituloInicial: 'Portaria',
-      unidadeInicial: unidade,
-    ),
-  )));
+  ChamadaNaTela.mostrar(PedidoChamada(
+    id: dados.id,
+    jaConectado: dados,
+    tipo: 'unidade_portaria',
+    portao: 'Portaria',
+    unidade: unidade,
+  ));
 }
