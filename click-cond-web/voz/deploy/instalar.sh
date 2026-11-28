@@ -132,11 +132,27 @@ if [ -d /etc/fail2ban/jail.d ]; then
   fi
 fi
 
+# 7b. nginx (TLS 8089 → só /ws do Asterisk; a ARI nunca sai do loopback) ----
+if ! command -v nginx >/dev/null; then
+  log "instalando nginx"
+  DEBIAN_FRONTEND=noninteractive apt-get update -q
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -q nginx
+fi
+# O site padrão ocuparia a porta 80, que o certbot --standalone usa na renovação.
+rm -f /etc/nginx/sites-enabled/default
+install -m 644 "$DEST/nginx/prestare-voz.conf" /etc/nginx/sites-available/prestare-voz.conf
+ln -sfn /etc/nginx/sites-available/prestare-voz.conf /etc/nginx/sites-enabled/prestare-voz.conf
+nginx -t || falhar "configuração do nginx inválida"
+
+# 7c. Hook de renovação do certificado (sobrescrito sempre; idempotente) -----
+install -d -m 755 /etc/letsencrypt/renewal-hooks/deploy
+install -m 755 "$DEST/deploy/hook-renovacao.sh" /etc/letsencrypt/renewal-hooks/deploy/prestare.sh
+
 # 8. systemd -----------------------------------------------------------------
 sed "s#__NODE__#$NODE_BIN#" "$DEST/deploy/prestare-voz.service" > /etc/systemd/system/prestare-voz.service.novo
 mv -f /etc/systemd/system/prestare-voz.service.novo /etc/systemd/system/prestare-voz.service
 systemctl daemon-reload
-systemctl enable asterisk coturn prestare-voz >/dev/null 2>&1
+systemctl enable asterisk coturn nginx prestare-voz >/dev/null 2>&1
 
 # 9. Reinícios (Asterisk só quando a configuração mudou: derruba chamadas) ----
 if [ "$MUDOU_ASTERISK" = 1 ] || ! systemctl is-active --quiet asterisk; then
@@ -151,6 +167,13 @@ if [ "$MUDOU_TURN" = 1 ] || ! systemctl is-active --quiet coturn; then
   log "reiniciando coturn"
   systemctl restart coturn
 fi
+# Depois do Asterisk: se ele ainda escutava na 8089 (versão antiga com TLS),
+# já soltou a porta.
+if systemctl is-active --quiet nginx; then
+  systemctl reload nginx
+else
+  systemctl restart nginx
+fi
 log "reiniciando prestare-voz"
 systemctl restart prestare-voz
 
@@ -162,7 +185,11 @@ for _ in $(seq 1 30); do
   sleep 2
 done
 asterisk -rx 'pjsip show transports' || true
-systemctl --no-pager --lines=0 status asterisk coturn prestare-voz || true
+systemctl --no-pager --lines=0 status asterisk coturn nginx prestare-voz || true
+# A ARI não pode responder pela 8089 pública.
+ARI_FORA="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 --resolve "$DOMINIO:8089:127.0.0.1" \
+  "https://$DOMINIO:8089/ari/api-docs/resources.json" || true)"
+[ "$ARI_FORA" = "404" ] || falhar "a 8089 respondeu $ARI_FORA para /ari (esperado 404)"
 [[ "$SAUDE" == *'"ari":true'* ]] || {
   journalctl -u prestare-voz --no-pager -n 40 || true
   falhar "saúde do serviço não confirmou ARI: ${SAUDE:-sem resposta}"

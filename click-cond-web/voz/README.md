@@ -25,7 +25,18 @@ app / console ──WebRTC wss:8089────┘ (sip:entrar + X-Prestare-Toke
 - `src/controle.js`: `https://voz.prestarecondominios.com.br/controle` —
   `POST /controle/chamadas/:id/portaria|dtmf|encerrar` (x-voz-token) e
   `GET /controle/saude`.
-- `asterisk/`, `coturn/`, `fail2ban/`: configuração instalada pelo `deploy/instalar.sh`.
+- `asterisk/`, `coturn/`, `fail2ban/`, `nginx/`: configuração instalada pelo `deploy/instalar.sh`.
+
+O HTTP do Asterisk (ARI e `/ws`) escuta **só em 127.0.0.1:8088**, sem TLS. Para
+fora, o nginx termina o TLS na 8089 e repassa só `location = /ws` (WebSocket)
+ao Asterisk; `/ari` e qualquer outro caminho dão 404. O `instalar.sh` confere
+isso no fim (`/ari` pela 8089 tem de responder 404).
+
+Quem atende pode chegar antes da chamada existir no serviço (o INVITE da origem
+ainda juntando ICE, ou a API ainda respondendo ao facial): o canal espera até
+10 s pelo id antes de ser desligado. No SIGTERM, cada chamada ativa vira
+`encerrada falha` na API (teto de 3 s); ao reconectar a ARI, as chamadas cujos
+canais sumiram também.
 
 App e console nunca ficam registrados: pedem um token à API e discam
 `sip:entrar@voz.prestarecondominios.com.br`. Quem liga (console/app) entra com
@@ -50,9 +61,15 @@ podem ter espaço, `;`, aspas, `$`, `` ` ``, `\` ou `#` (o `preencher.mjs` recus
 O serviço roda como **root** (`prestare-voz.service`) porque lê a chave TLS
 (`root:turnserver 640`) e abre a porta 443; o systemd limita os poderes a
 `CAP_NET_BIND_SERVICE`, sistema só-leitura e escrita apenas no
-`pjsip_prestare.conf`. O hook de renovação do certbot copia o certificado para
-`/etc/asterisk/keys/voz.{crt,key}` (Asterisk) e `/etc/prestare-voz/tls/`
-(serviço), recarrega o Asterisk e reinicia `prestare-voz` e `coturn`.
+`pjsip_prestare.conf`.
+
+O hook de renovação do certbot fica em
+`/etc/letsencrypt/renewal-hooks/deploy/prestare.sh` e é **reescrito pelo
+instalar.sh a cada deploy** (`deploy/hook-renovacao.sh`). Ele copia o
+certificado para `/etc/asterisk/keys/voz.{crt,key}` (reserva) e
+`/etc/prestare-voz/tls/` (nginx e serviço), faz `systemctl reload nginx` e
+`reload asterisk`, e reinicia `prestare-voz` e `coturn`. O site padrão do nginx
+é removido porque ocuparia a porta 80 da renovação `--standalone`.
 
 ## Implantar
 
