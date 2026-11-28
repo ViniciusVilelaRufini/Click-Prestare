@@ -134,6 +134,32 @@ void main() {
     expect(find.text('home do condomínio'), findsOneWidget);
   });
 
+  testWidgets('com a chamada na tela: Navigator o mesmo, sem foco, leitor de tela e animações embaixo', (tester) async {
+    await montar(tester);
+    final antes = nav.currentState;
+    final foco = FocusNode();
+    addTearDown(foco.dispose);
+    unawaited(nav.currentState!.push(MaterialPageRoute<void>(
+        builder: (_) => Scaffold(body: TextField(focusNode: foco, decoration: const InputDecoration(labelText: 'busca'))))));
+    await tester.pumpAndSettle();
+    foco.requestFocus();
+    await tester.pump();
+    expect(foco.hasFocus, isTrue);
+
+    await abrirTelaDaChamada(41, {'tipo': 'facial_unidade'});
+    await tester.pump();
+    expect(foco.hasFocus, isFalse);
+    expect(identical(nav.currentState, antes), isTrue);
+    expect(tester.widget<ExcludeSemantics>(find.byType(ExcludeSemantics).first).excluding, isTrue);
+    expect(TickerMode.valuesOf(tester.element(find.byType(TextField))).enabled, isFalse);
+
+    await tester.tap(find.text('ENCERRAR'));
+    await tester.pumpAndSettle();
+    expect(identical(nav.currentState, antes), isTrue);
+    expect(tester.widget<ExcludeSemantics>(find.byType(ExcludeSemantics).first).excluding, isFalse);
+    expect(TickerMode.valuesOf(tester.element(find.byType(TextField))).enabled, isTrue);
+  });
+
   testWidgets('a mesma chamada aceita duas vezes abre uma tela só', (tester) async {
     await montar(tester);
     await abrirTelaDaChamada(41, const {});

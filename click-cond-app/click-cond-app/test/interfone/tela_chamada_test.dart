@@ -393,6 +393,32 @@ void main() {
     });
   });
 
+  testWidgets('tela baixa: rola e o ENCERRAR continua alcançável', (tester) async {
+    tester.view.physicalSize = const Size(320 * 3, 480 * 3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MaterialApp(
+      home: TelaChamada(
+        id: 41,
+        tipoInicial: 'facial_unidade',
+        conectar: (DadosEntrada d, RTCVideoRenderer? v) async => sessao,
+        pedirMicrofone: () async => true,
+        criarVideo: () async => null,
+        encerrarTelaNativa: (_) async {},
+        marcarConectada: (_) async {},
+        sincronizarMudo: (_, __) async {},
+        prepararSessao: () async {},
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.ensureVisible(find.text('ENCERRAR'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ENCERRAR'));
+    await tester.pump();
+    expect(sessao.encerrada, isTrue);
+  });
+
   test('mensagens das recusas', () {
     expect(mensagemDaRecusa('ja_atendida'), 'Já atendida em outro aparelho');
     expect(mensagemDaRecusa('encerrada'), 'A chamada já terminou');

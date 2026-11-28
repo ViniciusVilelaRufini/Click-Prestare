@@ -22,6 +22,8 @@ void main() {
   late bool android;
   late bool telaCheiaPedida;
   late List<String> pedidos;
+  late DateTime? adiadoAte;
+  late DateTime agora;
 
   setUp(() async {
     await ensureStorageReady();
@@ -30,7 +32,12 @@ void main() {
     android = false;
     telaCheiaPedida = false;
     pedidos = [];
+    adiadoAte = null;
+    agora = DateTime(2026, 11, 27, 10);
     PermissoesInterfone.redefinirParaTeste(
+      adiadoAte: () => adiadoAte,
+      adiar: (ate) => adiadoAte = ate,
+      agora: () => agora,
       statusMicrofone: () async => mic,
       pedirMicrofone: () async {
         pedidos.add('microfone');
@@ -88,6 +95,23 @@ void main() {
     await preparar(tester, ctx);
     expect(pedidos, isEmpty, reason: 'segunda vez na mesma sessão não pergunta');
     await preparar(tester, ctx, doSwitch: true);
+    expect(pedidos, ['microfone']);
+  });
+
+  testWidgets('"Agora não" vale por 7 dias na home', (tester) async {
+    final ctx = await montar(tester);
+    await preparar(tester, ctx, botao: 'AGORA NÃO');
+    expect(adiadoAte, DateTime(2026, 12, 4, 10));
+
+    PermissoesInterfone.esquecerSessao();
+    agora = DateTime(2026, 12, 3, 10);
+    await preparar(tester, ctx);
+    expect(find.byType(Dialog), findsNothing);
+    expect(pedidos, isEmpty);
+
+    PermissoesInterfone.esquecerSessao();
+    agora = DateTime(2026, 12, 5, 10);
+    await preparar(tester, ctx);
     expect(pedidos, ['microfone']);
   });
 

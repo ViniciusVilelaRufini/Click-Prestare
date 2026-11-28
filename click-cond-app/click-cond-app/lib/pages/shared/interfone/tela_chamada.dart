@@ -44,8 +44,7 @@ Future<bool> _pedirMicrofonePadrao() async {
   }
 }
 
-Future<void> _sincronizarMudoPadrao(String uuid, bool mudo) =>
-    FlutterCallkitIncoming.muteCall(uuid, isMuted: mudo);
+Future<void> _sincronizarMudoPadrao(String uuid, bool mudo) => FlutterCallkitIncoming.muteCall(uuid, isMuted: mudo);
 
 Future<RTCVideoRenderer?> _criarVideoPadrao() async {
   final r = RTCVideoRenderer();
@@ -381,78 +380,85 @@ class TelaChamadaState extends State<TelaChamada> {
       child: Scaffold(
         backgroundColor: AppColors.bg(context),
         body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.xl),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: _areaDoVideo(context)),
-                AppSpacing.gapXl,
-                Text(
-                  (_ligandoParaPortaria ? 'Ligação' : 'Interfone').toUpperCase(),
-                  style: AppTypography.label(context),
-                ),
-                AppSpacing.gapXs,
-                Text(_titulo.toUpperCase(), style: AppTypography.title(context)),
-                if (unidade.isNotEmpty) ...[
+          child: LayoutBuilder(
+            builder: (context, limites) => SingleChildScrollView(
+              padding: const EdgeInsets.all(AppSpacing.xl),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Vídeo com altura própria: em tela baixa (ou fonte grande) o
+                  // resto rola e o ENCERRAR nunca fica fora do alcance.
+                  SizedBox(
+                    height: (limites.maxHeight * 0.42).clamp(140.0, 520.0),
+                    child: _areaDoVideo(context),
+                  ),
+                  AppSpacing.gapXl,
+                  Text(
+                    (_ligandoParaPortaria ? 'Ligação' : 'Interfone').toUpperCase(),
+                    style: AppTypography.label(context),
+                  ),
                   AppSpacing.gapXs,
-                  Text(unidade, style: AppTypography.bodySecondary(context)),
-                ],
-                AppSpacing.gapMd,
-                Row(
-                  children: [
-                    AppDot(signal: _sinalDaFase),
-                    AppSpacing.gapSm,
-                    Text(_rotuloFase.toUpperCase(), style: AppTypography.label(context)),
+                  Text(_titulo.toUpperCase(), style: AppTypography.title(context)),
+                  if (unidade.isNotEmpty) ...[
+                    AppSpacing.gapXs,
+                    Text(unidade, style: AppTypography.bodySecondary(context)),
                   ],
-                ),
-                if (_mensagem != null) ...[
                   AppSpacing.gapMd,
-                  Text(_mensagem!, key: const Key('interfone-mensagem'), style: AppTypography.strong(context)),
-                ],
-                AppSpacing.gapXl,
-                Row(
-                  children: [
-                    Expanded(
-                      child: AppButton(
-                        label: _mudo ? 'Mudo ligado' : 'Mudo',
-                        icon: _mudo ? PhosphorIcons.microphoneSlash : PhosphorIcons.microphone,
-                        variant: AppButtonVariant.secondary,
-                        onPressed: _fase == 'encerrada' ? null : _alternarMudo,
-                      ),
-                    ),
+                  Row(
+                    children: [
+                      AppDot(signal: _sinalDaFase),
+                      AppSpacing.gapSm,
+                      Text(_rotuloFase.toUpperCase(), style: AppTypography.label(context)),
+                    ],
+                  ),
+                  if (_mensagem != null) ...[
                     AppSpacing.gapMd,
-                    Expanded(
-                      child: AppButton(
-                        label: 'Alto-falante',
-                        icon: PhosphorIcons.speakerHigh,
-                        variant: _altoFalante ? AppButtonVariant.primary : AppButtonVariant.secondary,
-                        onPressed: _fase == 'encerrada' ? null : _alternarAltoFalante,
+                    Text(_mensagem!, key: const Key('interfone-mensagem'), style: AppTypography.strong(context)),
+                  ],
+                  AppSpacing.gapXl,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: AppButton(
+                          label: _mudo ? 'Mudo ligado' : 'Mudo',
+                          icon: _mudo ? PhosphorIcons.microphoneSlash : PhosphorIcons.microphone,
+                          variant: AppButtonVariant.secondary,
+                          onPressed: _fase == 'encerrada' ? null : _alternarMudo,
+                        ),
                       ),
+                      AppSpacing.gapMd,
+                      Expanded(
+                        child: AppButton(
+                          label: 'Alto-falante',
+                          icon: PhosphorIcons.speakerHigh,
+                          variant: _altoFalante ? AppButtonVariant.primary : AppButtonVariant.secondary,
+                          onPressed: _fase == 'encerrada' ? null : _alternarAltoFalante,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_ehDoFacial) ...[
+                    AppSpacing.gapMd,
+                    AppButton(
+                      label: 'Abrir portão',
+                      icon: PhosphorIcons.lockOpen,
+                      fullWidth: true,
+                      size: AppButtonSize.lg,
+                      loading: _abrindo,
+                      onPressed: _fase == 'em_chamada' ? _abrirPortao : null,
                     ),
                   ],
-                ),
-                if (_ehDoFacial) ...[
                   AppSpacing.gapMd,
                   AppButton(
-                    label: 'Abrir portão',
-                    icon: PhosphorIcons.lockOpen,
+                    label: 'Encerrar',
+                    icon: PhosphorIcons.phoneDisconnect,
                     fullWidth: true,
                     size: AppButtonSize.lg,
-                    loading: _abrindo,
-                    onPressed: _fase == 'em_chamada' ? _abrirPortao : null,
+                    variant: AppButtonVariant.danger,
+                    onPressed: _encerrarAgora,
                   ),
                 ],
-                AppSpacing.gapMd,
-                AppButton(
-                  label: 'Encerrar',
-                  icon: PhosphorIcons.phoneDisconnect,
-                  fullWidth: true,
-                  size: AppButtonSize.lg,
-                  variant: AppButtonVariant.danger,
-                  onPressed: _encerrarAgora,
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -516,6 +522,8 @@ class ChamadaNaTela {
   /// Mostra a chamada. A mesma chamada de novo não abre outra tela.
   static void mostrar(PedidoChamada p) {
     if (atual.value?.id == p.id) return;
+    // Teclado aberto embaixo não fica por cima da chamada.
+    FocusManager.instance.primaryFocus?.unfocus();
     atual.value = p;
   }
 
@@ -553,23 +561,33 @@ class PainelChamada extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<PedidoChamada?>(
       valueListenable: ChamadaNaTela.atual,
-      builder: (context, p, _) => Stack(
-        fit: StackFit.expand,
-        children: [
-          if (child != null) child!,
-          if (p != null)
-            Positioned.fill(
-              // Overlay próprio: fora do Navigator não há um para os widgets
-              // que dependem dele.
-              child: Overlay(
-                key: ValueKey<int>(p.id),
-                initialEntries: [
-                  OverlayEntry(builder: (_) => construir(p, () => ChamadaNaTela.fechar(p.id))),
-                ],
-              ),
+      builder: (context, p, _) {
+        final naTela = p != null;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            // Sempre o mesmo widget na mesma posição: o Navigator não é
+            // recriado quando a chamada entra ou sai. Com a chamada na tela,
+            // o app de baixo some do leitor de tela e para as animações.
+            ExcludeSemantics(
+              excluding: naTela,
+              child: TickerMode(enabled: !naTela, child: child ?? const SizedBox.shrink()),
             ),
-        ],
-      ),
+            if (p != null)
+              Positioned.fill(
+                child: FocusScope(
+                  autofocus: true,
+                  // Overlay próprio (fora do Navigator não há um). O
+                  // Overlay.wrap cria a entrada uma vez e a descarta no dispose.
+                  child: Overlay.wrap(
+                    key: ValueKey<int>(p.id),
+                    child: construir(p, () => ChamadaNaTela.fechar(p.id)),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

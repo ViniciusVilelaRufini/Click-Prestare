@@ -327,3 +327,11 @@ Map<String, dynamic>? getCondCachePersistent(int id) {
 bool interfoneTelaCheiaPedida() => _storage.getItem('interfone_tela_cheia_pedida') == true;
 
 void marcarInterfoneTelaCheiaPedida() => _guardar('interfone_tela_cheia_pedida', true);
+
+/// Interfone: o morador respondeu "Agora não" ao pedido de permissões; a home
+/// só pergunta de novo depois desta data.
+DateTime? interfonePermissoesAdiadasAte() =>
+    DateTime.tryParse('${_storage.getItem('interfone_permissoes_adiadas_ate') ?? ''}');
+
+void adiarInterfonePermissoes(DateTime ate) =>
+    _guardar('interfone_permissoes_adiadas_ate', ate.toUtc().toIso8601String());

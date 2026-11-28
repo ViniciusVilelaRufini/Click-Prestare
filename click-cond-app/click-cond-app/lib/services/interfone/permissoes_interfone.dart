@@ -28,6 +28,13 @@ class PermissoesInterfone {
   static bool Function() _ehAndroid = _ehAndroidPadrao;
   static bool Function() _telaCheiaJaPedida = interfoneTelaCheiaPedida;
   static void Function() _marcarTelaCheiaPedida = marcarInterfoneTelaCheiaPedida;
+  static DateTime? Function() _adiadoAte = interfonePermissoesAdiadasAte;
+  static void Function(DateTime ate) _adiar = adiarInterfonePermissoes;
+  static DateTime Function() _agora = DateTime.now;
+
+  /// "Agora não": a home só pergunta de novo depois disto (o switch sempre
+  /// pergunta).
+  static const Duration adiamento = Duration(days: 7);
 
   static bool _perguntouNestaSessao = false;
 
@@ -36,6 +43,10 @@ class PermissoesInterfone {
   /// perguntado. Nunca lança.
   static Future<void> preparar(BuildContext context, {bool doSwitch = false}) async {
     if (!doSwitch && _perguntouNestaSessao) return;
+    if (!doSwitch) {
+      final ate = _adiadoAte();
+      if (ate != null && _agora().isBefore(ate)) return;
+    }
     _perguntouNestaSessao = true;
 
     PermissionStatus? mic;
@@ -74,7 +85,10 @@ class PermissoesInterfone {
       cancelLabel: 'Agora não',
       icon: PhosphorIcons.phoneCall,
     );
-    if (!ok) return;
+    if (!ok) {
+      _adiar(_agora().add(adiamento));
+      return;
+    }
     if (precisaMic) {
       try {
         await _pedirMicrofone();
@@ -112,6 +126,9 @@ class PermissoesInterfone {
     bool Function()? ehAndroid,
     bool Function()? telaCheiaJaPedida,
     void Function()? marcarTelaCheiaPedida,
+    DateTime? Function()? adiadoAte,
+    void Function(DateTime ate)? adiar,
+    DateTime Function()? agora,
   }) {
     _perguntouNestaSessao = false;
     _statusMicrofone = statusMicrofone ?? _statusMicrofonePadrao;
@@ -121,6 +138,9 @@ class PermissoesInterfone {
     _ehAndroid = ehAndroid ?? _ehAndroidPadrao;
     _telaCheiaJaPedida = telaCheiaJaPedida ?? interfoneTelaCheiaPedida;
     _marcarTelaCheiaPedida = marcarTelaCheiaPedida ?? marcarInterfoneTelaCheiaPedida;
+    _adiadoAte = adiadoAte ?? interfonePermissoesAdiadasAte;
+    _adiar = adiar ?? adiarInterfonePermissoes;
+    _agora = agora ?? DateTime.now;
   }
 
   /// Nova sessão do app (teste): volta a perguntar.
