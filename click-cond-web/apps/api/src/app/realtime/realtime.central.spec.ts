@@ -44,15 +44,18 @@ describe('RealtimeGateway — sala central do operador', () => {
     expect(s.join).not.toHaveBeenCalledWith(SALA_CENTRAL);
   });
 
-  it('centralOnline usa fetchSockets da sala central e devolve false em erro', async () => {
+  it('centralOnline conta a sala central local e devolve false em erro', async () => {
     const gw = build();
-    const fetchSockets = jest.fn(async () => [{ id: 'a' }]);
-    (gw as any).server = { in: jest.fn(() => ({ fetchSockets })) };
+    const rooms = new Map<string, Set<string>>([['central', new Set(['a'])]]);
+    const of = jest.fn(() => ({ adapter: { rooms } }));
+    (gw as any).server = { of };
     await expect(gw.centralOnline()).resolves.toBe(true);
-    expect((gw as any).server.in).toHaveBeenCalledWith('central');
-    fetchSockets.mockResolvedValueOnce([]);
+    expect(of).toHaveBeenCalledWith('/');
+    rooms.get('central')!.clear();
     await expect(gw.centralOnline()).resolves.toBe(false);
-    fetchSockets.mockRejectedValueOnce(new Error('x'));
+    of.mockImplementationOnce(() => {
+      throw new Error('x');
+    });
     await expect(gw.centralOnline()).resolves.toBe(false);
   });
 
@@ -68,7 +71,7 @@ describe('RealtimeGateway — sala central do operador', () => {
   it('afterInit aplica o adaptador Redis quando REDIS_URL existe', async () => {
     const gw = build();
     const adaptador = jest.fn();
-    (criarAdaptadorRedis as jest.Mock).mockResolvedValue(adaptador);
+    (criarAdaptadorRedis as jest.Mock).mockResolvedValue({ adaptador, redis: {} });
     const server = { adapter: jest.fn() };
     process.env['REDIS_URL'] = 'redis://x';
     try {
@@ -100,7 +103,7 @@ describe('RealtimeGateway — sala central do operador', () => {
         const conexao = gw.handleConnection(s);
         await new Promise((r) => setTimeout(r, 0));
         expect(s.join).not.toHaveBeenCalled();
-        resolver('ADAPTADOR');
+        resolver({ adaptador: 'ADAPTADOR', redis: {} });
         await init;
         await conexao;
         expect(ordem).toEqual(['adapter', 'join:condominio:7', 'join:portaria:7']);

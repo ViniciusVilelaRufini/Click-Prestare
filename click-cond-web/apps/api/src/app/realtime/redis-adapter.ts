@@ -1,26 +1,31 @@
 import { Logger } from '@nestjs/common';
-import { createAdapter } from '@socket.io/redis-adapter';
+import { createShardedAdapter } from '@socket.io/redis-adapter';
 import { createClient } from 'redis';
+import type { ClientePresenca } from './presenca-redis';
 
 const logger = new Logger('RedisAdapter');
 
 /** Tempo máximo para a conexão inicial com o Redis antes de cair para a memória. */
 const CONEXAO_TIMEOUT_MS = 5_000;
 
-/**
- * Teto das consultas entre réplicas (fetchSockets de porteirosOnline/centralOnline). O padrão do adaptador
- * é 5 s: com o Redis fora, cada chamada nova do facial esperava isso antes de decidir para onde ir.
- */
-export const REQUESTS_TIMEOUT_MS = 2_000;
+/** Adaptador do Socket.IO e o cliente que a presença por sala usa (o `pub`, que nunca entra em modo subscribe). */
+export interface RedisTempoReal {
+  adaptador: ReturnType<typeof createShardedAdapter>;
+  redis: ClientePresenca;
+}
 
 /**
  * Adaptador Redis do Socket.IO, só quando REDIS_URL existe (aceita redis:// e rediss://).
  * Sem URL, ou se a conexão falhar, devolve null e o gateway segue com salas em memória (uma réplica).
+ *
+ * É o adaptador sharded (SSUBSCRIBE/SPUBLISH, canal por sala em modo dynamic): o ElastiCache Serverless recusa
+ * PSUBSCRIBE (`ERR unknown command 'psubscribe'`), que o createAdapter clássico exige. O fetchSockets entre
+ * réplicas não funciona lá (PUBSUB SHARDNUMSUB sempre 0): "há alguém na sala?" sai da presença (presenca-redis.ts).
  */
 export async function criarAdaptadorRedis(
   url: string | undefined,
   timeoutMs = CONEXAO_TIMEOUT_MS,
-): Promise<ReturnType<typeof createAdapter> | null> {
+): Promise<RedisTempoReal | null> {
   if (!url) return null;
   const clientes: Array<{ destroy?: () => void; disconnect?: () => unknown }> = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -37,7 +42,8 @@ export async function criarAdaptadorRedis(
       timer.unref?.();
     });
     await Promise.race([Promise.all([pub.connect(), sub.connect()]), limite]);
-    return createAdapter(pub, sub, { requestsTimeout: REQUESTS_TIMEOUT_MS });
+    const adaptador = createShardedAdapter(pub, sub, { subscriptionMode: 'dynamic' });
+    return { adaptador, redis: pub };
   } catch (err: any) {
     logger.error(`Redis indisponível, tempo real em memória: ${err?.message ?? err}`);
     for (const c of clientes) {

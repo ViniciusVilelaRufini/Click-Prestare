@@ -1,11 +1,16 @@
 const connect = jest.fn(async () => undefined);
 const destroy = jest.fn();
 const duplicate = jest.fn();
-const createClient = jest.fn((_o: any) => ({ connect, duplicate, destroy, on: jest.fn() }));
+const pub = { connect, duplicate, destroy, on: jest.fn() };
+const createClient = jest.fn((_o: any) => pub);
 duplicate.mockImplementation(() => ({ connect, destroy, on: jest.fn() }));
 jest.mock('redis', () => ({ createClient: (o: any) => createClient(o) }));
-const createAdapter = jest.fn(() => 'ADAPTADOR');
-jest.mock('@socket.io/redis-adapter', () => ({ createAdapter: (...a: any[]) => (createAdapter as any)(...a) }));
+const createAdapter = jest.fn(() => 'CLASSICO');
+const createShardedAdapter = jest.fn(() => 'ADAPTADOR');
+jest.mock('@socket.io/redis-adapter', () => ({
+  createAdapter: (...a: any[]) => (createAdapter as any)(...a),
+  createShardedAdapter: (...a: any[]) => (createShardedAdapter as any)(...a),
+}));
 
 import { criarAdaptadorRedis } from './redis-adapter';
 
@@ -18,17 +23,20 @@ describe('criarAdaptadorRedis', () => {
     expect(createClient).not.toHaveBeenCalled();
   });
 
-  it('rediss:// com cliente simulado devolve o adaptador', async () => {
-    await expect(criarAdaptadorRedis('rediss://x')).resolves.toBe('ADAPTADOR');
+  it('rediss:// com cliente simulado devolve o adaptador e o cliente da presença (o pub)', async () => {
+    await expect(criarAdaptadorRedis('rediss://x')).resolves.toEqual({ adaptador: 'ADAPTADOR', redis: pub });
     expect(createClient).toHaveBeenCalledWith({ url: 'rediss://x' });
     expect(connect).toHaveBeenCalledTimes(2);
-    expect(createAdapter).toHaveBeenCalled();
   });
 
-  it('requestsTimeout de 2 s: com o Redis fora, fetchSockets (porteiro/central online) não espera os 5 s padrão', async () => {
+  it('usa o adaptador sharded (SSUBSCRIBE/SPUBLISH) em modo dynamic: o ElastiCache Serverless recusa PSUBSCRIBE', async () => {
     await criarAdaptadorRedis('redis://x');
-    const opcoes = (createAdapter.mock.calls[0] as any[])[2];
-    expect(opcoes).toMatchObject({ requestsTimeout: 2_000 });
+    expect(createAdapter).not.toHaveBeenCalled();
+    expect(createShardedAdapter).toHaveBeenCalledTimes(1);
+    const [p, s, opcoes] = createShardedAdapter.mock.calls[0] as any[];
+    expect(p).toBe(pub);
+    expect(s).not.toBe(pub);
+    expect(opcoes).toEqual({ subscriptionMode: 'dynamic' });
   });
 
   it('erro de conexão devolve null', async () => {
@@ -44,7 +52,7 @@ describe('criarAdaptadorRedis', () => {
       await jest.advanceTimersByTimeAsync(5_100);
       await expect(p).resolves.toBeNull();
       expect(destroy).toHaveBeenCalledTimes(2);
-      expect(createAdapter).not.toHaveBeenCalled();
+      expect(createShardedAdapter).not.toHaveBeenCalled();
     } finally {
       connect.mockImplementation(async () => undefined);
       jest.useRealTimers();

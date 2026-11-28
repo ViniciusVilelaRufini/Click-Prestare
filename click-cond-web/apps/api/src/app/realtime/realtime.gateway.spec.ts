@@ -58,16 +58,19 @@ describe('RealtimeGateway — revogação da sessão', () => {
     expect(s2.join).not.toHaveBeenCalledWith('portaria:7');
   });
 
-  it('porteirosOnline consulta a sala da portaria e emitirPortaria emite nela', async () => {
+  it('porteirosOnline conta a sala da portaria local e emitirPortaria emite nela', async () => {
     const { gw } = build({ atual: false });
     const emit = jest.fn();
-    const fetchSockets = jest.fn(async () => [{ id: 'a' }]);
-    (gw as any).server = { in: jest.fn(() => ({ fetchSockets })), to: jest.fn(() => ({ emit })) };
+    const rooms = new Map<string, Set<string>>([['portaria:7', new Set(['a'])]]);
+    const of = jest.fn(() => ({ adapter: { rooms } }));
+    (gw as any).server = { of, to: jest.fn(() => ({ emit })) };
     await expect(gw.porteirosOnline(7)).resolves.toBe(true);
-    expect((gw as any).server.in).toHaveBeenCalledWith('portaria:7');
-    fetchSockets.mockResolvedValueOnce([]);
+    await expect(gw.porteirosOnline(8)).resolves.toBe(false);
+    rooms.delete('portaria:7');
     await expect(gw.porteirosOnline(7)).resolves.toBe(false);
-    fetchSockets.mockRejectedValueOnce(new Error('x'));
+    of.mockImplementationOnce(() => {
+      throw new Error('x');
+    });
     await expect(gw.porteirosOnline(7)).resolves.toBe(false);
 
     gw.emitirPortaria(7, 'interfone:fim', { id: 1 });
