@@ -253,6 +253,7 @@ describe('InterfoneConfigComponent', () => {
       botaoConfigurar(el)!.click();
       fixture.detectChanges();
       const req = http.expectOne({ method: 'POST', url: `${URL}/faciais/9/configurar` });
+      expect(req.request.body).toEqual({ forcar: false });
       expect(botaoConfigurar(el)!.disabled).toBe(true);
       expect(botaoConfigurar(el)!.textContent).toContain('Configurando');
       req.flush({ ok: true });
@@ -268,12 +269,51 @@ describe('InterfoneConfigComponent', () => {
       fixture.detectChanges();
       const res = () => el.querySelector('[data-resultado-config="9"]')?.textContent ?? '';
       expect(res()).toContain('não devolveu a configuração SIP');
-      expect(el.textContent).toContain('fac-9');
+      expect(el.textContent).toContain('fac9');
 
       botaoConfigurar(el)!.click();
       http.expectOne(`${URL}/faciais/9/configurar`).flush(null, { status: 502, statusText: 'Bad Gateway' });
       fixture.detectChanges();
       expect(res()).toContain('Não foi possível configurar');
+    });
+
+    it('parcial: avisa para clicar de novo; conflitos aparecem no card', () => {
+      const { fixture, el } = render([{ ...FACIAL, config_automatica: true }]);
+      botaoConfigurar(el)!.click();
+      http.expectOne(`${URL}/faciais/9/configurar`).flush({ ok: true, parcial: true, restantes: 15, conflitos: ['301'], avisos: [] });
+      fixture.detectChanges();
+      const res = el.querySelector('[data-resultado-config="9"]')?.textContent ?? '';
+      expect(res).toContain('Parcial: clique de novo para continuar');
+      expect(res).toContain('15');
+      expect(res).toContain('301');
+    });
+
+    it('conta SIP de outro servidor: pergunta antes; confirmando, manda de novo com forcar', async () => {
+      const { fixture, el } = render([{ ...FACIAL, config_automatica: true }]);
+      const confirm = TestBed.inject(ConfirmService) as unknown as { ask: jest.Mock };
+      botaoConfigurar(el)!.click();
+      http.expectOne(`${URL}/faciais/9/configurar`).flush({ ok: false, erro: 'sip_de_outro_servidor', servidor_atual: '10.0.0.5' });
+      await fixture.whenStable();
+      expect(confirm.ask).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('10.0.0.5') }));
+      const segunda = http.expectOne(`${URL}/faciais/9/configurar`);
+      expect(segunda.request.body).toEqual({ forcar: true });
+      segunda.flush({ ok: true, parcial: false, restantes: 0, conflitos: [], avisos: [] });
+      fixture.detectChanges();
+      expect(el.querySelector('[data-resultado-config="9"]')?.textContent).toContain('Facial configurado');
+    });
+
+    it('conta SIP de outro servidor: recusando a confirmação, nada é regravado', async () => {
+      const { fixture, el } = render([{ ...FACIAL, config_automatica: true }]);
+      const confirm = TestBed.inject(ConfirmService) as unknown as { ask: jest.Mock };
+      confirm.ask.mockResolvedValueOnce(false);
+      botaoConfigurar(el)!.click();
+      http.expectOne(`${URL}/faciais/9/configurar`).flush({ ok: false, erro: 'sip_de_outro_servidor', servidor_atual: '10.0.0.5' });
+      await fixture.whenStable();
+      http.expectNone(`${URL}/faciais/9/configurar`);
+      fixture.detectChanges();
+      const res = el.querySelector('[data-resultado-config="9"]')?.textContent ?? '';
+      expect(res).toContain('10.0.0.5');
+      expect(res).toContain('nada foi alterado');
     });
   });
 

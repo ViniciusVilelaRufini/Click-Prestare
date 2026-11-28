@@ -99,10 +99,20 @@ export interface FacialInterfone {
   config_automatica?: boolean;
 }
 
-/** Resposta de "Configurar automaticamente": falha do aparelho vem como `ok:false` com o motivo. */
+/**
+ * Resposta de "Configurar automaticamente": falha do aparelho vem como `ok:false` com o motivo.
+ * `erro:'sip_de_outro_servidor'` = o facial já usa a conta SIP de `servidor_atual` (o console pergunta antes de forçar).
+ */
 export interface ResultadoConfigFacial {
   ok: boolean;
   erro?: string;
+  servidor_atual?: string;
+  /** Ficou trabalho (prazo ou lote): clicar de novo continua de onde parou. */
+  parcial?: boolean;
+  restantes?: number;
+  /** Números que o instalador já cadastrou à mão no facial (não mexidos). */
+  conflitos?: string[];
+  avisos?: string[];
 }
 
 export interface FacialInterfoneEdicao {
@@ -192,8 +202,8 @@ export class InterfoneApi {
   }
 
   /** Agente Local grava a conta SIP e a lista telefônica no facial Intelbras. */
-  configurarFacial(id: number): Observable<ResultadoConfigFacial> {
-    return this.http.post<ResultadoConfigFacial>(`${this.base}/faciais/${id}/configurar`, {});
+  configurarFacial(id: number, forcar = false): Observable<ResultadoConfigFacial> {
+    return this.http.post<ResultadoConfigFacial>(`${this.base}/faciais/${id}/configurar`, { forcar });
   }
 
   /** CSV no modelo da Intelbras. Vem como blob: a rota exige o token, então não dá para abrir por link. */

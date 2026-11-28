@@ -252,7 +252,7 @@ export class InterfoneConfigComponent implements OnInit {
     });
   }
 
-  configurarAutomatico(f: FacialInterfone): void {
+  configurarAutomatico(f: FacialInterfone, forcar = false): void {
     if (this.configurando() !== null) return;
     this.configurando.set(f.id);
     this.resultadoConfig.update((r) => {
@@ -263,13 +263,39 @@ export class InterfoneConfigComponent implements OnInit {
       this.configurando.set(null);
       this.resultadoConfig.update((r) => ({ ...r, [f.id]: { ok, texto } }));
     };
-    this.api.configurarFacial(f.id).subscribe({
+    this.api.configurarFacial(f.id, forcar).subscribe({
       next: (r: ResultadoConfigFacial | null) => {
-        if (r?.ok) fim(true, 'Facial configurado: conta SIP e lista telefônica gravadas no aparelho.');
-        else fim(false, r?.erro?.trim() || 'O agente não conseguiu configurar o facial.');
+        if (r?.ok) {
+          fim(true, textoDoResultado(r));
+          return;
+        }
+        if (r?.erro === 'sip_de_outro_servidor' && !forcar) {
+          this.configurando.set(null);
+          void this.perguntarSubstituir(f, r.servidor_atual || 'outro servidor');
+          return;
+        }
+        fim(false, r?.erro?.trim() || 'O agente não conseguiu configurar o facial.');
       },
       error: (e: HttpErrorResponse) => fim(false, mensagem(e) ?? 'Não foi possível configurar o facial agora.'),
     });
+  }
+
+  /** O facial já usa a conta SIP de outra central (a do instalador): só substitui com confirmação. */
+  private async perguntarSubstituir(f: FacialInterfone, servidor: string): Promise<void> {
+    const ok = await this.confirm.ask({
+      title: 'Substituir a conta SIP do facial?',
+      message: `"${f.nome}" já usa a conta SIP de ${servidor}. Substituir desliga o facial dessa central (a interfonia atual para de funcionar por ele).`,
+      confirmLabel: 'Substituir',
+      variant: 'danger',
+    });
+    if (ok) {
+      this.configurarAutomatico(f, true);
+      return;
+    }
+    this.resultadoConfig.update((r) => ({
+      ...r,
+      [f.id]: { ok: false, texto: `O facial usa a conta SIP de ${servidor}; nada foi alterado.` },
+    }));
   }
 
   alternarSenha(id: number): void {
@@ -404,6 +430,18 @@ export class InterfoneConfigComponent implements OnInit {
       error: (e: HttpErrorResponse) => this.toast.error(mensagem(e) ?? 'Não foi possível remover o monitor.'),
     });
   }
+}
+
+/** Texto do card depois de um "Configurar automaticamente" que deu certo (inteiro ou parcial). */
+function textoDoResultado(r: ResultadoConfigFacial): string {
+  const partes = [
+    r.parcial
+      ? `Parcial: clique de novo para continuar${r.restantes ? ` (faltam ${r.restantes})` : ''}.`
+      : 'Facial configurado: conta SIP e lista telefônica gravadas no aparelho.',
+  ];
+  if (r.conflitos?.length) partes.push(`Já cadastrados à mão no facial (não mexidos): ${r.conflitos.join(', ')}.`);
+  if (r.avisos?.length) partes.push(r.avisos.join(' '));
+  return partes.join(' ');
 }
 
 function mensagem(e: HttpErrorResponse | null | undefined): string | null {
