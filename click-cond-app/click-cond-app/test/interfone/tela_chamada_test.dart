@@ -158,15 +158,16 @@ void main() {
     expect(encerradasNativas, [uuidDaChamada(41)]);
   });
 
-  testWidgets('abrir recusado mostra o motivo', (tester) async {
-    respostaAbrir = {'ok': false, 'motivo': 'agente offline'};
+  testWidgets('abrir recusado mostra o motivo em texto (não o código da API)', (tester) async {
+    respostaAbrir = {'ok': false, 'motivo': 'falha_ao_abrir'};
     await abrir(tester);
     sessao.mudar('em_chamada');
     await tester.pump();
     await tester.pump();
     await tester.tap(find.text('ABRIR PORTÃO'));
     await tester.pumpAndSettle();
-    expect(find.text('Não foi possível abrir: agente offline'), findsOneWidget);
+    expect(find.text('Não foi possível abrir o portão.'), findsOneWidget);
+    expect(find.textContaining('falha_ao_abrir'), findsNothing);
     await tester.tap(find.text('ENCERRAR'));
     await tester.pumpAndSettle();
   });
@@ -426,6 +427,22 @@ void main() {
     expect(mensagemDaRecusa(null), 'Não foi possível entrar na chamada');
     expect(mensagemDaRecusa('em_andamento'), 'Você já tem uma ligação em andamento.');
     expect(mensagemDaRecusa('indisponivel'), 'Interfone indisponível no momento.');
+    expect(mensagemDaRecusa('modulo_desligado'), 'O interfone não está ligado neste condomínio.');
+  });
+
+  test('mensagens do abrir: todo motivo da API vira texto em pt-BR', () {
+    expect(mensagemDoAbrir('chamada_nao_encontrada'), 'A chamada já terminou.');
+    expect(mensagemDoAbrir('chamada_nao_atendida'), 'A chamada não está mais em conversa.');
+    expect(mensagemDoAbrir('atendida_por_outro'), 'Outra pessoa atendeu esta chamada.');
+    expect(mensagemDoAbrir('sem_portao'), 'Esta chamada não tem portão para abrir.');
+    expect(mensagemDoAbrir('indisponivel'), 'Abertura do portão indisponível agora.');
+    expect(mensagemDoAbrir('falha_ao_abrir'), 'Não foi possível abrir o portão.');
+    expect(mensagemDoAbrir('chamada_expirada'), 'A chamada já terminou.');
+    expect(mensagemDoAbrir('aguarde'), 'Aguarde alguns segundos para abrir de novo.');
+    expect(mensagemDoAbrir('modulo_desligado'), 'O interfone não está ligado neste condomínio.');
+    expect(mensagemDoAbrir('sem conexão'), 'Sem conexão. Tente de novo.');
+    expect(mensagemDoAbrir('codigo_novo'), 'Não foi possível abrir o portão.');
+    expect(mensagemDoAbrir(null), 'Não foi possível abrir o portão.');
   });
 
   test('ICE do contrato vira um servidor por URL no sip_ua', () {

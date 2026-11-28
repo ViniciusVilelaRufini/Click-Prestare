@@ -30,8 +30,36 @@ String mensagemDaRecusa(String? motivo) {
       return 'Você já tem uma ligação em andamento.';
     case 'indisponivel':
       return 'Interfone indisponível no momento.';
+    case 'modulo_desligado':
+      return 'O interfone não está ligado neste condomínio.';
     default:
       return 'Não foi possível entrar na chamada';
+  }
+}
+
+/// Texto da recusa do "abrir portão" (`{ok: false, motivo}` da API ou erro
+/// HTTP). Motivo desconhecido nunca aparece cru: vira a mensagem genérica.
+String mensagemDoAbrir(String? motivo) {
+  switch (motivo) {
+    case 'chamada_nao_encontrada':
+    case 'chamada_expirada':
+      return 'A chamada já terminou.';
+    case 'chamada_nao_atendida':
+      return 'A chamada não está mais em conversa.';
+    case 'atendida_por_outro':
+      return 'Outra pessoa atendeu esta chamada.';
+    case 'sem_portao':
+      return 'Esta chamada não tem portão para abrir.';
+    case 'indisponivel':
+      return 'Abertura do portão indisponível agora.';
+    case 'aguarde':
+      return 'Aguarde alguns segundos para abrir de novo.';
+    case 'modulo_desligado':
+      return 'O interfone não está ligado neste condomínio.';
+    case 'sem conexão':
+      return 'Sem conexão. Tente de novo.';
+    default:
+      return 'Não foi possível abrir o portão.';
   }
 }
 
@@ -302,7 +330,7 @@ class TelaChamadaState extends State<TelaChamada> {
     if (!mounted) return;
     setState(() {
       _abrindo = false;
-      _mensagem = r.ok ? 'Portão aberto' : 'Não foi possível abrir: ${r.motivo ?? 'tente de novo'}';
+      _mensagem = r.ok ? 'Portão aberto' : mensagemDoAbrir(r.motivo);
     });
   }
 

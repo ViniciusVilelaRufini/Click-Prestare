@@ -31,7 +31,28 @@ const MOTIVOS: Record<string, string> = {
   indisponivel: 'Interfone indisponível no momento.',
   sem_app: 'Ninguém dessa unidade recebe chamadas pelo app.',
   portaria_indisponivel: 'Portaria indisponível agora.',
+  modulo_desligado: 'O interfone não está ligado neste condomínio.',
 };
+
+const FALHA_ABRIR = 'Não foi possível abrir o portão.';
+
+/** Motivos do `{ ok: false, motivo }` do abrir (contrato da API) em texto para o porteiro. */
+const MOTIVOS_ABRIR: Record<string, string> = {
+  chamada_nao_encontrada: 'A chamada já terminou.',
+  chamada_nao_atendida: 'A chamada não está mais em conversa.',
+  atendida_por_outro: 'Outra pessoa atendeu esta chamada.',
+  sem_portao: 'Esta chamada não tem portão para abrir.',
+  indisponivel: 'Abertura do portão indisponível agora.',
+  falha_ao_abrir: FALHA_ABRIR,
+  chamada_expirada: 'A chamada já terminou.',
+  aguarde: 'Aguarde alguns segundos para abrir de novo.',
+  modulo_desligado: MOTIVOS['modulo_desligado'],
+};
+
+/** Texto da recusa do abrir. Motivo desconhecido nunca aparece cru: vira a mensagem genérica. */
+export function mensagemDoAbrir(motivo: unknown): string {
+  return typeof motivo === 'string' && Object.hasOwn(MOTIVOS_ABRIR, motivo) ? MOTIVOS_ABRIR[motivo] : FALHA_ABRIR;
+}
 
 /**
  * Estado do interfone no console da portaria. Só existe para login de porteiro com o módulo ligado
@@ -249,12 +270,11 @@ export class InterfoneStore {
     this.api.abrir(c.id).subscribe({
       next: (r) => {
         this.abrindo.set(false);
-        this.mostrarAviso(r?.ok ? 'Portão aberto.' : `Não foi possível abrir${r?.motivo ? ': ' + r.motivo : '.'}`);
+        this.mostrarAviso(r?.ok ? 'Portão aberto.' : mensagemDoAbrir(r?.motivo));
       },
       error: (e: HttpErrorResponse) => {
         this.abrindo.set(false);
-        const motivo = e?.error?.motivo ?? mensagemDaApi(e);
-        this.mostrarAviso(`Não foi possível abrir${motivo ? ': ' + motivo : '.'}`);
+        this.mostrarAviso(mensagemDoAbrir(e?.error?.motivo));
       },
     });
   }

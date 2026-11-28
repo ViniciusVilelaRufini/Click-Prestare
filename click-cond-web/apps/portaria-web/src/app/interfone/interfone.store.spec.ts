@@ -430,14 +430,40 @@ describe('InterfoneStore', () => {
       expect(store.aviso()).toBe('Portão aberto.');
     });
 
-    it('recusa da API mostra o motivo', async () => {
-      api.abrir.mockReturnValueOnce(of({ ok: false, motivo: 'Agente fora do ar' }) as never);
+    it.each([
+      ['chamada_nao_encontrada', 'A chamada já terminou.'],
+      ['chamada_nao_atendida', 'A chamada não está mais em conversa.'],
+      ['atendida_por_outro', 'Outra pessoa atendeu esta chamada.'],
+      ['sem_portao', 'Esta chamada não tem portão para abrir.'],
+      ['indisponivel', 'Abertura do portão indisponível agora.'],
+      ['falha_ao_abrir', 'Não foi possível abrir o portão.'],
+      ['chamada_expirada', 'A chamada já terminou.'],
+      ['aguarde', 'Aguarde alguns segundos para abrir de novo.'],
+      ['codigo_novo_da_api', 'Não foi possível abrir o portão.'],
+    ])('recusa %s da API vira texto em pt-BR (nunca o código cru)', async (motivo, texto) => {
+      api.abrir.mockReturnValueOnce(of({ ok: false, motivo }) as never);
       rt.emitir('interfone:chamada', CHAMADA_FACIAL);
       await store.atender(41);
       sip.ultima!.atender();
       store.abrir();
       await tique();
-      expect(store.aviso()).toBe('Não foi possível abrir: Agente fora do ar');
+      expect(store.aviso()).toBe(texto);
+    });
+
+    it('erro HTTP do abrir: 403 do módulo desligado vira texto; sem corpo, a mensagem genérica', async () => {
+      api.abrir.mockReturnValueOnce(
+        throwError(() => new HttpErrorResponse({ status: 403, error: { motivo: 'modulo_desligado', message: 'x' } })) as never,
+      );
+      rt.emitir('interfone:chamada', CHAMADA_FACIAL);
+      await store.atender(41);
+      sip.ultima!.atender();
+      store.abrir();
+      await tique();
+      expect(store.aviso()).toBe('O interfone não está ligado neste condomínio.');
+      api.abrir.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 0 })) as never);
+      store.abrir();
+      await tique();
+      expect(store.aviso()).toBe('Não foi possível abrir o portão.');
     });
 
     it('antes de a conversa começar não abre', async () => {
