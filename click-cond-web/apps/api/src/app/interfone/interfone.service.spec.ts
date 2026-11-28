@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { InterfoneService } from './interfone.service';
 
 /**
@@ -8,7 +9,9 @@ const AGORA = Date.UTC(2026, 10, 27, 17, 5, 0); // 14:05 em Brasília
 
 type Linha = Record<string, any>;
 
-function bancoFalso(opts: { cond?: Partial<Linha>; facial?: Partial<Linha>; aptos?: Linha[]; vinculos?: Linha[] } = {}) {
+function bancoFalso(
+  opts: { cond?: Partial<Linha>; facial?: Partial<Linha>; aptos?: Linha[]; vinculos?: Linha[]; agenda?: Linha[] } = {},
+) {
   const cond: Linha = {
     id: 1,
     nome: 'Residencial Teste',
@@ -45,6 +48,8 @@ function bancoFalso(opts: { cond?: Partial<Linha>; facial?: Partial<Linha>; apto
   const moradores: Linha[] = [];
   const monitores: Linha[] = [];
   const chamadas: Linha[] = [];
+  const agenda: Linha[] = opts.agenda ?? [];
+  const operadores: Linha[] = [{ id: 21, nome: 'Olga Central' }];
 
   const casa = (l: Linha, w: Linha): boolean =>
     Object.entries(w).every(([k, v]) => {
@@ -70,6 +75,15 @@ function bancoFalso(opts: { cond?: Partial<Linha>; facial?: Partial<Linha>; apto
     };
 
   const prisma: any = {
+    condominios: {
+      findUnique: jest.fn(async ({ where }: any) => (where.id === cond.id ? cond : null)),
+    },
+    portaria_Agenda: {
+      findMany: jest.fn(async ({ where }: any) => agenda.filter((a) => casa(a, where))),
+    },
+    central_Operadores: {
+      findUnique: jest.fn(async ({ where }: any) => operadores.find((o) => o.id === where.id) ?? null),
+    },
     facial_Devices: {
       findFirst: jest.fn(async ({ where }: any) => {
         const f = faciais.find((x) => x.id === where.id);
@@ -141,10 +155,10 @@ function bancoFalso(opts: { cond?: Partial<Linha>; facial?: Partial<Linha>; apto
       findMany: jest.fn(async ({ where, take }: any) => chamadas.filter((c) => casa(c, where)).slice(0, take).map(comRel)),
     },
   };
-  return { prisma, cond, faciais, aptos, vinculos, usuarios, porteiros, moradores, monitores, chamadas };
+  return { prisma, cond, faciais, aptos, vinculos, usuarios, porteiros, moradores, monitores, chamadas, agenda };
 }
 
-function montar(banco = bancoFalso(), online = true, opcoes: { esperarSegundoPlano?: boolean } = {}) {
+function montar(banco = bancoFalso(), online = true, opcoes: { esperarSegundoPlano?: boolean; central?: boolean } = {}) {
   const push = {
     tocar: jest.fn(async () => ({ tocou: 1, semApp: 0, ids: [7] })),
     fim: jest.fn(async () => undefined),
@@ -158,6 +172,8 @@ function montar(banco = bancoFalso(), online = true, opcoes: { esperarSegundoPla
   const realtime = {
     porteirosOnline: jest.fn(async () => online),
     emitirPortaria: jest.fn(),
+    centralOnline: jest.fn(async () => opcoes.central ?? false),
+    emitirCentral: jest.fn(),
   };
   const svc = new InterfoneService(banco.prisma, push as any, voz as any, realtime as any);
   svc.agora = () => AGORA;
@@ -235,7 +251,7 @@ describe('InterfoneService.novaChamadaFacial', () => {
   it('cria a chamada chamando e toca os moradores com unidade, portão e condomínio', async () => {
     const { svc, push, chamadas } = montar();
     const r = await svc.novaChamadaFacial('fac-12', '106');
-    expect(r).toEqual({ ok: true, id: 1, toque_s: 30, monitores: [] });
+    expect(r).toEqual({ ok: true, id: 1, tipo: 'facial_unidade', estado: 'chamando', toque_s: 30, monitores: [] });
     expect(chamadas[0]).toMatchObject({
       id_condominio: 1,
       tipo: 'facial_unidade',
@@ -330,7 +346,14 @@ describe('InterfoneService.novaChamadaFacial', () => {
   it('responde ao serviço sem esperar o push (APNs lento não derruba a chamada)', async () => {
     const { svc, push, chamadas } = montar(bancoFalso(), true, { esperarSegundoPlano: false });
     push.tocar.mockImplementationOnce(nunca);
-    await expect(svc.novaChamadaFacial('fac-12', '106')).resolves.toEqual({ ok: true, id: 1, toque_s: 30, monitores: [] });
+    await expect(svc.novaChamadaFacial('fac-12', '106')).resolves.toEqual({
+      ok: true,
+      id: 1,
+      tipo: 'facial_unidade',
+      estado: 'chamando',
+      toque_s: 30,
+      monitores: [],
+    });
     expect(chamadas[0].estado).toBe('chamando');
   });
 
@@ -749,5 +772,260 @@ describe('InterfoneService.fecharOrfas (serviço de voz reiniciou e perdeu o enc
     push.tocar.mockResolvedValueOnce({ tocou: 1, semApp: 1, ids: [7] } as any);
     await svc.novaChamadaFacial('fac-12', '106');
     expect(JSON.parse(chamadas[0].tocou_ids)).toEqual([7]);
+  });
+});
+
+describe('InterfoneService — destino da portaria (local ou central)', () => {
+  // AGORA é sexta (dia 5) às 14:05 em Brasília.
+  const FAIXA_CENTRAL = { id: 1, id_condominio: 1, dia_semana: 5, inicio: '00:00', fim: '24:00', destino: 'central' };
+  const comCentral = (cond: Partial<Linha> = {}, agenda: Linha[] = [FAIXA_CENTRAL]) =>
+    bancoFalso({ cond: { central_contratada: 1, interfone_numero_portaria: '0', ...cond }, agenda });
+  const EVENTO_CENTRAL = {
+    id: 1,
+    tipo: 'facial_unidade',
+    unidade: 'Bloco A · Apto 106',
+    morador_nome: null,
+    foto_url: null,
+    id_condominio: 1,
+    condominio: 'Residencial Teste',
+    portao: 'Portão social',
+    criada_em: new Date(AGORA).toISOString(),
+  };
+  const chamadasNaPortaria = (realtime: { emitirPortaria: jest.Mock }) =>
+    realtime.emitirPortaria.mock.calls.filter((c: any[]) => c[1] === 'interfone:chamada');
+
+  let warn: jest.SpyInstance;
+  let log: jest.SpyInstance;
+  beforeEach(() => {
+    warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    log = jest.spyOn(console, 'log').mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    warn.mockRestore();
+    log.mockRestore();
+  });
+  const registrouSemOperador = () => warn.mock.calls.some((c: any[]) => String(c[0]).includes('[central] sem_operador'));
+
+  it('central_contratada=0: toque esgotado segue a regra de hoje', async () => {
+    const banco = bancoFalso({ cond: { central_contratada: 0, interfone_transferir: 0 }, agenda: [FAIXA_CENTRAL] });
+    const { svc, realtime, prisma, chamadas } = montar(banco, true, { central: true });
+    await svc.novaChamadaFacial('fac-12', '106');
+    await expect(svc.evento(1, { evento: 'toque_esgotado' })).resolves.toEqual({ proximo: 'encerrar' });
+    expect(chamadas[0].estado).toBe('chamando');
+    expect(realtime.emitirCentral).not.toHaveBeenCalled();
+    expect(chamadasNaPortaria(realtime)).toHaveLength(0);
+    // Sem central contratada nem se consulta a agenda.
+    expect(prisma.portaria_Agenda.findMany).not.toHaveBeenCalled();
+    expect(realtime.centralOnline).not.toHaveBeenCalled();
+  });
+
+  it('destino central com interfone_transferir=0 transfere mesmo assim e emite na sala central', async () => {
+    const { svc, realtime, push, chamadas } = montar(comCentral({ interfone_transferir: 0 }), false, { central: true });
+    await svc.novaChamadaFacial('fac-12', '106');
+    await expect(svc.evento(1, { evento: 'toque_esgotado' })).resolves.toEqual({ proximo: 'portaria' });
+    expect(chamadas[0]).toMatchObject({ estado: 'portaria', motivo_portaria: 'nao_atendeu' });
+    expect(realtime.emitirCentral).toHaveBeenCalledWith('interfone:chamada', { ...EVENTO_CENTRAL, motivo: 'nao_atendeu' });
+    // Porteiro offline: nada na sala do prédio.
+    expect(chamadasNaPortaria(realtime)).toHaveLength(0);
+    expect(push.fim).toHaveBeenCalledWith(1, [7]);
+  });
+
+  it('destino central com porteiro online emite nas duas salas', async () => {
+    const { svc, realtime } = montar(comCentral(), true, { central: true });
+    await svc.novaChamadaFacial('fac-12', '106');
+    await expect(svc.evento(1, { evento: 'toque_esgotado' })).resolves.toEqual({ proximo: 'portaria' });
+    expect(realtime.emitirPortaria).toHaveBeenCalledWith(1, 'interfone:chamada', {
+      id: 1,
+      tipo: 'facial_unidade',
+      unidade: 'Bloco A · Apto 106',
+      motivo: 'nao_atendeu',
+      morador_nome: null,
+      foto_url: null,
+    });
+    expect(realtime.emitirCentral).toHaveBeenCalledWith('interfone:chamada', { ...EVENTO_CENTRAL, motivo: 'nao_atendeu' });
+  });
+
+  it('destino central com porteiro online e central vazia ainda vai para a portaria do prédio', async () => {
+    const { svc, realtime } = montar(comCentral(), true, { central: false });
+    await svc.novaChamadaFacial('fac-12', '106');
+    await expect(svc.evento(1, { evento: 'toque_esgotado' })).resolves.toEqual({ proximo: 'portaria' });
+    expect(chamadasNaPortaria(realtime)).toHaveLength(1);
+    expect(realtime.emitirCentral).toHaveBeenCalledWith('interfone:chamada', expect.objectContaining({ id: 1 }));
+  });
+
+  it('destino central sem ninguém online encerra e registra sem_operador', async () => {
+    // Sem faixa na agenda e sem porteiro: a salvaguarda manda para a central, que também está vazia.
+    const { svc, realtime, chamadas } = montar(comCentral({}, []), false, { central: false });
+    await svc.novaChamadaFacial('fac-12', '106');
+    await expect(svc.evento(1, { evento: 'toque_esgotado' })).resolves.toEqual({ proximo: 'encerrar' });
+    expect(chamadas[0].estado).toBe('chamando');
+    expect(realtime.emitirCentral).not.toHaveBeenCalledWith('interfone:chamada', expect.anything());
+    expect(warn).toHaveBeenCalledWith('[central] sem_operador condominio=1 chamada=1');
+    const emf = log.mock.calls.map((c: any[]) => JSON.parse(c[0])).find((j: any) => j.CentralSemOperador === 1);
+    expect(emf).toEqual({
+      _aws: {
+        Timestamp: expect.any(Number),
+        CloudWatchMetrics: [{ Namespace: 'Prestare/Interfone', Dimensions: [[]], Metrics: [{ Name: 'CentralSemOperador', Unit: 'Count' }] }],
+      },
+      CentralSemOperador: 1,
+      condominio: 1,
+      chamada: 1,
+    });
+  });
+
+  it('agenda ilegível em condomínio da central: toca em todo lugar (central)', async () => {
+    const banco = comCentral({ interfone_transferir: 0 }, []);
+    banco.prisma.portaria_Agenda.findMany.mockRejectedValueOnce(new Error('banco fora'));
+    const { svc, realtime } = montar(banco, true, { central: true });
+    await svc.novaChamadaFacial('fac-12', '106');
+    await expect(svc.evento(1, { evento: 'toque_esgotado' })).resolves.toEqual({ proximo: 'portaria' });
+    expect(chamadasNaPortaria(realtime)).toHaveLength(1);
+    expect(realtime.emitirCentral).toHaveBeenCalledWith('interfone:chamada', expect.objectContaining({ id: 1 }));
+  });
+
+  it('todos recusaram em condomínio central vai para a central', async () => {
+    const { svc, realtime, voz, chamadas } = montar(comCentral({ interfone_transferir: 0 }), false, { central: true });
+    await svc.novaChamadaFacial('fac-12', '106');
+    chamadas[0].recusas = JSON.stringify([7]);
+    await svc.avaliarRecusas(1);
+    expect(chamadas[0]).toMatchObject({ estado: 'portaria', motivo_portaria: 'recusou' });
+    expect(realtime.emitirCentral).toHaveBeenCalledWith('interfone:chamada', { ...EVENTO_CENTRAL, motivo: 'recusou' });
+    expect(voz.portaria).toHaveBeenCalledWith(1);
+    expect(voz.encerrar).not.toHaveBeenCalled();
+  });
+
+  it('todos recusaram em condomínio central sem ninguém online: recusada e registra sem_operador', async () => {
+    const { svc, realtime, voz, chamadas } = montar(comCentral(), false, { central: false });
+    await svc.novaChamadaFacial('fac-12', '106');
+    chamadas[0].recusas = JSON.stringify([7]);
+    await svc.avaliarRecusas(1);
+    expect(chamadas[0]).toMatchObject({ estado: 'encerrada', resultado: 'recusada' });
+    expect(voz.encerrar).toHaveBeenCalledWith(1);
+    expect(voz.portaria).not.toHaveBeenCalled();
+    expect(realtime.emitirCentral).not.toHaveBeenCalledWith('interfone:chamada', expect.anything());
+    expect(registrouSemOperador()).toBe(true);
+  });
+
+  it('sem app em condomínio central com interfone_transferir=0 vai para a central', async () => {
+    const { svc, push, voz, realtime, chamadas } = montar(comCentral({ interfone_transferir: 0 }), false, { central: true });
+    push.tocar.mockResolvedValueOnce({ tocou: 0, semApp: 1, ids: [] } as any);
+    await svc.novaChamadaFacial('fac-12', '106');
+    await soltar();
+    expect(chamadas[0]).toMatchObject({ estado: 'portaria', motivo_portaria: 'sem_app' });
+    expect(realtime.emitirCentral).toHaveBeenCalledWith('interfone:chamada', { ...EVENTO_CENTRAL, motivo: 'sem_app' });
+    expect(voz.portaria).toHaveBeenCalledWith(1);
+  });
+
+  it('sem app em condomínio central sem ninguém online: segue tocando e só o toque esgotado registra sem_operador', async () => {
+    const { svc, push, voz, chamadas } = montar(comCentral(), false, { central: false });
+    push.tocar.mockResolvedValueOnce({ tocou: 0, semApp: 1, ids: [] } as any);
+    await svc.novaChamadaFacial('fac-12', '106');
+    await soltar();
+    expect(chamadas[0]).toMatchObject({ estado: 'chamando', motivo_portaria: 'sem_app' });
+    expect(voz.portaria).not.toHaveBeenCalled();
+    expect(registrouSemOperador()).toBe(false);
+    await expect(svc.evento(1, { evento: 'toque_esgotado' })).resolves.toEqual({ proximo: 'encerrar' });
+    expect(warn.mock.calls.filter((c: any[]) => String(c[0]).includes('[central] sem_operador'))).toHaveLength(1);
+  });
+
+  it('discar o número da portaria cria facial_portaria em estado portaria sem apartamento', async () => {
+    const { svc, push, realtime, chamadas } = montar(bancoFalso({ cond: { interfone_numero_portaria: '0' } }), true);
+    await expect(svc.novaChamadaFacial('fac-12', '0')).resolves.toEqual({
+      ok: true,
+      id: 1,
+      tipo: 'facial_portaria',
+      estado: 'portaria',
+      toque_s: 0,
+      monitores: [],
+    });
+    expect(chamadas[0]).toMatchObject({
+      id_condominio: 1,
+      tipo: 'facial_portaria',
+      estado: 'portaria',
+      id_facial: 12,
+      numero_discado: '0',
+      motivo_portaria: 'portaria',
+    });
+    expect(chamadas[0].id_apartamento ?? null).toBeNull();
+    expect(push.tocar).not.toHaveBeenCalled();
+    expect(realtime.emitirPortaria).toHaveBeenCalledWith(1, 'interfone:chamada', {
+      id: 1,
+      tipo: 'facial_portaria',
+      unidade: '',
+      motivo: 'portaria',
+      morador_nome: null,
+      foto_url: null,
+    });
+    expect(realtime.emitirCentral).not.toHaveBeenCalled();
+    await expect(svc.dadosParaServico(1)).resolves.toEqual({
+      id: 1,
+      tipo: 'facial_portaria',
+      estado: 'portaria',
+      toque_s: 0,
+      toque_portaria_s: 45,
+      monitores: [],
+    });
+  });
+
+  it('número da portaria em horário da central toca na central (e não no prédio sem porteiro)', async () => {
+    const { svc, realtime } = montar(comCentral(), false, { central: true });
+    await expect(svc.novaChamadaFacial('fac-12', '0')).resolves.toMatchObject({ ok: true, tipo: 'facial_portaria', estado: 'portaria' });
+    expect(realtime.emitirCentral).toHaveBeenCalledWith('interfone:chamada', {
+      ...EVENTO_CENTRAL,
+      tipo: 'facial_portaria',
+      unidade: '',
+      motivo: 'portaria',
+    });
+    expect(chamadasNaPortaria(realtime)).toHaveLength(0);
+  });
+
+  it('número da portaria sem ninguém online responde indisponivel', async () => {
+    const local = montar(bancoFalso({ cond: { interfone_numero_portaria: '0' } }), false, { central: true });
+    await expect(local.svc.novaChamadaFacial('fac-12', '0')).resolves.toEqual({ ok: false, motivo: 'indisponivel' });
+    expect(local.chamadas).toHaveLength(0);
+    expect(local.realtime.centralOnline).not.toHaveBeenCalled();
+
+    const central = montar(comCentral(), false, { central: false });
+    await expect(central.svc.novaChamadaFacial('fac-12', '0')).resolves.toEqual({ ok: false, motivo: 'indisponivel' });
+    expect(central.chamadas).toHaveLength(0);
+    expect(registrouSemOperador()).toBe(true);
+  });
+
+  it('ramal comum continua facial_unidade', async () => {
+    const { svc, push, chamadas } = montar(comCentral(), true, { central: true });
+    await expect(svc.novaChamadaFacial('fac-12', '106')).resolves.toEqual({
+      ok: true,
+      id: 1,
+      tipo: 'facial_unidade',
+      estado: 'chamando',
+      toque_s: 30,
+      monitores: [],
+    });
+    expect(chamadas[0]).toMatchObject({ tipo: 'facial_unidade', estado: 'chamando', id_apartamento: 100 });
+    expect(push.tocar).toHaveBeenCalled();
+  });
+
+  it('operador da central atende: grava o nome do operador e aceita atendida_central', async () => {
+    const { svc, chamadas } = montar(comCentral(), false, { central: true });
+    await svc.novaChamadaFacial('fac-12', '0');
+    await svc.evento(1, { evento: 'atendida', papel: 'central', uid: 21 });
+    expect(chamadas[0]).toMatchObject({ estado: 'atendida', atendida_por_tipo: 'central', atendida_por_id: 21, atendida_por_nome: 'Olga Central' });
+    await expect(svc.evento(1, { evento: 'encerrada', resultado: 'atendida_central', duracao_s: 20 })).resolves.toEqual({ ok: true });
+    expect(chamadas[0]).toMatchObject({ estado: 'encerrada', resultado: 'atendida_central' });
+  });
+
+  it('fim da chamada sai também na sala central (só em condomínio da central)', async () => {
+    const central = montar(comCentral(), true, { central: true });
+    await central.svc.novaChamadaFacial('fac-12', '106');
+    await central.svc.evento(1, { evento: 'atendida', papel: 'morador', uid: 7 });
+    expect(central.realtime.emitirCentral).toHaveBeenCalledWith('interfone:fim', { id: 1 });
+    await central.svc.novaChamadaFacial('fac-12', '106');
+    await central.svc.evento(2, { evento: 'encerrada', resultado: 'cancelada', duracao_s: 3 });
+    expect(central.realtime.emitirCentral).toHaveBeenCalledWith('interfone:fim', { id: 2 });
+
+    const local = montar(bancoFalso(), true, { central: true });
+    await local.svc.novaChamadaFacial('fac-12', '106');
+    await local.svc.evento(1, { evento: 'encerrada', resultado: 'cancelada', duracao_s: 3 });
+    expect(local.realtime.emitirCentral).not.toHaveBeenCalled();
   });
 });

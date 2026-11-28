@@ -36,10 +36,36 @@ export const RESERVA_ATENDER_MS = 15_000;
 export const TOQUE_APTO_S = [15, 60, 30] as const;
 export const TOQUE_PORTARIA_S = [15, 120, 45] as const;
 
-export const RESULTADOS = ['atendida_morador', 'atendida_portaria', 'nao_atendida', 'recusada', 'falha', 'cancelada'] as const;
+export const RESULTADOS = [
+  'atendida_morador',
+  'atendida_portaria',
+  'atendida_central',
+  'nao_atendida',
+  'recusada',
+  'falha',
+  'cancelada',
+] as const;
 export type ResultadoChamada = (typeof RESULTADOS)[number];
-/** Quem pode "entrar" numa chamada pelo serviço de voz (o monitor IP também atende). */
-const PAPEIS_ATENDE = ['morador', 'portaria', 'monitor'] as const;
+/** Quem pode "entrar" numa chamada pelo serviço de voz (o monitor IP e o operador da central também atendem). */
+const PAPEIS_ATENDE = ['morador', 'portaria', 'monitor', 'central'] as const;
+
+/** Por que a chamada do facial está na portaria (`portaria`: o visitante discou o número da portaria). */
+export type MotivoPortaria = 'nao_atendeu' | 'recusou' | 'sem_app' | 'portaria';
+
+/** Payload de `interfone:chamada` na sala `central` (o operador atende vários condomínios). */
+export interface ChamadaCentralEvento {
+  id: number;
+  tipo: string;
+  unidade: string;
+  motivo: string | null;
+  morador_nome: string | null;
+  foto_url: string | null;
+  id_condominio: number;
+  condominio: string;
+  portao: string | null;
+  /** ISO 8601. */
+  criada_em: string;
+}
 
 export type EventoServico =
   /** `nome`: o do token de voz (o serviço repassa); reserva para quando o banco não tem o nome. */
@@ -48,7 +74,14 @@ export type EventoServico =
   | { evento: 'encerrada'; resultado: string; duracao_s: number };
 
 export type NovaChamadaFacial =
-  | { ok: true; id: number; toque_s: number; monitores: string[] }
+  | {
+      ok: true;
+      id: number;
+      tipo: 'facial_unidade' | 'facial_portaria';
+      estado: 'chamando' | 'portaria';
+      toque_s: number;
+      monitores: string[];
+    }
   | { ok: false; motivo: 'nao_encontrado' | 'indisponivel' | 'limite' };
 
 /** Foto do visitante pelo facial (Task A6). Nunca deve atrasar o toque. */
@@ -71,7 +104,15 @@ export function horaBrasiliaHHMM(d: Date): string {
 
 const INCLUDE_CHAMADA = {
   condominio: {
-    select: { id: true, nome: true, interfone_transferir: true, interfone_toque_apto_s: true, interfone_toque_portaria_s: true },
+    select: {
+      id: true,
+      nome: true,
+      interfone_transferir: true,
+      interfone_toque_apto_s: true,
+      interfone_toque_portaria_s: true,
+      central_contratada: true,
+      interfone_numero_portaria: true,
+    },
   },
   apartamento: { select: { id: true, apto: true, bloco: true } },
   facial: { select: { id: true, nome: true, interfone_dtmf: true } },
@@ -296,6 +337,8 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
             interfone_ativo: true,
             interfone_toque_apto_s: true,
             interfone_transferir: true,
+            central_contratada: true,
+            interfone_numero_portaria: true,
           },
         },
       },
@@ -322,6 +365,9 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     if (doFacial + this.errosRecentes(facial.id, agora) >= LIMITE_POR_FACIAL_MIN) return { ok: false, motivo: 'limite' };
 
     const num = String(numero ?? '').trim();
+    // "0 = portaria": antes do ramal (o número da portaria não é de unidade).
+    const numPortaria = String(cond.interfone_numero_portaria ?? '').trim();
+    if (numPortaria && num === numPortaria) return this.chamadaParaPortaria(facial, cond, num, agora);
     if (!ramalValido(num)) return this.naoEncontrado(facial.id, agora);
 
     const apto = await this.prisma.apartamentos.findFirst({
@@ -374,32 +420,75 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
           where: { id: chamada.id, motivo_portaria: null },
           data: { motivo_portaria: 'sem_app' },
         });
-        if (cond.interfone_transferir === 1) await this.transferirSemApp(chamada.id, facial.id_condominio, unidade);
+        await this.transferirSemApp(chamada.id);
       }
     });
 
-    return { ok: true, id: chamada.id, toque_s: limitar(cond.interfone_toque_apto_s, TOQUE_APTO_S), monitores };
+    return {
+      ok: true,
+      id: chamada.id,
+      tipo: 'facial_unidade',
+      estado: 'chamando',
+      toque_s: limitar(cond.interfone_toque_apto_s, TOQUE_APTO_S),
+      monitores,
+    };
   }
 
   /**
-   * Sem ninguém para tocar: se o condomínio transfere e há porteiro no
-   * console, marca `portaria`, avisa o console e pede ao serviço para tocar
-   * lá (em segundo plano: o serviço ainda não recebeu o id). Sem porteiro,
-   * deixa tocar — o toque esgota e o serviço encerra com "ninguém atendeu".
+   * O visitante discou o número da portaria: a chamada nasce em `portaria`,
+   * sem unidade e sem tocar morador. Destino `local` exige porteiro no
+   * console; `central`, porteiro ou operador conectado. Ninguém → indisponível
+   * (o facial ouve a mensagem e desliga).
    */
-  private async transferirSemApp(id: number, idCondominio: number, unidade: string) {
-    if (!(await this.porteirosOnline(idCondominio))) return;
-    const r = await this.prisma.interfone_Chamadas.updateMany({ where: { id, estado: 'chamando' }, data: { estado: 'portaria' } });
-    if (r.count === 0) return;
-    this.liberarReserva(id);
-    this.realtime?.emitirPortaria(idCondominio, 'interfone:chamada', {
-      id,
-      tipo: 'facial_unidade',
-      unidade,
-      motivo: 'sem_app',
-      morador_nome: null,
-      foto_url: null,
+  private async chamadaParaPortaria(
+    facial: { id: number; id_condominio: number; [k: string]: unknown },
+    cond: { central_contratada?: number | null },
+    num: string,
+    agora: number,
+  ): Promise<NovaChamadaFacial> {
+    const idCondominio = facial.id_condominio;
+    const destino = await this.destinoDoCondominio(idCondominio, cond.central_contratada);
+    const porteiro = await this.porteirosOnline(idCondominio);
+    if (!porteiro && (destino === 'local' || !(await this.centralOnline()))) {
+      if (destino === 'central') this.registrarSemOperador(idCondominio, null);
+      return { ok: false, motivo: 'indisponivel' };
+    }
+
+    const chamada = await this.prisma.interfone_Chamadas.create({
+      data: {
+        id_condominio: idCondominio,
+        tipo: 'facial_portaria',
+        estado: 'portaria',
+        id_facial: facial.id,
+        numero_discado: num,
+        motivo_portaria: 'portaria',
+        created_at: new Date(agora),
+      },
     });
+
+    // Foto e aviso ao console/central sem esperar: o serviço desiste em 5 s.
+    const foto = this.foto;
+    if (foto) this.emSegundoPlano(`foto da chamada ${chamada.id}`, () => foto.capturar(chamada.id, facial));
+    this.emSegundoPlano(`aviso da chamada ${chamada.id} na portaria`, async () => {
+      const c = await this.carregar(chamada.id);
+      if (c) await this.emitirEncaminhada(c, 'portaria', destino, porteiro);
+    });
+
+    return { ok: true, id: chamada.id, tipo: 'facial_portaria', estado: 'portaria', toque_s: 0, monitores: [] };
+  }
+
+  /**
+   * Sem ninguém para tocar na unidade: leva para a portaria pelo destino do
+   * condomínio (encaminharSemResposta) e pede ao serviço para tocar lá (em
+   * segundo plano: o serviço ainda não recebeu o id). Sem para onde levar,
+   * deixa tocar — o toque esgota e o serviço encerra com "ninguém atendeu"
+   * (o "sem operador" da central é registrado nessa hora, uma vez só).
+   */
+  private async transferirSemApp(id: number) {
+    const c = await this.carregar(id);
+    if (!c || c.estado !== 'chamando' || c.tipo !== 'facial_unidade') return;
+    const motivo = (c.motivo_portaria as MotivoPortaria | null) ?? 'sem_app';
+    if ((await this.encaminharSemResposta(c, motivo, { registrarSemOperador: false })) !== 'portaria') return;
     for (const ms of this.esperasPortariaMs) {
       await this.dormir(ms);
       if (await this.voz.portaria(id)) return;
@@ -427,7 +516,7 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     if (!(PAPEIS_ATENDE as readonly string[]).includes(papel) || !Number.isInteger(uid) || uid <= 0) {
       throw new BadRequestException('Quem atendeu é inválido.');
     }
-    // Banco primeiro (Users.name → cadastro de morador; Funcionarios_Portaria.nome); sem ele, o nome do token.
+    // Banco primeiro (Users.name → cadastro de morador; Funcionarios_Portaria.nome; Central_Operadores.nome); sem ele, o nome do token.
     const nome = (await this.nomeDe(papel as (typeof PAPEIS_ATENDE)[number], uid, c.id_condominio)) ?? textoNome(ev?.nome);
     // Condicional: o primeiro que entra ganha; o segundo evento não sobrescreve.
     const r = await this.prisma.interfone_Chamadas.updateMany({
@@ -441,7 +530,7 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
       },
     });
     if (r.count === 0) return { ok: true };
-    this.realtime?.emitirPortaria(c.id_condominio, 'interfone:fim', { id: c.id });
+    this.emitirFim(c);
     this.emSegundoPlano(`fim (atendida) da chamada ${c.id}`, async () => {
       const tocados = await this.tocadosDaChamada(c);
       await this.push.fim(
@@ -459,27 +548,105 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     // controle se perdeu: segue na portaria.
     if (c.estado === 'portaria' && c.tipo === 'facial_unidade') return { proximo: 'portaria' };
     if (c.estado !== 'chamando' || c.tipo !== 'facial_unidade') return { proximo: 'encerrar' };
-    if (c.condominio?.interfone_transferir !== 1 || !(await this.porteirosOnline(c.id_condominio))) {
-      return { proximo: 'encerrar' };
+    const motivo = (c.motivo_portaria as MotivoPortaria | null) ?? 'nao_atendeu';
+    // Responde já ao serviço; o console (e a central) toca em segundo plano.
+    const proximo = await this.encaminharSemResposta(c, motivo, { emitirEmSegundoPlano: true });
+    if (proximo === 'portaria') {
+      // Os celulares param: na portaria o morador não atende mais.
+      this.emSegundoPlano(`fim do toque da chamada ${c.id}`, async () => this.push.fim(c.id, await this.tocadosDaChamada(c)));
     }
-    const motivo = c.motivo_portaria ?? 'nao_atendeu';
+    return { proximo };
+  }
+
+  /**
+   * A unidade não atendeu (toque esgotado, todos recusaram, ninguém para
+   * tocar): leva a chamada para a portaria conforme o destino do condomínio.
+   * - `local`: regra de sempre — o síndico ligou "transferir" e há porteiro no console.
+   * - `central`: transfere sempre (incluído no contrato); toca no console do
+   *   prédio se houver porteiro e sempre na sala `central`. Sem porteiro nem
+   *   operador → `encerrar` e registra `sem_operador` (log + métrica).
+   * Grava `portaria` + motivo só se a chamada ainda está `chamando`.
+   */
+  private async encaminharSemResposta(
+    c: ChamadaCarregada,
+    motivo: MotivoPortaria,
+    opcoes: { registrarSemOperador?: boolean; emitirEmSegundoPlano?: boolean } = {},
+  ): Promise<'portaria' | 'encerrar'> {
+    const destino = await this.destinoDoCondominio(c.id_condominio, c.condominio?.central_contratada);
+    let porteiro: boolean;
+    if (destino === 'local') {
+      if (c.condominio?.interfone_transferir !== 1) return 'encerrar';
+      porteiro = await this.porteirosOnline(c.id_condominio);
+      if (!porteiro) return 'encerrar';
+    } else {
+      porteiro = await this.porteirosOnline(c.id_condominio);
+      if (!porteiro && !(await this.centralOnline())) {
+        if (opcoes.registrarSemOperador !== false) this.registrarSemOperador(c.id_condominio, c.id);
+        return 'encerrar';
+      }
+    }
     const r = await this.prisma.interfone_Chamadas.updateMany({
       where: { id: c.id, estado: 'chamando' },
       data: { estado: 'portaria', motivo_portaria: motivo },
     });
-    if (r.count === 0) return { proximo: 'encerrar' };
+    if (r.count === 0) return 'encerrar';
     this.liberarReserva(c.id);
-    // Responde já ao serviço; os celulares param (na portaria o morador não
-    // atende mais) e o console toca em segundo plano.
-    this.emSegundoPlano(`transferência da chamada ${c.id}`, async () => {
-      await this.emitirChamadaPortaria(c, motivo);
-      await this.push.fim(c.id, await this.tocadosDaChamada(c));
-    });
-    return { proximo: 'portaria' };
+    const emitir = () => this.emitirEncaminhada(c, motivo, destino, porteiro);
+    if (opcoes.emitirEmSegundoPlano) this.emSegundoPlano(`aviso da chamada ${c.id} na portaria`, emitir);
+    else await emitir();
+    return 'portaria';
+  }
+
+  /**
+   * Avisa quem atende: console do prédio (destino local, ou central com
+   * porteiro conectado) e, no destino central, a sala `central`.
+   */
+  private async emitirEncaminhada(c: ChamadaCarregada, motivo: MotivoPortaria, destino: DestinoPortaria, porteiro: boolean): Promise<void> {
+    const base = {
+      id: c.id,
+      tipo: c.tipo,
+      unidade: unidadeDaChamada(c),
+      motivo,
+      morador_nome: null,
+      foto_url: await this.fotoUrl(c.foto),
+    };
+    if (destino === 'local' || porteiro) this.emitirParaPortaria(c.id_condominio, base);
+    if (destino === 'central') {
+      const evento: ChamadaCentralEvento = {
+        ...base,
+        id_condominio: c.id_condominio,
+        condominio: c.condominio?.nome ?? '',
+        portao: c.facial?.nome ?? null,
+        criada_em: c.created_at.toISOString(),
+      };
+      this.realtime?.emitirCentral('interfone:chamada', evento);
+    }
+  }
+
+  /** `interfone:fim` no console e, em condomínio da central, na sala central (a fila do operador tira a chamada). */
+  private emitirFim(c: ChamadaCarregada): void {
+    this.realtime?.emitirPortaria(c.id_condominio, 'interfone:fim', { id: c.id });
+    if (c.condominio?.central_contratada === 1) this.realtime?.emitirCentral('interfone:fim', { id: c.id });
+  }
+
+  /** Central contratada sem ninguém para atender: log + métrica EMF `CentralSemOperador` (CloudWatch). */
+  private registrarSemOperador(idCondominio: number, idChamada: number | null): void {
+    this.logger.warn(`[central] sem_operador condominio=${idCondominio} chamada=${idChamada ?? '-'}`);
+    console.log(
+      JSON.stringify({
+        _aws: {
+          Timestamp: Date.now(),
+          CloudWatchMetrics: [{ Namespace: 'Prestare/Interfone', Dimensions: [[]], Metrics: [{ Name: 'CentralSemOperador', Unit: 'Count' }] }],
+        },
+        CentralSemOperador: 1,
+        condominio: idCondominio,
+        chamada: idChamada,
+      }),
+    );
   }
 
   /** `interfone:chamada` para os porteiros do condomínio (chamada do facial transferida). */
-  async emitirChamadaPortaria(c: ChamadaCarregada, motivo: 'nao_atendeu' | 'recusou' | 'sem_app' | string): Promise<void> {
+  async emitirChamadaPortaria(c: ChamadaCarregada, motivo: MotivoPortaria | string): Promise<void> {
     this.emitirParaPortaria(c.id_condominio, {
       id: c.id,
       tipo: c.tipo,
@@ -529,7 +696,7 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     });
     if (r.count === 0) return false;
     this.liberarReserva(c.id);
-    this.realtime?.emitirPortaria(c.id_condominio, 'interfone:fim', { id: c.id });
+    this.emitirFim(c);
     this.emSegundoPlano(`fim da chamada ${c.id}`, async () => {
       const tocados = await this.tocadosDaChamada(c);
       await this.push.fim(c.id, tocados);
@@ -551,7 +718,8 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
       id: c.id,
       tipo: c.tipo,
       estado: c.estado,
-      toque_s: limitar(c.condominio?.interfone_toque_apto_s, TOQUE_APTO_S),
+      // facial_portaria nasce na portaria: não toca a unidade.
+      toque_s: c.tipo === 'facial_portaria' ? 0 : limitar(c.condominio?.interfone_toque_apto_s, TOQUE_APTO_S),
       toque_portaria_s: limitar(c.condominio?.interfone_toque_portaria_s, TOQUE_PORTARIA_S),
       monitores: comMonitor ? await this.monitoresDaUnidade(c.id_apartamento as number) : [],
     };
@@ -631,6 +799,26 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     return (await this.realtime?.porteirosOnline(idCondominio)) ?? false;
   }
 
+  /** Há operador da central conectado? Sem gateway = não. */
+  async centralOnline(): Promise<boolean> {
+    return (await this.realtime?.centralOnline()) ?? false;
+  }
+
+  /**
+   * Destino sem consulta extra para quem não contratou a central (o caso de
+   * hoje). Agenda ilegível em condomínio da central → `central`: toca na
+   * central e, se houver porteiro, também no prédio.
+   */
+  private async destinoDoCondominio(idCondominio: number, centralContratada: number | null | undefined): Promise<DestinoPortaria> {
+    if (centralContratada !== 1) return 'local';
+    try {
+      return await this.destinoPortaria(idCondominio, new Date(this.agora()));
+    } catch (e) {
+      this.logger.warn(`Interfone: destino da portaria do condomínio ${idCondominio} não veio do banco: ${(e as Error)?.message ?? e}`);
+      return 'central';
+    }
+  }
+
   /** Para onde vai a chamada da portaria agora: porteiro local ou central (agenda + salvaguarda). */
   async destinoPortaria(idCondominio: number, agora = new Date()): Promise<DestinoPortaria> {
     const cond = await this.prisma.condominios.findUnique({ where: { id: idCondominio }, select: { central_contratada: true } });
@@ -665,8 +853,9 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Todos em que o toque SAIU recusaram? Então, se o condomínio transfere e há
-   * porteiro, vai para a portaria (`recusou`); senão grava `recusada` e só
+   * Todos em que o toque SAIU recusaram? Então a chamada do facial segue o
+   * destino da portaria como "não atendeu" (`recusou`, encaminharSemResposta);
+   * sem para onde levar (ou ligação da portaria), grava `recusada` e só
    * então pede ao serviço para encerrar (o `encerrada nao_atendida` que ele
    * manda depois é descartado: sem "Chamada perdida" para quem recusou).
    * Unidade com monitor ativo não entra: o toque segue e a transferência
@@ -681,20 +870,13 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     if (c.id_apartamento && (await this.prisma.interfone_Monitores.count({ where: { id_apartamento: c.id_apartamento, ativo: 1 } })) > 0) {
       return;
     }
-    const transfere =
-      c.tipo === 'facial_unidade' && c.condominio?.interfone_transferir === 1 && (await this.porteirosOnline(c.id_condominio));
-    if (!transfere) {
-      if (await this.encerrarComo(c, 'recusada')) await this.voz.encerrar(c.id);
+    const proximo = c.tipo === 'facial_unidade' ? await this.encaminharSemResposta(c, 'recusou') : 'encerrar';
+    if (proximo === 'portaria') {
+      await this.voz.portaria(c.id);
       return;
     }
-    const r = await this.prisma.interfone_Chamadas.updateMany({
-      where: { id: c.id, estado: 'chamando' },
-      data: { estado: 'portaria', motivo_portaria: 'recusou' },
-    });
-    if (r.count === 0) return;
-    this.liberarReserva(c.id);
-    await this.emitirChamadaPortaria(c, 'recusou');
-    await this.voz.portaria(c.id);
+    // Condicional ao estado lido: chamada que mudou entretanto (atendida, já na portaria) não é encerrada.
+    if (await this.encerrarComo(c, 'recusada')) await this.voz.encerrar(c.id);
   }
 
   /** Grava em `tocou_ids` os usuários em que o toque saiu. */
@@ -730,6 +912,9 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
       }
       if (papel === 'portaria') {
         return textoNome((await this.prisma.funcionarios_Portaria.findUnique({ where: { id: uid }, select: { nome: true } }))?.nome);
+      }
+      if (papel === 'central') {
+        return textoNome((await this.prisma.central_Operadores.findUnique({ where: { id: uid }, select: { nome: true } }))?.nome);
       }
       return textoNome((await this.prisma.interfone_Monitores.findUnique({ where: { id: uid }, select: { nome: true } }))?.nome);
     } catch (e) {
