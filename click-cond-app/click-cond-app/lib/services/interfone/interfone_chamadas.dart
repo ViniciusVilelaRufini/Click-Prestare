@@ -154,6 +154,21 @@ class InterfoneChamadas {
 
   static Future<void> Function()? _aoMudarTokenVoip;
 
+  /// Toque no aviso comum `interfone_chamada` (iPhone sem token VoIP): abre a
+  /// tela da chamada se ela ainda estiver tocando (`chamando`). Nunca lança.
+  static Future<void> abrirPeloAviso(Map<String, dynamic> data) async {
+    final id = int.tryParse('${data['id'] ?? ''}');
+    if (id == null || id <= 0) return;
+    try {
+      await _garantirSessao();
+      final e = await _consultar(id);
+      if (e?.estado != 'chamando') return;
+      await _abrir(id, Map<String, dynamic>.from(data));
+    } catch (e) {
+      logDebug('[Interfone] aviso: ${e.runtimeType}');
+    }
+  }
+
   /// Push `interfone_chamada`: mostra a tela de ligação. Nunca lança.
   static Future<void> mostrarEntrando(Map<String, dynamic> data) async {
     final params = parametrosDaChamada(data);

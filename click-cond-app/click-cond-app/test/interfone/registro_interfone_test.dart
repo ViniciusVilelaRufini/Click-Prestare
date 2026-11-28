@@ -88,24 +88,13 @@ void main() {
     expect(corpos.single.containsKey('voip_token'), isFalse);
   });
 
-  test('iPhone sem token VoIP manda interfone_versao 0; com token, 1', () async {
+  test('iPhone sem token VoIP também manda interfone_versao 1', () async {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
     addTearDown(() => debugDefaultTargetPlatformOverride = null);
     FirebaseService.instance.obterTokenVoip = () async => null;
     await FirebaseService.instance.registrarNoServidor('fcm-1');
-    expect(corpos.last['interfone_versao'], 0);
-    expect(corpos.last.containsKey('voip_token'), isFalse);
-
-    FirebaseService.instance.obterTokenVoip = () async => 'abcdef0123456789';
-    await FirebaseService.instance.registrarNoServidor('fcm-1');
     expect(corpos.last['interfone_versao'], 1);
-    expect(corpos.last['voip_token'], 'abcdef0123456789');
-  });
-
-  test('versaoDoInterfone', () {
-    expect(versaoDoInterfone(ios: false, voipToken: null), 1);
-    expect(versaoDoInterfone(ios: true, voipToken: null), 0);
-    expect(versaoDoInterfone(ios: true, voipToken: 'abcdef0123456789'), 1);
+    expect(corpos.last.containsKey('voip_token'), isFalse);
   });
 
   test('tokenVoipValido aceita só hex de 16 a 200', () {

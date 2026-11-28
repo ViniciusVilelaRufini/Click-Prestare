@@ -1,6 +1,8 @@
+import 'package:click/services/firebase_service.dart';
 import 'package:click/services/interfone/interfone_api.dart';
 import 'package:click/services/interfone/interfone_chamadas.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 EstadoChamada _estado(String estado, {bool porMim = false}) => EstadoChamada(
@@ -165,6 +167,30 @@ void main() {
       expect(encerradas, [uuidDaChamada(41)]);
       await InterfoneChamadas.tratarEvento(CallEventActionCallDecline(CallKitParams(id: uuidDaChamada(41))));
       expect(recusadas, isEmpty);
+    });
+
+    test('toque no aviso comum abre a chamada que ainda toca', () async {
+      estados[41] = _estado('chamando');
+      await InterfoneChamadas.abrirPeloAviso({'type': 'interfone_chamada', 'id': '41', 'tipo': 'facial_unidade', 'portao': 'P'});
+      expect(abertas, [41]);
+      expect(extras.single['tipo'], 'facial_unidade');
+    });
+
+    test('toque no aviso de chamada que já acabou não abre nada', () async {
+      estados[41] = _estado('encerrada');
+      await InterfoneChamadas.abrirPeloAviso({'type': 'interfone_chamada', 'id': '41'});
+      estados[42] = null; // sem resposta da API
+      await InterfoneChamadas.abrirPeloAviso({'type': 'interfone_chamada', 'id': '42'});
+      await InterfoneChamadas.abrirPeloAviso({'type': 'interfone_chamada'});
+      expect(abertas, isEmpty);
+    });
+
+    test('roteamento: o toque na notificação interfone_chamada vai para a chamada', () async {
+      estados[41] = _estado('chamando');
+      FirebaseService.instance.handleNotificationNavigation(
+          const RemoteMessage(data: {'type': 'interfone_chamada', 'id': '41', 'tipo': 'facial_unidade'}));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(abertas, [41]);
     });
 
     test('chamada mostrada pelo iPhone (VoIP) também é vigiada', () async {

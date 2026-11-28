@@ -281,6 +281,12 @@ class FirebaseService {
   /// Navega diretamente para a tela apropriada ao tocar na notificação push.
   void handleNotificationNavigation(RemoteMessage? message) {
     if (message == null) return;
+    // Interfone (iPhone sem token VoIP recebe alerta comum): o toque abre a
+    // tela da chamada se ela ainda estiver tocando.
+    if (message.data['type'] == 'interfone_chamada') {
+      unawaited(InterfoneChamadas.abrirPeloAviso(message.data));
+      return;
+    }
     // Push comum do delivery vem sem `type` (só id_delivery/status): F9.
     final type = tipoDoPush(message.data);
     if (type == null) return;
@@ -417,10 +423,9 @@ class FirebaseService {
           // Android pelo push de dados. Versão 1 = este app atende a chamada
           // (o servidor manda push comum "atualize o app" para quem tem 0).
           if (voipToken != null) 'voip_token': voipToken,
-          'interfone_versao': versaoDoInterfone(
-            ios: defaultTargetPlatform == TargetPlatform.iOS,
-            voipToken: voipToken,
-          ),
+          // Também no iPhone sem token VoIP: aí o servidor manda um push de
+          // alerta com type interfone_chamada, e o toque nele abre a chamada.
+          'interfone_versao': 1,
         }),
       );
       _temaEnviado = tema;
