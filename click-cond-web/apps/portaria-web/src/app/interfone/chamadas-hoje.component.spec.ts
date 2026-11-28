@@ -85,8 +85,8 @@ describe('ChamadasHojeComponent', () => {
     const ultima = linhas()[2].textContent ?? '';
     expect(ultima).toContain('Bloco A · Apto 106');
     expect(ultima).toContain('Portão → unidade');
-    expect(ultima).toContain('Atendida pelo morador');
-    expect(ultima).toContain('Ana Souza');
+    expect(ultima).toContain('Atendida');
+    expect(ultima).toContain('atendida por Ana Souza');
     expect(ultima).toContain('Portão aberto por Ana Souza');
     expect(linhas()[0].querySelector('[data-teste="resultado"] .ps-dot-danger')).not.toBeNull();
     expect(linhas()[1].querySelector('[data-teste="resultado"] .ps-dot-warn')).not.toBeNull();
@@ -110,8 +110,8 @@ describe('ChamadasHojeComponent', () => {
 
   it('ligar de volta usa a unidade da chamada e respeita a chamada em curso; sem unidade não há botão', () => {
     const { f, linhas, store } = montar();
-    expect(linhas()[1].querySelector('button')).toBeNull();
-    const ligar = linhas()[0].querySelector('button') as HTMLButtonElement;
+    expect(linhas()[1].querySelector('[data-teste="ligar-de-volta"]')).toBeNull();
+    const ligar = linhas()[0].querySelector('[data-teste="ligar-de-volta"]') as HTMLButtonElement;
     ligar.click();
     expect(store.ligar).toHaveBeenCalledWith(100, 'Bloco A · Apto 106');
     store.emChamada.set({ id: 1 });

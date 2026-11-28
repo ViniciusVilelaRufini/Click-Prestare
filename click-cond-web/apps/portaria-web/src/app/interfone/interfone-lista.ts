@@ -19,6 +19,20 @@ export function rotuloTipo(c: Pick<ChamadaHoje, 'tipo'>): string {
   return TIPO[c.tipo] ?? c.tipo;
 }
 
+const RESULTADO_CURTO: Record<ResultadoChamada, string> = {
+  atendida_morador: 'Atendida',
+  atendida_portaria: 'Portaria atendeu',
+  nao_atendida: 'Não atendida',
+  recusada: 'Recusada',
+  falha: 'Falha',
+  cancelada: 'Desligou',
+};
+
+/** Etiqueta da linha da lista (curta: quem atendeu vai no texto ao lado). */
+export function rotuloCurto(c: Pick<ChamadaHoje, 'resultado'>): string {
+  return c.resultado ? (RESULTADO_CURTO[c.resultado] ?? c.resultado) : 'Em andamento';
+}
+
 export function rotuloResultado(c: Pick<ChamadaHoje, 'resultado'>): string {
   return c.resultado ? (RESULTADO[c.resultado] ?? c.resultado) : 'Em andamento';
 }
