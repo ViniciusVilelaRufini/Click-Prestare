@@ -44,7 +44,9 @@ class _SessaoFalsa implements SessaoVoz {
   void mudo(bool ligado) => mudoLigado = ligado;
 
   @override
-  Future<void> altoFalante(bool ligado) async {}
+  Future<void> altoFalante(bool ligado) async => altoFalantes.add(ligado);
+
+  final List<bool> altoFalantes = [];
 }
 
 const _entrada = {
@@ -75,6 +77,7 @@ void main() {
   late bool atenderConflito;
   late String tipo;
   late Map<String, dynamic> respostaAbrir;
+  late List<bool> mudosNoSistema;
 
   setUp(() {
     sessao = _SessaoFalsa();
@@ -83,6 +86,7 @@ void main() {
     atenderConflito = false;
     tipo = 'facial_unidade';
     respostaAbrir = {'ok': true};
+    mudosNoSistema = [];
     ApiClient.tokenProvider = () => 'sessao';
     ApiClient.client = MockClient((r) async {
       rotas.add('${r.method} ${r.url.path}');
@@ -117,6 +121,7 @@ void main() {
                 criarVideo: () async => null,
                 encerrarTelaNativa: (uuid) async => encerradasNativas.add(uuid),
                 marcarConectada: (_) async {},
+                sincronizarMudo: (uuid, m) async => mudosNoSistema.add(m),
                 prepararSessao: () async {},
                 esperaAoFechar: const Duration(seconds: 3),
               ),
@@ -217,6 +222,48 @@ void main() {
     await tester.pumpAndSettle();
     expect(sessao.encerrada, isTrue);
     expect(find.byType(TelaChamada), findsNothing);
+  });
+
+  testWidgets('Mudo do app avisa o CallKit; Mudo do CallKit muda a conversa', (tester) async {
+    await abrir(tester);
+    sessao.mudar('em_chamada');
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.text('MUDO'));
+    await tester.pump();
+    expect(sessao.mudoLigado, isTrue);
+    expect(mudosNoSistema, [true]);
+    expect(find.text('MUDO LIGADO'), findsOneWidget);
+
+    await InterfoneChamadas.tratarEvento(CallEventActionCallToggleMute(uuidDaChamada(41), false));
+    await tester.pump();
+    expect(sessao.mudoLigado, isFalse);
+    expect(find.text('MUDO'), findsOneWidget);
+    // O Mudo que veio do sistema não volta para ele.
+    expect(mudosNoSistema, [true]);
+    await tester.tap(find.text('ENCERRAR'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('chamada do facial liga o alto-falante ao conectar', (tester) async {
+    await abrir(tester);
+    sessao.mudar('em_chamada');
+    await tester.pump();
+    await tester.pump();
+    expect(sessao.altoFalantes, [true]);
+    await tester.tap(find.text('ENCERRAR'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('chamada da portaria não liga o alto-falante sozinha', (tester) async {
+    tipo = 'portaria_unidade';
+    await abrir(tester);
+    sessao.mudar('em_chamada');
+    await tester.pump();
+    await tester.pump();
+    expect(sessao.altoFalantes, isEmpty);
+    await tester.tap(find.text('ENCERRAR'));
+    await tester.pumpAndSettle();
   });
 
   test('mensagens das recusas', () {

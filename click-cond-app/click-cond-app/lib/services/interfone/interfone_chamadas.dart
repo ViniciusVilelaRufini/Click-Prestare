@@ -182,16 +182,27 @@ class InterfoneChamadas {
   /// A tela da chamada aberta para [id] quer saber quando a ligação acaba no
   /// sistema (Encerrar no CallKit da tela bloqueada, na notificação do
   /// Android): aí ela desliga a conversa.
-  static void registrarTela(int id, void Function() aoEncerrarNoSistema) =>
-      _telasRegistradas[id] = aoEncerrarNoSistema;
+  ///
+  /// [aoMudo] recebe o Mudo tocado na tela nativa (CallKit, notificação do
+  /// Android): a conversa precisa mudar junto, senão o visitante segue ouvindo.
+  static void registrarTela(int id, void Function() aoEncerrarNoSistema, {void Function(bool mudo)? aoMudo}) {
+    _telasRegistradas[id] = aoEncerrarNoSistema;
+    if (aoMudo != null) {
+      _mudoDasTelas[id] = aoMudo;
+    } else {
+      _mudoDasTelas.remove(id);
+    }
+  }
 
   /// A tela da chamada terminou: libera o id para uma próxima abertura.
   static void telaFechada(int id) {
     _telasAbertas.remove(id);
     _telasRegistradas.remove(id);
+    _mudoDasTelas.remove(id);
   }
 
   static final Map<int, void Function()> _telasRegistradas = {};
+  static final Map<int, void Function(bool mudo)> _mudoDasTelas = {};
 
   static void _avisarTela(int id) {
     final cb = _telasRegistradas.remove(id);
@@ -226,6 +237,9 @@ class InterfoneChamadas {
           _fechadasPeloApp.remove(id);
           _avisarTela(id);
         }
+      case CallEventActionCallToggleMute(:final id, :final isMuted):
+        final idChamada = idDaChamadaPeloUuid(id);
+        if (idChamada != null) _mudoDasTelas[idChamada]?.call(isMuted);
       case CallEventActionCallTimeout(:final id):
         final idChamada = idDaChamadaPeloUuid(id);
         if (idChamada != null) _pararVigia(idChamada);
@@ -316,6 +330,7 @@ class InterfoneChamadas {
     _fechadasPeloApp.clear();
     _telasAbertas.clear();
     _telasRegistradas.clear();
+    _mudoDasTelas.clear();
     _extras.clear();
     _mostrar = mostrar ?? FlutterCallkitIncoming.showCallkitIncoming;
     _encerrar = encerrar ?? FlutterCallkitIncoming.endCall;

@@ -40,6 +40,9 @@ Future<bool> _pedirMicrofonePadrao() async {
   }
 }
 
+Future<void> _sincronizarMudoPadrao(String uuid, bool mudo) =>
+    FlutterCallkitIncoming.muteCall(uuid, isMuted: mudo);
+
 Future<RTCVideoRenderer?> _criarVideoPadrao() async {
   final r = RTCVideoRenderer();
   await r.initialize();
@@ -70,6 +73,9 @@ class TelaChamada extends StatefulWidget {
   final Future<void> Function(String uuid) encerrarTelaNativa;
   final Future<void> Function(String uuid) marcarConectada;
 
+  /// Avisa a tela nativa (CallKit) do Mudo tocado no app.
+  final Future<void> Function(String uuid, bool mudo) sincronizarMudo;
+
   /// Cache da sessão pronto (o app pode ter aberto agora, pela chamada).
   final Future<void> Function() prepararSessao;
 
@@ -92,6 +98,7 @@ class TelaChamada extends StatefulWidget {
     this.criarVideo = _criarVideoPadrao,
     this.encerrarTelaNativa = FlutterCallkitIncoming.endCall,
     this.marcarConectada = FlutterCallkitIncoming.setCallConnected,
+    this.sincronizarMudo = _sincronizarMudoPadrao,
     this.prepararSessao = ensureStorageReady,
     this.esperaAoFechar = const Duration(seconds: 2),
     this.aoFechar,
@@ -128,9 +135,13 @@ class TelaChamadaState extends State<TelaChamada> {
   @override
   void initState() {
     super.initState();
-    InterfoneChamadas.registrarTela(widget.id, () {
-      if (!_saindo) _encerrarAgora();
-    });
+    InterfoneChamadas.registrarTela(
+      widget.id,
+      () {
+        if (!_saindo) _encerrarAgora();
+      },
+      aoMudo: (m) => _aplicarMudo(m, avisarSistema: false),
+    );
     unawaited(_iniciar());
   }
 
@@ -207,6 +218,9 @@ class TelaChamadaState extends State<TelaChamada> {
       });
       unawaited(widget.marcarConectada(_uuid).catchError((Object _) {}));
       setState(() => _fase = fase);
+      // Chamada com vídeo: o morador olha a tela, então o som sai no
+      // alto-falante (ele pode desligar).
+      if (_ehDoFacial && !_altoFalante) _alternarAltoFalante();
     } else if (fase == 'encerrada') {
       final semConversa = _conectadaEm == null;
       _terminar(semConversa && _ligandoParaPortaria
@@ -261,9 +275,12 @@ class TelaChamadaState extends State<TelaChamada> {
     });
   }
 
-  void _alternarMudo() {
-    setState(() => _mudo = !_mudo);
-    _sessao?.mudo(_mudo);
+  void _alternarMudo() => _aplicarMudo(!_mudo, avisarSistema: true);
+
+  void _aplicarMudo(bool mudo, {required bool avisarSistema}) {
+    if (mounted) setState(() => _mudo = mudo);
+    _sessao?.mudo(mudo);
+    if (avisarSistema) unawaited(widget.sincronizarMudo(_uuid, mudo).catchError((Object _) {}));
   }
 
   void _alternarAltoFalante() {
