@@ -387,3 +387,31 @@ test('aviso aos 150 s toca o bipe na ponte e fim aos 180 s encerra', async () =>
   await servico.ocioso();
   assert.deepEqual(eventos(api).at(-1), { evento: 'encerrada', resultado: 'atendida_morador', duracao_s: 180 });
 });
+
+test('facial() com resposta tipo facial_portaria não toca morador e agenda toque_portaria', async () => {
+  const api = apiFalsa({
+    async novaChamada(conta, numero) {
+      api.chamadas.push(['novaChamada', conta, numero]);
+      return { ok: true, id: 90, tipo: 'facial_portaria', estado: 'portaria', toque_s: 0, monitores: [] };
+    },
+    async chamada(id) {
+      api.chamadas.push(['chamada', id]);
+      return { id, tipo: 'facial_portaria', estado: 'portaria', toque_s: 0, toque_portaria_s: 45, monitores: [] };
+    },
+  });
+  const { ari, servico, temporizador } = montar({ api });
+  ari.iniciar('fac1', ['facial', 'fac-12', '106']);
+  await servico.ocioso();
+  assert.deepEqual(ari.de('ring'), [['ring', 'fac1']]);
+  assert.equal(ari.de('originar').length, 0, 'ninguém é chamado no apartamento');
+  assert.deepEqual([...temporizador.ativos.values()].map((t) => t.ms), [45_000]);
+
+  // morador não entra; central sim
+  ari.iniciar('app1', ['entrar', token({ cid: 90, papel: 'morador', uid: 42 })]);
+  await servico.ocioso();
+  assert.deepEqual(ari.de('hangup').at(-1), ['hangup', 'app1', 'busy']);
+  ari.iniciar('cen1', ['entrar', token({ cid: 90, papel: 'central', uid: 3 })]);
+  await servico.ocioso();
+  assert.deepEqual(ari.de('adicionarNaPonte'), [['adicionarNaPonte', 'p1', ['fac1', 'cen1']]]);
+  assert.deepEqual(eventos(api), [{ evento: 'atendida', papel: 'central', uid: 3 }]);
+});

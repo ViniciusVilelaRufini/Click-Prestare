@@ -50,6 +50,15 @@ describe('token de voz', () => {
     expect(verificarTokenVoz('', segredo, agora)).toBeNull();
   });
 
+  it('papel central é aceito e papel desconhecido continua recusado', () => {
+    const central = { ...claims, papel: 'central' as const };
+    expect(verificarTokenVoz(assinarTokenVoz(central, segredo, agora), segredo, agora)).toEqual(central);
+    const h = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+    const c = Buffer.from(JSON.stringify({ ...claims, papel: 'centralx', iat: agora, exp: agora + 120 })).toString('base64url');
+    const s = crypto.createHmac('sha256', segredo).update(`${h}.${c}`).digest('base64url');
+    expect(verificarTokenVoz(`${h}.${c}.${s}`, segredo, agora)).toBeNull();
+  });
+
   it('claims fora do formato → null', () => {
     const h = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
     const c = Buffer.from(JSON.stringify({ cid: 1, papel: 'admin', uid: 1, nome: 'x', iat: agora, exp: agora + 120 })).toString('base64url');

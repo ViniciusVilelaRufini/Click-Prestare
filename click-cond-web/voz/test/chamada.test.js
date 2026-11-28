@@ -287,3 +287,48 @@ test('M3: portaria só entra com a chamada na portaria', () => {
   assert.deepEqual(u.entrou({ papel: 'morador', uid: 9, canal: 'app2' }), [{ acao: 'recusar_canal', canal: 'app2' }]);
   assert.ok(nomes(u.entrou({ papel: 'portaria', uid: 3, canal: 'web' })).includes('ponte'));
 });
+
+function facialPortaria() {
+  return criarChamada({ id: 5, tipo: 'facial_portaria', toqueS: 0, toquePortariaS: 45, canalOrigem: 'fac', relogio: relogioFalso() });
+}
+
+test('facial_portaria nasce em portaria e só aceita central ou portaria', () => {
+  const c = facialPortaria();
+  assert.equal(c.estado, 'portaria');
+  assert.deepEqual(c.iniciar(), [{ acao: 'tocar_origem' }, { acao: 'agendar', nome: 'toque_portaria', s: 45 }]);
+  const acoes = c.entrou({ papel: 'central', uid: 3, canal: 'cen1' });
+  assert.deepEqual(nomes(acoes).slice(0, 3), ['atender_origem', 'atender_canal', 'ponte']);
+  assert.deepEqual(acoes[2], { acao: 'ponte', canais: ['fac', 'cen1'] });
+  assert.equal(c.estado, 'atendida');
+
+  const p = facialPortaria();
+  p.iniciar();
+  assert.equal(p.entrou({ papel: 'portaria', uid: 8, canal: 'por1' })[0].acao, 'atender_origem');
+});
+
+test('morador não entra em facial_portaria', () => {
+  const c = facialPortaria();
+  c.iniciar();
+  assert.deepEqual(c.entrou({ papel: 'morador', uid: 42, canal: 'app1' }), [{ acao: 'recusar_canal', canal: 'app1' }]);
+  assert.equal(c.estado, 'portaria');
+});
+
+test('central em chamada que ainda toca no apartamento é recusada', () => {
+  const { c } = facial();
+  c.iniciar();
+  assert.deepEqual(c.entrou({ papel: 'central', uid: 3, canal: 'cen1' }), [{ acao: 'recusar_canal', canal: 'cen1' }]);
+});
+
+test('central atendendo grava atendida_central', () => {
+  const c = facialPortaria();
+  c.iniciar();
+  c.entrou({ papel: 'central', uid: 3, canal: 'cen1' });
+  const fim = c.participanteDesligou('cen1');
+  assert.deepEqual(fim.at(-1), { acao: 'evento', evento: 'encerrada', resultado: 'atendida_central', duracao_s: 0 });
+});
+
+test('facial_portaria sem atendimento: mensagem ao visitante e nao_atendida', () => {
+  const c = facialPortaria();
+  c.iniciar();
+  assert.deepEqual(nomes(c.expirou('toque_portaria')), ['tocar_mensagem', 'desligar_tudo', 'evento']);
+});

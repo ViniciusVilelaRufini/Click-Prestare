@@ -82,3 +82,13 @@ test('alg none, outro algoritmo, sem exp, claims inválidas → null', () => {
   assert.equal(verificarTokenVoz('lixo', SEGREDO, AGORA), null);
   assert.equal(verificarTokenVoz(undefined, SEGREDO, AGORA), null);
 });
+
+test('token com papel central é aceito', () => {
+  const claims = { ...CLAIMS, papel: 'central' };
+  const t = assinarTokenVoz(claims, SEGREDO, AGORA);
+  assert.deepEqual(verificarTokenVoz(t, SEGREDO, AGORA), claims);
+});
+
+test('papel desconhecido continua recusado', () => {
+  assert.equal(verificarTokenVoz(jwtManual({ ...CLAIMS, papel: 'centralx', exp: AGORA + 60 }), SEGREDO, AGORA), null);
+});

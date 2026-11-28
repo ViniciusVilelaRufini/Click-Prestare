@@ -13,6 +13,7 @@ import { verificarTokenVoz } from './token.js';
 const CONTA_FACIAL = /^fac-?\d{1,10}$/;
 const CONTA_MONITOR = /^mon-?\d{1,10}$/;
 const NUMERO = /^\d{1,10}$/;
+const TIPOS_FACIAL = new Set(['facial_unidade', 'facial_portaria']);
 const TIPOS_DE_ORIGEM = new Set(['portaria_unidade', 'unidade_portaria']);
 
 const MENSAGEM_POR_MOTIVO = {
@@ -356,9 +357,13 @@ export function criarServico({
       log.warn(`[chamada ${r.id}] sem dados da API, usando tempos padrão: ${e.message}`);
     }
 
+    // API nova informa o tipo; API antiga não → facial_unidade.
+    const tipoApi = dados?.tipo ?? r.tipo;
+    const tipoFacial = TIPOS_FACIAL.has(tipoApi) ? tipoApi : 'facial_unidade';
+
     const c = registrar(criarChamada({
       id: r.id,
-      tipo: 'facial_unidade',
+      tipo: tipoFacial,
       toqueS: Number(r.toque_s) || toquePadraoS,
       toquePortariaS: Number(dados?.toque_portaria_s) || toquePortariaPadraoS,
       canalOrigem: canal,

@@ -10,7 +10,7 @@ export const VALIDADE_TOKEN_S = 120;
  * O token emitido continua valendo 120 s.
  */
 export const TOLERANCIA_RELOGIO_S = 60;
-const PAPEIS = new Set(['morador', 'portaria', 'origem']);
+const PAPEIS = new Set(['morador', 'portaria', 'origem', 'central']);
 
 const agora = () => Math.floor(Date.now() / 1000);
 

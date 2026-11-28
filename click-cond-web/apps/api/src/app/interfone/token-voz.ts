@@ -16,7 +16,7 @@ export const VOZ_SIP_URI = `sip:entrar@${VOZ_HOST}` as const;
 export const TOKEN_VOZ_VALIDADE_S = 120;
 export const TURN_VALIDADE_S = 3600;
 
-export type PapelVoz = 'morador' | 'portaria' | 'origem';
+export type PapelVoz = 'morador' | 'portaria' | 'origem' | 'central';
 
 export interface ClaimsVoz {
   cid: number;
@@ -40,7 +40,7 @@ export interface DadosEntrada {
   ice: IceServer[];
 }
 
-const PAPEIS: ReadonlySet<string> = new Set(['morador', 'portaria', 'origem']);
+const PAPEIS: ReadonlySet<string> = new Set(['morador', 'portaria', 'origem', 'central']);
 
 const b64url = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
 const agoraS = () => Math.floor(Date.now() / 1000);

@@ -7,12 +7,15 @@
 // Tipos: facial_unidade (visitante no facial), portaria_unidade (console liga
 // para a unidade), unidade_portaria (morador liga para a portaria).
 
-const TIPOS = new Set(['facial_unidade', 'portaria_unidade', 'unidade_portaria']);
+// facial_portaria: visitante no facial chamando direto a portaria/central
+// (sem tocar morador): nasce em `portaria`, com vídeo como o facial_unidade.
+const TIPOS = new Set(['facial_unidade', 'facial_portaria', 'portaria_unidade', 'unidade_portaria']);
 
 const RESULTADO_POR_PAPEL = {
   morador: 'atendida_morador',
   monitor: 'atendida_morador',
   portaria: 'atendida_portaria',
+  central: 'atendida_central',
 };
 
 export function criarChamada({
@@ -29,7 +32,9 @@ export function criarChamada({
   if (!TIPOS.has(tipo)) throw new Error(`Tipo de chamada desconhecido: ${tipo}`);
   const toquePortaria = toquePortariaS ?? toqueS;
 
-  let estado = tipo === 'unidade_portaria' ? 'portaria' : 'chamando';
+  const nasceNaPortaria = tipo === 'unidade_portaria' || tipo === 'facial_portaria';
+  const facialNoTerminal = tipo === 'facial_unidade' || tipo === 'facial_portaria';
+  let estado = nasceNaPortaria ? 'portaria' : 'chamando';
   let iniciada = false;
   let aguardandoResposta = false; // toque_esgotado enviado, esperando a API
   let atendida = null; // { papel, uid, canal, em }
@@ -49,7 +54,7 @@ export function criarChamada({
 
   // Ninguém atendeu: só o visitante no facial ouve a mensagem; console e app
   // mostram o próprio aviso quando a chamada cai sem ter sido atendida.
-  const naoAtendida = () => fechar('nao_atendida', { mensagem: tipo === 'facial_unidade' });
+  const naoAtendida = () => fechar('nao_atendida', { mensagem: facialNoTerminal });
   const fecharAtendida = () => fechar(RESULTADO_POR_PAPEL[atendida.papel] ?? 'atendida_morador');
 
   function irParaPortaria() {
@@ -61,7 +66,7 @@ export function criarChamada({
   // Papel × estado: o morador só atende enquanto toca no apartamento; o
   // porteiro só depois que a chamada foi para a portaria (unidade_portaria já
   // nasce lá). Token válido pego antes da transferência não vale depois dela.
-  const PODE_ENTRAR = { morador: 'chamando', portaria: 'portaria' };
+  const PODE_ENTRAR = { morador: 'chamando', portaria: 'portaria', central: 'portaria' };
 
   function entrou({ papel, uid, canal }) {
     if (estado === 'encerrada' || estado === 'atendida') return [{ acao: 'recusar_canal', canal }];
@@ -95,7 +100,7 @@ export function criarChamada({
     iniciar() {
       if (iniciada || estado === 'encerrada') return [];
       iniciada = true;
-      if (tipo === 'unidade_portaria') {
+      if (nasceNaPortaria) {
         return [{ acao: 'tocar_origem' }, { acao: 'agendar', nome: 'toque_portaria', s: toquePortaria }];
       }
       return [
@@ -150,7 +155,7 @@ export function criarChamada({
       if (estado === 'atendida') return fecharAtendida();
       // Facial encerrado pela portaria sem atender = não atendida; ligação
       // originada pelo console/app encerrada antes de atender = cancelada.
-      return fechar(tipo === 'facial_unidade' ? 'nao_atendida' : 'cancelada');
+      return fechar(facialNoTerminal ? 'nao_atendida' : 'cancelada');
     },
 
     falhou() {
