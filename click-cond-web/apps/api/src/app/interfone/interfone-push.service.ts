@@ -55,6 +55,8 @@ export class InterfonePushService {
 
   /**
    * Toca nos aparelhos dos usuários (exceto quem desligou o interfone).
+   * iPhone com app novo sem token VoIP recebe alerta "Toque para atender";
+   * "Atualize o app" fica só para quem tem o app sem interfone (versão 0).
    * `tocou` = aparelhos em que o toque saiu (VoIP 200 / dados 'ok');
    * `semApp` = aparelhos com app sem interfone, que receberam o push comum.
    */
@@ -93,6 +95,19 @@ export class InterfonePushService {
               } else if (r.status !== 0) {
                 this.logger.warn(`APNs recusou o VoIP da chamada ${idChamada}: ${r.status} ${r.motivo ?? ''}`);
               }
+            } else if (plataforma === 'ios' && versao >= INTERFONE_VERSAO_APP) {
+              // App novo sem token VoIP (PushKit ainda não registrou): alerta
+              // comum com os dados da chamada; tocar abre o app na chamada.
+              const r = await this.notifications.enviarParaAparelho(
+                a.fcm_token,
+                dados.tipo === 'portaria_unidade' ? 'A portaria está chamando' : 'Visitante chamando no portão',
+                'Toque para atender.',
+                conteudo,
+              );
+              if (r) {
+                tocou++;
+                tocaram.add(a.id_user);
+              }
             } else if (plataforma === 'android' && versao >= INTERFONE_VERSAO_APP) {
               if ((await this.notifications.enviarDados(a.fcm_token, conteudo)) === 'ok') {
                 tocou++;
@@ -120,7 +135,7 @@ export class InterfonePushService {
 
   /**
    * Usuários que o toque alcançaria (aparelho com o interfone novo: Android
-   * v1+, iPhone v1+ com token VoIP), sem mandar nada. Serve para decidir "sem
+   * v1+, iPhone v1+ com token VoIP ou, sem ele, pelo alerta), sem mandar nada. Serve para decidir "sem
    * app" sem esperar o APNs.
    */
   async podemTocar(idsUsuarios: number[]): Promise<number[]> {
@@ -130,7 +145,7 @@ export class InterfonePushService {
       for (const a of alvos) {
         const plataforma = (a.plataforma ?? '').toLowerCase();
         if ((a.interfone_versao ?? 0) < INTERFONE_VERSAO_APP) continue;
-        if (plataforma === 'android' || (plataforma === 'ios' && a.voip_token)) ok.add(a.id_user);
+        if (plataforma === 'android' || plataforma === 'ios') ok.add(a.id_user);
       }
       return [...ok].sort((x, y) => x - y);
     } catch {
