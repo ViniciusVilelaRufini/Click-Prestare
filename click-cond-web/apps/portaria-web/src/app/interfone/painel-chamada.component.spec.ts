@@ -156,4 +156,18 @@ describe('PainelChamadaComponent', () => {
     await fixture.whenStable();
     expect(el.textContent).toContain('Você não vai receber chamadas do interfone');
   });
+
+  it('som bloqueado: aviso clicável ativa o som', async () => {
+    const { fixture, botao } = render();
+    const toque = TestBed.inject(ToqueInterfone) as unknown as ToqueFalso;
+    expect(botao('CLIQUE PARA ATIVAR O SOM DO INTERFONE')).toBeNull();
+    toque.bloqueado.set(true);
+    await fixture.whenStable();
+    const aviso = botao('CLIQUE PARA ATIVAR O SOM DO INTERFONE');
+    expect(aviso).not.toBeNull();
+    aviso!.click();
+    await fixture.whenStable();
+    expect(toque.desbloquear).toHaveBeenCalled();
+    expect(botao('CLIQUE PARA ATIVAR O SOM DO INTERFONE')).toBeNull();
+  });
 });

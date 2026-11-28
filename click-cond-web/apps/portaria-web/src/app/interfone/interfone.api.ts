@@ -53,7 +53,11 @@ export interface ChamadaHoje {
   foto_url: string | null;
   porta_aberta: boolean;
   unidade: string;
+  /** Estado atual da chamada (a API manda no item de hoje): reconcilia o toque quando um `interfone:fim` se perde. */
+  estado?: EstadoChamada;
 }
+
+export type EstadoChamada = 'chamando' | 'portaria' | 'atendida' | 'encerrada';
 
 export interface ResultadoAbrir {
   ok: boolean;
@@ -174,8 +178,9 @@ export class InterfoneApi {
     return this.http.put<FacialInterfone>(`${this.base}/faciais/${id}`, dto);
   }
 
-  novaSenhaFacial(id: number): Observable<FacialInterfone> {
-    return this.http.post<FacialInterfone>(`${this.base}/faciais/${id}/nova-senha`, {});
+  /** A API devolve só a senha nova. */
+  novaSenhaFacial(id: number): Observable<{ senha: string }> {
+    return this.http.post<{ senha: string }>(`${this.base}/faciais/${id}/nova-senha`, {});
   }
 
   /** CSV no modelo da Intelbras. Vem como blob: a rota exige o token, então não dá para abrir por link. */

@@ -142,6 +142,117 @@ describe('InterfoneStore', () => {
       rt.emitir('interfone:chamada', null);
       expect(store.tocando()).toEqual([]);
     });
+
+    it('tipo desconhecido é ignorado (não vira chamada de facial)', () => {
+      rt.emitir('interfone:chamada', { ...CHAMADA_FACIAL, tipo: 'outro' });
+      rt.emitir('interfone:chamada', { ...CHAMADA_FACIAL, tipo: undefined });
+      expect(store.tocando()).toEqual([]);
+    });
+  });
+
+  describe('reconciliação (fim perdido)', () => {
+    beforeEach(() => {
+      montar();
+      store.iniciar();
+    });
+
+    it('socket reconectado recarrega o dia e tira o que já não toca na portaria', () => {
+      rt.emitir('interfone:chamada', CHAMADA_FACIAL);
+      rt.emitir('interfone:chamada', CHAMADA_MORADOR);
+      rt.emitir('interfone:chamada', { ...CHAMADA_FACIAL, id: 43 });
+      api.hoje.mockClear();
+      api.hoje.mockReturnValueOnce(
+        of([
+          { ...HOJE[0], id: 41, estado: 'atendida' },
+          { ...HOJE[0], id: 42, tipo: 'unidade_portaria', estado: 'chamando' },
+          { ...HOJE[0], id: 43, estado: 'portaria' },
+        ]) as never,
+      );
+      rt.emitir('connect', undefined);
+      expect(api.hoje).toHaveBeenCalledTimes(1);
+      expect(store.tocando().map((c) => c.id)).toEqual([42, 43]);
+    });
+
+    it('chamada de facial em "chamando" (de volta no apartamento) sai; encerrada também', () => {
+      rt.emitir('interfone:chamada', CHAMADA_FACIAL);
+      rt.emitir('interfone:chamada', CHAMADA_MORADOR);
+      api.hoje.mockReturnValueOnce(
+        of([
+          { ...HOJE[0], id: 41, estado: 'chamando' },
+          { ...HOJE[0], id: 42, tipo: 'unidade_portaria', estado: 'encerrada' },
+        ]) as never,
+      );
+      store.recarregarHoje();
+      expect(store.tocando()).toEqual([]);
+    });
+
+    it('chamada fora da lista do dia ou sem estado continua (o teto local cuida)', () => {
+      rt.emitir('interfone:chamada', CHAMADA_FACIAL);
+      api.hoje.mockReturnValueOnce(of([]) as never);
+      store.recarregarHoje();
+      expect(store.tocando().map((c) => c.id)).toEqual([41]);
+    });
+  });
+
+  it('teto local: chamada tocando some depois de 130 s sem fim', () => {
+    jest.useFakeTimers();
+    try {
+      montar();
+      store.iniciar();
+      rt.emitir('interfone:chamada', CHAMADA_FACIAL);
+      jest.advanceTimersByTime(60_000);
+      rt.emitir('interfone:chamada', { ...CHAMADA_FACIAL, motivo: 'recusou' }); // repetido não estende o teto
+      jest.advanceTimersByTime(69_000);
+      expect(store.tocando()).toHaveLength(1);
+      jest.advanceTimersByTime(1_000);
+      expect(store.tocando()).toEqual([]);
+      expect(toque.tocando).toBe(false);
+    } finally {
+      store.parar();
+      jest.useRealTimers();
+    }
+  });
+
+  describe('motivos 409 em pt-BR', () => {
+    beforeEach(() => {
+      montar();
+      store.iniciar();
+    });
+
+    it.each([
+      ['em_andamento', 'Já existe uma ligação em andamento.'],
+      ['indisponivel', 'Interfone indisponível no momento.'],
+      ['sem_app', 'Ninguém dessa unidade recebe chamadas pelo app.'],
+    ])('ligar com 409 %s', async (motivo, texto) => {
+      api.ligar.mockReturnValueOnce(
+        throwError(() => new HttpErrorResponse({ status: 409, error: { motivo, message: 'Conflict' } })),
+      );
+      await store.ligar(10, 'Bloco A · Apto 101');
+      expect(store.erro()).toBe(texto);
+      expect(sip.entrar).not.toHaveBeenCalled();
+    });
+
+    it('atender com 409 indisponivel mostra o texto e tira da lista', async () => {
+      rt.emitir('interfone:chamada', CHAMADA_FACIAL);
+      api.atender.mockReturnValueOnce(
+        throwError(() => new HttpErrorResponse({ status: 409, error: { motivo: 'indisponivel' } })),
+      );
+      await store.atender(41);
+      expect(store.aviso()).toBe('Interfone indisponível no momento.');
+      expect(store.tocando()).toEqual([]);
+    });
+  });
+
+  describe('som bloqueado pelo navegador', () => {
+    it('o store prepara o desbloqueio, expõe o bloqueio e ativa o som', () => {
+      montar();
+      store.iniciar();
+      expect(toque.preparar).toHaveBeenCalled();
+      toque.bloqueado.set(true);
+      expect(store.somBloqueado()).toBe(true);
+      store.ativarSom();
+      expect(toque.desbloquear).toHaveBeenCalled();
+    });
   });
 
   describe('atender', () => {

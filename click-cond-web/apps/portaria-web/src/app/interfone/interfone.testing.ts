@@ -105,6 +105,10 @@ export class SipVozFalso {
 
 export class ToqueFalso {
   tocando = false;
+  readonly bloqueado = signal(false);
   tocar = jest.fn(() => { this.tocando = true; });
   parar = jest.fn(() => { this.tocando = false; });
+  preparar = jest.fn();
+  desbloquear = jest.fn(() => this.bloqueado.set(false));
+  descartar = jest.fn();
 }

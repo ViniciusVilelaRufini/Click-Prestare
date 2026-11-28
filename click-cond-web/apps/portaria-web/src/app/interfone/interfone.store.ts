@@ -20,6 +20,16 @@ const AVISO_MS = 6_000;
 /** Módulo desligado: confere de novo de tempos em tempos (o síndico pode ligar com a portaria aberta). */
 const RECONFERIR_DESLIGADO_MS = 10 * 60_000;
 const NOVA_TENTATIVA_MS = 60_000;
+/** Teto local de uma chamada tocando sem `interfone:fim` (o toque na portaria vai até 120 s). */
+const TETO_TOQUE_MS = 130_000;
+
+/** Mensagens dos 409 com `motivo` (contrato da API). */
+const MOTIVOS: Record<string, string> = {
+  em_andamento: 'Já existe uma ligação em andamento.',
+  indisponivel: 'Interfone indisponível no momento.',
+  sem_app: 'Ninguém dessa unidade recebe chamadas pelo app.',
+  portaria_indisponivel: 'Portaria indisponível agora.',
+};
 
 /**
  * Estado do interfone no console da portaria. Só existe para login de porteiro com o módulo ligado
@@ -58,6 +68,9 @@ export class InterfoneStore {
   readonly microfoneNegado = signal(false);
   private readonly carenciaConexao = signal(true);
 
+  /** O navegador bloqueou o som (autoplay): o painel mostra 'Clique para ativar o som do interfone'. */
+  readonly somBloqueado = computed(() => this.toque.bloqueado());
+
   readonly podeAbrir = computed(() => {
     const c = this.emChamada();
     return !!c && c.tipo === 'facial_unidade' && this.estado() === 'em_chamada' && !this.abrindo();
@@ -85,6 +98,8 @@ export class InterfoneStore {
   private timerAviso: ReturnType<typeof setTimeout> | null = null;
   private timerCarencia: ReturnType<typeof setTimeout> | null = null;
   private timerReconferir: ReturnType<typeof setTimeout> | null = null;
+  /** Teto local por chamada tocando (id → timer). */
+  private readonly tetos = new Map<number, ReturnType<typeof setTimeout>>();
 
   /** É "a portaria" do interfone: login de porteiro (vale o token; o turno é texto livre). */
   private souPortaria(): boolean {
@@ -125,7 +140,9 @@ export class InterfoneStore {
     this.atendendo.set(null);
     this.discando.set(false);
     this.encerradas.clear();
-    this.toque.parar();
+    for (const t of this.tetos.values()) clearTimeout(t);
+    this.tetos.clear();
+    this.toque.descartar();
     if (estavaAtivo) this.realtime.disconnect();
   }
 
@@ -152,7 +169,11 @@ export class InterfoneStore {
       const err = e as HttpErrorResponse;
       if (err?.status === 409 || err?.status === 404) {
         this.tirarDoToque(id);
-        this.mostrarAviso(err?.error?.motivo === 'encerrada' || err?.status === 404 ? 'Chamada encerrada.' : 'Chamada já atendida.');
+        const motivo = err?.error?.motivo;
+        this.mostrarAviso(
+          MOTIVOS[motivo] ??
+            (motivo === 'encerrada' || err?.status === 404 ? 'Chamada encerrada.' : 'Chamada já atendida.'),
+        );
       } else {
         this.erro.set(mensagemDaApi(err) ?? 'Não foi possível atender. Tente de novo.');
       }
@@ -243,7 +264,10 @@ export class InterfoneStore {
   recarregarHoje(): void {
     if (!this.ativo()) return;
     this.api.hoje().subscribe({
-      next: (lista) => this.hoje.set(Array.isArray(lista) ? lista : []),
+      next: (lista) => {
+        this.hoje.set(Array.isArray(lista) ? lista : []);
+        this.reconciliarToque();
+      },
       error: () => undefined,
     });
   }
@@ -255,10 +279,13 @@ export class InterfoneStore {
     this.cancelamentos.push(
       this.realtime.on('interfone:chamada', (d) => this.aoChamar(d)),
       this.realtime.on('interfone:fim', (d) => this.aoFim(d)),
+      // Reconectou (o socket.io emite 'connect' a cada reconexão): um 'interfone:fim' pode ter se perdido.
+      this.realtime.on('connect', () => this.recarregarHoje()),
     );
     this.carenciaConexao.set(true);
     this.timerCarencia = setTimeout(() => this.carenciaConexao.set(false), CARENCIA_CONEXAO_MS);
     this.verificarMicrofone();
+    this.toque.preparar();
   }
 
   private agendarReconferir(ms: number): void {
@@ -275,7 +302,9 @@ export class InterfoneStore {
     const ev = d as Partial<EventoChamada> | null;
     const id = Number(ev?.id);
     if (!ev || !Number.isFinite(id) || id <= 0) return;
-    const tipo = TIPOS.includes(ev.tipo as TipoChamada) ? (ev.tipo as TipoChamada) : 'facial_unidade';
+    // Tipo desconhecido é ignorado: virar 'facial_unidade' mostraria ABRIR PORTÃO.
+    if (!TIPOS.includes(ev.tipo as TipoChamada)) return;
+    const tipo = ev.tipo as TipoChamada;
     // A ligação que a própria portaria fez não toca nos consoles.
     if (tipo === 'portaria_unidade') return;
     if (this.emChamada()?.id === id) return;
@@ -369,6 +398,28 @@ export class InterfoneStore {
     this.inicioConversa.set(null);
   }
 
+  /**
+   * Tira do toque o que a lista do dia já mostra fora da portaria: chamada de facial que não está mais em
+   * `portaria`, chamada do morador que não está em `portaria`/`chamando`. Sem item ou sem `estado`, fica (o teto
+   * local de 130 s cuida).
+   */
+  private reconciliarToque(): void {
+    const estados = new Map(this.hoje().map((h) => [h.id, h.estado] as const));
+    const fora = this.tocando().filter((c) => {
+      const e = estados.get(c.id);
+      if (!e) return false;
+      return c.tipo === 'unidade_portaria' ? e !== 'portaria' && e !== 'chamando' : e !== 'portaria';
+    });
+    if (!fora.length) return;
+    for (const c of fora) this.tirarDoToque(c.id);
+    this.atualizarToque();
+  }
+
+  /** Clique no aviso de som bloqueado (é um gesto do usuário: o navegador deixa tocar). */
+  ativarSom(): void {
+    this.toque.desbloquear();
+  }
+
   private colocarNoToque(c: ChamadaConsole): void {
     this.tocando.update((lista) => {
       const i = lista.findIndex((x) => x.id === c.id);
@@ -377,10 +428,24 @@ export class InterfoneStore {
       nova[i] = c;
       return nova;
     });
+    // Teto local: conta da primeira vez que tocou (evento repetido não estende).
+    if (!this.tetos.has(c.id)) {
+      this.tetos.set(
+        c.id,
+        setTimeout(() => {
+          this.tetos.delete(c.id);
+          this.tirarDoToque(c.id);
+          this.atualizarToque();
+        }, TETO_TOQUE_MS),
+      );
+    }
     this.atualizarToque();
   }
 
   private tirarDoToque(id: number): void {
+    const teto = this.tetos.get(id);
+    if (teto) clearTimeout(teto);
+    this.tetos.delete(id);
     this.tocando.update((lista) => lista.filter((c) => c.id !== id));
   }
 
@@ -402,9 +467,10 @@ export class InterfoneStore {
 }
 
 function mensagemDaApi(e: HttpErrorResponse | null | undefined): string | null {
+  const motivo = e?.error?.motivo;
+  if (typeof motivo === 'string' && MOTIVOS[motivo]) return MOTIVOS[motivo];
   const m = e?.error?.message;
   if (typeof m === 'string' && m.trim()) return m;
   if (Array.isArray(m) && typeof m[0] === 'string') return m[0];
-  if (e?.error?.motivo === 'portaria_indisponivel') return 'Portaria indisponível agora.';
   return null;
 }

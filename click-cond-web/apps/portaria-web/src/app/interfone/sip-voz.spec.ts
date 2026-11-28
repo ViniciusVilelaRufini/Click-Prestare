@@ -104,6 +104,15 @@ describe('SipVoz (JsSIP)', () => {
     }
   });
 
+  it('um só ouvinte de track por conexão (o JsSIP 3.13.9 emite peerconnection dentro do call)', async () => {
+    const pc = { addEventListener: jest.fn() };
+    sessaoFalsa.connection = pc;
+    await new SipVoz().entrar(DADOS_ENTRADA, null, null);
+    chamadas[0].opcoes.eventHandlers.peerconnection({ peerconnection: pc });
+    expect(pc.addEventListener).toHaveBeenCalledTimes(1);
+    expect(pc.addEventListener).toHaveBeenCalledWith('track', expect.any(Function));
+  });
+
   it('hostDaUri', () => {
     expect(hostDaUri('sip:entrar@voz.prestarecondominios.com.br')).toBe('voz.prestarecondominios.com.br');
     expect(hostDaUri('sip:entrar@voz.exemplo.com:5060;transport=ws')).toBe('voz.exemplo.com');

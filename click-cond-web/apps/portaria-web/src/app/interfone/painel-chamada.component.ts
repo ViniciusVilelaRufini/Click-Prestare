@@ -42,6 +42,11 @@ const MAX_CONVERSA_S = 180;
             </div>
           }
 
+          @if (store.somBloqueado()) {
+            <!-- Autoplay: o navegador só deixa tocar depois de um clique na página. -->
+            <button type="button" class="ps-panel pointer-events-auto flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm" (click)="store.ativarSom()"><span class="ps-dot ps-dot-warn ps-dot-pulse"></span>Clique para ativar o som do interfone</button>
+          }
+
           @for (c of store.tocando(); track c.id) {
             <section class="ps-panel pointer-events-auto" [attr.aria-label]="'Chamada do interfone: ' + c.unidade">
               <div class="flex items-start gap-3 px-4 pt-4 pb-3">
@@ -135,6 +140,7 @@ export class PainelChamadaComponent implements OnInit, AfterViewInit, OnDestroy 
       (this.store.tocando().length > 0 ||
         !!this.store.emChamada() ||
         !!this.store.semChamadas() ||
+        this.store.somBloqueado() ||
         !!this.store.aviso() ||
         !!this.store.erro()),
   );

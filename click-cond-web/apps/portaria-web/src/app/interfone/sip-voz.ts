@@ -73,7 +73,12 @@ export class SipVoz {
       ouvintesFim.forEach((cb) => cb(fim!));
     };
 
-    const anexarMidia = (pc: RTCPeerConnection) => {
+    // O JsSIP 3.13.9 emite 'peerconnection' de forma síncrona dentro do call(); a conexão também fica em
+    // sessao.connection. Um só ouvinte de 'track' por conexão (dois reatribuiriam o srcObject e abortariam o play).
+    const tratadas = new WeakSet<object>();
+    const anexarMidia = (pc: RTCPeerConnection | null | undefined) => {
+      if (!pc || tratadas.has(pc)) return;
+      tratadas.add(pc);
       pc.addEventListener('track', (ev: RTCTrackEvent) => {
         const stream = ev.streams[0] ?? new MediaStream([ev.track]);
         if (ev.track.kind === 'video' && video) {
@@ -100,8 +105,8 @@ export class SipVoz {
         failed: (e: { cause?: string }) => terminar(e?.cause),
       },
     } as any);
-    // Conexão criada antes do 'peerconnection' (versões novas do JsSIP): anexa também.
-    if (sessao.connection) anexarMidia(sessao.connection as unknown as RTCPeerConnection);
+    // Se o 'peerconnection' já tiver passado sem chegar aqui, a conexão está em sessao.connection (o WeakSet evita dobrar).
+    anexarMidia(sessao.connection as unknown as RTCPeerConnection | null);
 
 
     return {

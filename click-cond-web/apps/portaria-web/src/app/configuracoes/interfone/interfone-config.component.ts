@@ -222,10 +222,17 @@ export class InterfoneConfigComponent implements OnInit {
     });
     if (!ok) return;
     this.api.novaSenhaFacial(f.id).subscribe({
-      next: (novo) => {
-        if (novo) this.trocarFacial(novo);
+      next: (r) => {
+        const senha = typeof r?.senha === 'string' ? r.senha : null;
+        if (!senha) {
+          this.toast.error('A senha nova não veio. Recarregue a página antes de passar a senha ao instalador.');
+          return;
+        }
+        // Só a senha muda; o facial é o da linha (a resposta não traz id).
+        this.faciais.update((l) => l.map((x) => (x.id === f.id ? { ...x, senha } : x)));
         this.senhaVisivel.update((s) => ({ ...s, [f.id]: true }));
-        this.toast.success('Senha nova gerada.');
+        this.toast.success('Senha nova gerada. Passe esta ao instalador.');
+        this.copiar(senha);
       },
       error: (e: HttpErrorResponse) => this.toast.error(mensagem(e) ?? 'Não foi possível gerar a senha.'),
     });

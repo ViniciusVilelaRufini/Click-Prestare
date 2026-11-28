@@ -184,6 +184,34 @@ describe('InterfoneConfigComponent', () => {
     expect(el.textContent).toContain('entre 15 e 60');
   });
 
+  it('gerar nova senha: a API devolve só {senha}; a tela mostra e copia a NOVA', async () => {
+    const escrever = jest.fn(() => Promise.resolve());
+    const nav = globalThis.navigator as any;
+    const antes = Object.getOwnPropertyDescriptor(nav, 'clipboard');
+    Object.defineProperty(nav, 'clipboard', { value: { writeText: escrever }, configurable: true });
+    try {
+      const { fixture, el } = render();
+      const botao = Array.from(el.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Gerar nova senha')!;
+      botao.click();
+      await fixture.whenStable();
+      const req = http.expectOne({ method: 'POST', url: `${URL}/faciais/9/nova-senha` });
+      req.flush({ senha: 'NovaSenhaGerada000000000' });
+      fixture.detectChanges();
+      expect(el.textContent).toContain('NovaSenhaGerada000000000');
+      expect(el.textContent).not.toContain(FACIAL.senha!);
+      expect(escrever).toHaveBeenLastCalledWith('NovaSenhaGerada000000000');
+      expect(fixture.componentInstance.faciais()[0]).toMatchObject({ id: 9, senha: 'NovaSenhaGerada000000000' });
+      expect(Object.keys(fixture.componentInstance.edFacial())).toEqual(['9']);
+
+      escrever.mockClear();
+      (el.querySelector('button[aria-label="Copiar senha"]') as HTMLButtonElement).click();
+      expect(escrever).toHaveBeenCalledWith('NovaSenhaGerada000000000');
+    } finally {
+      if (antes) Object.defineProperty(nav, 'clipboard', antes);
+      else delete nav.clipboard;
+    }
+  });
+
   it('salvar módulo manda a configuração sem "contratado"', () => {
     const { fixture, el } = render();
     fixture.componentInstance.transferir.set(false);
