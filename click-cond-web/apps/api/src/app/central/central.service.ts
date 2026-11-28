@@ -17,6 +17,7 @@ import { idDoCorpo } from '../interfone/interfone-app.controller';
 import { InterfonePedidosService } from '../interfone/interfone-pedidos.service';
 import type { PedidoResumo, TipoPedido } from '../interfone/interfone-pedidos.service';
 import type { DadosEntrada } from '../interfone/token-voz';
+import { rotuloAptoBloco } from '../visitantes/rotulo-apto-bloco.util';
 
 /** Operador logado (de `operadorDoToken`). */
 export interface OperadorCentral {
@@ -79,6 +80,11 @@ export interface ItemHistoricoCentral {
   portao: string | null;
 }
 
+export interface UnidadeDaCentral {
+  id: number;
+  rotulo: string;
+}
+
 export interface AlertaCentral {
   id: number;
   id_condominio: number;
@@ -99,6 +105,9 @@ const HISTORICO_MAX = 500;
 const ALERTAS_MAX = 100;
 const ESPERADOS_MAX = 20;
 const VISTO_POR_MAX = 120;
+const UNIDADES_MAX = 20;
+/** Teto de unidades lidas de um condomínio para filtrar a busca (prédio grande tem poucas centenas). */
+const UNIDADES_LIDAS_MAX = 5000;
 
 /** Condomínio atendido pela central agora: contratou e está ativo. */
 const ONDE_CENTRAL = { central_contratada: 1, ativo: 1 } as const;
@@ -450,4 +459,50 @@ export class CentralService {
       return null;
     }
   }
+
+  // ─────────────────────────────────────────── unidades (Ligar)
+
+  /**
+   * Unidades de um condomínio da central para o "Ligar" do operador: só `{ id, rotulo }` (nada de
+   * morador). `busca`: cada palavra casa com o começo do bloco ou do número ("a 2" → Bloco A · Apto
+   * 201); as palavras "bloco" e "apto" são ignoradas. Condomínio fora da central → 404.
+   */
+  async unidades(idCondominio: number, busca: string | null | undefined): Promise<UnidadeDaCentral[]> {
+    const cond = await this.prisma.condominios.findFirst({ where: { id: idCondominio, ...ONDE_CENTRAL }, select: { id: true } });
+    if (!cond) throw new NotFoundException('Condomínio não encontrado.');
+    const aptos = await this.prisma.apartamentos.findMany({
+      where: { id_condominio: cond.id },
+      select: { id: true, apto: true, bloco: true },
+      take: UNIDADES_LIDAS_MAX,
+    });
+    const termos = palavrasDaBusca(String(busca ?? '').slice(0, 60));
+    const lista = aptos
+      .map((a) => ({ a, bloco: normalizar(a.bloco).replace(/^bloco\s*/, ''), num: normalizar(a.apto).replace(/^apto\.?\s*/, '') }))
+      .filter(({ bloco, num }) => {
+        if (!termos.length) return true;
+        const palavras = [...bloco.split(' '), ...num.split(' ')].filter(Boolean);
+        return termos.every((t) => palavras.some((p) => p.startsWith(t)));
+      });
+    const cmp = (x: string, y: string) => x.localeCompare(y, 'pt-BR', { numeric: true });
+    lista.sort((x, y) => cmp(x.bloco, y.bloco) || cmp(x.num, y.num) || x.a.id - y.a.id);
+    return lista.slice(0, UNIDADES_MAX).map(({ a }) => ({ id: a.id, rotulo: rotuloAptoBloco(a.apto, a.bloco) }));
+  }
+}
+
+/** Minúsculas, sem acento e com espaços simples. */
+function normalizar(v: string | null | undefined): string {
+  return String(v ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Palavras da busca do "Ligar", sem "bloco"/"apto" e sem pontuação. */
+function palavrasDaBusca(busca: string): string[] {
+  return normalizar(busca)
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .split(' ')
+    .filter((p) => p && p !== 'bloco' && p !== 'apto' && p !== 'apt' && p !== 'ap');
 }

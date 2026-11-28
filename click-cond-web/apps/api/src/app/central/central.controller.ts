@@ -98,4 +98,15 @@ export class CentralController {
   async alertaVisto(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
     return this.central.alertaVisto(operadorDoToken(user), id);
   }
+
+  /** "Ligar" do operador: unidades do condomínio da central (`?busca=`), só `{ id, rotulo }`. */
+  @Get('condominios/:id/unidades')
+  async unidades(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('busca') busca: string | undefined,
+    @ReqUser() user: JwtPayload,
+  ) {
+    operadorDoToken(user);
+    return this.central.unidades(id, busca);
+  }
 }
