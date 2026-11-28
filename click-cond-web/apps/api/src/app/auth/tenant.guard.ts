@@ -9,6 +9,7 @@ import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from './public.decorator';
 import { JwtPayload } from './jwt-payload.interface';
 import { TenantAccessService } from './tenant-access.service';
+import { controllerDaCentral, ehTokenDeOperadorCentral } from '../central/operador.util';
 
 /**
  * Bloqueia acesso cross-tenant em rotas estruturadas como
@@ -45,6 +46,17 @@ export class TenantGuard implements CanActivate {
     if (isPublic) return true;
 
     const request = context.switchToHttp().getRequest();
+
+    // Operador da central (sem condomínio, sub = Central_Operadores.id): a sessão dele só vale nos
+    // controllers da central. Em qualquer outra rota o sub seria lido como Users.id (ramo do morador
+    // do assertCondominio) ou o token sem condomínio passaria pelos assertSameTenant lenientes.
+    if (context.getType() === 'http' && ehTokenDeOperadorCentral(request?.user)) {
+      if (!controllerDaCentral(context.getClass())) {
+        throw new ForbiddenException('Acesso negado: a sessão da central só vale nas telas da central.');
+      }
+      return true;
+    }
+
     const idCondominioParam = request.params?.idCondominio;
     if (!idCondominioParam) return true;
 

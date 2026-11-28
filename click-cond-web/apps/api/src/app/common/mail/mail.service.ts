@@ -266,6 +266,29 @@ export class MailService implements OnModuleInit {
     await this.send(email, subject, html, text);
   }
 
+  /**
+   * Código do login do operador da central (CentralAuthService). Mesmo formato do sendMfaCode, mas o
+   * código fica só no corpo: o assunto aparece em notificação de celular e em lista de caixa de entrada.
+   */
+  async sendCodigoCentral(email: string, nome: string, code: string): Promise<void> {
+    const subject = 'Seu código de acesso à Central Prestare';
+    const text = `Olá, ${nome}!\n\nRecebemos um pedido de login na Central Prestare.\n\nSeu código de acesso à Central Prestare é: ${code}\n\nEste código é válido por 10 minutos.\nSe você não pediu este acesso, alguém pode estar com a sua senha. Avise o responsável pela central imediatamente.\n\nEquipe PRESTARE Condomínios\nhttps://www.prestarecondominios.com.br`;
+    const html = layoutEmail({
+      assunto: subject,
+      preheader: 'Seu código de acesso à Central Prestare',
+      eyebrow: 'Central Prestare',
+      titulo: 'Seu código de acesso à Central Prestare',
+      corpo: `
+        ${paragrafo(`Olá, ${forte(esc(nome))}!`)}
+        ${paragrafo(`Recebemos um pedido de login na ${forte('Central Prestare')}. Use o código abaixo para confirmar o acesso:`)}
+        ${caixaCodigo('Código de acesso', code)}
+        ${nota(`Este código vale por ${forte('10 minutos')}.`)}
+        ${nota(`${forte('Não foi você?')} Alguém pode estar com a sua senha. Avise o responsável pela central imediatamente.`, 'alerta')}
+      `,
+    });
+    await this.send(email, subject, html, text);
+  }
+
   private async send(to: string, subject: string, html: string, text?: string): Promise<void> {
     const textContent =
       text ||

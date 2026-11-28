@@ -8,6 +8,7 @@ import { ehTokenDeUsuarioApp } from './usuario-app.guard';
 import { tokenAnteriorATrocaDeSenha } from './senha-alterada.util';
 import { carimboCredencialPortaria } from './credencial-portaria.util';
 import { loginPortariaDesativadoNoCondominio } from './login-portaria-desativado.util';
+import { ehTokenDeOperadorCentral, tokenDeOperadorBemFormado } from '../central/operador.util';
 
 /** Por quanto tempo a data da última troca de senha fica em cache por usuário. */
 const CACHE_TROCA_SENHA_MS = 30_000;
@@ -68,6 +69,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * CACHE_PORTEIRO_MS.
    */
   async validate(payload: JwtPayload & { iat?: number }) {
+    // Operador da central antes do atalho "sem banco aceita": o token dele enxerga vários condomínios,
+    // então aqui a regra é fail-closed (sem banco, sem sessão).
+    if (ehTokenDeOperadorCentral(payload)) {
+      if (!tokenDeOperadorBemFormado(payload) || !(await this.operadorAtivo(Number(payload.sub), payload.cred))) {
+        throw new UnauthorizedException('Sessão da central encerrada. Entre novamente.');
+      }
+      return payload;
+    }
+
     if (!this.prisma?.isConnected) return payload;
 
     if (payload.tipo_sub === 'funcionario_portaria') {
@@ -180,6 +190,36 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     } catch (e: any) {
       // Fail-open, como na troca de senha: banco instável não derruba todos os consoles.
       this.logger.warn(`Não foi possível conferir o porteiro ${idFuncionario}: ${e?.message ?? e}`);
+    }
+    if (this.porteiroCache.size > 10_000) this.porteiroCache.clear();
+    this.porteiroCache.set(chave, { valor, expira: agora + CACHE_PORTEIRO_MS });
+    return valor;
+  }
+
+  /**
+   * O operador da central segue ativo e com o mesmo carimbo `cred` do token (Central_Operadores.cred,
+   * trocado ao mudar a senha ou ao desativar/reativar). Mesmo cache de 30 s do porteiroAtivo, mas
+   * FAIL-CLOSED: sem banco ou com erro na consulta, recusa (e a falha não fica em cache, para a sessão
+   * voltar assim que o banco voltar). Token sem `cred` nunca é de operador: o login sempre carimba.
+   */
+  private async operadorAtivo(idOperador: number, cred?: string): Promise<boolean> {
+    if (!Number.isInteger(idOperador) || idOperador <= 0) return false;
+    if (typeof cred !== 'string' || !cred) return false;
+    if (!this.prisma?.isConnected) return false;
+    const chave = `op:${idOperador}:${cred}`;
+    const agora = Date.now();
+    const cache = this.porteiroCache.get(chave);
+    if (cache && cache.expira > agora) return cache.valor;
+    let valor: boolean;
+    try {
+      const op = await this.prisma.central_Operadores.findFirst({
+        where: { id: idOperador, ativo: 1 },
+        select: { id: true, cred: true },
+      });
+      valor = !!op && !!op.cred && op.cred === cred;
+    } catch (e: any) {
+      this.logger.warn(`Não foi possível conferir o operador da central ${idOperador}: ${e?.message ?? e}`);
+      return false;
     }
     if (this.porteiroCache.size > 10_000) this.porteiroCache.clear();
     this.porteiroCache.set(chave, { valor, expira: agora + CACHE_PORTEIRO_MS });

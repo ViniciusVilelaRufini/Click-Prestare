@@ -66,6 +66,10 @@ export class TenantAccessService {
     if ((payload as any).role === 'crm_admin') {
       throw new ForbiddenException('Acesso negado: sessão sem vínculo com este condomínio.');
     }
+    // Operador da central (sub = Central_Operadores.id): mesma razão. Ele só entra pelas rotas /central.
+    if (payload.papel === 'operador_central') {
+      throw new ForbiddenException('Acesso negado: sessão sem vínculo com este condomínio.');
+    }
 
     // Porteiro/portaria-web: condomínio fixo no token.
     if (payload.id_condominio) {
