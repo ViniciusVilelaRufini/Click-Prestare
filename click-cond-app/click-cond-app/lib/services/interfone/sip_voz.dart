@@ -36,8 +36,13 @@ class SipVoz {
   /// Teto para a central atender o INVITE (ICE + socket + 200 OK).
   static const Duration limiteConexao = Duration(seconds: 25);
 
-  static Future<SessaoVoz> entrar(DadosEntrada d, {required RTCVideoRenderer? video}) async {
-    final s = _SessaoSip(d, video);
+  static Future<SessaoVoz> entrar(
+    DadosEntrada d, {
+    required RTCVideoRenderer? video,
+    @visibleForTesting SIPUAHelper? helper,
+    @visibleForTesting Future<MediaStream> Function(Map<String, dynamic> restricoes)? obterMicrofone,
+  }) async {
+    final s = _SessaoSip(d, video, helper ?? SIPUAHelper(), obterMicrofone ?? navigator.mediaDevices.getUserMedia);
     await s.iniciar();
     return s;
   }
@@ -71,11 +76,12 @@ class SipVoz {
 }
 
 class _SessaoSip implements SipUaHelperListener, SessaoVoz {
-  _SessaoSip(this._dados, this._video);
+  _SessaoSip(this._dados, this._video, this._helper, this._obterMicrofone);
 
   final DadosEntrada _dados;
   final RTCVideoRenderer? _video;
-  final SIPUAHelper _helper = SIPUAHelper();
+  final SIPUAHelper _helper;
+  final Future<MediaStream> Function(Map<String, dynamic> restricoes) _obterMicrofone;
   final StreamController<String> _estados = StreamController<String>.broadcast();
   final ValueNotifier<bool> _temVideo = ValueNotifier<bool>(false);
   String _estado = 'conectando';
@@ -102,10 +108,10 @@ class _SessaoSip implements SipUaHelperListener, SessaoVoz {
     });
     try {
       // Microfone antes do socket: a permissão já foi pedida pela tela.
-      _local = await navigator.mediaDevices.getUserMedia(<String, dynamic>{'audio': true, 'video': false});
+      _local = await _obterMicrofone(<String, dynamic>{'audio': true, 'video': false});
     } catch (e) {
       logDebug('[Interfone] microfone: ${e.runtimeType}');
-      _mudar('encerrada');
+      encerrar();
       return;
     }
     final settings = UaSettings()

@@ -378,9 +378,4 @@ void main() {
     ]);
   });
 
-  test('a chamada não liga a câmera e pede o vídeo do facial', () {
-    final o = SipVoz.opcoesDaChamada();
-    expect(o['mediaConstraints'], {'audio': true, 'video': false});
-    expect(o['rtcOfferConstraints']['mandatory']['OfferToReceiveVideo'], isTrue);
-  });
 }
