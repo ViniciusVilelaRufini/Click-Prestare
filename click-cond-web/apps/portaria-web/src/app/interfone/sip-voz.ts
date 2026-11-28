@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import type { DadosEntrada } from './interfone.api';
+import { filtrarSdpParaCentral } from './sdp-central';
 
 export type EstadoSessao = 'conectando' | 'em_chamada' | 'encerrada';
 
@@ -100,6 +101,10 @@ export class SipVoz {
       rtcOfferConstraints: { offerToReceiveAudio: true, offerToReceiveVideo: true },
       eventHandlers: {
         peerconnection: (e: { peerconnection: RTCPeerConnection }) => anexarMidia(e.peerconnection),
+        // O JsSIP emite 'sdp' antes de enviar e usa o e.sdp que sobrar: a central recusa a oferta cheia do Chrome.
+        sdp: (e: { originator: string; sdp: string }) => {
+          if (e.originator === 'local') e.sdp = filtrarSdpParaCentral(e.sdp);
+        },
         confirmed: () => { atendida = true; mudar('em_chamada'); },
         ended: (e: { cause?: string }) => terminar(e?.cause),
         failed: (e: { cause?: string }) => terminar(e?.cause),

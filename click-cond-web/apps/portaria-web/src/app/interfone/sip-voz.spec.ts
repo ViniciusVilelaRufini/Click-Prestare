@@ -1,5 +1,7 @@
 import { SipVoz, hostDaUri } from './sip-voz';
 import { DADOS_ENTRADA } from './interfone.testing';
+import { OFERTA_CHROME } from './sdp-central.fixture';
+import { filtrarSdpParaCentral } from './sdp-central';
 
 const uaConfig: any[] = [];
 const chamadas: { uri: string; opcoes: any }[] = [];
@@ -111,6 +113,18 @@ describe('SipVoz (JsSIP)', () => {
     chamadas[0].opcoes.eventHandlers.peerconnection({ peerconnection: pc });
     expect(pc.addEventListener).toHaveBeenCalledTimes(1);
     expect(pc.addEventListener).toHaveBeenCalledWith('track', expect.any(Function));
+  });
+
+  it('a oferta local sai filtrada para a central; o SDP remoto não é mexido', async () => {
+    await new SipVoz().entrar(DADOS_ENTRADA, null, null);
+    const h = chamadas[0].opcoes.eventHandlers;
+    const local = { originator: 'local', type: 'offer', sdp: OFERTA_CHROME };
+    h.sdp(local);
+    expect(local.sdp).toBe(filtrarSdpParaCentral(OFERTA_CHROME));
+    expect(local.sdp).not.toContain('VP8');
+    const remoto = { originator: 'remote', type: 'answer', sdp: OFERTA_CHROME };
+    h.sdp(remoto);
+    expect(remoto.sdp).toBe(OFERTA_CHROME);
   });
 
   it('hostDaUri', () => {
