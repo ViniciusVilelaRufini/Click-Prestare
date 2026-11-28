@@ -140,11 +140,16 @@
       <div class="ps-panel-head">
         <div class="min-w-0">
           <h2 id="titulo-interfone-ramais" class="ps-h2">Ramais das unidades</h2>
-          <p class="ps-cap mt-1">O número que o visitante digita no facial. Quando dois blocos têm o mesmo apartamento, defina números diferentes (ex.: 1106 e 2106).</p>
+          <p class="ps-cap mt-1">O número que o visitante digita no facial. Quando dois blocos têm o mesmo apartamento, a sugestão leva a posição do bloco na frente (ex.: 1106 e 2106). Unidade sem ramal não recebe chamadas, mas não impede salvar as outras.</p>
         </div>
         <div class="flex items-center gap-2">
           @if (totalProblemas() > 0) {
-            <span class="ps-tag"><span class="ps-dot ps-dot-danger"></span>{{ totalProblemas() }} a resolver</span>
+            <span class="ps-tag" data-a-resolver><span class="ps-dot ps-dot-danger"></span>{{ totalProblemas() }} a resolver</span>
+          }
+          @if (totalSemRamal() > 0) {
+            <span class="ps-tag" data-sem-ramal title="Unidade sem ramal não recebe chamadas do interfone. Dá para salvar assim e preencher depois.">
+              <span class="ps-dot"></span>{{ totalSemRamal() }} sem ramal
+            </span>
           }
           <button type="button" data-aplicar-sugestoes class="ps-btn ps-btn-sec ps-btn-sm" (click)="aplicarSugestoes()">Usar sugestões</button>
           <button type="button" data-salvar-ramais class="ps-btn ps-btn-sm disabled:opacity-40" [disabled]="!podeSalvarRamais()" (click)="salvarRamais()">
@@ -156,30 +161,41 @@
         <p role="alert" class="px-5 pt-3 text-sm flex items-start gap-2.5"><span class="ps-dot ps-dot-danger mt-1.5"></span>{{ erroRamais() }}</p>
       }
       <div class="ps-tablewrap">
-        <table class="w-full text-sm">
+        <!-- Cabe no painel: sem a largura mínima padrão das tabelas, colunas fixas e situação com reticências. -->
+        <table data-tabela-ramais class="w-full text-sm !min-w-0 table-fixed">
+          <colgroup>
+            <col />
+            <col class="w-[18%]" />
+            <col class="w-[22%]" />
+            <col class="w-[30%]" />
+          </colgroup>
           <thead>
             <tr class="text-left">
               <th class="ps-label px-5 py-2.5">Unidade</th>
               <th class="ps-label px-3 py-2.5">Sugestão</th>
               <th class="ps-label px-3 py-2.5">Ramal</th>
-              <th class="ps-label px-5 py-2.5"><span class="sr-only">Situação</span></th>
+              <th class="ps-label px-3 py-2.5"><span class="sr-only">Situação</span></th>
             </tr>
           </thead>
           <tbody>
             @for (r of ramais(); track r.id_apartamento) {
               <tr class="border-t border-[var(--line-100)]" [attr.data-conflito]="problemaDe(r) ? '' : null">
-                <td class="px-5 py-2 whitespace-nowrap">{{ r.unidade }}</td>
-                <td class="px-3 py-2 ps-cap tabular-nums">{{ r.sugestao ?? '—' }}</td>
+                <td class="px-5 py-2 truncate" [attr.title]="r.unidade">{{ r.unidade }}</td>
+                <td class="px-3 py-2 ps-cap tabular-nums truncate">{{ r.sugestao ?? '—' }}</td>
                 <td class="px-3 py-2">
-                  <span class="ps-field h-8 w-28" [style.border-color]="problemaDe(r) ? 'var(--signal-danger)' : null">
-                    <input type="text" inputmode="numeric" maxlength="10" [attr.data-ramal]="r.id_apartamento"
-                      [attr.aria-label]="'Ramal de ' + r.unidade" [attr.aria-invalid]="problemaDe(r) ? 'true' : null"
+                  <span class="ps-field h-8 w-full max-w-28"
+                    [style.border-color]="problemaDe(r) ? (bloqueia(problemaDe(r)) ? 'var(--signal-danger)' : 'var(--signal-warn)') : null">
+                    <input type="text" inputmode="numeric" maxlength="10" class="min-w-0 w-full" [attr.data-ramal]="r.id_apartamento"
+                      [attr.aria-label]="'Ramal de ' + r.unidade" [attr.aria-invalid]="bloqueia(problemaDe(r)) ? 'true' : null"
                       [placeholder]="r.sugestao ?? ''" [value]="valorRamal(r)" (input)="editarRamal(r.id_apartamento, $any($event.target).value)" />
                   </span>
                 </td>
-                <td class="px-5 py-2 whitespace-nowrap">
+                <td class="px-3 py-2 overflow-hidden">
                   @if (problemaDe(r); as p) {
-                    <span class="ps-tag"><span class="ps-dot ps-dot-danger"></span>{{ textoProblema(p) }}</span>
+                    <span class="ps-tag max-w-full" data-situacao [attr.title]="textoProblema(p)">
+                      <span class="ps-dot" [class.ps-dot-danger]="bloqueia(p)" [class.ps-dot-warn]="!bloqueia(p)"></span>
+                      <span class="truncate min-w-0">{{ textoProblema(p) }}</span>
+                    </span>
                   }
                 </td>
               </tr>

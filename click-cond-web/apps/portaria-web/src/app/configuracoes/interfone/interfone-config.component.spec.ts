@@ -7,7 +7,7 @@ import { AuthService } from '../../auth/auth.service';
 import { ConfirmService } from '../../shared/confirm.service';
 import { API_BASE } from '../../shared/api.config';
 import { ConfiguracoesPageComponent } from '../configuracoes-page.component';
-import { InterfoneConfigComponent, analisarRamais } from './interfone-config.component';
+import { InterfoneConfigComponent, analisarRamais, bloqueiaSalvar } from './interfone-config.component';
 import type { FacialInterfone, RamalUnidade } from '../../interfone/interfone.api';
 
 function jwt(payload: Record<string, unknown>): string {
@@ -99,7 +99,7 @@ describe('Configurações — aba Interfone', () => {
 });
 
 describe('analisarRamais', () => {
-  it('duplicado, inválido e conflito sem ramal definido', () => {
+  it('duplicado, inválido e unidade sem ramal e sem sugestão', () => {
     const r = analisarRamais(RAMAIS, { 3: '12a' });
     expect(r.get(1)).toBe('pendente');
     expect(r.get(2)).toBe('pendente');
@@ -110,6 +110,15 @@ describe('analisarRamais', () => {
     expect(r2.get(3)).toBeNull();
     const r3 = analisarRamais(RAMAIS, { 1: '1106', 2: '2106' });
     expect([...r3.values()].every((v) => v === null)).toBe(true);
+  });
+
+  it('vazio com sugestão não é problema; só duplicado e inválido bloqueiam salvar', () => {
+    const r = analisarRamais(RAMAIS, {});
+    expect(r.get(3)).toBeNull();
+    expect(bloqueiaSalvar('pendente')).toBe(false);
+    expect(bloqueiaSalvar(null)).toBe(false);
+    expect(bloqueiaSalvar('duplicado')).toBe(true);
+    expect(bloqueiaSalvar('invalido')).toBe(true);
   });
 });
 
@@ -132,11 +141,57 @@ describe('InterfoneConfigComponent', () => {
     return { fixture, el, salvarRamais };
   }
 
-  it('conflito de ramal aparece destacado e bloqueia salvar', () => {
-    const { el, salvarRamais } = render();
+  it('unidade sem ramal e sem sugestão aparece destacada, mas não bloqueia salvar as outras', () => {
+    const { fixture, el, salvarRamais } = render();
     expect(el.querySelectorAll('[data-conflito]')).toHaveLength(2);
     expect(el.textContent).toContain('Conflito');
+    expect(el.querySelector('[data-sem-ramal]')?.textContent).toContain('3 sem ramal');
+    expect(el.querySelector('[data-a-resolver]')).toBeNull();
+    // Nada mudou ainda: não há o que salvar.
     expect(salvarRamais().disabled).toBe(true);
+
+    const input = el.querySelector('input[data-ramal="3"]') as HTMLInputElement;
+    input.value = '201';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(el.querySelector('[data-sem-ramal]')?.textContent).toContain('2 sem ramal');
+    expect(salvarRamais().disabled).toBe(false);
+    salvarRamais().click();
+    const req = http.expectOne({ method: 'PUT', url: `${URL}/ramais` });
+    expect(req.request.body).toEqual([{ id_apartamento: 3, ramal: '201' }]);
+    req.flush(RAMAIS.map((r) => (r.id_apartamento === 3 ? { ...r, ramal: '201' } : r)));
+  });
+
+  it('ramal preenchido repetido ou inválido bloqueia salvar e conta em "a resolver"', () => {
+    const { fixture, el, salvarRamais } = render();
+    const input = (id: number) => el.querySelector(`input[data-ramal="${id}"]`) as HTMLInputElement;
+    input(1).value = '1106';
+    input(1).dispatchEvent(new Event('input'));
+    input(2).value = '1106';
+    input(2).dispatchEvent(new Event('input'));
+    input(3).value = '20a';
+    input(3).dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(el.querySelector('[data-a-resolver]')?.textContent).toContain('3 a resolver');
+    expect(salvarRamais().disabled).toBe(true);
+    input(2).value = '2106';
+    input(2).dispatchEvent(new Event('input'));
+    input(3).value = '';
+    input(3).dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(el.querySelector('[data-a-resolver]')).toBeNull();
+    expect(salvarRamais().disabled).toBe(false);
+  });
+
+  it('tabela de ramais cabe no painel: sem largura mínima, colunas fixas e situação cortada com reticências', () => {
+    const { el } = render();
+    const tabela = el.querySelector('table[data-tabela-ramais]') as HTMLTableElement;
+    expect(tabela.className).toContain('!min-w-0');
+    expect(tabela.className).toContain('table-fixed');
+    const tag = el.querySelector('[data-conflito] [data-situacao]') as HTMLElement;
+    expect(tag.className).toContain('max-w-full');
+    expect(tag.querySelector('.truncate')?.textContent).toContain('Conflito');
+    expect(tag.getAttribute('title')).toContain('Conflito');
   });
 
   it('resolvido o conflito, salvar manda só o que mudou', () => {

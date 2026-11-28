@@ -17,8 +17,9 @@ const RAMAL_VALIDO = /^\d{1,10}$/;
 
 /**
  * Situação de cada ramal com as edições da tela. `duplicado` = o mesmo número em duas unidades; `invalido` = não é
- * só dígitos (1–10); `pendente` = a API marcou conflito (a sugestão colide) e ainda não há ramal definido.
- * Qualquer problema bloqueia o salvar: nada é adivinhado em silêncio.
+ * só dígitos (1–10); `pendente` = unidade sem ramal e sem sugestão (o número colide e o síndico precisa escolher).
+ * Só `duplicado` e `invalido` bloqueiam o salvar (ver bloqueiaSalvar): ramal vazio grava vazio e a unidade só não
+ * recebe chamadas até ter um número.
  */
 export function analisarRamais(itens: RamalUnidade[], edicoes: Record<number, string>): Map<number, ProblemaRamal> {
   const valor = (i: RamalUnidade) => (edicoes[i.id_apartamento] ?? i.ramal ?? '').trim();
@@ -33,10 +34,15 @@ export function analisarRamais(itens: RamalUnidade[], edicoes: Record<number, st
     let p: ProblemaRamal = null;
     if (v && !RAMAL_VALIDO.test(v)) p = 'invalido';
     else if (v && (contagem.get(v) ?? 0) > 1) p = 'duplicado';
-    else if (!v && i.conflito) p = 'pendente';
+    else if (!v && !i.sugestao) p = 'pendente';
     res.set(i.id_apartamento, p);
   }
   return res;
+}
+
+/** Ramal preenchido repetido ou inválido: não dá para gravar. Unidade sem ramal não bloqueia. */
+export function bloqueiaSalvar(p: ProblemaRamal): boolean {
+  return p === 'duplicado' || p === 'invalido';
 }
 
 interface EdicaoFacial {
@@ -90,7 +96,10 @@ export class InterfoneConfigComponent implements OnInit {
   readonly salvandoRamais = signal(false);
   readonly erroRamais = signal<string | null>(null);
   readonly problemas = computed(() => analisarRamais(this.ramais(), this.edRamal()));
-  readonly totalProblemas = computed(() => [...this.problemas().values()].filter((p) => p !== null).length);
+  /** "N a resolver": só o que impede salvar (ramal preenchido repetido ou inválido). */
+  readonly totalProblemas = computed(() => [...this.problemas().values()].filter(bloqueiaSalvar).length);
+  /** "M sem ramal" (informativo): unidades que ficam sem receber chamadas. */
+  readonly totalSemRamal = computed(() => this.ramais().filter((r) => !this.valorRamal(r).trim()).length);
   readonly mudancasRamais = computed(() => {
     const ed = this.edRamal();
     return this.ramais()
@@ -296,6 +305,10 @@ export class InterfoneConfigComponent implements OnInit {
 
   textoProblema(p: ProblemaRamal): string {
     return p ? MSG_PROBLEMA[p] : '';
+  }
+
+  bloqueia(p: ProblemaRamal): boolean {
+    return bloqueiaSalvar(p);
   }
 
   aplicarSugestoes(): void {
