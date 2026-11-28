@@ -1,7 +1,8 @@
 const connect = jest.fn(async () => undefined);
+const destroy = jest.fn();
 const duplicate = jest.fn();
-const createClient = jest.fn((_o: any) => ({ connect, duplicate, on: jest.fn() }));
-duplicate.mockImplementation(() => ({ connect, on: jest.fn() }));
+const createClient = jest.fn((_o: any) => ({ connect, duplicate, destroy, on: jest.fn() }));
+duplicate.mockImplementation(() => ({ connect, destroy, on: jest.fn() }));
 jest.mock('redis', () => ({ createClient: (o: any) => createClient(o) }));
 const createAdapter = jest.fn(() => 'ADAPTADOR');
 jest.mock('@socket.io/redis-adapter', () => ({ createAdapter: (...a: any[]) => (createAdapter as any)(...a) }));
@@ -27,5 +28,20 @@ describe('criarAdaptadorRedis', () => {
   it('erro de conexÃ£o devolve null', async () => {
     connect.mockRejectedValueOnce(new Error('ECONNREFUSED'));
     await expect(criarAdaptadorRedis('redis://x')).resolves.toBeNull();
+  });
+
+  it('Redis que nunca responde: devolve null após o timeout e destrói os dois clientes', async () => {
+    jest.useFakeTimers();
+    try {
+      connect.mockImplementation(() => new Promise<void>(() => undefined));
+      const p = criarAdaptadorRedis('redis://inalcancavel');
+      await jest.advanceTimersByTimeAsync(5_100);
+      await expect(p).resolves.toBeNull();
+      expect(destroy).toHaveBeenCalledTimes(2);
+      expect(createAdapter).not.toHaveBeenCalled();
+    } finally {
+      connect.mockImplementation(async () => undefined);
+      jest.useRealTimers();
+    }
   });
 });

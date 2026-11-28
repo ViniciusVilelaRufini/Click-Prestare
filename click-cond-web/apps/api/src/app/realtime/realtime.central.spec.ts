@@ -71,9 +71,24 @@ describe('RealtimeGateway â€” sala central do operador', () => {
     (criarAdaptadorRedis as jest.Mock).mockResolvedValue(adaptador);
     const server = { adapter: jest.fn() };
     process.env['REDIS_URL'] = 'redis://x';
-    await gw.afterInit(server as any);
-    delete process.env['REDIS_URL'];
-    expect(server.adapter).toHaveBeenCalledWith(adaptador);
-    gw.onModuleDestroy();
+    try {
+      await gw.afterInit(server as any);
+      expect(server.adapter).toHaveBeenCalledWith(adaptador);
+    } finally {
+      delete process.env['REDIS_URL'];
+      gw.onModuleDestroy();
+    }
+  });
+
+  it('o timer de reconferência começa mesmo com o adaptador pendente', async () => {
+    const gw = build();
+    (criarAdaptadorRedis as jest.Mock).mockReturnValue(new Promise(() => undefined));
+    const pendente = gw.afterInit({ adapter: jest.fn() } as any);
+    try {
+      expect((gw as any).timer).toBeDefined();
+    } finally {
+      gw.onModuleDestroy();
+    }
+    void pendente;
   });
 });
