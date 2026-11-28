@@ -40,6 +40,10 @@ algo falha.
   aparelho (`ErrorCode != 0`) não virando acesso e o histórico anterior à marca
   d'água não sendo reprocessado.
 - **Internet cai e volta**: o acesso é guardado em disco e reenviado.
+- **Interfone no Intelbras** (`interfone_config`, G1): conta SIP por
+  `configManager` `SIP` e lista telefônica por `VideoTalkContact`, no formato da
+  doc HTTP API Dahua V3.26 — repetir o comando não regrava nada. **Não validado
+  em aparelho**: ver o roteiro de bancada do G1 antes de liberar.
 
 ## O que ele NÃO prova
 

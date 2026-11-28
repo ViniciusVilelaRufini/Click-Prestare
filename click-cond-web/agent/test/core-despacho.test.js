@@ -324,7 +324,7 @@ const expirado = (id) => ({ id, ok: false, error: 'expirado na fila do agente' }
 test('prazoDoComando(): padrão por tipo ABAIXO do da nuvem; ttl_ms da nuvem manda; open_door tem teto rígido de 10 s', () => {
   assert.equal(ERRO_EXPIRADO, 'expirado na fila do agente');
   for (const type of ['open_door', 'ping', 'snapshot', 'remove']) assert.equal(prazoDoComando({ type }), 10000, type);
-  for (const type of ['enroll', 'update', 'list_users', 'remove_users']) assert.equal(prazoDoComando({ type }), 20000, type);
+  for (const type of ['enroll', 'update', 'list_users', 'remove_users', 'interfone_config']) assert.equal(prazoDoComando({ type }), 20000, type);
   assert.equal(prazoDoComando({ type: 'novidade' }), 10000);
   assert.equal(prazoDoComando({ type: 'toString' }), 10000, 'nome herdado de Object não vira prazo');
   // ttl_ms vindo da nuvem: vale para mais e para menos...
@@ -632,4 +632,52 @@ test('Q6: prazoParaAbrir() — sem prazo conhecido usa o timeout padrão; prazo 
   assert.deepEqual(prazoParaAbrir({ _prazoRestanteMs: () => 2500.2 }, 8000), { expirado: null, timeout: 2501 });
   assert.deepEqual(prazoParaAbrir({ _prazoRestanteMs: () => 60000 }, 8000), { expirado: null, timeout: 8000 });
   assert.match(ERRO_PRAZO_ABRIR, /nada foi enviado/);
+});
+
+test('interfone_config chega ao driver com _prazoRestanteMs (para parar antes de a nuvem desistir)', async () => {
+  const relogio = { t: 0 };
+  let visto = null;
+  const d = criarDespachante({
+    executar: async (device, cmd) => {
+      visto = cmd._prazoRestanteMs;
+      return { ok: true };
+    },
+    postarResultado: async () => {},
+    log: logMudo,
+    agora: () => relogio.t,
+  });
+  const p = d.despachar([{ device: PORTA, commands: [{ id: 'ifn', type: 'interfone_config', ttl_ms: 20000 }] }]);
+  relogio.t = 3000;
+  await p;
+  assert.equal(typeof visto, 'function');
+  assert.equal(visto(), 17000);
+  relogio.t = 25000;
+  assert.equal(visto(), 0);
+});
+
+test('interfone_config enxerga um open_door que chegou depois na fila do mesmo aparelho (para ceder a vez)', async () => {
+  const segura = adiado();
+  let ifn = null;
+  const ordem = [];
+  const d = criarDespachante({
+    executar: async (device, cmd) => {
+      ordem.push(cmd.type);
+      if (cmd.type === 'interfone_config') {
+        ifn = cmd;
+        await segura.promessa;
+      }
+      return { ok: true };
+    },
+    postarResultado: async () => {},
+    log: logMudo,
+  });
+  const p1 = d.despachar([{ device: PORTA, commands: [{ id: 'ifn', type: 'interfone_config', ttl_ms: 20000 }] }]);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(typeof ifn._haUrgenteNaFila, 'function');
+  assert.equal(ifn._haUrgenteNaFila(), false, 'sem porta esperando');
+  const p2 = d.despachar([{ device: PORTA, commands: [{ id: 'od', type: 'open_door', ttl_ms: 9000 }] }]);
+  assert.equal(ifn._haUrgenteNaFila(), true, 'porta esperando atrás do interfone');
+  segura.resolver();
+  await Promise.all([p1, p2]);
+  assert.deepEqual(ordem, ['interfone_config', 'open_door']);
 });

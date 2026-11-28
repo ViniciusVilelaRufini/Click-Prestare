@@ -219,6 +219,7 @@ describe('tempo de espera por tipo de comando', () => {
     ['update', 25_000],
     ['list_users', 25_000],
     ['remove_users', 25_000],
+    ['interfone_config', 25_000],
   ] as const)('%s espera %i ms (base padrão de 15 s)', (type, ms) => {
     expect(criar().timeoutDoComando(type)).toBe(ms);
   });
@@ -443,5 +444,31 @@ describe('poll do condomínio: uma leitura da fila para todos os devices', () =>
     jest.spyOn((bridge as any).logger, 'error').mockImplementation(() => undefined);
     const r = await ctrl.condoPoll('tok');
     expect(r.devices.map((d: any) => d.commands)).toEqual([[], []]);
+  });
+});
+
+describe('falha ao gravar o comando no banco', () => {
+  it('não loga a mensagem do Prisma (ela traz o comando, com a senha SIP do interfone_config): só o código', async () => {
+    const prisma: any = {
+      isConnected: true,
+      agente_Dispositivos_Estado: {},
+      agente_Comandos: {
+        create: jest.fn(async () => {
+          throw Object.assign(new Error('Invalid `create` invocation: { comando: "{\\"senha\\":\\"SegredoSip999\\"}" }'), { code: 'P2000' });
+        }),
+        deleteMany: jest.fn(async () => ({ count: 0 })),
+      },
+    };
+    const b = criar(prisma);
+    (b as any).lastSeen.set(5, Date.now());
+    const erros: string[] = [];
+    jest.spyOn((b as any).logger, 'error').mockImplementation((...a: unknown[]) => void erros.push(a.join(' ')));
+    const r = await b.enqueue(5, {
+      type: 'interfone_config',
+      interfone: { servidor: 'voz', porta: 5060, conta: 'fac5', senha: 'SegredoSip999', contatos: [] },
+    });
+    expect(r).toEqual({ ok: false, error: 'Falha ao enfileirar o comando para o agente local.' });
+    expect(erros.join('\n')).toContain('P2000');
+    expect(erros.join('\n')).not.toContain('SegredoSip999');
   });
 });

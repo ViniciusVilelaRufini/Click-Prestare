@@ -34,6 +34,15 @@ function parseJson(res) {
 }
 
 /**
+ * URL para mensagem de erro/log: sem query (o setConfig do interfone leva a
+ * senha SIP nela) e sem `usuário:senha@`. Só esquema, host e caminho.
+ */
+function semSegredos(urlStr) {
+  const s = String(urlStr ?? '');
+  return s.split(/[?#]/)[0].replace(/\/\/[^/@]*@/, '//***@') + (/[?#]/.test(s) ? '?…' : '');
+}
+
+/**
  * Cliente HTTP minimalista sobre módulos nativos. Suporta json/xml/binary,
  * TLS self-signed (aparelhos de LAN) e timeout.
  */
@@ -43,7 +52,7 @@ function request(urlStr, opts = {}) {
     try {
       u = new URL(urlStr);
     } catch (e) {
-      return reject(new Error(`URL inválida: ${urlStr}`));
+      return reject(new Error(`URL inválida: ${semSegredos(urlStr)}`));
     }
     const lib = u.protocol === 'https:' ? https : http;
     // Credencial NUNCA vai na primeira requisição: Basic preventivo mandava a
@@ -238,4 +247,4 @@ function classificarFalha(resOuErr) {
   return status === undefined ? 'protocolo_inesperado' : motivoPorStatus(status);
 }
 
-module.exports = { request, lanRequest, okFrom, parseJson, sleep, classificarFalha };
+module.exports = { request, lanRequest, okFrom, parseJson, sleep, classificarFalha, semSegredos };

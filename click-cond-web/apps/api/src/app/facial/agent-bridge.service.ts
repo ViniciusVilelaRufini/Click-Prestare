@@ -60,6 +60,12 @@ const PEDIDO_ATUALIZACAO_TTL_MS = 2 * 60 * 1000;
  */
 export const VERSAO_AGENTE_COM_ATUALIZAR_AGORA = '2026.11.11.1';
 /**
+ * Primeira versão do agente com o comando `interfone_config` (G1). A API só
+ * oferece a configuração automática do facial a agente nesta versão ou acima
+ * (pela telemetria). Ajustar quando a versão for de fato publicada.
+ */
+export const VERSAO_AGENTE_COM_INTERFONE_CONFIG = '2026.11.28';
+/**
  * Folga descontada do `ttl_ms` entregue ao agente: o trajeto do poll até o
  * agente e do resultado de volta. Sem ela o agente poderia executar um
  * comando no último instante e o resultado chegar com a nuvem já desistida.
@@ -455,7 +461,9 @@ export class AgentBridgeService implements OnModuleInit, OnModuleDestroy {
             if (this.pending.has(id)) naFilaEmMemoria();
             return;
           }
-          this.logger.error(`Comando ${id} não entrou na fila do banco: ${err?.message ?? err}`);
+          // Só o código/nome do erro: a mensagem do Prisma repete os dados do
+          // create — o comando inteiro, com a senha SIP do interfone_config.
+          this.logger.error(`Comando ${id} (${command.type}) não entrou na fila do banco: ${err?.code ?? err?.name ?? 'erro'}`);
           this.finalizar(id, { ok: false, error: 'Falha ao enfileirar o comando para o agente local.' });
         });
     });
@@ -732,7 +740,10 @@ export type AgentCommandType =
   | 'remove_users'
   // Módulo Guarita: aciona um relé pelo comando 13 (com gera_evt). Um clique =
   // um frame; o Guarita não responde ao 13, o agente confirma a escrita.
-  | 'guarita_rele';
+  | 'guarita_rele'
+  // Interfone (G1): grava a conta SIP e a lista telefônica no facial Intelbras.
+  // NÃO validado em aparelho — só pela rota manual do síndico até a bancada.
+  | 'interfone_config';
 
 /**
  * Fator sobre a base (AGENT_COMMAND_TIMEOUT_MS) por tipo de comando.
@@ -745,7 +756,9 @@ export type AgentCommandType =
  *   - enroll/update: remove + grava usuário + sobe a foto (+ nova tentativa
  *     de update do rosto) — até 4 chamadas no Dahua, 2–3 no Hikvision/Control iD;
  *   - list_users: contagem + uma chamada por página de usuários;
- *   - remove_users: uma chamada por lote, ou por pessoa (Hikvision/Control iD).
+ *   - remove_users: uma chamada por lote, ou por pessoa (Hikvision/Control iD);
+ *   - interfone_config: lê e grava a conta SIP, lê a lista telefônica e grava
+ *     só os contatos que mudaram (uma chamada por contato).
  * Com 15 s a nuvem desistia de um cadastro que o agente ainda estava
  * terminando — e o rosto ficava "pendente" mesmo tendo entrado no aparelho.
  * 25 s fica abaixo dos 30 s de resposta da origem no CloudFront da API
@@ -766,7 +779,31 @@ const FATOR_TIMEOUT_POR_TIPO: Record<AgentCommandType, number> = {
   list_users: 5 / 3,
   remove_users: 5 / 3,
   guarita_rele: 2 / 3,
+  interfone_config: 5 / 3,
 };
+
+/** Contato da lista telefônica do facial (comando `interfone_config`). */
+export interface ContatoInterfoneAgente {
+  /** Texto na tela do facial (o agente tira acento e "·"). Nunca nome de morador. */
+  nome: string;
+  /** Ramal discado (só dígitos). */
+  numero: string;
+  bloco: string;
+  andar: string;
+}
+
+/** Dados do comando `interfone_config`. A senha vai só ao agente, nunca ao log. */
+export interface InterfoneConfigAgente {
+  servidor: string;
+  porta: number;
+  conta: string;
+  senha: string;
+  contatos: ContatoInterfoneAgente[];
+  /** Grava mesmo com conta SIP de outro servidor no aparelho (confirmado pelo síndico). */
+  forcar?: boolean;
+  /** Lista vazia só remove os contatos do Prestare com isto. */
+  remover?: boolean;
+}
 
 export interface AgentCommandInput {
   type: AgentCommandType;
@@ -786,6 +823,8 @@ export interface AgentCommandInput {
    * receptor vizinho.
    */
   payload?: { tipo_receptor: number; num_receptor: number; rele: number };
+  /** `interfone_config`: conta SIP e lista telefônica a gravar no facial. */
+  interfone?: InterfoneConfigAgente;
 }
 
 export interface AgentCommand extends AgentCommandInput {
@@ -813,6 +852,18 @@ export interface AgentResult {
   faceId?: string;
   /** JPEG em base64 (resposta do comando 'snapshot'). */
   imageBase64?: string;
+  /** `interfone_config`: a conta SIP foi regravada? (campos sem a senha) */
+  sip?: { alterado: boolean; campos?: string[] };
+  /** `interfone_config`: o que mudou na lista telefônica. */
+  contatos?: { inseridos: number; atualizados: number; removidos: number; iguais: number };
+  /** `interfone_config`: ficou trabalho para a próxima execução (prazo ou lote). */
+  parcial?: boolean;
+  restantes?: number;
+  /** `interfone_config`: números que o instalador já tem no facial (contato manual, não mexido). */
+  conflitos?: string[];
+  avisos?: string[];
+  /** `interfone_config` com `error:'sip_de_outro_servidor'`: o servidor que está no aparelho. */
+  servidor_atual?: string;
 }
 
 interface PendingCommand {

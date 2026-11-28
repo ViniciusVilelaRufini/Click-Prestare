@@ -91,7 +91,8 @@ function lerIds(json: string | null | undefined): number[] | null {
   }
 }
 
-const contaFacial = (id: number) => `fac${id}`;
+/** Conta SIP do facial na central (sem hífen: o Intelbras só aceita letras, números e '#'). */
+export const contaFacial = (id: number) => `fac${id}`;
 const contaMonitor = (id: number) => `mon${id}`;
 
 /**

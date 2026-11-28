@@ -379,6 +379,200 @@ estado.dahua = {
   requisicoes: [],
 };
 
+// ---------- Interfone no Intelbras / Dahua (conta SIP + lista telefônica) ----------
+//
+// Formato da "API of HTTP Protocol Specification" da Dahua, V3.26 (2023-02-28),
+// capítulo 13 (Intelligent Building APIs):
+//   - 13.3.1 configManager.cgi?action=getConfig&name=SIP → linhas
+//     `table.SIP.<Campo>=<valor>`; setConfig com `SIP.<Campo>=<valor>` na URL
+//     → "OK".
+//   - 13.4 VideoTalkContact: recordUpdater.cgi insert (→ "RecNo=N"), update e
+//     remove por recno (→ "OK"); recordFinder.cgi find (→ totalCount, found,
+//     records[i].Campo).
+// Os campos que o firmware Intelbras usa de fato (e se ele mascara a senha na
+// leitura) só a bancada confirma — por isso as chaves abaixo são as da doc.
+
+/** Configuração SIP de fábrica (conta desativada, senha padrão 123456 do manual Intelbras). */
+function sipDeFabrica() {
+  return {
+    AccoutName: '',
+    AuthID: '',
+    AuthPassword: '123456',
+    LocalRTPPort: '15000',
+    LocalSIPPort: '5060',
+    RegisterRealm: 'VDP',
+    SIPServer: '',
+    SIPServerPort: '5060',
+    UserEnable: 'false',
+    UserID: '',
+    UserType: '2',
+  };
+}
+
+/** Volta o interfone do aparelho falso ao estado de fábrica (e desliga as falhas simuladas). */
+function reiniciarInterfoneDahua() {
+  estado.dahua.sip = sipDeFabrica();
+  estado.dahua.contatos = []; // registros VideoTalkContact (com RecNo)
+  estado.dahua.proximoRecNo = 1;
+  // Simulações: firmware que esconde a senha na leitura; firmware sem a
+  // configuração SIP por configManager (ex.: outra interface web); busca que
+  // devolve só os primeiros N contatos.
+  estado.dahua.mascararSenhaSip = false;
+  estado.dahua.semConfigSip = false;
+  estado.dahua.limiteBuscaContatos = null;
+  // Responde "OK" ao setConfig mas não grava (para o cliente conferir lendo de volta).
+  estado.dahua.sipIgnoraGravacao = false;
+  // Firmware que devolve a senha "cifrada" (legível, mas diferente da gravada).
+  estado.dahua.senhaLidaCifrada = false;
+  // Firmware sem o campo AuthID na conta SIP (não aparece na leitura e é ignorado no set).
+  estado.dahua.sipSemAuthID = false;
+  // Busca de contatos: firmware que ignora `offset`, sem getQuerySize, sem totalCount.
+  estado.dahua.ignoraOffset = false;
+  estado.dahua.semQuerySize = false;
+  estado.dahua.semTotalCount = false;
+  // Atraso (ms) em cada resposta do aparelho (para testar o prazo do comando).
+  estado.dahua.atrasoMs = 0;
+  // Firmware que corta o FirstName do contato em N caracteres.
+  estado.dahua.cortaNomeContato = null;
+  estado.dahua.ignoraFiltroContato = false;
+  // getConfig SIP responde este corpo cru com HTTP 400 (teste de mascaramento).
+  estado.dahua.respostaSipCrua = null;
+  estado.dahua.gravacoesSip = 0;
+  estado.dahua.ultimoSetSip = '';
+  estado.dahua.urls = [];
+}
+reiniciarInterfoneDahua();
+
+const CAMPOS_CONTATO = [
+  'FirstName',
+  'FamilyName',
+  'NickName',
+  'VTShortNumber',
+  'VTMiddleNumber',
+  'VTLongNumber',
+  'VTOBuilding',
+  'VTOUnit',
+  'Notes',
+  'Type',
+  'RegisterType',
+  'VTHPassword',
+  'GroupNumber',
+];
+
+function contatosParaIni(lista, total) {
+  const linhas = [...(estado.dahua.semTotalCount ? [] : [`totalCount=${total}`]), `found=${lista.length}`];
+  lista.forEach((c, i) => {
+    for (const [k, v] of Object.entries(c)) linhas.push(`records[${i}].${k}=${v}`);
+  });
+  return linhas.join('\r\n') + '\r\n';
+}
+
+/** configManager.cgi do interfone. Devolve true se respondeu. */
+function responderConfigSip(url, acao, texto) {
+  const p = url.searchParams;
+  if (acao === 'getConfig' && p.get('name') === 'SIP') {
+    if (estado.dahua.respostaSipCrua) {
+      texto(estado.dahua.respostaSipCrua, 400);
+      return true;
+    }
+    if (estado.dahua.semConfigSip) {
+      texto('Error\r\nBad Request!\r\n', 400);
+      return true;
+    }
+    const linhas = Object.entries(estado.dahua.sip)
+      .filter(([k]) => !(k === 'AuthID' && estado.dahua.sipSemAuthID))
+      .map(([k, v]) => {
+        let valor = v;
+        if (k === 'AuthPassword' && estado.dahua.mascararSenhaSip) valor = '******';
+        else if (k === 'AuthPassword' && estado.dahua.senhaLidaCifrada) valor = md5(`cifra:${v}`).toUpperCase();
+        return `table.SIP.${k}=${valor}`;
+      });
+    texto(linhas.join('\r\n') + '\r\n');
+    return true;
+  }
+  if (acao === 'setConfig' && [...p.keys()].some((k) => k.startsWith('SIP.'))) {
+    if (estado.dahua.semConfigSip) {
+      texto('Error\r\nBad Request!\r\n', 400);
+      return true;
+    }
+    if (!estado.dahua.sipIgnoraGravacao) {
+      for (const [k, v] of p) {
+        if (!k.startsWith('SIP.')) continue;
+        if (k === 'SIP.AuthID' && estado.dahua.sipSemAuthID) continue;
+        estado.dahua.sip[k.slice(4)] = v;
+      }
+    }
+    estado.dahua.gravacoesSip++;
+    estado.dahua.ultimoSetSip = [...p.keys()].join('&');
+    texto('OK\r\n');
+    return true;
+  }
+  return false;
+}
+
+/** recordFinder/recordUpdater de VideoTalkContact. Devolve true se respondeu. */
+function responderContatos(caminho, url, acao, texto) {
+  const p = url.searchParams;
+  if (p.get('name') !== 'VideoTalkContact') return false;
+  if (caminho === '/cgi-bin/recordFinder.cgi' && acao === 'getQuerySize') {
+    // Tabela 13-14: a resposta de exemplo é "Count=200".
+    const fimDeLinha = String.fromCharCode(13, 10);
+    if (estado.dahua.semQuerySize) texto(`Error${fimDeLinha}Bad Request!${fimDeLinha}`, 400);
+    else texto(`Count=${estado.dahua.contatos.length}${fimDeLinha}`);
+    return true;
+  }
+  if (caminho === '/cgi-bin/recordFinder.cgi' && acao === 'find') {
+    let lista = estado.dahua.contatos;
+    // `ignoraFiltroContato`: firmware que ignora o condition.VTShortNumber (devolve a lista do começo).
+    const filtro = estado.dahua.ignoraFiltroContato ? null : p.get('condition.VTShortNumber');
+    if (filtro != null) lista = lista.filter((c) => c.VTShortNumber === filtro);
+    const total = lista.length;
+    // `offset` não está na tabela 13-9 da doc; firmwares Dahua costumam
+    // aceitar — `ignoraOffset` simula o que não aceita.
+    const offset = estado.dahua.ignoraOffset ? 0 : Number(p.get('offset') || 0);
+    const count = Number(p.get('count') || 0) || total;
+    let fatia = lista.slice(offset, offset + count);
+    if (estado.dahua.limiteBuscaContatos != null) fatia = fatia.slice(0, estado.dahua.limiteBuscaContatos);
+    texto(contatosParaIni(fatia, total));
+    return true;
+  }
+  if (caminho !== '/cgi-bin/recordUpdater.cgi') return false;
+  const campos = {};
+  for (const k of CAMPOS_CONTATO) if (p.has(k)) campos[k] = p.get(k);
+  // Firmware que corta o nome do contato (o cliente não pode tratar isso como "mudou").
+  if (campos.FirstName && estado.dahua.cortaNomeContato) campos.FirstName = campos.FirstName.slice(0, estado.dahua.cortaNomeContato).trim();
+  if (acao === 'insert') {
+    // VTShortNumber, RegisterType e VTHPassword são obrigatórios (tabela 13-8).
+    if (!campos.VTShortNumber || !campos.RegisterType || !campos.VTHPassword) {
+      texto('Error\r\nBad Request!\r\n', 400);
+      return true;
+    }
+    // Número repetido: tratamos como recusa (o firmware real, a conferir) —
+    // força o cliente a atualizar em vez de inserir de novo.
+    if (estado.dahua.contatos.some((c) => c.VTShortNumber === campos.VTShortNumber)) {
+      texto('Error\r\nBad Request!\r\n', 400);
+      return true;
+    }
+    const RecNo = String(estado.dahua.proximoRecNo++);
+    estado.dahua.contatos.push({ RecNo, CreateTime: '1764200000', ...campos });
+    texto(`RecNo=${RecNo}\r\n`);
+    return true;
+  }
+  const alvo = estado.dahua.contatos.find((c) => c.RecNo === p.get('recno'));
+  if (acao === 'update' || acao === 'remove') {
+    if (!alvo) {
+      texto('Error\r\nBad Request!\r\n', 400);
+      return true;
+    }
+    if (acao === 'update') Object.assign(alvo, campos);
+    else estado.dahua.contatos = estado.dahua.contatos.filter((c) => c !== alvo);
+    texto('OK\r\n');
+    return true;
+  }
+  texto('Error\r\nBad Request!\r\n', 400);
+  return true;
+}
+
 /** Log de acesso no formato INI que o recordFinder devolve. */
 function registrosParaIni(registros) {
   const linhas = [`found=${registros.length}`];
@@ -394,12 +588,14 @@ function servidorDahua(porta, onStream) {
     .createServer((req, res) => {
       const chunks = [];
       req.on('data', (c) => chunks.push(c));
-      req.on('end', () => {
+      // `atrasoMs` (testes de prazo): o aparelho demora a responder cada requisição.
+      req.on('end', () => setTimeout(() => {
         const body = Buffer.concat(chunks);
         const url = new URL(req.url, 'http://x');
         const caminho = url.pathname;
         const acao = url.searchParams.get('action');
         estado.dahua.requisicoes.push(`${req.method} ${caminho}?${acao ?? ''}`);
+        (estado.dahua.urls || (estado.dahua.urls = [])).push(req.url);
         const parse = () => {
           try {
             return JSON.parse(body.toString('utf8'));
@@ -438,7 +634,11 @@ function servidorDahua(porta, onStream) {
         if (!exigeDigest(req, res, body)) return;
 
         if (caminho === '/cgi-bin/magicBox.cgi') return texto('type=SS3530\r\n');
-        if (caminho === '/cgi-bin/configManager.cgi') return texto('OK\r\n');
+        if (caminho === '/cgi-bin/configManager.cgi') {
+          if (responderConfigSip(url, acao, texto)) return;
+          return texto('OK\r\n');
+        }
+        if (responderContatos(caminho, url, acao, texto)) return;
         if (caminho === '/cgi-bin/global.cgi' && acao === 'setCurrentTime') {
           estado.dahua.relogioSincronizado++;
           return texto('OK\r\n');
@@ -539,7 +739,7 @@ function servidorDahua(porta, onStream) {
         }
         res.writeHead(404);
         res.end('nao implementado: ' + caminho);
-      });
+      }, estado.dahua.atrasoMs || 0));
     })
     .listen(porta, '127.0.0.1'),
   );
@@ -569,6 +769,7 @@ module.exports = {
   servidorHik,
   servidorControlId,
   servidorDahua,
+  reiniciarInterfoneDahua,
   iniciarRespondedorDhip,
   USER,
   PASS,

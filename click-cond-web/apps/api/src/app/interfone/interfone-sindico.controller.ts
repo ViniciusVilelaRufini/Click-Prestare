@@ -71,6 +71,22 @@ export class InterfoneSindicoController {
     return this.svc.novaSenha(this.condominio(user), id, this.ator(user));
   }
 
+  /**
+   * Grava conta SIP + lista telefônica no facial Intelbras pelo Agente Local
+   * (G1). Responde 200 com `{ok, erro?, servidor_atual?, parcial?, restantes?,
+   * conflitos?, avisos?}`: a falha do aparelho é resultado, não erro HTTP; 409
+   * `indisponivel` sem a flag ou com agente antigo. Auditoria própria no
+   * serviço (sem a senha).
+   */
+  @Header('Cache-Control', 'no-store')
+  @SkipAudit()
+  @Post('faciais/:id/configurar')
+  @HttpCode(200)
+  configurarFacial(@Param('id', ParseIntPipe) id: number, @Body() body: { forcar?: boolean } | undefined, @ReqUser() user: JwtPayload) {
+    // `forcar`: o síndico confirmou substituir a conta SIP de outro servidor.
+    return this.svc.configurarFacialAutomatico(this.condominio(user), id, this.ator(user), { forcar: body?.forcar === true });
+  }
+
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="lista-telefonica.csv"')
   @Header('Cache-Control', 'no-store')

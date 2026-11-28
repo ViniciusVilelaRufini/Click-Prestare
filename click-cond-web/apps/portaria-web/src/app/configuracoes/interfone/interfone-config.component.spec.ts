@@ -134,13 +134,13 @@ describe('InterfoneConfigComponent', () => {
   let http: HttpTestingController;
   afterEach(() => TestBed.resetTestingModule());
 
-  function render() {
+  function render(faciais: FacialInterfone[] = [FACIAL]) {
     TestBed.configureTestingModule({ imports: [InterfoneConfigComponent], providers: providers(SINDICO, 'Síndico') });
     http = TestBed.inject(HttpTestingController);
     const fixture = TestBed.createComponent(InterfoneConfigComponent);
     fixture.detectChanges();
     http.expectOne(`${URL}/config`).flush(CONFIG);
-    http.expectOne(`${URL}/faciais`).flush([FACIAL]);
+    http.expectOne(`${URL}/faciais`).flush(faciais);
     http.expectOne(`${URL}/ramais`).flush(RAMAIS);
     http.expectOne(`${URL}/monitores`).flush([]);
     fixture.detectChanges();
@@ -235,6 +235,100 @@ describe('InterfoneConfigComponent', () => {
     expect(el.textContent).toContain('Não registrado');
     expect(el.textContent).toContain('voz.prestarecondominios.com.br');
     expect(el.textContent).toContain('fac9');
+  });
+
+  describe('configurar automaticamente (Intelbras)', () => {
+    const botaoConfigurar = (el: HTMLElement) => el.querySelector('button[data-configurar-facial="9"]') as HTMLButtonElement | null;
+
+    it('só aparece para facial com config_automatica (Intelbras) habilitado', () => {
+      expect(botaoConfigurar(render().el)).toBeNull();
+      TestBed.resetTestingModule();
+      expect(botaoConfigurar(render([{ ...FACIAL, habilitado: false, config_automatica: true }]).el)).toBeNull();
+      TestBed.resetTestingModule();
+      expect(botaoConfigurar(render([{ ...FACIAL, config_automatica: true }]).el)?.textContent).toContain('Configurar automaticamente');
+    });
+
+    it('sucesso: chama a rota, trava o botão enquanto roda e mostra "Facial configurado"', () => {
+      const { fixture, el } = render([{ ...FACIAL, config_automatica: true }]);
+      botaoConfigurar(el)!.click();
+      fixture.detectChanges();
+      const req = http.expectOne({ method: 'POST', url: `${URL}/faciais/9/configurar` });
+      expect(req.request.body).toEqual({ forcar: false });
+      expect(botaoConfigurar(el)!.disabled).toBe(true);
+      expect(botaoConfigurar(el)!.textContent).toContain('Configurando');
+      req.flush({ ok: true });
+      fixture.detectChanges();
+      expect(botaoConfigurar(el)!.disabled).toBe(false);
+      expect(el.querySelector('[data-resultado-config="9"]')?.textContent).toContain('Facial configurado');
+    });
+
+    it('falha do aparelho ({ok:false, erro}) e erro HTTP aparecem no card, com os dados manuais ainda na tela', () => {
+      const { fixture, el } = render([{ ...FACIAL, config_automatica: true }]);
+      botaoConfigurar(el)!.click();
+      http.expectOne(`${URL}/faciais/9/configurar`).flush({ ok: false, erro: 'interfone: o aparelho não devolveu a configuração SIP' });
+      fixture.detectChanges();
+      const res = () => el.querySelector('[data-resultado-config="9"]')?.textContent ?? '';
+      expect(res()).toContain('não devolveu a configuração SIP');
+      expect(el.textContent).toContain('fac9');
+
+      botaoConfigurar(el)!.click();
+      http.expectOne(`${URL}/faciais/9/configurar`).flush(null, { status: 502, statusText: 'Bad Gateway' });
+      fixture.detectChanges();
+      expect(res()).toContain('Não foi possível configurar');
+    });
+
+    it('parcial: avisa para clicar de novo; conflitos aparecem no card', () => {
+      const { fixture, el } = render([{ ...FACIAL, config_automatica: true }]);
+      botaoConfigurar(el)!.click();
+      http.expectOne(`${URL}/faciais/9/configurar`).flush({ ok: true, parcial: true, restantes: 15, conflitos: ['301'], avisos: [] });
+      fixture.detectChanges();
+      const res = el.querySelector('[data-resultado-config="9"]')?.textContent ?? '';
+      expect(res).toContain('Parcial: clique de novo para continuar');
+      expect(res).toContain('15');
+      expect(res).toContain('301');
+    });
+
+    it('sucesso com avisos ou conflitos: "Configurado com ressalvas"', () => {
+      const { fixture, el } = render([{ ...FACIAL, config_automatica: true }]);
+      botaoConfigurar(el)!.click();
+      http.expectOne(`${URL}/faciais/9/configurar`).flush({
+        ok: true, parcial: false, restantes: 0, conflitos: ['301'], avisos: ['contato 106: o aparelho mostra "Bloco A"'],
+      });
+      fixture.detectChanges();
+      const res = el.querySelector('[data-resultado-config="9"]')?.textContent ?? '';
+      expect(res).toContain('Configurado com ressalvas');
+      expect(res).toContain('301');
+      expect(res).toContain('o aparelho mostra');
+      expect(res).not.toContain('Facial configurado');
+    });
+
+    it('conta SIP de outro servidor: pergunta antes; confirmando, manda de novo com forcar', async () => {
+      const { fixture, el } = render([{ ...FACIAL, config_automatica: true }]);
+      const confirm = TestBed.inject(ConfirmService) as unknown as { ask: jest.Mock };
+      botaoConfigurar(el)!.click();
+      http.expectOne(`${URL}/faciais/9/configurar`).flush({ ok: false, erro: 'sip_de_outro_servidor', servidor_atual: '10.0.0.5' });
+      await fixture.whenStable();
+      expect(confirm.ask).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('10.0.0.5') }));
+      const segunda = http.expectOne(`${URL}/faciais/9/configurar`);
+      expect(segunda.request.body).toEqual({ forcar: true });
+      segunda.flush({ ok: true, parcial: false, restantes: 0, conflitos: [], avisos: [] });
+      fixture.detectChanges();
+      expect(el.querySelector('[data-resultado-config="9"]')?.textContent).toContain('Facial configurado');
+    });
+
+    it('conta SIP de outro servidor: recusando a confirmação, nada é regravado', async () => {
+      const { fixture, el } = render([{ ...FACIAL, config_automatica: true }]);
+      const confirm = TestBed.inject(ConfirmService) as unknown as { ask: jest.Mock };
+      confirm.ask.mockResolvedValueOnce(false);
+      botaoConfigurar(el)!.click();
+      http.expectOne(`${URL}/faciais/9/configurar`).flush({ ok: false, erro: 'sip_de_outro_servidor', servidor_atual: '10.0.0.5' });
+      await fixture.whenStable();
+      http.expectNone(`${URL}/faciais/9/configurar`);
+      fixture.detectChanges();
+      const res = el.querySelector('[data-resultado-config="9"]')?.textContent ?? '';
+      expect(res).toContain('10.0.0.5');
+      expect(res).toContain('nada foi alterado');
+    });
   });
 
   it('tempo de toque fora da faixa não salva', () => {

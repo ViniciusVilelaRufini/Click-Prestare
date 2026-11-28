@@ -51,7 +51,8 @@ const { deviceBaselines, setBaseline, lerJson, gravarJsonAtomico } = require('..
 const { agoraDaNuvem } = require('../core/nuvem');
 const { criarAvisoDeQueda } = require('./comum/queda');
 const { idDoCadastro } = require('./comum/cadastro');
-const { prazoParaAbrir } = require('../core/despacho');
+const interfone = require('./dahua-interfone');
+const { prazoParaAbrir, restanteDoPrazo } = require('../core/despacho');
 
 // lib/http.js não conhece o timeout da LAN — é config injetada por quem monta
 // o agente (index.js lê LAN_TIMEOUT_MS do .env). Guardamos aqui um valor com
@@ -162,6 +163,8 @@ async function executar(device, cmd) {
       return listarUsuarios(device);
     case 'remove_users':
       return removerUsuarios(device, cmd);
+    case 'interfone_config':
+      return configurarInterfone(device, cmd.interfone, cmd);
     default:
       return { ok: false, error: `comando desconhecido: ${cmd.type}` };
   }
@@ -511,6 +514,20 @@ function snapshotComDigest(device, st) {
     st.nc = 1;
     return (await fetchOne(computeDigest(user, pass, 'GET', reqPath, st))).body;
   })();
+}
+
+// ---------- Interfone (comando interfone_config) ----------
+// O protocolo e as regras moram em ./dahua-interfone.js (NÃO validado em
+// aparelho). Aqui só entram o lanRequest deste driver e o prazo do comando.
+
+function configurarInterfone(device, entrada, cmd) {
+  return interfone.configurarInterfone(device, entrada, {
+    lanRequest,
+    lanTimeoutMs,
+    restanteDoPrazo: () => restanteDoPrazo(cmd),
+    // Abrir porta esperando atrás deste comando (ver core/despacho.js): cede entre as gravações.
+    haUrgenteNaFila: () => !!(cmd && typeof cmd._haUrgenteNaFila === 'function' && cmd._haUrgenteNaFila()),
+  });
 }
 
 // ---------- Contrato: escutar (stream de eventos de acesso) ----------
@@ -992,6 +1009,8 @@ module.exports = {
   setDeviceLightingMode,
   snapshotComDigest,
   advanceBaselineWhileOnline,
+  // Interfone (comando interfone_config; exposto também para o teste).
+  configurarInterfone,
   // Exposto para teste (decisão de pausa do laço de `escutar`).
   pausaAntesDeReabrir,
 };

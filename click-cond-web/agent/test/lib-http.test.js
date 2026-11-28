@@ -384,3 +384,19 @@ test('lanRequest(): aparelho Hikvision/Dahua (Digest) não recebe Basic na LAN',
     await fechar();
   }
 });
+
+test('URL inválida: o erro não traz a query (pode ter senha) nem credencial', async () => {
+  await assert.rejects(
+    request('http://127.0.0.1:x y/cgi-bin/configManager.cgi?action=setConfig&SIP.AuthPassword=SegredoSip123'),
+    (e) => {
+      assert.match(e.message, /URL inválida/);
+      assert.ok(!e.message.includes('SegredoSip123'), e.message);
+      assert.ok(!e.message.includes('AuthPassword'), e.message);
+      return true;
+    },
+  );
+  await assert.rejects(request('http://admin:SegredoAdmin@[::x/'), (e) => {
+    assert.ok(!e.message.includes('SegredoAdmin'), e.message);
+    return true;
+  });
+});
