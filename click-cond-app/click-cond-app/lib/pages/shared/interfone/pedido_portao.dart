@@ -107,6 +107,8 @@ class _PedidoPortaoPageState extends State<PedidoPortaoPage> {
   /// "Respondido por").
   bool _respondiLocal = false;
   String? _erro;
+  bool _indisponivel = false;
+  bool _semAtualizar = false;
   bool _fechando = false;
 
   @override
@@ -130,15 +132,30 @@ class _PedidoPortaoPageState extends State<PedidoPortaoPage> {
       if (!mounted) return;
       setState(() => _pedido = _pedido.mesclar(novo));
       _agendarFechamentoSeFinal();
-    } on PedidoPortaoErro {
-      // Fica com o que o push trouxe; Autorizar/Negar mostram o erro se falhar.
+      if (mounted && _semAtualizar) setState(() => _semAtualizar = false);
+    } on PedidoPortaoErro catch (e) {
+      if (!mounted) return;
+      setState(() {
+        if (e.status == 403 || e.status == 404) {
+          _indisponivel = true;
+        } else {
+          _semAtualizar = true;
+        }
+      });
     }
   }
 
   void _fecharPeloFim() {
     if (_fechando || !mounted) return;
     _fechando = true;
-    Navigator.of(context).maybePop();
+    // Só a rota do pedido: um diálogo por cima dela não é fechado aqui.
+    final rota = ModalRoute.of(context);
+    if (rota == null) return;
+    if (rota.isCurrent) {
+      Navigator.of(context).pop();
+    } else if (rota.isActive) {
+      Navigator.of(context).removeRoute(rota);
+    }
   }
 
   void _agendarFechamentoSeFinal() {
@@ -172,7 +189,7 @@ class _PedidoPortaoPageState extends State<PedidoPortaoPage> {
         if (mounted && _pedido.pendente) {
           setState(() => _pedido = PedidoPortao(
                 id: _pedido.id,
-                estado: e.motivo == 'pedido_expirado' ? 'expirado' : 'negado',
+                estado: e.motivo == 'pedido_expirado' ? 'expirado' : 'respondido',
                 nome: _pedido.nome,
                 motivo: _pedido.motivo,
                 tipo: _pedido.tipo,
@@ -191,7 +208,7 @@ class _PedidoPortaoPageState extends State<PedidoPortaoPage> {
     }
   }
 
-  bool get _livre => !_enviando && _pedido.pendente;
+  bool get _livre => !_enviando && _pedido.pendente && !_indisponivel;
 
   String get _rotuloFinal {
     final por = !_respondiLocal ? _pedido.respondidoPorNome : null;
@@ -202,6 +219,8 @@ class _PedidoPortaoPageState extends State<PedidoPortaoPage> {
         return por != null ? 'Respondido por $por · Negado' : 'Negado';
       case 'expirado':
         return 'Expirado';
+      case 'respondido':
+        return 'Já respondido';
       default:
         return '';
     }
@@ -258,7 +277,17 @@ class _PedidoPortaoPageState extends State<PedidoPortaoPage> {
                 Text(local, style: AppTypography.bodySecondary(context)),
               ],
               AppSpacing.gapXl,
-              if (!p.pendente) ...[_resultado(context), AppSpacing.gapXl],
+              if (_indisponivel) ...[
+                Text('PEDIDO INDISPONÍVEL', key: const Key('pedido-indisponivel'), style: AppTypography.strong(context)),
+                AppSpacing.gapXl,
+              ] else if (!p.pendente) ...[
+                _resultado(context),
+                AppSpacing.gapXl,
+              ],
+              if (_semAtualizar && p.pendente) ...[
+                Text('Não foi possível atualizar', key: const Key('pedido-sem-atualizar'), style: AppTypography.caption(context)),
+                AppSpacing.gapMd,
+              ],
               ..._acoes(context),
               if (_erro != null) ...[
                 AppSpacing.gapMd,

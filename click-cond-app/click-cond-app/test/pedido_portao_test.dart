@@ -28,12 +28,14 @@ void main() {
   late List<Map<String, dynamic>> corpos;
   late String estadoGet;
   late int statusPost;
+  late int statusGet;
 
   setUp(() {
     chamadas = [];
     corpos = [];
     estadoGet = 'pendente';
     statusPost = 201;
+    statusGet = 200;
     ApiClient.tokenProvider = () => 'sessao';
     ApiClient.client = MockClient((r) async {
       chamadas.add('${r.method} ${r.url.path}');
@@ -43,6 +45,9 @@ void main() {
         final autorizar = corpos.last['decisao'] == 'autorizar';
         return http.Response(
             jsonEncode(_pedido(autorizar ? 'autorizado' : 'negado', mensagem: corpos.last['mensagem'] as String?)), 201);
+      }
+      if (statusGet != 200 && (r.method == 'GET' && (statusGet == 403 || chamadas.where((c) => c.startsWith('POST')).isNotEmpty))) {
+        return http.Response('{}', statusGet);
       }
       return http.Response(jsonEncode(_pedido(estadoGet, por: estadoGet == 'pendente' ? null : 'Ana')), 200);
     });
@@ -143,5 +148,37 @@ void main() {
     await tratarPushDoInterfone({'type': 'interfone_pedido_fim', 'id': '7'});
     await tester.pumpAndSettle();
     expect(find.byType(PedidoPortaoPage), findsNothing);
+  });
+
+  testWidgets('409 pedido_respondido com GET falhando mostra Já respondido, não Negado', (tester) async {
+    await abrir(tester);
+    statusPost = 409;
+    statusGet = 500;
+    await tester.tap(find.text('AUTORIZAR'));
+    await tester.pumpAndSettle();
+    expect(find.text('JÁ RESPONDIDO'), findsOneWidget);
+    expect(find.text('NEGADO'), findsNothing);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('403 na primeira carga desabilita os botões e avisa', (tester) async {
+    statusGet = 403;
+    await abrir(tester);
+    expect(find.text('PEDIDO INDISPONÍVEL'), findsOneWidget);
+    await tester.tap(find.text('AUTORIZAR'), warnIfMissed: false);
+    await tester.pump();
+    expect(chamadas.where((c) => c.startsWith('POST')), isEmpty);
+  });
+
+  testWidgets('fim com diálogo por cima fecha só a tela do pedido', (tester) async {
+    await abrir(tester);
+    final ctx = tester.element(find.byType(PedidoPortaoPage));
+    showDialog<void>(context: ctx, builder: (_) => const AlertDialog(content: Text('dialogo')));
+    await tester.pumpAndSettle();
+    await tratarPushDoInterfone({'type': 'interfone_pedido_fim', 'id': '7'});
+    await tester.pumpAndSettle();
+    expect(find.byType(PedidoPortaoPage), findsNothing);
+    expect(find.text('dialogo'), findsOneWidget);
   });
 }
