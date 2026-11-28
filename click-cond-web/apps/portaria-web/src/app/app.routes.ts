@@ -1,6 +1,7 @@
 import { inject } from '@angular/core';
 import { CanMatchFn, Route, Router } from '@angular/router';
 import { authGuard } from './auth/auth.guard';
+import { centralGuard } from './central/central.guard';
 
 const convitePorQueryCanMatch: CanMatchFn = () =>
   Boolean(inject(Router).getCurrentNavigation()?.extractedUrl.queryParams['convite']);
@@ -72,6 +73,19 @@ export const appRoutes: Route[] = [
     path: 'login',
     loadComponent: () =>
       import('./auth/login-page.component').then((m) => m.LoginPageComponent),
+  },
+  {
+    // Área Central (operadores da Prestare que atendem vários condomínios): login próprio, fora do shell do
+    // condomínio. O token do operador fica em `central_token` e não abre nenhuma tela de condomínio.
+    path: 'central/login',
+    loadComponent: () =>
+      import('./central/central-login-page.component').then((m) => m.CentralLoginPageComponent),
+  },
+  {
+    path: 'central',
+    canActivate: [centralGuard],
+    loadComponent: () =>
+      import('./central/central-page.component').then((m) => m.CentralPageComponent),
   },
   {
     // Pública: aberta pelo link enviado por e-mail para redefinir senha.

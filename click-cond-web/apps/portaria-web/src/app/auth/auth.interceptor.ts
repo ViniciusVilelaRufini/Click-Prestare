@@ -15,7 +15,9 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const auth = inject(AuthService);
   const clock = inject(ServerClockService);
   const network = inject(NetworkStatusService);
-  const token = auth.token;
+  // Área Central: o operador tem sessão própria (CentralApi põe o central_token). O token do porteiro nunca vai
+  // para lá, e o 401 de lá não encerra a sessão do porteiro aberta no mesmo navegador.
+  const token = ehRotaDaCentral(req.url) ? null : auth.token;
   if (token) {
     req = req.clone({ setHeaders: { Authorization: `Bearer ${token}` } });
   }
@@ -72,4 +74,9 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       return throwError(() => error);
     })
   );
-};
+};
+
+/** `/api/central/...` (relativa ou já com o domínio da API). */
+export function ehRotaDaCentral(url: string): boolean {
+  return /(^|\/)api\/central(\/|\?|$)/.test(url);
+}

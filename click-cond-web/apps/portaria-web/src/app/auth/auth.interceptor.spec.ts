@@ -4,6 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { authInterceptor } from './auth.interceptor';
 import { NetworkStatusService } from '../core/network-status.service';
 import * as apiConfig from '../shared/api.config';
+import { AuthService } from './auth.service';
 
 describe('authInterceptor - Tratamento de Erros e Queda de Rede', () => {
   let http: HttpClient;
@@ -95,5 +96,51 @@ describe('authInterceptor - Tratamento de Erros e Queda de Rede', () => {
       expect(apiConfig.shouldDirectToApi('www.clickprestarecondominios.com.br')).toBe(true);
       expect(apiConfig.shouldDirectToApi('localhost')).toBe(false);
     });
+  });
+});
+
+/**
+ * Área Central: o operador tem sessão própria (central_token). Pedido para /api/central nunca leva o token do
+ * porteiro, e o 401 de lá (senha errada no login do operador, sessão da central vencida) não derruba a sessão
+ * do porteiro aberta no mesmo navegador.
+ */
+describe('authInterceptor — rotas da Central', () => {
+  let http: HttpClient;
+  let httpMock: HttpTestingController;
+  const auth = { token: 'tok-porteiro', logout: jest.fn() };
+
+  beforeEach(() => {
+    auth.logout.mockReset();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(withInterceptors([authInterceptor])),
+        provideHttpClientTesting(),
+        NetworkStatusService,
+        { provide: AuthService, useValue: auth },
+      ],
+    });
+    http = TestBed.inject(HttpClient);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => httpMock.verify());
+
+  it('não põe o token do porteiro e mantém o da central', () => {
+    http.get('/api/central/fila', { headers: { Authorization: 'Bearer tok-central' } }).subscribe();
+    const req = httpMock.expectOne('/api/central/fila');
+    expect(req.request.headers.get('Authorization')).toBe('Bearer tok-central');
+    req.flush([]);
+    http.post('/api/central/auth/login', {}).subscribe({ error: () => undefined });
+    const login = httpMock.expectOne('/api/central/auth/login');
+    expect(login.request.headers.has('Authorization')).toBe(false);
+    login.flush({}, { status: 401, statusText: 'Unauthorized' });
+    expect(auth.logout).not.toHaveBeenCalled();
+  });
+
+  it('as outras rotas seguem com o token do porteiro', () => {
+    http.get('/api/condominios/1/apartamentos').subscribe();
+    const req = httpMock.expectOne('/api/condominios/1/apartamentos');
+    expect(req.request.headers.get('Authorization')).toBe('Bearer tok-porteiro');
+    req.flush([]);
   });
 });

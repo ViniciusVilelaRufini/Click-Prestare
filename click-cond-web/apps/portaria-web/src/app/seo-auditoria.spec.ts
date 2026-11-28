@@ -332,6 +332,10 @@ describe('página inexistente', () => {
     caminhos.forEach((c) => expect([c, casa('/' + c)]).toEqual([c, true]));
   });
   it('a raiz continua indo para o console', () => expect(casa('/')).toBe(true));
+  it('regra SPA casa /central e /central/login (área dos operadores da Central)', () => {
+    ['/central', '/central/', '/central/login', '/central/login/'].forEach((c) => expect([c, casa(c)]).toEqual([c, true]));
+    ['/central/qualquer', '/centralx', '/central/login/x'].forEach((c) => expect([c, casa(c)]).toEqual([c, false]));
+  });
   it('caminho desconhecido não entra no SPA', () => {
     ['/pagina-que-nao-existe-xyz', '/sobre/nao-existe', '/loginx'].forEach((c) => expect([c, casa(c)]).toEqual([c, false]));
   });
