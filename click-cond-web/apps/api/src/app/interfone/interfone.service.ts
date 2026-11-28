@@ -1,3 +1,4 @@
+import { agoraEmBrasilia, decidirDestino, DestinoPortaria, FaixaAgenda } from './destino-portaria';
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
@@ -628,6 +629,18 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
   /** Há porteiro com o console aberto? Sem gateway (testes, boot) = não. */
   async porteirosOnline(idCondominio: number): Promise<boolean> {
     return (await this.realtime?.porteirosOnline(idCondominio)) ?? false;
+  }
+
+  /** Para onde vai a chamada da portaria agora: porteiro local ou central (agenda + salvaguarda). */
+  async destinoPortaria(idCondominio: number, agora = new Date()): Promise<DestinoPortaria> {
+    const cond = await this.prisma.condominios.findUnique({ where: { id: idCondominio }, select: { central_contratada: true } });
+    if (!cond?.central_contratada) return 'local';
+    const momento = agoraEmBrasilia(agora);
+    const faixas = await this.prisma.portaria_Agenda.findMany({
+      where: { id_condominio: idCondominio, dia_semana: momento.diaSemana },
+      select: { dia_semana: true, inicio: true, fim: true, destino: true },
+    });
+    return decidirDestino(true, faixas as FaixaAgenda[], momento, await this.porteirosOnline(idCondominio));
   }
 
   /**
