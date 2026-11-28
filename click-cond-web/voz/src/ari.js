@@ -51,10 +51,12 @@ export function adaptarAri(client, { timeoutTocarMs = 20_000 } = {}) {
     },
 
     async criarPonte() {
-      const ponte = await client.bridges.create({ type: 'mixing' });
+      // proxy_media: sem ponte nativa entre o WebRTC (DTLS-SRTP/ICE) e o RTP puro do facial.
+      const ponte = await client.bridges.create({ type: 'mixing,proxy_media' });
       return ponte.id;
     },
     adicionarNaPonte: (ponte, canais) => client.bridges.addChannel({ bridgeId: ponte, channel: canais.join(',') }),
+    definirVideo: (ponte, canal) => client.bridges.setVideoSource({ bridgeId: ponte, channelId: canal }),
     tocarNaPonte: (ponte, media) => client.bridges.play({ bridgeId: ponte, media }),
     destruirPonte: (ponte) => client.bridges.destroy({ bridgeId: ponte }),
 
@@ -72,6 +74,12 @@ export function adaptarAri(client, { timeoutTocarMs = 20_000 } = {}) {
     },
 
     recarregarPjsip: () => client.asterisk.reloadModule({ moduleName: 'res_pjsip.so' }),
+
+    /** Ids de todos os canais que existem agora no Asterisk. */
+    async canaisExistentes() {
+      const lista = await client.channels.list();
+      return new Set(lista.map((c) => c.id));
+    },
 
     /** Canais parados no nosso Stasis (sobras de um reinício do serviço). */
     async canaisNoStasis() {

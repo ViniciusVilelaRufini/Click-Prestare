@@ -34,7 +34,17 @@ const client = await conectarAri({ url: cfg.ariUrl, usuario: cfg.ariUser, senha:
 const ari = adaptarAri(client);
 servico = criarServico({ ari, api, segredo: cfg.tokenSecret, log });
 
-client.on('WebSocketConnected', () => { ariConectada = true; log.info('[ari] conectada'); });
+client.on('WebSocketConnected', async () => {
+  ariConectada = true;
+  log.info('[ari] conectada');
+  // Na queda os StasisEnd se perdem: encerra como falha o que morreu no meio.
+  try {
+    const n = servico.conferirCanais(await ari.canaisExistentes());
+    if (n) log.warn(`[ari] ${n} chamada(s) encerrada(s) como falha depois da reconexão`);
+  } catch (e) {
+    log.warn(`[ari] não conferi os canais depois da reconexão: ${e.message}`);
+  }
+});
 client.on('WebSocketReconnecting', () => { ariConectada = false; log.warn('[ari] reconectando'); });
 client.on('WebSocketMaxRetries', () => {
   log.error('[ari] desisti de reconectar; saindo para o systemd reiniciar');
@@ -77,9 +87,15 @@ async function informarRegistros() {
 setInterval(informarRegistros, 60_000).unref();
 setTimeout(informarRegistros, 15_000).unref();
 
+let saindo = false;
 for (const sinal of ['SIGTERM', 'SIGINT']) {
-  process.on(sinal, () => {
-    log.info(`[voz] ${sinal}: saindo (${servico?.ativas() ?? 0} chamada(s) ativa(s))`);
+  process.on(sinal, async () => {
+    if (saindo) return;
+    saindo = true;
+    const ativas = servico?.ativas() ?? 0;
+    log.info(`[voz] ${sinal}: saindo (${ativas} chamada(s) ativa(s))`);
+    // Avisa a API (encerrada falha) para não deixar telas tocando; teto de 3 s.
+    if (servico && ativas) await servico.encerrarTodasPorFalha({ tetoMs: 3000 }).catch(() => {});
     process.exit(0);
   });
 }
