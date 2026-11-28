@@ -518,7 +518,10 @@ export class InterfoneConfigService {
    */
   async definirCentral(idCondominio: number, ligado: boolean, ator: AtorConfig): Promise<{ id: number; central_contratada: boolean }> {
     if (typeof ligado !== 'boolean') throw new BadRequestException('ligado deve ser true ou false.');
-    const c = await this.prisma.condominios.findUnique({ where: { id: idCondominio }, select: { id: true, interfone_contratado: true } });
+    const c = await this.prisma.condominios.findUnique({
+      where: { id: idCondominio },
+      select: { id: true, interfone_contratado: true, interfone_numero_portaria: true },
+    });
     if (!c) throw new NotFoundException('Condomínio não encontrado.');
     if (ligado && c.interfone_contratado !== 1) {
       throw new BadRequestException({
@@ -526,6 +529,23 @@ export class InterfoneConfigService {
         motivo: 'interfone_nao_contratado',
         message: 'Contrate o Interfone pelo app antes de ligar a central.',
       });
+    }
+    if (ligado) {
+      // Com a central o número da portaria tem precedência no facial: a unidade com esse ramal deixaria de tocar.
+      const numero = String(c.interfone_numero_portaria ?? '').trim();
+      const conflito = numero
+        ? await this.prisma.apartamentos.findFirst({
+            where: { id_condominio: idCondominio, interfone_ramal: numero },
+            select: { id: true, apto: true, bloco: true },
+          })
+        : null;
+      if (conflito) {
+        throw new BadRequestException({
+          statusCode: 400,
+          motivo: 'ramal_conflita_portaria',
+          message: `O número da portaria (${numero}) é o ramal de ${rotuloAptoBloco(conflito.apto, conflito.bloco)}. Troque o número da portaria ou o ramal antes de ligar a central.`,
+        });
+      }
     }
     await this.prisma.condominios.update({ where: { id: idCondominio }, data: { central_contratada: ligado ? 1 : 0 } });
     await this.auditar(idCondominio, ator, `Central Prestare ${ligado ? 'CONTRATADA' : 'descontratada'} pelo CRM`, { central_contratada: ligado });
@@ -607,7 +627,8 @@ export class InterfoneConfigService {
       throw new BadRequestException({ statusCode: 400, motivo: 'agenda_invalida', message: 'Envie a lista de faixas da agenda.' });
     }
     const lista: FaixaAgenda[] = faixas.map((f: any) => ({
-      dia_semana: Number(f?.dia_semana),
+      // Só número inteiro de 0 a 6: null, '' ou [] não podem virar domingo (validarAgenda recusa o NaN).
+      dia_semana: typeof f?.dia_semana === 'number' && Number.isInteger(f.dia_semana) ? f.dia_semana : NaN,
       inicio: String(f?.inicio ?? '').trim(),
       fim: String(f?.fim ?? '').trim(),
       destino: f?.destino,

@@ -126,6 +126,35 @@ describe('CrmInterfoneComponent', () => {
       expect(q<HTMLInputElement>('input[data-central="1"]').disabled).toBe(true);
     });
 
+    it('sem interfone contratado mas com a central ligada, a chave deixa desligar', () => {
+      const { fixture, q, abrir } = render();
+      api.clientes.mockReturnValue(of([{ id: 1, nome: 'Boa Vista', contratado: false, ...BASE, central_contratada: true }]));
+      fixture.componentInstance.carregar();
+      fixture.detectChanges();
+      abrir(1);
+      const chave = q<HTMLInputElement>('input[data-central="1"]');
+      expect(chave.disabled).toBe(false);
+      chave.click();
+      fixture.detectChanges();
+      expect(api.definirCentral).toHaveBeenCalledWith(1, false);
+    });
+
+    it('falha ao carregar a agenda: mostra o erro e bloqueia "Salvar agenda" (não apaga a agenda gravada)', () => {
+      const { fixture, el, q, abrir } = render();
+      api.agenda.mockReturnValueOnce(throwError(() => ({ error: { message: 'Banco fora.' } })));
+      abrir(2);
+      expect(el.querySelector('[data-erro-agenda]')?.textContent).toContain('Banco fora.');
+      const salvar = q<HTMLButtonElement>('button[data-salvar-agenda]');
+      expect(salvar.disabled).toBe(true);
+      salvar.click();
+      fixture.componentInstance.salvarAgenda({ id: 2, nome: 'Jardins' } as any);
+      expect(api.salvarAgenda).not.toHaveBeenCalled();
+      // Reabrir com sucesso libera de novo.
+      abrir(2);
+      abrir(2);
+      expect(q<HTMLButtonElement>('button[data-salvar-agenda]').disabled).toBe(false);
+    });
+
     it('desligar a central e ligar a IA gravam na API', () => {
       jest.spyOn(window, 'confirm').mockReturnValue(true);
       const { fixture, q, abrir } = render();

@@ -87,7 +87,7 @@
                       type="checkbox"
                       [attr.data-central]="c.id"
                       [checked]="c.central_contratada"
-                      [disabled]="!c.contratado || alterandoCentral() === c.id"
+                      [disabled]="(!c.contratado && !c.central_contratada) || alterandoCentral() === c.id"
                       (change)="alternarCentral(c, caixaCentral)"
                     />
                     Central contratada
@@ -238,7 +238,7 @@
                     type="button"
                     class="btn-primary btn-sm press"
                     data-salvar-agenda
-                    [disabled]="salvandoAgenda() || carregandoAgenda()"
+                    [disabled]="salvandoAgenda() || carregandoAgenda() || agendaFalhou()"
                     (click)="salvarAgenda(c)"
                   >
                     {{ salvandoAgenda() ? 'Salvando…' : 'Salvar agenda' }}

@@ -64,6 +64,8 @@ export class CrmInterfoneComponent implements OnInit {
   readonly carregandoAgenda = signal(false);
   readonly salvandoAgenda = signal(false);
   readonly erroAgenda = signal<string | null>(null);
+  /** A agenda gravada não carregou: salvar mandaria a lista vazia e apagaria tudo. Fica bloqueado até reabrir. */
+  readonly agendaFalhou = signal(false);
 
   ngOnInit(): void {
     this.carregar();
@@ -139,6 +141,7 @@ export class CrmInterfoneComponent implements OnInit {
     this.edNumero.set(c.numero_portaria ?? '0');
     this.edInstrucao.set(c.instrucao_entregas ?? '');
     this.erroAgenda.set(null);
+    this.agendaFalhou.set(false);
     this.agenda.set(porDia([]));
     this.carregandoAgenda.set(true);
     this.api.agenda(c.id).subscribe({
@@ -149,7 +152,8 @@ export class CrmInterfoneComponent implements OnInit {
       },
       error: (e) => {
         this.carregandoAgenda.set(false);
-        this.erroAgenda.set(mensagem(e, 'Não foi possível carregar a agenda.'));
+        this.agendaFalhou.set(true);
+        this.erroAgenda.set(mensagem(e, 'Não foi possível carregar a agenda. Feche e abra de novo antes de editar.'));
       },
     });
   }
@@ -260,7 +264,7 @@ export class CrmInterfoneComponent implements OnInit {
   }
 
   salvarAgenda(c: ClienteInterfone): void {
-    if (this.salvandoAgenda()) return;
+    if (this.salvandoAgenda() || this.carregandoAgenda() || this.agendaFalhou()) return;
     this.erroAgenda.set(null);
     this.salvandoAgenda.set(true);
     this.api.salvarAgenda(c.id, ordenarAgenda(this.agenda().flat())).subscribe({

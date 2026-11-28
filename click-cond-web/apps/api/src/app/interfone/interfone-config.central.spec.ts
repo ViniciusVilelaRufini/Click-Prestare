@@ -141,6 +141,18 @@ describe('CRM: central contratada', () => {
     await expect(c.central(999, true, ADMIN)).rejects.toMatchObject({ status: 404 });
   });
 
+  it('ligar a central com um ramal igual ao número da portaria → 400 ramal_conflita_portaria, citando a unidade', async () => {
+    const m = montar({ interfone_numero_portaria: '201' });
+    const c = new CrmInterfoneController(m.svc);
+    const erro: any = await c.central(1, true, ADMIN).catch((e) => e);
+    expect(erro).toMatchObject({ status: 400, response: expect.objectContaining({ motivo: 'ramal_conflita_portaria' }) });
+    expect(erro.response.message).toContain('Bloco A · Apto 201');
+    expect(m.cond1().central_contratada).toBe(0);
+    // Desligar não esbarra no conflito.
+    m.cond1().central_contratada = 1;
+    await expect(c.central(1, false, ADMIN)).resolves.toEqual({ id: 1, central_contratada: false });
+  });
+
   it('IA no portão só guarda a coluna', async () => {
     const m = montar();
     const c = new CrmInterfoneController(m.svc);
@@ -218,6 +230,13 @@ describe('CRM: agenda da portaria', () => {
     expect(m.agenda.linhas()).toHaveLength(1);
     await expect(c.salvarAgenda(1, 'x' as any, ADMIN)).rejects.toMatchObject({ status: 400 });
     await expect(c.salvarAgenda(1, [{ ...SEG_CENTRAL, destino: 'ia' as any }], ADMIN)).rejects.toMatchObject({ status: 400 });
+    // dia_semana precisa ser número inteiro de 0 a 6: null, '', [] e '1' não viram domingo/segunda.
+    for (const dia of [null, '', [], '1', 1.5, 7, undefined]) {
+      await expect(c.salvarAgenda(1, [{ ...SEG_CENTRAL, dia_semana: dia as any }], ADMIN)).rejects.toMatchObject({
+        status: 400,
+        response: expect.objectContaining({ motivo: 'agenda_invalida' }),
+      });
+    }
     expect(m.agenda.delegado.deleteMany).not.toHaveBeenCalled();
   });
 
