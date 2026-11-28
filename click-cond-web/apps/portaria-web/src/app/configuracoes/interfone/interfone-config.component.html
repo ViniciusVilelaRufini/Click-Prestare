@@ -193,7 +193,7 @@
             @for (r of ramais(); track r.id_apartamento) {
               <tr class="border-t border-[var(--line-100)]" [attr.data-conflito]="problemaDe(r) && problemaDe(r) !== 'sem_numero' ? '' : null">
                 <td class="px-5 py-2 truncate" [attr.title]="r.unidade">{{ r.unidade }}</td>
-                <td class="px-3 py-2 ps-cap tabular-nums truncate">{{ r.sugestao ?? '—' }}</td>
+                <td class="px-3 py-2 ps-cap tabular-nums truncate" [attr.data-sugestao]="r.id_apartamento">{{ valorRamal(r).trim() ? '—' : (r.sugestao ?? '—') }}</td>
                 <td class="px-3 py-2">
                   <span class="ps-field h-8 w-full max-w-28"
                     [style.border-color]="problemaDe(r) && problemaDe(r) !== 'sem_numero' ? (bloqueia(problemaDe(r)) ? 'var(--signal-danger)' : 'var(--signal-warn)') : null">

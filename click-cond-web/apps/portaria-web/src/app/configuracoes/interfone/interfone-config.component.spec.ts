@@ -221,6 +221,21 @@ describe('InterfoneConfigComponent', () => {
     req.flush(RAMAIS.map((r, i) => ({ ...r, ramal: ['1106', '2106', null][i], conflito: false })));
   });
 
+  it('coluna Sugestão só mostra o número quando o ramal está vazio; com ramal preenchido mostra "—"', () => {
+    const { fixture, el } = render();
+    const sug = (id: number) => el.querySelector(`td[data-sugestao="${id}"]`)?.textContent?.trim();
+    expect(sug(3)).toBe('201');
+    const input = el.querySelector('input[data-ramal="3"]') as HTMLInputElement;
+    input.value = '1201';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(sug(3)).toBe('—');
+    input.value = '';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(sug(3)).toBe('201');
+  });
+
   it('aplicar sugestões preenche só quem não tem ramal e tem sugestão', () => {
     const { fixture, el } = render();
     (el.querySelector('button[data-aplicar-sugestoes]') as HTMLButtonElement).click();
