@@ -35,7 +35,10 @@ const ESPERA_SOCKET_MS = 10_000;
 @Injectable({ providedIn: 'root' })
 export class SipVoz {
   async entrar(d: DadosEntrada, video: HTMLVideoElement | null, audio: HTMLAudioElement | null): Promise<SessaoVoz> {
-    const JsSIP = await import('jssip');
+    // O JsSIP é CommonJS: no build de produção o chunk só tem `export default` (as exportações nomeadas
+    // ficam undefined). Aceita os dois formatos.
+    const mod = await import('jssip');
+    const JsSIP = ((mod as unknown as { default?: typeof mod }).default ?? mod) as typeof mod;
     const host = hostDaUri(d.sip_uri);
     const ua = new JsSIP.UA({
       sockets: [new JsSIP.WebSocketInterface(d.wss)],

@@ -29,7 +29,9 @@ jest.mock('jssip', () => {
       return sessaoFalsa;
     }
   }
-  return { UA, WebSocketInterface };
+  // Formato real do build de produção: o JsSIP é CommonJS e o chunk só tem `export default` (28/11 o console
+  // quebrava com `i.UA is not a constructor` porque lia exportações nomeadas).
+  return { __esModule: true, default: { UA, WebSocketInterface } };
 });
 
 describe('SipVoz (JsSIP)', () => {
