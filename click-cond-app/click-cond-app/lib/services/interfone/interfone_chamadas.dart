@@ -261,6 +261,7 @@ class InterfoneChamadas {
         if (id != null) {
           _pararVigia(id);
           _fechadasPeloApp.remove(id);
+          _mudoPendente.remove(id);
           _avisarTela(id);
         }
       case CallEventActionCallToggleMute(:final id, :final isMuted):

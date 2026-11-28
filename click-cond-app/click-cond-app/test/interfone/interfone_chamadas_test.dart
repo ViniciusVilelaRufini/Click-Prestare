@@ -176,6 +176,14 @@ void main() {
       expect(extras.single['tipo'], 'facial_unidade');
     });
 
+    test('fim da chamada limpa o Mudo pendente', () async {
+      await InterfoneChamadas.tratarEvento(CallEventActionCallToggleMute(CallKitParams(id: uuidDaChamada(41)).id, true));
+      await InterfoneChamadas.tratarEvento(CallEventActionCallEnded(CallKitParams(id: uuidDaChamada(41))));
+      bool? recebido;
+      InterfoneChamadas.registrarTela(41, () {}, aoMudo: (m) => recebido = m);
+      expect(recebido, isNull);
+    });
+
     test('toque no aviso de chamada que já acabou não abre nada', () async {
       estados[41] = _estado('encerrada');
       await InterfoneChamadas.abrirPeloAviso({'type': 'interfone_chamada', 'id': '41'});
