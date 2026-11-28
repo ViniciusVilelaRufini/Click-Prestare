@@ -45,8 +45,11 @@ export function criarServico({
   const aguardando = new Set(); // canais esperando resposta da API
   const mortos = new Set(); // canais que caíram enquanto esperavam
   const portariaPendente = new Set(); // /portaria chegou antes de sabermos o id
+  const esperandoChamada = new Map(); // canal -> { cid, claims, handle }: entrou antes da origem
   let criandoFacial = 0;
   const emAndamento = new Set();
+
+  const esperar = (ms) => new Promise((r) => temporizador.agendar(r, ms));
 
   function rastrear(p) {
     const q = Promise.resolve(p)
@@ -81,6 +84,7 @@ export function criarServico({
       timers: new Map(),
       atendidos: new Set(),
       fila: Promise.resolve(),
+      eventos: Promise.resolve(), // eventos à API em ordem, com novas tentativas
     };
     chamadas.set(c.id, c);
     porCanal.set(c.origem, { id: c.id, papel: 'origem' });
@@ -108,7 +112,11 @@ export function criarServico({
         await executarAcao(c, a);
       } catch (e) {
         log.warn(`[chamada ${c.id}] ação ${a.acao} falhou: ${e.message}`);
-        if (a.acao === 'ponte') processar(c, c.maquina.falhou());
+        if (a.acao === 'ponte') {
+          // Sem ponte não houve conversa: nada de "atendida" para a API.
+          processar(c, c.maquina.falhou());
+          break;
+        }
       }
     }
     if (c.maquina.estado === 'encerrada' && chamadas.get(c.id) === c) limpar(c);
@@ -152,6 +160,12 @@ export function criarServico({
       case 'ponte':
         if (!c.ponte) c.ponte = await ari.criarPonte();
         await ari.adicionarNaPonte(c.ponte, a.canais);
+        // Vídeo só vem do facial; se o Asterisk cair no softmix, fixa a fonte.
+        if (c.maquina.tipo === 'facial_unidade' && ari.definirVideo) {
+          await Promise.resolve()
+            .then(() => ari.definirVideo(c.ponte, c.origem))
+            .catch((e) => log.info(`[chamada ${c.id}] fonte de vídeo não definida: ${e.message}`));
+        }
         return;
       case 'cancelar_toques':
         cancelarTimer(c, 'toque');
@@ -232,11 +246,65 @@ export function criarServico({
       );
       return;
     }
-    rastrear(
-      Promise.resolve()
-        .then(() => api.evento(c.id, ev))
-        .catch((e) => log.warn(`[chamada ${c.id}] evento ${ev.evento} não chegou à API: ${e.message}`)),
-    );
+    c.eventos = c.eventos.then(() => enviarComTentativas(c.id, ev));
+    rastrear(c.eventos);
+  }
+
+  // atendida/encerrada: até 3 novas tentativas (0,5 s, 1 s, 2 s) se a API falhar.
+  async function enviarComTentativas(id, ev) {
+    const esperas = [500, 1000, 2000];
+    for (let i = 0; ; i += 1) {
+      try {
+        await api.evento(id, ev);
+        return;
+      } catch (e) {
+        if (i >= esperas.length) {
+          log.error(`[chamada ${id}] evento ${ev.evento} não chegou à API depois de ${i + 1} tentativas: ${e.message}`);
+          return;
+        }
+        log.warn(`[chamada ${id}] evento ${ev.evento} falhou (${e.message}); nova tentativa em ${esperas[i]} ms`);
+        await esperar(esperas[i]);
+      }
+    }
+  }
+
+  // Quem atende pode chegar antes da origem (INVITE do console/app ainda
+  // juntando candidatos ICE) ou antes de a API responder ao facial: espera
+  // até 10 s pela chamada daquele id.
+  function esperarChamada(canal, claims) {
+    if (esperandoChamada.size >= 200) return desligar(canal);
+    const handle = temporizador.agendar(() => {
+      if (esperandoChamada.delete(canal)) {
+        log.warn(`[chamada ${claims.cid}] ${claims.papel} esperou 10 s e a chamada não apareceu`);
+        rastrear(desligar(canal));
+      }
+    }, 10_000);
+    esperandoChamada.set(canal, { cid: claims.cid, claims, handle });
+    return undefined;
+  }
+
+  function liberarEsperando(c) {
+    for (const [canal, e] of [...esperandoChamada]) {
+      if (e.cid !== c.id) continue;
+      temporizador.cancelar(e.handle);
+      esperandoChamada.delete(canal);
+      juntar(c, canal, e.claims);
+    }
+  }
+
+  function derrubarEsperando(cid) {
+    for (const [canal, e] of [...esperandoChamada]) {
+      if (e.cid !== cid) continue;
+      temporizador.cancelar(e.handle);
+      esperandoChamada.delete(canal);
+      rastrear(desligar(canal));
+    }
+  }
+
+  function juntar(c, canal, claims) {
+    const acoes = c.maquina.entrou({ papel: claims.papel, uid: claims.uid, canal });
+    if (c.maquina.canalAtendido === canal) porCanal.set(canal, { id: c.id, papel: 'participante' });
+    processar(c, acoes);
   }
 
   // ------------------------------------------------------- entrada de canais
@@ -290,6 +358,7 @@ export function criarServico({
       porCanal.delete(canal);
       processar(c, c.maquina.origemDesligou());
     }
+    liberarEsperando(c);
     return undefined;
   }
 
@@ -309,6 +378,7 @@ export function criarServico({
       aguardando.delete(canal);
       const morreu = mortos.delete(canal);
       if (!dados || !TIPOS_DE_ORIGEM.has(dados.tipo) || dados.estado === 'encerrada' || chamadas.has(claims.cid)) {
+        if (!chamadas.has(claims.cid)) derrubarEsperando(claims.cid);
         return morreu ? undefined : desligar(canal);
       }
       const c = registrar(criarChamada({
@@ -325,14 +395,13 @@ export function criarServico({
         porCanal.delete(canal);
         processar(c, c.maquina.origemDesligou());
       }
+      liberarEsperando(c);
       return undefined;
     }
 
     const c = chamadas.get(claims.cid);
-    if (!c) return desligar(canal);
-    const acoes = c.maquina.entrou({ papel: claims.papel, uid: claims.uid, canal });
-    if (c.maquina.canalAtendido === canal) porCanal.set(canal, { id: c.id, papel: 'participante' });
-    processar(c, acoes);
+    if (!c) return esperarChamada(canal, claims);
+    juntar(c, canal, claims);
     return undefined;
   }
 
@@ -359,6 +428,12 @@ export function criarServico({
   }
 
   function aoFim({ canal }) {
+    const espera = esperandoChamada.get(canal);
+    if (espera) {
+      temporizador.cancelar(espera.handle);
+      esperandoChamada.delete(canal);
+      return;
+    }
     if (aguardando.has(canal)) {
       mortos.add(canal);
       return;
@@ -386,8 +461,11 @@ export function criarServico({
         return true;
       }
       if (criandoFacial > 0) {
+        // Só vale para a chamada com este id, quando a resposta da API chegar.
         portariaPendente.add(id);
-        temporizador.agendar(() => portariaPendente.delete(id), 60_000);
+        temporizador.agendar(() => {
+          if (portariaPendente.delete(id)) log.warn(`[chamada ${id}] pedido de portaria descartado: o id não apareceu em 60 s`);
+        }, 60_000);
         return true;
       }
       return false;
@@ -395,7 +473,8 @@ export function criarServico({
 
     async dtmf(id, digitos) {
       const c = chamadas.get(id);
-      if (!c || c.maquina.estado === 'encerrada') return false;
+      // DTMF de abrir só vai ao facial de uma chamada já atendida.
+      if (!c || c.maquina.tipo !== 'facial_unidade' || c.maquina.estado !== 'atendida') return false;
       try {
         await ari.enviarDtmf(c.origem, digitos);
         return true;
@@ -413,6 +492,40 @@ export function criarServico({
     },
 
     ativas: () => chamadas.size,
+
+    /**
+     * Desligamento (SIGTERM): cada chamada ativa vira "encerrada falha" na API,
+     * com teto total para não segurar a saída do processo.
+     */
+    async encerrarTodasPorFalha({ tetoMs = 3000 } = {}) {
+      for (const [canal, e] of [...esperandoChamada]) {
+        temporizador.cancelar(e.handle);
+        esperandoChamada.delete(canal);
+        desligar(canal);
+      }
+      for (const c of [...chamadas.values()]) processar(c, c.maquina.falhou());
+      let h;
+      const teto = new Promise((r) => { h = temporizador.agendar(r, tetoMs); });
+      await Promise.race([this.ocioso(), teto]);
+      temporizador.cancelar(h);
+    },
+
+    /**
+     * Depois de a ARI reconectar: encerra como falha as chamadas cujos canais
+     * (origem, ou o participante numa conversa) não existem mais no Asterisk.
+     */
+    conferirCanais(existentes) {
+      let n = 0;
+      for (const c of [...chamadas.values()]) {
+        const participante = c.maquina.estado === 'atendida' ? c.maquina.canalAtendido : null;
+        if (!existentes.has(c.origem) || (participante && !existentes.has(participante))) {
+          log.warn(`[chamada ${c.id}] canais sumiram durante a queda da ARI: encerrando como falha`);
+          processar(c, c.maquina.falhou());
+          n += 1;
+        }
+      }
+      return n;
+    },
 
     /** Espera todo o trabalho assíncrono em curso (testes e desligamento). */
     async ocioso() {

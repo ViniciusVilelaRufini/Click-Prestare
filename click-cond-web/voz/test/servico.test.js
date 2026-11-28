@@ -337,9 +337,12 @@ test('origem para chamada encerrada ou de facial é desligada', async () => {
   }
 });
 
-test('morador para chamada que o serviço não conhece é desligado', async () => {
-  const { ari, servico } = montar();
+test('morador para chamada que o serviço não conhece é desligado depois de esperar 10 s', async () => {
+  const { ari, servico, temporizador } = montar();
   ari.iniciar('app1', ['entrar', token({ cid: 55, papel: 'morador', uid: 42 })]);
+  await servico.ocioso();
+  assert.deepEqual(ari.ops, []);
+  temporizador.disparar(10_000);
   await servico.ocioso();
   assert.deepEqual(ari.ops, [['hangup', 'app1', 'normal']]);
 });
@@ -359,12 +362,14 @@ test('dtmf e encerrar pelo controle', async () => {
   const { ari, api, servico } = montar();
   ari.iniciar('fac1', ['facial', 'fac-12', '106']);
   await servico.ocioso();
+  ari.iniciar('app1', ['entrar', token({ cid: 77, papel: 'morador', uid: 42 })]);
+  await servico.ocioso();
   assert.equal(await servico.dtmf(77, '#1'), true);
   assert.deepEqual(ari.de('enviarDtmf'), [['enviarDtmf', 'fac1', '#1']]);
   assert.equal(await servico.dtmf(78, '1'), false);
   assert.equal(servico.encerrar(77), true);
   await servico.ocioso();
-  assert.deepEqual(eventos(api).at(-1), { evento: 'encerrada', resultado: 'nao_atendida', duracao_s: 0 });
+  assert.deepEqual(eventos(api).at(-1), { evento: 'encerrada', resultado: 'atendida_morador', duracao_s: 0 });
   assert.equal(servico.encerrar(77), false);
 });
 
