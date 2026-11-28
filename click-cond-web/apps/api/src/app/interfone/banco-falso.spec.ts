@@ -32,6 +32,12 @@ const RELACOES: Record<string, Record<string, Rel>> = {
     apartamento: { modelo: 'apartamentos', local: 'id_apartamento', remoto: 'id', muitos: false },
     facial: { modelo: 'facial_Devices', local: 'id_facial', remoto: 'id', muitos: false },
   },
+  visitas: {
+    pessoa: { modelo: 'pessoas', local: 'id_pessoa', remoto: 'id', muitos: false },
+  },
+  guarita_Alertas: {
+    condominio: { modelo: 'condominios', local: 'id_condominio', remoto: 'id', muitos: false },
+  },
 };
 
 const PADROES: Record<string, Row> = {
@@ -55,8 +61,10 @@ const PADROES: Record<string, Row> = {
     porta_aberta_como: null,
     recusas: null,
     tocou_ids: null,
+    id_operador_central: null,
   },
   interfone_Monitores: { ativo: 1 },
+  guarita_Alertas: { visto_em: null, visto_por: null, dados: null },
 };
 
 const MODELOS = [
@@ -69,6 +77,15 @@ const MODELOS = [
   'funcionarios_Portaria',
   'interfone_Monitores',
   'interfone_Chamadas',
+  // Central da portaria autônoma (fila, contexto, histórico e alertas).
+  'central_Operadores',
+  'portaria_Agenda',
+  'moradores',
+  'visitas',
+  'pessoas',
+  'visitantes',
+  'deliveryAtendimentos',
+  'guarita_Alertas',
 ];
 
 const ehOperador = (v: any) =>

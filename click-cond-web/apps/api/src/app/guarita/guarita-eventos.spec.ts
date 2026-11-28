@@ -195,3 +195,53 @@ describe('Guarita — alertas no console', () => {
     await expect(ctrl.alertas(7, '1', { sub: 9, nome: 'M', typeAccess: 'Morador' } as any)).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
+
+describe('Guarita — alerta:novo em tempo real (portaria autônoma)', () => {
+  function comRealtime(central: number) {
+    const base = montar();
+    base.db.semear('condominios', [{ id: 7, nome: 'Residencial Sete', central_contratada: central }]);
+    const realtime = { emitirPortaria: jest.fn(), emitirCentral: jest.fn() };
+    const eventos = new GuaritaEventosService(base.db as any, realtime as any);
+    const agente = new GuaritaAgenteService(base.db as any, {} as any, undefined, undefined, eventos);
+    return { ...base, realtime, agente };
+  }
+
+  it('alerta do Guarita emite alerta:novo na sala central quando contratada e só na portaria quando não', async () => {
+    for (const central of [1, 0]) {
+      const { db, agente, device, realtime } = comRealtime(central);
+      await agente.registrarEventos(device, lote([evt({ tipo: 9 })]));
+      const alerta = db.linhas('guarita_Alertas')[0];
+      const dados = {
+        id: alerta.id,
+        id_condominio: 7,
+        condominio: 'Residencial Sete',
+        tipo: 'panico',
+        descricao: alerta.descricao,
+        created_at: alerta.created_at,
+      };
+      expect(realtime.emitirPortaria).toHaveBeenCalledTimes(1);
+      expect(realtime.emitirPortaria).toHaveBeenCalledWith(7, 'alerta:novo', dados);
+      if (central) expect(realtime.emitirCentral).toHaveBeenCalledWith('alerta:novo', dados);
+      else expect(realtime.emitirCentral).not.toHaveBeenCalled();
+    }
+  });
+
+  it('o aviso não leva os dados brutos do frame (serial, unidade) além da descrição', async () => {
+    const { agente, device, realtime } = comRealtime(1);
+    await agente.registrarEventos(device, lote([evt({ tipo: 9 })]));
+    const enviado = realtime.emitirCentral.mock.calls[0][1];
+    expect(Object.keys(enviado).sort()).toEqual(['condominio', 'created_at', 'descricao', 'id', 'id_condominio', 'tipo']);
+  });
+
+  it('falha no aviso em tempo real não derruba o registro do evento; sem gateway, nada emitido', async () => {
+    const { db, agente, device, realtime } = comRealtime(1);
+    realtime.emitirPortaria.mockImplementation(() => {
+      throw new Error('socket fora');
+    });
+    await expect(agente.registrarEventos(device, lote([evt({ tipo: 9 })]))).resolves.toMatchObject({ aceitos: 1 });
+    expect(db.linhas('guarita_Alertas')).toHaveLength(1);
+    const { agente: semGateway, device: d2, db: db2 } = montar();
+    await expect(semGateway.registrarEventos(d2, lote([evt({ tipo: 9 })]))).resolves.toMatchObject({ aceitos: 1 });
+    expect(db2.linhas('guarita_Alertas')).toHaveLength(1);
+  });
+});

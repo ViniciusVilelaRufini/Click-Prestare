@@ -1,5 +1,6 @@
 import type { JwtPayload } from './jwt-payload.interface';
 import type { AuditoriaAutorTipo } from '../auditoria/auditoria.service';
+import { ehTokenDeOperadorCentral, tokenDeOperadorBemFormado } from '../central/operador.util';
 
 /**
  * Users.id de quem está logado. Só existe em token de USUÁRIO (typeAccess
@@ -33,6 +34,7 @@ export function idFuncionarioPortariaDoToken(payload?: JwtPayload | null): numbe
  *
  *  - CRM (`role: 'crm_admin'`)                     → crm_admins.id
  *  - porteiro do console (`tipo_sub` carimbado)    → Funcionarios_Portaria.id
+ *  - operador da central (`papel: 'operador_central'`, bem formado) → Central_Operadores.id
  *  - token de usuário (Sindico/Morador/Funcionario, inclusive síndico no console e sessão por QR) → Users.id
  *  - sem token                                     → 'sistema', sem id
  *
@@ -44,6 +46,10 @@ export function autorDoToken(
 ): { autor_id: number | null; autor_tipo: AuditoriaAutorTipo | null } {
   if (!payload) return { autor_id: null, autor_tipo: 'sistema' };
   const sub = Number(payload.sub) || null;
+  // Papel de operador vem antes das outras marcas: misturado com elas, o token não é de ninguém.
+  if (ehTokenDeOperadorCentral(payload)) {
+    return sub && tokenDeOperadorBemFormado(payload) ? { autor_id: sub, autor_tipo: 'operador_central' } : { autor_id: null, autor_tipo: null };
+  }
   if ((payload as any).role === 'crm_admin') {
     return sub ? { autor_id: sub, autor_tipo: 'crm_admin' } : { autor_id: null, autor_tipo: null };
   }

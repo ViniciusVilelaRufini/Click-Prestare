@@ -41,7 +41,7 @@ export type AuditoriaAcao =
   | 'DEACTIVATE'        // condomínio desligado: corta app, portaria e facial
   | 'REACTIVATE'        // condomínio religado antes da purga
   // ---- Interfone pelo app ----
-  | 'INTERFONE_ABRIR'   // morador ou porteiro abriu o portão durante a chamada do interfone
+  | 'INTERFONE_ABRIR'   // morador, porteiro ou operador da central abriu o portão durante a chamada do interfone
   | 'INTERFONE_CONFIG'; // síndico/CRM mudou a configuração do interfone (módulo, ramais, faciais, monitores)
 
 /**
@@ -49,9 +49,10 @@ export type AuditoriaAcao =
  *  - 'funcionario_portaria' → Funcionarios_Portaria.id (porteiro logado no console)
  *  - 'user'                 → Users.id (síndico, morador ou funcionário do app; síndico no console)
  *  - 'crm_admin'            → crm_admins.id (operador do CRM)
+ *  - 'operador_central'     → Central_Operadores.id (operador da central de portaria)
  *  - 'sistema'              → job/automação; sem id
  */
-export type AuditoriaAutorTipo = 'funcionario_portaria' | 'user' | 'crm_admin' | 'sistema';
+export type AuditoriaAutorTipo = 'funcionario_portaria' | 'user' | 'crm_admin' | 'operador_central' | 'sistema';
 
 export interface RegistrarAuditoriaDto {
   id_condominio: number;

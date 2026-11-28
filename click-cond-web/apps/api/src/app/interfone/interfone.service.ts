@@ -289,6 +289,12 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     return true;
   }
 
+  /** Quem segura a reserva valendo neste estado (ex.: `central:5`), ou null. */
+  donoDaReserva(id: number, estado: string, agora: number): string | null {
+    const r = this.reservas.get(id);
+    return r && r.ate > agora && r.estado === estado ? r.chave : null;
+  }
+
   /** Libera a reserva (de qualquer um, ou só se for de `chave`). */
   liberarReserva(id: number, chave?: string): void {
     const r = this.reservas.get(id);
@@ -538,6 +544,9 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
         atendida_por_tipo: papel,
         atendida_por_id: uid,
         atendida_por_nome: nome,
+        // Operador da central que atendeu; outro papel limpa o que o "atender" do operador gravou
+        // (menos na ligação que o operador fez para a unidade: ali ele é quem ligou).
+        ...(papel === 'central' ? { id_operador_central: uid } : c.tipo === 'portaria_unidade' ? {} : { id_operador_central: null }),
       },
     });
     if (r.count === 0) return { ok: true };

@@ -24,6 +24,20 @@ describe('autorDoToken', () => {
     });
   });
 
+  it('operador da central → Central_Operadores', () => {
+    expect(autorDoToken({ sub: 5, nome: 'Olga', papel: 'operador_central' } as any)).toEqual({
+      autor_id: 5,
+      autor_tipo: 'operador_central',
+    });
+  });
+
+  it('papel de operador misturado com marca de outro token → nada', () => {
+    expect(autorDoToken({ sub: 5, nome: 'X', papel: 'operador_central', tipo_sub: 'funcionario_portaria' } as any)).toEqual({
+      autor_id: null,
+      autor_tipo: null,
+    });
+  });
+
   it('sem token → sistema, sem id', () => {
     expect(autorDoToken(undefined)).toEqual({ autor_id: null, autor_tipo: 'sistema' });
   });

@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { FacialService } from '../facial/facial.service';
-import { AuditoriaService } from '../auditoria/auditoria.service';
+import { AuditoriaService, type AuditoriaAutorTipo } from '../auditoria/auditoria.service';
 import { StorageService } from '../common/storage/storage.service';
 import { hojeBrasilia, intervaloHojeBrasilia } from '../common/hora-brasilia.util';
 import { rotuloAptoBloco } from '../visitantes/rotulo-apto-bloco.util';
@@ -46,7 +46,35 @@ export interface QuemPortaria {
   nome: string;
   idCondominio: number;
 }
-export type Quem = QuemMorador | QuemPortaria;
+export interface QuemCentral {
+  papel: 'central';
+  /** Central_Operadores.id */
+  uid: number;
+  nome: string;
+}
+export type Quem = QuemMorador | QuemPortaria | QuemCentral;
+
+/** Por que o operador da central abriu o portão: obrigatório para ele e gravado na auditoria. */
+export const MOTIVOS_ABERTURA = ['visitante_identificado', 'entrega', 'prestador', 'morador_sem_acesso', 'emergencia', 'outro'] as const;
+export type MotivoAbertura = (typeof MOTIVOS_ABERTURA)[number];
+export interface MotivoAberturaPedido {
+  codigo: MotivoAbertura;
+  /** Obrigatório quando `codigo === 'outro'`. */
+  detalhe?: string;
+}
+const DETALHE_MOTIVO_MAX = 255;
+
+/** Tipos de chamada que o porteiro do prédio e o operador da central atendem na portaria. */
+const TIPOS_NA_PORTARIA: readonly string[] = ['facial_unidade', 'facial_portaria', 'unidade_portaria'];
+/** Tipos de chamada com portão (o facial da chamada) para abrir. */
+const TIPOS_COM_PORTAO: readonly string[] = ['facial_unidade', 'facial_portaria'];
+
+const AUTOR_TIPO: Record<Quem['papel'], AuditoriaAutorTipo> = {
+  morador: 'user',
+  portaria: 'funcionario_portaria',
+  central: 'operador_central',
+};
+const ROTULO_AUTOR: Record<Quem['papel'], string> = { morador: 'Morador', portaria: 'Portaria', central: 'Central' };
 
 export interface ItemHistorico {
   id: number;
@@ -70,6 +98,23 @@ export type ItemConsole = ItemHistorico & {
 
 function conflito(motivo: string, message: string): ConflictException {
   return new ConflictException({ statusCode: 409, motivo, message });
+}
+
+/** 409 de quando a chamada é disputada entre o porteiro do prédio e a central. */
+function atendidaPorOutro(): ConflictException {
+  return conflito('atendida_por_outro', 'Outra pessoa atendeu esta chamada.');
+}
+
+/** Motivo de abertura da central: código da lista; `outro` exige o detalhe. 400 antes de qualquer consulta. */
+export function validarMotivoAbertura(m: unknown): MotivoAberturaPedido {
+  const o = (m && typeof m === 'object' ? m : {}) as Record<string, unknown>;
+  const codigo = typeof o['codigo'] === 'string' ? o['codigo'].trim() : '';
+  const erro = (motivo: string, message: string) => new BadRequestException({ statusCode: 400, motivo, message });
+  if (!codigo) throw erro('motivo_obrigatorio', 'Informe o motivo da abertura do portão.');
+  if (!(MOTIVOS_ABERTURA as readonly string[]).includes(codigo)) throw erro('motivo_invalido', 'Motivo de abertura inválido.');
+  const detalhe = typeof o['detalhe'] === 'string' ? o['detalhe'].trim().slice(0, DETALHE_MOTIVO_MAX) : '';
+  if (codigo === 'outro' && !detalhe) throw erro('motivo_obrigatorio', 'Descreva o motivo da abertura do portão.');
+  return detalhe ? { codigo: codigo as MotivoAbertura, detalhe } : { codigo: codigo as MotivoAbertura };
 }
 
 /** 403 do módulo desligado: o console e o app tratam como "interfone não existe aqui". */
@@ -112,19 +157,27 @@ export class InterfoneAcoesService {
 
   // ─────────────────────────────────────────── atender / recusar / abrir
 
+  /**
+   * Central (`QuemCentral`): só em condomínio com `central_contratada = 1`, chamada na portaria
+   * (`facial_unidade`, `facial_portaria` ou `unidade_portaria`). Porteiro do prédio e operador
+   * disputam a mesma reserva: o primeiro vence e o outro recebe 409 `atendida_por_outro`.
+   */
   async atender(id: number, quem: Quem): Promise<DadosEntrada> {
     if (quem.papel === 'portaria') await this.assertModulo(quem.idCondominio);
     const c = await this.nucleo.carregar(id);
     if (!c) throw new NotFoundException('Chamada não encontrada.');
     await this.assertPodeVer(c, quem);
-    if (quem.papel === 'morador') await this.assertModulo(c.id_condominio);
+    if (quem.papel !== 'portaria') await this.assertModulo(c.id_condominio);
     if (c.estado === 'encerrada') throw conflito('encerrada', 'A chamada já terminou.');
-    if (c.estado === 'atendida') throw conflito('ja_atendida', 'A chamada já foi atendida.');
+    if (c.estado === 'atendida') {
+      if (quem.papel === 'central' || c.atendida_por_tipo === 'central') throw atendidaPorOutro();
+      throw conflito('ja_atendida', 'A chamada já foi atendida.');
+    }
 
     const pode =
       quem.papel === 'morador'
         ? c.estado === 'chamando' && (c.tipo === 'facial_unidade' || c.tipo === 'portaria_unidade')
-        : c.estado === 'portaria' && (c.tipo === 'facial_unidade' || c.tipo === 'unidade_portaria');
+        : c.estado === 'portaria' && TIPOS_NA_PORTARIA.includes(c.tipo);
     if (!pode) throw conflito('ja_atendida', 'A chamada não está disponível para você.');
 
     const segredos = this.segredos();
@@ -132,7 +185,17 @@ export class InterfoneAcoesService {
     // Reserva vale só no estado atual: se a chamada for para a portaria, o
     // pedido do morador não segura o porteiro.
     if (!this.nucleo.reservar(c.id, `${quem.papel}:${quem.uid}`, c.estado, agora)) {
+      const dono = this.nucleo.donoDaReserva(c.id, c.estado, agora) ?? '';
+      if (quem.papel === 'central' || dono.startsWith('central:')) throw atendidaPorOutro();
       throw conflito('ja_atendida', 'Já atendida em outro aparelho.');
+    }
+    if (quem.papel === 'central') {
+      // Operador que pegou a chamada. Condicional: quem já entrou na mídia não é sobrescrito; se
+      // outro papel entrar depois (a reserva venceu), o "atendida" do núcleo limpa o campo.
+      await this.prisma.interfone_Chamadas.updateMany({
+        where: { id: c.id, estado: 'portaria', atendida_em: null },
+        data: { id_operador_central: quem.uid },
+      });
     }
 
     return this.dadosEntrada(c.id, quem.papel, quem.uid, quem.nome, segredos, agora);
@@ -174,7 +237,12 @@ export class InterfoneAcoesService {
     return null;
   }
 
-  async abrir(id: number, quem: Quem): Promise<{ ok: boolean; motivo?: string }> {
+  /**
+   * `motivo`: obrigatório para a central (400 `motivo_obrigatorio` / `motivo_invalido`, antes de
+   * qualquer consulta) e gravado na auditoria; morador e porteiro não mandam.
+   */
+  async abrir(id: number, quem: Quem, motivo?: MotivoAberturaPedido | null): Promise<{ ok: boolean; motivo?: string }> {
+    const motivoCentral = quem.papel === 'central' ? validarMotivoAbertura(motivo) : null;
     // O módulo é reconferido a cada abertura, antes de acionar o portão: desligado
     // (ou condomínio desativado) no meio da conversa não abre, nem dentro dos 210 s.
     // A recusa vem antes do contador de aberturas e não gasta nenhuma das 3.
@@ -182,12 +250,12 @@ export class InterfoneAcoesService {
     const c = await this.nucleo.carregar(id);
     if (!c) return { ok: false, motivo: 'chamada_nao_encontrada' };
     await this.assertPodeVer(c, quem);
-    if (quem.papel === 'morador') await this.assertModulo(c.id_condominio);
+    if (quem.papel !== 'portaria') await this.assertModulo(c.id_condominio);
     if (c.estado !== 'atendida') return { ok: false, motivo: 'chamada_nao_atendida' };
     if (c.atendida_por_tipo !== quem.papel || c.atendida_por_id !== quem.uid) {
       return { ok: false, motivo: 'atendida_por_outro' };
     }
-    if (c.tipo !== 'facial_unidade' || !c.id_facial || !c.facial) return { ok: false, motivo: 'sem_portao' };
+    if (!TIPOS_COM_PORTAO.includes(c.tipo) || !c.id_facial || !c.facial) return { ok: false, motivo: 'sem_portao' };
     if (!this.facial) return { ok: false, motivo: 'indisponivel' };
     const agoraMs = this.agora();
     // Chamada que ficou "atendida" porque o serviço perdeu o encerrada não abre.
@@ -200,7 +268,8 @@ export class InterfoneAcoesService {
     }
 
     const unidade = unidadeDaChamada(c);
-    const ctx = { origem: 'interfone' as const, tipoPessoa: 'visitante', nomePessoa: `Interfone ${unidade}`.trim() };
+    // facial_portaria não tem unidade: o visitante discou a portaria.
+    const ctx = { origem: 'interfone' as const, tipoPessoa: 'visitante', nomePessoa: `Interfone ${unidade || 'portaria'}`.trim() };
     let como: 'agente' | 'dtmf' | null = null;
     const r = await this.facial.abrirDispositivoInterno(c.id_facial, ctx);
     if (r.ok) como = 'agente';
@@ -218,33 +287,38 @@ export class InterfoneAcoesService {
     });
     await this.auditoria?.registrar({
       id_condominio: c.id_condominio,
-      usuario_nome: quem.nome || (quem.papel === 'morador' ? 'Morador' : 'Portaria'),
+      usuario_nome: quem.nome || ROTULO_AUTOR[quem.papel],
       autor_id: quem.uid,
-      autor_tipo: quem.papel === 'morador' ? 'user' : 'funcionario_portaria',
+      autor_tipo: AUTOR_TIPO[quem.papel],
       acao: 'INTERFONE_ABRIR',
       modulo: 'interfone',
       entidade_id: c.id,
-      descricao: `Portão "${c.facial.nome}" aberto pelo interfone (${unidade || 'sem unidade'})`,
-      detalhes: { como, papel: quem.papel, id_facial: c.id_facial },
+      descricao: `Portão "${c.facial.nome}" aberto pelo interfone${quem.papel === 'central' ? ' pela central' : ''} (${unidade || 'sem unidade'})`,
+      detalhes: { como, papel: quem.papel, id_facial: c.id_facial, ...(motivoCentral ? { motivo: motivoCentral } : {}) },
     });
     return { ok: true };
   }
 
   /**
-   * Console: o porteiro encerra a chamada do seu condomínio — só a que está na
-   * portaria, a que ele atendeu ou a que ele originou (não derruba a conversa
-   * do morador nem a chamada que ainda toca no apartamento).
+   * Console (porteiro do seu condomínio) ou central (condomínio com a central contratada): encerra
+   * só a chamada que está na portaria, a que ele atendeu ou a que ele originou (não derruba a
+   * conversa do morador nem a chamada que ainda toca no apartamento).
    */
-  async encerrarPortaria(id: number, porteiro: QuemPortaria): Promise<{ ok: boolean }> {
-    await this.assertModulo(porteiro.idCondominio);
+  async encerrarPortaria(id: number, quem: QuemPortaria | QuemCentral): Promise<{ ok: boolean }> {
+    if (quem.papel === 'portaria') await this.assertModulo(quem.idCondominio);
     const c = await this.nucleo.carregar(id);
     if (!c) throw new NotFoundException('Chamada não encontrada.');
-    this.assertMesmoCondominio(c.id_condominio, porteiro);
+    await this.assertPodeVer(c, quem);
+    if (quem.papel === 'central') await this.assertModulo(c.id_condominio);
     if (c.estado === 'encerrada') return { ok: true };
+    const originou =
+      quem.papel === 'portaria'
+        ? c.id_porteiro_origem === quem.uid
+        : c.tipo === 'portaria_unidade' && c.id_operador_central === quem.uid;
     const dele =
       c.estado === 'portaria' ||
-      (c.atendida_por_tipo === 'portaria' && c.atendida_por_id === porteiro.uid) ||
-      c.id_porteiro_origem === porteiro.uid;
+      (c.atendida_por_tipo === quem.papel && c.atendida_por_id === quem.uid) ||
+      originou;
     if (!dele) throw new ForbiddenException('Esta chamada não está com a portaria.');
     return { ok: await this.voz.encerrar(c.id) };
   }
@@ -296,16 +370,20 @@ export class InterfoneAcoesService {
     return this.dadosEntrada(c.id, 'origem', quem.uid, quem.nome, segredos, agora);
   }
 
-  /** Console: o porteiro liga para uma unidade do seu condomínio. */
-  async ligarUnidade(porteiro: QuemPortaria, idApartamento: number): Promise<DadosEntrada> {
-    return this.comTrava(`portaria:${porteiro.uid}`, () => this.ligarUnidadeSemTrava(porteiro, idApartamento));
+  /** Console: o porteiro liga para uma unidade do seu condomínio. Central: unidade de condomínio com a central. */
+  async ligarUnidade(quem: QuemPortaria | QuemCentral, idApartamento: number): Promise<DadosEntrada> {
+    return this.comTrava(`${quem.papel}:${quem.uid}`, () => this.ligarUnidadeSemTrava(quem, idApartamento));
   }
 
-  private async ligarUnidadeSemTrava(porteiro: QuemPortaria, idApartamento: number): Promise<DadosEntrada> {
-    await this.assertModulo(porteiro.idCondominio);
-    const existe = await this.prisma.apartamentos.findFirst({ where: { id: idApartamento }, select: { id_condominio: true } });
+  private async ligarUnidadeSemTrava(quem: QuemPortaria | QuemCentral, idApartamento: number): Promise<DadosEntrada> {
+    if (quem.papel === 'portaria') await this.assertModulo(quem.idCondominio);
+    const existe = await this.prisma.apartamentos.findFirst({
+      where: { id: idApartamento },
+      select: { id_condominio: true, condominio: { select: { central_contratada: true } } },
+    });
     if (!existe) throw new NotFoundException('Unidade não encontrada.');
-    this.assertMesmoCondominio(existe.id_condominio, porteiro);
+    if (quem.papel === 'portaria') this.assertMesmoCondominio(existe.id_condominio, quem);
+    else this.assertCentral(existe);
     const apto = await this.aptoComModulo(idApartamento);
     if (!apto) throw moduloDesligado();
     const segredos = this.segredos();
@@ -317,7 +395,7 @@ export class InterfoneAcoesService {
         tipo: 'portaria_unidade',
         estado: 'chamando',
         id_apartamento: apto.id,
-        id_porteiro_origem: porteiro.uid,
+        ...(quem.papel === 'portaria' ? { id_porteiro_origem: quem.uid } : { id_operador_central: quem.uid }),
         created_at: new Date(agora),
       },
     });
@@ -344,7 +422,7 @@ export class InterfoneAcoesService {
       await this.nucleo.gravarTocou(c.id, r.ids);
       await this.nucleo.avaliarRecusas(c.id);
     });
-    return this.dadosEntrada(c.id, 'origem', porteiro.uid, porteiro.nome, segredos, agora);
+    return this.dadosEntrada(c.id, 'origem', quem.uid, quem.nome, segredos, agora);
   }
 
   /** Um "ligar" por vez por quem liga (toque duplo não cria duas chamadas). */
@@ -393,6 +471,14 @@ export class InterfoneAcoesService {
    */
   async dia(idCondominio: number, data: string): Promise<ItemConsole[]> {
     await this.assertModulo(idCondominio);
+    return this.chamadasDoDia(idCondominio, this.instanteDoDia(data));
+  }
+
+  /**
+   * Um instante dentro do dia pedido (AAAA-MM-DD, calendário de Brasília), de hoje até
+   * HISTORICO_DIAS atrás; 400 fora disso. Também usado pelo histórico da central.
+   */
+  instanteDoDia(data: string): Date {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(data ?? ''));
     const pedido = m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : NaN;
     const valido = m && new Date(pedido).toISOString().slice(0, 10) === data;
@@ -401,7 +487,7 @@ export class InterfoneAcoesService {
       throw new BadRequestException(`Escolha uma data de hoje até ${HISTORICO_DIAS} dias atrás.`);
     }
     // Meio-dia UTC do dia pedido = 09h em Brasília: cai sempre dentro do dia civil pedido.
-    return this.chamadasDoDia(idCondominio, new Date(pedido + 12 * 3_600_000));
+    return new Date(pedido + 12 * 3_600_000);
   }
 
   private async chamadasDoDia(idCondominio: number, instante: Date): Promise<ItemConsole[]> {
@@ -520,10 +606,21 @@ export class InterfoneAcoesService {
     return montarDadosEntrada(id, token, credencialTurn(uid, segredos.turn, seg));
   }
 
-  /** Morador: vínculo com a unidade da chamada. Porteiro: mesmo condomínio. */
-  private async assertPodeVer(c: { id_condominio: number; id_apartamento: number | null }, quem: Quem) {
+  /** Morador: vínculo com a unidade da chamada. Porteiro: mesmo condomínio. Central: condomínio com a central. */
+  private async assertPodeVer(
+    c: { id_condominio: number; id_apartamento: number | null; condominio?: { central_contratada?: number | null } | null },
+    quem: Quem,
+  ) {
     if (quem.papel === 'portaria') this.assertMesmoCondominio(c.id_condominio, quem);
+    else if (quem.papel === 'central') this.assertCentral(c);
     else await this.assertVinculo(quem.uid, c.id_apartamento);
+  }
+
+  /** O operador só vê condomínio que contratou a central (o módulo ligado é conferido à parte). */
+  assertCentral(c: { condominio?: { central_contratada?: number | null } | null }): void {
+    if (c.condominio?.central_contratada !== 1) {
+      throw new ForbiddenException('Acesso negado: este condomínio não contratou a central.');
+    }
   }
 
   private assertMesmoCondominio(idCondominio: number, porteiro: QuemPortaria) {

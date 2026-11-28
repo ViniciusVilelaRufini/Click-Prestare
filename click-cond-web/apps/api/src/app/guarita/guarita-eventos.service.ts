@@ -1,5 +1,6 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
 import { ESTADO_TAG, SIGLA_TIPO } from './guarita.constantes';
 import {
@@ -74,7 +75,11 @@ export class GuaritaEventosService {
   private readonly logger = new Logger(GuaritaEventosService.name);
   private readonly estado: EstadoCompartilhado;
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    /** Aviso `alerta:novo` no console do prédio e na central (RealtimeModule é global; sem ele, só grava). */
+    @Optional() private readonly realtime?: RealtimeGateway,
+  ) {
     this.estado = new EstadoCompartilhado(prisma);
   }
 
@@ -265,7 +270,7 @@ export class GuaritaEventosService {
   ) {
     const sigla = SIGLA_TIPO[e.receptorTipo];
     const quem = sigla ? ` (${sigla} ${e.serialHex}, unidade ${e.unidade} bloco ${e.bloco})` : '';
-    await this.prisma.guarita_Alertas.create({
+    const alerta = await this.prisma.guarita_Alertas.create({
       data: {
         id_condominio: device.id_condominio,
         id_device: device.id,
@@ -283,6 +288,34 @@ export class GuaritaEventosService {
         }),
       },
     });
+    await this.avisarAlerta(alerta);
+  }
+
+  /**
+   * `alerta:novo` para o console do prédio e, se o condomínio contratou a central, para a sala
+   * `central` (o operador vê vários condomínios: vai junto o nome do condomínio). Só o resumo: os
+   * dados brutos do frame ficam no banco. Falha aqui nunca derruba o registro do evento.
+   */
+  private async avisarAlerta(a: { id: number; id_condominio: number; tipo: string; descricao: string; created_at: Date }) {
+    if (!this.realtime) return;
+    try {
+      const cond = await this.prisma.condominios.findUnique({
+        where: { id: a.id_condominio },
+        select: { nome: true, central_contratada: true },
+      });
+      const dados = {
+        id: a.id,
+        id_condominio: a.id_condominio,
+        condominio: cond?.nome ?? '',
+        tipo: a.tipo,
+        descricao: a.descricao,
+        created_at: a.created_at,
+      };
+      this.realtime.emitirPortaria(a.id_condominio, 'alerta:novo', dados);
+      if (cond?.central_contratada === 1) this.realtime.emitirCentral('alerta:novo', dados);
+    } catch (e) {
+      this.logger.warn(`Guarita: aviso do alerta ${a.id} em tempo real falhou: ${(e as Error)?.message ?? e}`);
+    }
   }
 
   // ------------------------------------------------------------- console

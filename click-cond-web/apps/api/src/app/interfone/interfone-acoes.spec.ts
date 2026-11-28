@@ -311,6 +311,56 @@ describe('abrir', () => {
   });
 });
 
+describe('facial_portaria (visitante discou a portaria) — porteiro do prédio', () => {
+  async function chamadaPortaria(m: ReturnType<typeof montar>) {
+    const c = await m.prisma.interfone_Chamadas.create({
+      data: { id_condominio: 1, tipo: 'facial_portaria', estado: 'portaria', id_facial: 12, motivo_portaria: 'portaria', created_at: new Date(AGORA - 10_000) },
+    });
+    return c.id as number;
+  }
+
+  it('porteiro atende facial_portaria', async () => {
+    const m = montar();
+    const id = await chamadaPortaria(m);
+    const d = await m.acoes.atender(id, PORTEIRO);
+    expect(verificarTokenVoz(d.token, SEGREDO, AGORA / 1000)).toMatchObject({ cid: id, papel: 'portaria', uid: 3 });
+  });
+
+  it('porteiro que atendeu abre o portão da facial_portaria (sem unidade) e audita', async () => {
+    const m = montar();
+    const id = await chamadaPortaria(m);
+    await m.nucleo.evento(id, { evento: 'atendida', papel: 'portaria', uid: 3 });
+    await expect(m.acoes.abrir(id, PORTEIRO)).resolves.toEqual({ ok: true });
+    expect(m.facial.abrirDispositivoInterno).toHaveBeenCalledWith(12, { origem: 'interfone', tipoPessoa: 'visitante', nomePessoa: 'Interfone portaria' });
+    expect(m.auditoria.registrar).toHaveBeenCalledWith(
+      expect.objectContaining({ acao: 'INTERFONE_ABRIR', autor_id: 3, autor_tipo: 'funcionario_portaria', id_condominio: 1, entidade_id: id }),
+    );
+  });
+
+  it('porteiro não precisa de motivo para abrir (o motivo é da central)', async () => {
+    const m = montar();
+    const id = await chamadaPortaria(m);
+    await m.nucleo.evento(id, { evento: 'atendida', papel: 'portaria', uid: 3 });
+    await expect(m.acoes.abrir(id, PORTEIRO, undefined)).resolves.toEqual({ ok: true });
+  });
+
+  it('porteiro de outro condomínio não atende facial_portaria', async () => {
+    const m = montar();
+    const id = await chamadaPortaria(m);
+    await expect(m.acoes.atender(id, PORTEIRO_OUTRO)).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('central em condomínio sem central contratada → 403 (atender e abrir)', async () => {
+    const m = montar();
+    const id = await chamadaPortaria(m);
+    const op = { papel: 'central' as const, uid: 5, nome: 'Olga' };
+    await expect(m.acoes.atender(id, op)).rejects.toMatchObject({ status: 403 });
+    await m.nucleo.evento(id, { evento: 'atendida', papel: 'central', uid: 5 });
+    await expect(m.acoes.abrir(id, op, { codigo: 'entrega' })).rejects.toMatchObject({ status: 403 });
+    expect(m.facial.abrirDispositivoInterno).not.toHaveBeenCalled();
+  });
+});
+
 describe('ligar', () => {
   it('ligarPortaria sem porteiro online → 409 portaria_indisponivel', async () => {
     const m = montar({ online: false });
