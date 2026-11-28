@@ -1,7 +1,7 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
-import { JwtStrategy } from '../auth/jwt.strategy';
+import { ConferenciaIndisponivelException, JwtStrategy } from '../auth/jwt.strategy';
 import { TenantGuard } from '../auth/tenant.guard';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { InterfonePortariaController } from '../interfone/interfone-portaria.controller';
@@ -135,6 +135,30 @@ describe('JwtStrategy.validate — operador da central', () => {
     await strategy.validate(operadorToken());
     await strategy.validate(operadorToken());
     expect(prisma.central_Operadores.findFirst).toHaveBeenCalledTimes(1);
+  });
+
+  it('"não deu para conferir" (banco com erro ou fora) é um 401 distinto de "revogado" (o socket aberto decide por ele)', async () => {
+    const erro = build();
+    erro.prisma.central_Operadores.findFirst.mockRejectedValueOnce(new Error('banco fora'));
+    const e1 = await erro.strategy.validate(operadorToken()).catch((e) => e);
+    expect(e1).toBeInstanceOf(UnauthorizedException);
+    expect(e1).toBeInstanceOf(ConferenciaIndisponivelException);
+
+    const fora = build();
+    fora.prisma.isConnected = false;
+    await expect(fora.strategy.validate(operadorToken())).rejects.toBeInstanceOf(ConferenciaIndisponivelException);
+    await expect(new JwtStrategy().validate(operadorToken())).rejects.toBeInstanceOf(ConferenciaIndisponivelException);
+
+    // Revogado de verdade (desativado, cred trocado, sem cred): 401 comum, nunca o "indisponível".
+    for (const [linha, token] of [
+      [{ id: 7, ativo: 0, cred: CRED }, operadorToken()],
+      [{ id: 7, ativo: 1, cred: 'b'.repeat(32) }, operadorToken()],
+      [{ id: 7, ativo: 1, cred: CRED }, operadorToken({ cred: undefined })],
+    ] as const) {
+      const e = await build(linha).strategy.validate(token).catch((x) => x);
+      expect(e).toBeInstanceOf(UnauthorizedException);
+      expect(e).not.toBeInstanceOf(ConferenciaIndisponivelException);
+    }
   });
 });
 

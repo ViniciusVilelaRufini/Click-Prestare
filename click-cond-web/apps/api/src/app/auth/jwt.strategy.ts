@@ -24,6 +24,17 @@ const CACHE_PORTEIRO_MS = 30_000;
  */
 const ROTA_TOKEN_NA_QUERY = /^\/api\/crm\/whatsapp\/midias\/\d+$/;
 
+/**
+ * 401 de "não deu para conferir a sessão agora" (banco fora ou com erro), à parte do 401 de sessão revogada.
+ * Nas rotas REST e num handshake NOVO do socket vale igual (fail-closed); a reconferência periódica do socket
+ * já aceito usa a diferença para não derrubar todos os operadores numa queda do banco.
+ */
+export class ConferenciaIndisponivelException extends UnauthorizedException {
+  constructor() {
+    super('Sessão da central encerrada. Entre novamente.');
+  }
+}
+
 export function extrairJwtDaRequisicao(req: any): string | null {
   if (!req) return null;
   const authHeader = req.headers?.['authorization'];
@@ -72,9 +83,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // Operador da central antes do atalho "sem banco aceita": o token dele enxerga vários condomínios,
     // então aqui a regra é fail-closed (sem banco, sem sessão).
     if (ehTokenDeOperadorCentral(payload)) {
-      if (!tokenDeOperadorBemFormado(payload) || !(await this.operadorAtivo(Number(payload.sub), payload.cred))) {
-        throw new UnauthorizedException('Sessão da central encerrada. Entre novamente.');
-      }
+      const ativo = tokenDeOperadorBemFormado(payload) ? await this.operadorAtivo(Number(payload.sub), payload.cred) : false;
+      // null = não deu para conferir (banco): recusa do mesmo jeito, mas com o tipo que diz isso.
+      if (ativo === null) throw new ConferenciaIndisponivelException();
+      if (!ativo) throw new UnauthorizedException('Sessão da central encerrada. Entre novamente.');
       return payload;
     }
 
@@ -201,11 +213,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * trocado ao mudar a senha ou ao desativar/reativar). Mesmo cache de 30 s do porteiroAtivo, mas
    * FAIL-CLOSED: sem banco ou com erro na consulta, recusa (e a falha não fica em cache, para a sessão
    * voltar assim que o banco voltar). Token sem `cred` nunca é de operador: o login sempre carimba.
+   * Devolve null quando não deu para conferir (sem banco / erro), false quando revogado.
    */
-  private async operadorAtivo(idOperador: number, cred?: string): Promise<boolean> {
+  private async operadorAtivo(idOperador: number, cred?: string): Promise<boolean | null> {
     if (!Number.isInteger(idOperador) || idOperador <= 0) return false;
     if (typeof cred !== 'string' || !cred) return false;
-    if (!this.prisma?.isConnected) return false;
+    if (!this.prisma?.isConnected) return null;
     const chave = `op:${idOperador}:${cred}`;
     const agora = Date.now();
     const cache = this.porteiroCache.get(chave);
@@ -219,7 +232,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       valor = !!op && !!op.cred && op.cred === cred;
     } catch (e: any) {
       this.logger.warn(`Não foi possível conferir o operador da central ${idOperador}: ${e?.message ?? e}`);
-      return false;
+      return null;
     }
     if (this.porteiroCache.size > 10_000) this.porteiroCache.clear();
     this.porteiroCache.set(chave, { valor, expira: agora + CACHE_PORTEIRO_MS });

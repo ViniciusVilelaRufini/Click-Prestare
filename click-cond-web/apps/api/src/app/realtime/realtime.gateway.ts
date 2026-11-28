@@ -10,7 +10,7 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { JwtStrategy } from '../auth/jwt.strategy';
+import { ConferenciaIndisponivelException, JwtStrategy } from '../auth/jwt.strategy';
 import { criarAdaptadorRedis } from './redis-adapter';
 
 /** Sala dos porteiros do condomínio (só tokens `tipo_sub === 'funcionario_portaria'`). */
@@ -21,6 +21,15 @@ export const SALA_CENTRAL = 'central';
 
 /** De quanto em quanto tempo as conexões abertas são reconferidas contra a revogação da sessão. */
 const RECONFERIR_MS = 60_000;
+
+/**
+ * Teto da espera de uma conexão pela decisão do adaptador (o Redis já desiste em 5 s em criarAdaptadorRedis;
+ * este é só a rede de segurança para a conexão nunca ficar presa).
+ */
+const ESPERA_ADAPTADOR_MS = 6_000;
+
+/** O token não pôde ser conferido agora (banco/JwtStrategy fora) — não é revogação. */
+class SemConferencia extends Error {}
 
 /**
  * Gateway WebSocket para eventos em tempo real do portaria-web — hoje só a
@@ -51,6 +60,12 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   private readonly logger = new Logger(RealtimeGateway.name);
   private timer?: ReturnType<typeof setInterval>;
   private strategy: JwtStrategy | null = null;
+  /**
+   * Decisão do adaptador (Redis aplicado ou null = memória). Até ela sair, as conexões esperam para entrar
+   * nas salas: o `server.adapter()` do socket.io 4.8 recria o adaptador e as salas de quem entrou antes
+   * somem. Undefined = afterInit não rodou (nada a esperar); null = decidido.
+   */
+  private adaptadorPendente?: Promise<void> | null;
 
   @WebSocketServer()
   server!: Server;
@@ -65,8 +80,32 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     this.timer = setInterval(() => void this.reconferirConexoes(), RECONFERIR_MS);
     this.timer.unref?.();
     const alvo = server ?? this.server;
-    const adaptador = await criarAdaptadorRedis(process.env['REDIS_URL']);
-    if (adaptador && alvo) alvo.adapter(adaptador);
+    const decisao = (async () => {
+      const adaptador = await criarAdaptadorRedis(process.env['REDIS_URL']);
+      if (adaptador && alvo) alvo.adapter(adaptador);
+    })();
+    this.adaptadorPendente = decisao.catch(() => undefined);
+    try {
+      await decisao;
+    } finally {
+      this.adaptadorPendente = null;
+    }
+  }
+
+  /** Espera a decisão do adaptador (com teto) antes de entrar nas salas. Nunca lança. */
+  private async esperarAdaptador(): Promise<void> {
+    const pendente = this.adaptadorPendente;
+    if (!pendente) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const teto = new Promise<void>((r) => {
+      timer = setTimeout(r, ESPERA_ADAPTADOR_MS);
+      timer.unref?.();
+    });
+    try {
+      await Promise.race([pendente, teto]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   onModuleDestroy() {
@@ -89,14 +128,25 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     return this.strategy ?? null;
   }
 
-  /** Assinatura, validade e a mesma revogação das rotas REST. Lança se a sessão não vale mais. */
+  /**
+   * Assinatura, validade e a mesma revogação das rotas REST. Lança se a sessão não vale mais; lança
+   * SemConferencia quando não deu para conferir (banco fora, JwtStrategy indisponível) — quem decide o que
+   * fazer com isso é quem chama (handshake novo recusa; socket já aceito fica).
+   */
   private async conferir(token: string): Promise<JwtPayload> {
     const payload = this.jwt.verify<JwtPayload>(token);
     const estrategia = this.estrategia();
-    if (estrategia) await estrategia.validate(payload as any);
+    if (estrategia) {
+      try {
+        await estrategia.validate(payload as any);
+      } catch (err) {
+        if (err instanceof ConferenciaIndisponivelException) throw new SemConferencia('sessão não conferida (banco indisponível)');
+        throw err;
+      }
+    }
     // O token do operador enxerga vários condomínios: sem a JwtStrategy (ativo + cred), a assinatura
     // sozinha não basta. Fail-closed, ao contrário dos tokens de condomínio.
-    else if (payload?.papel === 'operador_central') throw new Error('operador da central sem conferência de revogação');
+    else if (payload?.papel === 'operador_central') throw new SemConferencia('operador da central sem conferência de revogação');
     return payload;
   }
 
@@ -108,6 +158,10 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       if (!token) throw new Error('sem token');
 
       const payload = await this.conferir(token);
+      // Entra nas salas só no adaptador definitivo (ver adaptadorPendente).
+      await this.esperarAdaptador();
+      // Caiu durante a espera: join agora deixaria o id órfão nas salas do adaptador.
+      if (client.disconnected) return;
       if (payload?.papel === 'operador_central' && !payload?.id_condominio) {
         // Senha temporária ainda não trocada: nenhuma rota da central vale (operadorDoToken), o socket também não.
         if (payload.trocar_senha) throw new Error('operador da central precisa trocar a senha');
@@ -129,7 +183,11 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
   }
 
-  /** Derruba as conexões abertas cuja sessão foi revogada (ou venceu) depois de conectar. */
+  /**
+   * Derruba as conexões abertas cuja sessão foi revogada (ou venceu) depois de conectar. "Não deu para
+   * conferir" (banco fora) não derruba quem já foi aceito: senão uma queda do banco tirava todos os
+   * operadores da central de uma vez; a próxima rodada confere de novo.
+   */
   async reconferirConexoes() {
     const sockets: Map<string, Socket> | undefined = (this.server as any)?.sockets?.sockets;
     if (!sockets) return;
@@ -139,6 +197,10 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       try {
         await this.conferir(token);
       } catch (err: any) {
+        if (err instanceof SemConferencia) {
+          this.logger.warn(`Conexão WS mantida sem reconferência: ${err.message}`);
+          continue;
+        }
         this.logger.warn(`Conexão WS encerrada: ${err?.message ?? err}`);
         client.disconnect(true);
       }

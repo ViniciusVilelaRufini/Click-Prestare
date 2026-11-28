@@ -1,9 +1,15 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { io, Socket } from 'socket.io-client';
 import { REALTIME_ORIGIN } from '../shared/api.config';
-import { CentralAuthService } from './central-auth.service';
+import { CentralAuthService, tokenCentralValido } from './central-auth.service';
 
 type Ouvinte = (dados: any) => void;
+
+/** Primeira espera para reconectar depois que o servidor derrubou o socket; dobra a cada queda seguida. */
+const RECONEXAO_BASE_MS = 5_000;
+const RECONEXAO_TETO_MS = 60_000;
+/** Conexão que ficou de pé por isto já não conta como "queda seguida": a próxima espera volta à base. */
+const CONEXAO_ESTAVEL_MS = 30_000;
 
 /**
  * Tempo real da Central: socket próprio com o `central_token` (o servidor põe o operador na sala `central`).
@@ -12,6 +18,11 @@ type Ouvinte = (dados: any) => void;
  * Eventos: `interfone:chamada`, `interfone:fim`, `interfone:pedido`, `alerta:novo` (e `connect`, a cada
  * reconexão — o store recarrega a fila). O token é lido a cada (re)conexão; token com `trocar_senha` o servidor
  * recusa, então a troca de senha (tokenRenovado$) reconecta o mesmo socket com o token novo, mantendo os ouvintes.
+ *
+ * Servidor derrubou o socket (`io server disconnect`: sessão revogada, ou a reconferência não pôde conferir): o
+ * socket.io não tenta de novo sozinho nesse caso. Com o token ainda válido, reconecta em 5 s (dobrando até 60 s
+ * em quedas seguidas) — se a sessão foi revogada, o servidor recusa de novo; se foi o banco, volta quando ele
+ * voltar. Token vencido: relê a sessão e a tela volta ao login.
  */
 @Injectable({ providedIn: 'root' })
 export class CentralRealtimeService {
@@ -21,6 +32,12 @@ export class CentralRealtimeService {
 
   /** Conectado agora. Gravado pelos eventos do socket (fora de evento do Angular). */
   readonly conectado = signal(false);
+  /** O servidor derrubou o socket e há uma nova tentativa agendada (o aviso da tela diz isso). */
+  readonly reconectando = signal(false);
+
+  private timerReconexao: ReturnType<typeof setTimeout> | null = null;
+  private quedasSeguidas = 0;
+  private conectouEm = 0;
 
   constructor() {
     this.auth.tokenRenovado$.subscribe(() => this.reconectar());
@@ -53,10 +70,50 @@ export class CentralRealtimeService {
 
   /** Fecha o socket e esquece os ouvintes (saída da área Central). */
   desconectar(): void {
+    this.cancelarReconexao();
+    this.quedasSeguidas = 0;
     this.ouvintes.clear();
     this.socket?.disconnect();
     this.socket = null;
     this.conectado.set(false);
+  }
+
+  private cancelarReconexao(): void {
+    if (this.timerReconexao) clearTimeout(this.timerReconexao);
+    this.timerReconexao = null;
+    this.reconectando.set(false);
+  }
+
+  private aoConectar(): void {
+    this.cancelarReconexao();
+    this.conectouEm = Date.now();
+    this.conectado.set(true);
+  }
+
+  private aoCair(socket: Socket, motivo: unknown): void {
+    this.conectado.set(false);
+    // Só a queda causada pelo servidor fica sem nova tentativa do socket.io; as outras ele refaz sozinho.
+    if (motivo !== 'io server disconnect' || this.socket !== socket) return;
+    if (!tokenCentralValido(this.auth.token)) {
+      this.cancelarReconexao();
+      this.auth.recarregar();
+      return;
+    }
+    if (this.conectouEm && Date.now() - this.conectouEm >= CONEXAO_ESTAVEL_MS) this.quedasSeguidas = 0;
+    const espera = Math.min(RECONEXAO_BASE_MS * 2 ** this.quedasSeguidas, RECONEXAO_TETO_MS);
+    this.quedasSeguidas++;
+    if (this.timerReconexao) clearTimeout(this.timerReconexao);
+    this.reconectando.set(true);
+    this.timerReconexao = setTimeout(() => {
+      this.timerReconexao = null;
+      if (this.socket !== socket || socket.connected) return;
+      if (!tokenCentralValido(this.auth.token)) {
+        this.reconectando.set(false);
+        this.auth.recarregar();
+        return;
+      }
+      socket.connect();
+    }, espera);
   }
 
   private conectar(): Socket | null {
@@ -70,8 +127,8 @@ export class CentralRealtimeService {
     });
     this.socket = socket;
     this.conectado.set(!!socket.connected);
-    socket.on('connect', () => this.conectado.set(true));
-    socket.on('disconnect', () => this.conectado.set(false));
+    socket.on('connect', () => this.aoConectar());
+    socket.on('disconnect', (motivo: unknown) => this.aoCair(socket, motivo));
     socket.on('connect_error', () => this.conectado.set(false));
     for (const [evento, lista] of this.ouvintes) for (const cb of lista) socket.on(evento, cb);
     return socket;

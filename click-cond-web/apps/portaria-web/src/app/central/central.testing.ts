@@ -88,6 +88,7 @@ export class CentralApiStub {
 /** CentralRealtimeService falso: guarda os ouvintes e deixa o teste emitir eventos. */
 export class CentralRealtimeStub {
   readonly conectado = signal(true);
+  readonly reconectando = signal(false);
   readonly ouvintes = new Map<string, Set<(d: any) => void>>();
   on = jest.fn((ev: string, cb: (d: any) => void) => {
     if (!this.ouvintes.has(ev)) this.ouvintes.set(ev, new Set());

@@ -266,6 +266,23 @@ describe('Central — tela', () => {
     expect(nav).toHaveBeenCalledWith('/central/login');
     expect(rt.desconectar).toHaveBeenCalled();
   });
+
+  it('a Central derrubou o socket: o aviso diz que está reconectando (logo, sem esperar a carência)', async () => {
+    const f = montar(tokenDeTeste());
+    rt.conectado.set(false);
+    rt.reconectando.set(true);
+    f.detectChanges();
+    await f.whenStable();
+    const aviso = el(f).querySelector('[role="alert"]')?.textContent ?? '';
+    expect(aviso).toContain('Tentando reconectar');
+    expect(el(f).querySelector('[data-teste="conexao"]')?.textContent).toContain('Reconectando');
+    rt.reconectando.set(false);
+    rt.conectado.set(true);
+    f.detectChanges();
+    await f.whenStable();
+    expect(el(f).querySelector('[role="alert"]')).toBeNull();
+    expect(el(f).querySelector('[data-teste="conexao"]')?.textContent).toContain('Conectado');
+  });
 });
 
 describe('Central — login', () => {

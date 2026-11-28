@@ -167,6 +167,8 @@ export class CentralStore {
   /** Há pânico sem "visto": a sirene toca. */
   readonly somAlerta = computed(() => this.alertasAbertos().some((a) => a.tipo === 'panico'));
   readonly conectado = computed(() => this.realtime.conectado());
+  /** A Central derrubou o socket e uma nova tentativa já está agendada. */
+  readonly reconectando = computed(() => !this.realtime.conectado() && this.realtime.reconectando());
   /** O navegador bloqueou o som (autoplay): a tela mostra "Clique para ativar o som". */
   readonly somBloqueado = computed(() => this.toque.bloqueado() || this.alarme.bloqueado());
   readonly ocupado = computed(() => !!this.emChamada() || this.atendendo() !== null || this.discando());

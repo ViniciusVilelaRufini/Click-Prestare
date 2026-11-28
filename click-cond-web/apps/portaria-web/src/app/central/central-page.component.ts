@@ -52,7 +52,7 @@ export type AbaCentral = 'atendimento' | 'historico' | 'ligar';
           @if (!trocarSenha()) {
             <span class="flex items-center gap-2 ps-cap" data-teste="conexao">
               <span class="ps-dot" [class.ps-dot-ok]="store.conectado()" [class.ps-dot-danger]="!store.conectado()"></span>
-              {{ store.conectado() ? 'Conectado' : 'Sem conexão' }}
+              {{ store.conectado() ? 'Conectado' : store.reconectando() ? 'Reconectando…' : 'Sem conexão' }}
             </span>
           }
           <span class="ps-cap hidden min-[640px]:inline">{{ auth.operador()?.nome }}</span>
@@ -127,6 +127,10 @@ export class CentralPageComponent implements OnDestroy {
   readonly avisoConexao = computed<string | null>(() => {
     if (this.store.microfoneNegado()) {
       return 'O navegador bloqueou o microfone. Você não vai conseguir atender até liberar o microfone para este site.';
+    }
+    // Queda causada pelo servidor: aparece já (não é o piscar da abertura) e diz que há nova tentativa.
+    if (this.store.reconectando()) {
+      return 'Sem conexão com a Central. Tentando reconectar… Você não vai receber chamadas nem alertas até a conexão voltar.';
     }
     if (!this.store.conectado() && !this.carencia()) {
       return 'Sem conexão com a Central. Você não vai receber chamadas nem alertas até a conexão voltar.';

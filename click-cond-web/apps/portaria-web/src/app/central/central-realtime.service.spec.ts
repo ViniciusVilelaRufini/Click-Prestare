@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { Subject } from 'rxjs';
 import { CentralAuthService } from './central-auth.service';
 import { CentralRealtimeService } from './central-realtime.service';
+import { tokenDeTeste } from './central.testing';
 
 const ioMock = jest.fn();
 jest.mock('socket.io-client', () => ({ io: (...args: any[]) => ioMock(...args) }));
@@ -12,7 +13,7 @@ jest.mock('socket.io-client', () => ({ io: (...args: any[]) => ioMock(...args) }
  */
 describe('CentralRealtimeService', () => {
   function build(token: string | null = 'tok-central') {
-    const auth = { token, tokenRenovado$: new Subject<string>() };
+    const auth = { token, tokenRenovado$: new Subject<string>(), recarregar: jest.fn() };
     const handlers = new Map<string, ((d?: unknown) => void)[]>();
     const socket = {
       connected: false,
@@ -70,6 +71,83 @@ describe('CentralRealtimeService', () => {
     expect(socket.disconnect).toHaveBeenCalled();
     expect(socket.connect).toHaveBeenCalled();
     expect(ioMock).toHaveBeenCalledTimes(1);
+  });
+
+  describe('servidor derrubou o socket (io server disconnect)', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it('com o token da central ainda válido, reconecta depois de 5 s e o estado mostra a reconexão', () => {
+      const { svc, socket } = build(tokenDeTeste());
+      svc.on('interfone:chamada', () => undefined);
+      socket.disparar('connect');
+      socket.disparar('disconnect', 'io server disconnect');
+      expect(svc.conectado()).toBe(false);
+      expect(svc.reconectando()).toBe(true);
+      jest.advanceTimersByTime(4_999);
+      expect(socket.connect).not.toHaveBeenCalled();
+      jest.advanceTimersByTime(1);
+      expect(socket.connect).toHaveBeenCalledTimes(1);
+      socket.disparar('connect');
+      expect(svc.conectado()).toBe(true);
+      expect(svc.reconectando()).toBe(false);
+    });
+
+    it('quedas seguidas dobram a espera até o teto de 60 s; conexão estável zera', () => {
+      const { svc, socket } = build(tokenDeTeste());
+      svc.on('interfone:chamada', () => undefined);
+      const esperas: number[] = [];
+      for (let i = 0; i < 6; i++) {
+        const antes = socket.connect.mock.calls.length;
+        socket.disparar('connect');
+        socket.disparar('disconnect', 'io server disconnect');
+        let ms = 0;
+        while (socket.connect.mock.calls.length === antes && ms < 120_000) {
+          jest.advanceTimersByTime(1_000);
+          ms += 1_000;
+        }
+        esperas.push(ms);
+      }
+      expect(esperas).toEqual([5_000, 10_000, 20_000, 40_000, 60_000, 60_000]);
+
+      // Ficou conectado um bom tempo: a próxima queda volta para 5 s.
+      socket.disparar('connect');
+      jest.advanceTimersByTime(60_000);
+      const antes = socket.connect.mock.calls.length;
+      socket.disparar('disconnect', 'io server disconnect');
+      jest.advanceTimersByTime(5_000);
+      expect(socket.connect.mock.calls.length).toBe(antes + 1);
+    });
+
+    it('token vencido ou ausente: não reconecta e relê a sessão (a tela volta ao login)', () => {
+      const { svc, auth, socket } = build(tokenDeTeste());
+      svc.on('interfone:chamada', () => undefined);
+      auth.token = tokenDeTeste({ exp: Math.floor(Date.now() / 1000) - 10 });
+      socket.disparar('disconnect', 'io server disconnect');
+      jest.advanceTimersByTime(120_000);
+      expect(socket.connect).not.toHaveBeenCalled();
+      expect(svc.reconectando()).toBe(false);
+      expect(auth.recarregar).toHaveBeenCalled();
+    });
+
+    it('queda de rede (transport close) fica com a reconexão automática do socket.io', () => {
+      const { svc, socket } = build(tokenDeTeste());
+      svc.on('interfone:chamada', () => undefined);
+      socket.disparar('disconnect', 'transport close');
+      jest.advanceTimersByTime(120_000);
+      expect(socket.connect).not.toHaveBeenCalled();
+      expect(svc.reconectando()).toBe(false);
+    });
+
+    it('desconectar (saída da Central) cancela a reconexão agendada', () => {
+      const { svc, socket } = build(tokenDeTeste());
+      svc.on('interfone:chamada', () => undefined);
+      socket.disparar('disconnect', 'io server disconnect');
+      svc.desconectar();
+      jest.advanceTimersByTime(120_000);
+      expect(socket.connect).not.toHaveBeenCalled();
+      expect(svc.reconectando()).toBe(false);
+    });
   });
 
   it('desconectar fecha o socket e esquece os ouvintes', () => {

@@ -25,6 +25,12 @@ describe('criarAdaptadorRedis', () => {
     expect(createAdapter).toHaveBeenCalled();
   });
 
+  it('requestsTimeout de 2 s: com o Redis fora, fetchSockets (porteiro/central online) não espera os 5 s padrão', async () => {
+    await criarAdaptadorRedis('redis://x');
+    const opcoes = (createAdapter.mock.calls[0] as any[])[2];
+    expect(opcoes).toMatchObject({ requestsTimeout: 2_000 });
+  });
+
   it('erro de conexão devolve null', async () => {
     connect.mockRejectedValueOnce(new Error('ECONNREFUSED'));
     await expect(criarAdaptadorRedis('redis://x')).resolves.toBeNull();

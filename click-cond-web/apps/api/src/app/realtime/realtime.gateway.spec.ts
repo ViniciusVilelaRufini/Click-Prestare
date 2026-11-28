@@ -1,5 +1,6 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConferenciaIndisponivelException } from '../auth/jwt.strategy';
 import { RealtimeGateway } from './realtime.gateway';
 
 /**
@@ -92,6 +93,80 @@ describe('RealtimeGateway — revogação da sessão', () => {
     estado.atual = true;
     await gw.reconferirConexoes();
     expect(s.disconnect).toHaveBeenCalledWith(true);
+  });
+
+  describe('"não deu para conferir" ≠ "revogado" (I3)', () => {
+    const tokenOperador = jwt.sign({ sub: 7, papel: 'operador_central', cred: 'c'.repeat(32) });
+    const socketOp = () =>
+      ({ handshake: { auth: { token: tokenOperador }, query: {} }, data: {} as any, join: jest.fn(), disconnect: jest.fn() }) as any;
+
+    function buildModo(modo: { atual: 'ok' | 'indisponivel' | 'revogado' }) {
+      const strategy = {
+        validate: jest.fn(async (p: any) => {
+          if (modo.atual === 'indisponivel') throw new ConferenciaIndisponivelException();
+          if (modo.atual === 'revogado') throw new UnauthorizedException('Sessão da central encerrada.');
+          return p;
+        }),
+      };
+      const gw = new RealtimeGateway(jwt, { get: jest.fn(() => strategy) } as any);
+      (gw as any).logger = { warn: jest.fn(), log: jest.fn(), error: jest.fn() };
+      return gw;
+    }
+
+    it('banco com erro na reconferência: o socket do operador já aceito fica; revogado depois cai', async () => {
+      const modo = { atual: 'ok' as 'ok' | 'indisponivel' | 'revogado' };
+      const gw = buildModo(modo);
+      const s = socketOp();
+      await gw.handleConnection(s);
+      expect(s.join).toHaveBeenCalledWith('central');
+      (gw as any).server = { sockets: { sockets: new Map([['a', s]]) } };
+
+      modo.atual = 'indisponivel';
+      await gw.reconferirConexoes();
+      expect(s.disconnect).not.toHaveBeenCalled();
+      expect((gw as any).logger.warn).toHaveBeenCalled();
+
+      modo.atual = 'revogado';
+      await gw.reconferirConexoes();
+      expect(s.disconnect).toHaveBeenCalledWith(true);
+    });
+
+    it('handshake NOVO sem como conferir continua recusado (fail-closed)', async () => {
+      const gw = buildModo({ atual: 'indisponivel' });
+      const s = socketOp();
+      await gw.handleConnection(s);
+      expect(s.join).not.toHaveBeenCalled();
+      expect(s.disconnect).toHaveBeenCalledWith(true);
+    });
+
+    it('JwtStrategy indisponível: operador novo é recusado, o já aceito fica na reconferência', async () => {
+      const strategy = { validate: jest.fn(async (p: any) => p) };
+      const moduleRef: any = { get: jest.fn(() => strategy) };
+      const gw = new RealtimeGateway(jwt, moduleRef);
+      (gw as any).logger = { warn: jest.fn(), log: jest.fn(), error: jest.fn() };
+      const aceito = socketOp();
+      await gw.handleConnection(aceito);
+      expect(aceito.join).toHaveBeenCalledWith('central');
+
+      (gw as any).strategy = null;
+      moduleRef.get.mockReturnValue(null);
+      (gw as any).server = { sockets: { sockets: new Map([['a', aceito]]) } };
+      await gw.reconferirConexoes();
+      expect(aceito.disconnect).not.toHaveBeenCalled();
+
+      const novo = socketOp();
+      await gw.handleConnection(novo);
+      expect(novo.disconnect).toHaveBeenCalledWith(true);
+    });
+
+    it('token vencido cai na reconferência mesmo com o banco fora', async () => {
+      const gw = buildModo({ atual: 'indisponivel' });
+      const vencido = jwt.sign({ sub: 7, papel: 'operador_central', cred: 'c'.repeat(32), exp: Math.floor(Date.now() / 1000) - 10 });
+      const s = { ...socketOp(), data: { token: vencido } } as any;
+      (gw as any).server = { sockets: { sockets: new Map([['a', s]]) } };
+      await gw.reconferirConexoes();
+      expect(s.disconnect).toHaveBeenCalledWith(true);
+    });
   });
 
   it('JwtStrategy não achado: registra erro e tenta de novo na próxima conexão (não guarda o nulo)', async () => {

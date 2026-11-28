@@ -80,6 +80,107 @@ describe('RealtimeGateway — sala central do operador', () => {
     }
   });
 
+  describe('conexões durante a decisão do adaptador (M6)', () => {
+    afterEach(() => {
+      delete process.env['REDIS_URL'];
+      jest.useRealTimers();
+    });
+
+    it('socket que conecta antes do Redis responder só entra nas salas depois do adaptador aplicado', async () => {
+      const gw = build();
+      let resolver!: (a: unknown) => void;
+      (criarAdaptadorRedis as jest.Mock).mockReturnValue(new Promise((r) => (resolver = r)));
+      const ordem: string[] = [];
+      const server = { adapter: jest.fn(() => ordem.push('adapter')) };
+      process.env['REDIS_URL'] = 'redis://x';
+      const init = gw.afterInit(server as any);
+      try {
+        const s = socket(jwt.sign({ sub: 3, nome: 'P', id_condominio: 7, tipo_sub: 'funcionario_portaria' }));
+        s.join.mockImplementation((sala: string) => ordem.push(`join:${sala}`));
+        const conexao = gw.handleConnection(s);
+        await new Promise((r) => setTimeout(r, 0));
+        expect(s.join).not.toHaveBeenCalled();
+        resolver('ADAPTADOR');
+        await init;
+        await conexao;
+        expect(ordem).toEqual(['adapter', 'join:condominio:7', 'join:portaria:7']);
+      } finally {
+        gw.onModuleDestroy();
+      }
+    });
+
+    it('sem Redis (adaptador null) a conexão segue para a memória assim que a decisão sai', async () => {
+      const gw = build();
+      let resolver!: (a: unknown) => void;
+      (criarAdaptadorRedis as jest.Mock).mockReturnValue(new Promise((r) => (resolver = r)));
+      const server = { adapter: jest.fn() };
+      const init = gw.afterInit(server as any);
+      try {
+        const s = socket(jwt.sign({ sub: 7, papel: 'operador_central', cred: 'x' }));
+        const conexao = gw.handleConnection(s);
+        await new Promise((r) => setTimeout(r, 0));
+        expect(s.join).not.toHaveBeenCalled();
+        resolver(null);
+        await init;
+        await conexao;
+        expect(server.adapter).not.toHaveBeenCalled();
+        expect(s.join).toHaveBeenCalledWith(SALA_CENTRAL);
+      } finally {
+        gw.onModuleDestroy();
+      }
+    });
+
+    it('a espera tem teto: adaptador que nunca decide não segura a conexão para sempre', async () => {
+      jest.useFakeTimers();
+      const gw = build();
+      (criarAdaptadorRedis as jest.Mock).mockReturnValue(new Promise(() => undefined));
+      void gw.afterInit({ adapter: jest.fn() } as any);
+      try {
+        const s = socket(jwt.sign({ sub: 7, papel: 'operador_central', cred: 'x' }));
+        const conexao = gw.handleConnection(s);
+        await jest.advanceTimersByTimeAsync(1_000);
+        expect(s.join).not.toHaveBeenCalled();
+        await jest.advanceTimersByTimeAsync(6_000);
+        await conexao;
+        expect(s.join).toHaveBeenCalledWith(SALA_CENTRAL);
+      } finally {
+        gw.onModuleDestroy();
+      }
+    });
+
+    it('socket que caiu durante a espera não entra em sala nenhuma', async () => {
+      const gw = build();
+      let resolver!: (a: unknown) => void;
+      (criarAdaptadorRedis as jest.Mock).mockReturnValue(new Promise((r) => (resolver = r)));
+      const init = gw.afterInit({ adapter: jest.fn() } as any);
+      try {
+        const s = socket(jwt.sign({ sub: 7, papel: 'operador_central', cred: 'x' }));
+        const conexao = gw.handleConnection(s);
+        await new Promise((r) => setTimeout(r, 0));
+        s.disconnected = true;
+        resolver(null);
+        await init;
+        await conexao;
+        expect(s.join).not.toHaveBeenCalled();
+      } finally {
+        gw.onModuleDestroy();
+      }
+    });
+
+    it('depois da decisão, conexões novas não esperam nada', async () => {
+      const gw = build();
+      (criarAdaptadorRedis as jest.Mock).mockResolvedValue(null);
+      await gw.afterInit({ adapter: jest.fn() } as any);
+      try {
+        const s = socket(jwt.sign({ sub: 7, papel: 'operador_central', cred: 'x' }));
+        await gw.handleConnection(s);
+        expect(s.join).toHaveBeenCalledWith(SALA_CENTRAL);
+      } finally {
+        gw.onModuleDestroy();
+      }
+    });
+  });
+
   it('o timer de reconferência começa mesmo com o adaptador pendente', async () => {
     const gw = build();
     (criarAdaptadorRedis as jest.Mock).mockReturnValue(new Promise(() => undefined));

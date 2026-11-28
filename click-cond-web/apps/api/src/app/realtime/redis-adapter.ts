@@ -8,6 +8,12 @@ const logger = new Logger('RedisAdapter');
 const CONEXAO_TIMEOUT_MS = 5_000;
 
 /**
+ * Teto das consultas entre réplicas (fetchSockets de porteirosOnline/centralOnline). O padrão do adaptador
+ * é 5 s: com o Redis fora, cada chamada nova do facial esperava isso antes de decidir para onde ir.
+ */
+export const REQUESTS_TIMEOUT_MS = 2_000;
+
+/**
  * Adaptador Redis do Socket.IO, só quando REDIS_URL existe (aceita redis:// e rediss://).
  * Sem URL, ou se a conexão falhar, devolve null e o gateway segue com salas em memória (uma réplica).
  */
@@ -31,7 +37,7 @@ export async function criarAdaptadorRedis(
       timer.unref?.();
     });
     await Promise.race([Promise.all([pub.connect(), sub.connect()]), limite]);
-    return createAdapter(pub, sub);
+    return createAdapter(pub, sub, { requestsTimeout: REQUESTS_TIMEOUT_MS });
   } catch (err: any) {
     logger.error(`Redis indisponível, tempo real em memória: ${err?.message ?? err}`);
     for (const c of clientes) {
