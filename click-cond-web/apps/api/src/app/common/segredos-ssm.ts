@@ -7,6 +7,12 @@ const PREFIXO_PADRAO = '/prestare/api/';
 const TIMEOUT_TOTAL_MS = 15000;
 /** Sem estas variáveis a API subiria degradada (Prisma em modo mock, JWT/token internos ausentes). */
 const OBRIGATORIAS = ['DATABASE_URL', 'JWT_SECRET', 'INTERNAL_SYNC_TOKEN'];
+/**
+ * Opcionais: a falta NÃO derruba a API, só avisa. O interfone pelo app usa
+ * estes três (segredos compartilhados com o serviço de voz); sem eles as rotas
+ * e serviços do interfone falham fechado e o resto da API segue normal.
+ */
+export const OPCIONAIS = ['VOZ_TOKEN_SECRET', 'VOZ_INTERNAL_TOKEN', 'VOZ_TURN_SECRET'];
 
 /**
  * Carrega os segredos do SSM Parameter Store (/prestare/api/<NOME_DA_ENV>) para
@@ -23,6 +29,7 @@ export async function carregarSegredosSsm(
     cliente?: SSMClient;
     env?: NodeJS.ProcessEnv;
     obrigatorias?: string[];
+    opcionais?: string[];
     sair?: (codigo: number) => void;
   } = {},
 ): Promise<number> {
@@ -73,6 +80,10 @@ export async function carregarSegredosSsm(
     clearTimeout(timer);
     // Na AWS, subir sem as variáveis críticas deixaria a API degradada em
     // silêncio; encerrar faz o Elastic Beanstalk marcar o deploy como não saudável.
+    const opcionaisFaltando = (opts.opcionais ?? OPCIONAIS).filter((n) => !env[n]);
+    if (opcionaisFaltando.length) {
+      logger.warn(`Variáveis opcionais ausentes (env e SSM): ${opcionaisFaltando.join(', ')}. O que depende delas fica desligado.`);
+    }
     const faltando = (opts.obrigatorias ?? OBRIGATORIAS).filter((n) => !env[n]);
     if (faltando.length) {
       logger.error(`Variáveis obrigatórias ausentes (env e SSM): ${faltando.join(', ')}. Encerrando.`);

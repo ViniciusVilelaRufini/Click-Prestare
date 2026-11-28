@@ -39,7 +39,10 @@ export type AuditoriaAcao =
   | 'DISPOSITIVO_MAC_ATUALIZADO' // aparelho trocado fisicamente no mesmo endereço (MAC novo)
   // ---- Ciclo de vida comercial do condomínio (CRM) ----
   | 'DEACTIVATE'        // condomínio desligado: corta app, portaria e facial
-  | 'REACTIVATE';       // condomínio religado antes da purga
+  | 'REACTIVATE'        // condomínio religado antes da purga
+  // ---- Interfone pelo app ----
+  | 'INTERFONE_ABRIR'   // morador ou porteiro abriu o portão durante a chamada do interfone
+  | 'INTERFONE_CONFIG'; // síndico/CRM mudou a configuração do interfone (módulo, ramais, faciais, monitores)
 
 /**
  * Em qual tabela `autor_id` vive (audit_logs.autor_tipo):
