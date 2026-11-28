@@ -151,8 +151,13 @@ install -m 755 "$DEST/deploy/hook-renovacao.sh" /etc/letsencrypt/renewal-hooks/d
 # 8. systemd -----------------------------------------------------------------
 sed "s#__NODE__#$NODE_BIN#" "$DEST/deploy/prestare-voz.service" > /etc/systemd/system/prestare-voz.service.novo
 mv -f /etc/systemd/system/prestare-voz.service.novo /etc/systemd/system/prestare-voz.service
+install -m 755 "$DEST/deploy/rota-mtu.sh" /usr/local/sbin/prestare-rota-mtu
+install -m 644 "$DEST/deploy/prestare-rota-mtu.service" /etc/systemd/system/prestare-rota-mtu.service
+install -m 644 "$DEST/deploy/prestare-rota-mtu.timer" /etc/systemd/system/prestare-rota-mtu.timer
 systemctl daemon-reload
 systemctl enable asterisk coturn nginx prestare-voz >/dev/null 2>&1
+systemctl enable --now prestare-rota-mtu.timer >/dev/null 2>&1 || log "AVISO: timer do MTU não ativou"
+/usr/local/sbin/prestare-rota-mtu || log "AVISO: rota com MTU 1400 não aplicada"
 
 # 9. Reinícios (Asterisk só quando a configuração mudou: derruba chamadas) ----
 if [ "$MUDOU_ASTERISK" = 1 ] || ! systemctl is-active --quiet asterisk; then

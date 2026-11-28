@@ -1,0 +1,9 @@
+[Unit]
+Description=Prestare Voz - reaplica o MTU 1400 da rota da internet
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

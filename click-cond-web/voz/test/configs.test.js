@@ -189,3 +189,21 @@ test('gerar-sons.sh tem os quatro textos do plano', () => {
   assert.match(s, /--voice-id Camila/);
   assert.match(s, /--sample-rate 8000/);
 });
+
+test('rota da internet com MTU 1400: vídeo do facial cabe em link PPPoE (bancada 28/11)', () => {
+  const r = ler('deploy/rota-mtu.sh');
+  assert.match(r, /MTU=1400/);
+  assert.match(r, /ip route show default/);
+  assert.match(r, /ip route replace/);
+  // Idempotente: não mexe se já estiver certo.
+  assert.match(r, /mtu \$MTU/);
+  const svc = ler('deploy/prestare-rota-mtu.service');
+  assert.match(svc, /^Type=oneshot$/m);
+  assert.match(svc, /^ExecStart=\/usr\/local\/sbin\/prestare-rota-mtu$/m);
+  const tm = ler('deploy/prestare-rota-mtu.timer');
+  assert.match(tm, /^OnBootSec=/m);
+  assert.match(tm, /^OnUnitActiveSec=5min$/m);
+  const i = ler('deploy/instalar.sh');
+  assert.match(i, /install -m 755 "\$DEST\/deploy\/rota-mtu\.sh" \/usr\/local\/sbin\/prestare-rota-mtu/);
+  assert.match(i, /systemctl enable --now prestare-rota-mtu\.timer/);
+});

@@ -49,7 +49,9 @@ Para o teste de 28/11/2026 no condomínio de teste **Boa Vista** (único com o m
 - Ver a central em tempo real (CloudShell, depois de `source ~/voz.sh`):
   - `voz "journalctl -u prestare-voz -n 50 --no-pager"`
   - `voz "asterisk -rx 'pjsip show endpoints'"` (o facial deve aparecer como Available)
-- **Sem vídeo**: o facial manda H.264. Confira no facial se a chamada de vídeo está habilitada e, na central, `asterisk -rx 'core show channels verbose'` durante a chamada.
+- **Sem vídeo (aparece a foto e depois fica preto)** — lição de 28/11: a foto inicial vem do agente; o vídeo de verdade chega pela central. O facial manda pacotes RTP de ~1450 bytes e a central repassa ~1470 ao app; em link PPPoE (limite ~1480) eles se perdem e o app nunca monta um quadro (no log do app: `No decodable frame`, `nackCount` alto). Correção na central: rota da internet com MTU 1400 (`prestare-rota-mtu.timer`, instalado pelo deploy). Conferir: `voz "ip route show default"` deve terminar em `mtu 1400`. Baixar o MTU do próprio facial não adianta (o SS 3530 ignora).
+- **Vídeo leve no facial**: stream principal em H.264 **Baseline, 768 kbit/s, 15 fps, GOP 30** (vinha High, 2 Mbit/s, 30 fps). Feito pela configuração interna `Encode` do facial.
+- **Botão de ligar chama direto um apartamento**: desligue **Direct Call** na tela SIP do facial; aí o botão abre o teclado e o visitante digita o ramal (ex.: 1106).
 - **Celular não toca**: o morador precisa do app novo e do vínculo com a unidade. O sistema só guarda o **último** aparelho de cada usuário: se você abrir o app em outro aparelho, só ele toca.
 - **Facial não registra (status "Not Registered")** — lições do SS 3530 em 28/11:
   - Na central: `voz "timeout 30 tcpdump -n -i any -A -s0 -c 6 host <IP público da portaria>"`. Se aparecem REGISTER repetidos com o **mesmo branch e CSeq 1**, o facial não está recebendo a resposta da central (problema de rede, não de senha).

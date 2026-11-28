@@ -1,0 +1,8 @@
+[Unit]
+Description=Prestare Voz - rota da internet com MTU 1400 (vídeo do facial)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/prestare-rota-mtu
