@@ -49,6 +49,9 @@ const PRAZO_POR_TIPO = {
   update: PRAZO_LONGO_MS,
   list_users: PRAZO_LONGO_MS,
   remove_users: PRAZO_LONGO_MS,
+  // Interfone: lê a conta SIP e a lista telefônica e grava só o que mudou
+  // (várias chamadas em sequência, como o cadastro).
+  interfone_config: PRAZO_LONGO_MS,
   // Relé do Módulo Guarita: validade de 10 s, igual a abrir porta.
   guarita_rele: PRAZO_CURTO_MS,
 };

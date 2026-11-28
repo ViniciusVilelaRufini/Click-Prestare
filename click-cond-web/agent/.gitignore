@@ -17,6 +17,8 @@ device-baselines.json
 events-queue.jsonl
 guarita-operacoes.json
 guarita-operacoes.json.tmp
+interfone-sip.json
+interfone-sip.json.tmp
 agent-stdout.log
 agent-stderr.log
 

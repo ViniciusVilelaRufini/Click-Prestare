@@ -324,7 +324,7 @@ const expirado = (id) => ({ id, ok: false, error: 'expirado na fila do agente' }
 test('prazoDoComando(): padrão por tipo ABAIXO do da nuvem; ttl_ms da nuvem manda; open_door tem teto rígido de 10 s', () => {
   assert.equal(ERRO_EXPIRADO, 'expirado na fila do agente');
   for (const type of ['open_door', 'ping', 'snapshot', 'remove']) assert.equal(prazoDoComando({ type }), 10000, type);
-  for (const type of ['enroll', 'update', 'list_users', 'remove_users']) assert.equal(prazoDoComando({ type }), 20000, type);
+  for (const type of ['enroll', 'update', 'list_users', 'remove_users', 'interfone_config']) assert.equal(prazoDoComando({ type }), 20000, type);
   assert.equal(prazoDoComando({ type: 'novidade' }), 10000);
   assert.equal(prazoDoComando({ type: 'toString' }), 10000, 'nome herdado de Object não vira prazo');
   // ttl_ms vindo da nuvem: vale para mais e para menos...

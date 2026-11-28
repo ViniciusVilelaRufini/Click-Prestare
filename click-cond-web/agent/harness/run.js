@@ -731,6 +731,38 @@ async function main() {
     const rDhDoor = await esperarResultado(enfileirar(30, { type: 'open_door' }));
     checar('dahua: open_door OK', rDhDoor?.ok === true && estado.dahua.portaAberta === 1);
 
+    // Interfone (G1, NÃO validado em aparelho): conta SIP por configManager
+    // `SIP` e lista telefônica por VideoTalkContact, idempotente.
+    const cfgInterfone = {
+      servidor: 'voz.prestarecondominios.com.br',
+      porta: 5060,
+      conta: 'fac-30',
+      senha: 'HarnessSenhaSip0123456789',
+      contatos: [
+        { nome: 'Bloco A · Apto 106', numero: '106', bloco: 'A', andar: '1' },
+        { nome: 'Bloco A · Apto 201', numero: '201', bloco: 'A', andar: '2' },
+      ],
+    };
+    const rIfn = await esperarResultado(enfileirar(30, { type: 'interfone_config', interfone: cfgInterfone }));
+    checar('dahua: interfone_config OK', rIfn?.ok === true, JSON.stringify(rIfn));
+    checar(
+      'dahua: conta SIP gravada e ativada',
+      estado.dahua.sip.SIPServer === cfgInterfone.servidor &&
+        estado.dahua.sip.UserID === 'fac-30' &&
+        estado.dahua.sip.AuthPassword === cfgInterfone.senha &&
+        estado.dahua.sip.UserEnable === 'true',
+      JSON.stringify({ ...estado.dahua.sip, AuthPassword: '(oculta)' }),
+    );
+    checar('dahua: lista telefônica gravada', estado.dahua.contatos.length === 2, String(estado.dahua.contatos.length));
+    const gravSip = estado.dahua.gravacoesSip;
+    const rIfn2 = await esperarResultado(enfileirar(30, { type: 'interfone_config', interfone: cfgInterfone }));
+    checar(
+      'dahua: interfone_config repetido não regrava',
+      rIfn2?.ok === true && rIfn2.sip?.alterado === false && rIfn2.contatos?.iguais === 2 && estado.dahua.gravacoesSip === gravSip,
+      JSON.stringify(rIfn2),
+    );
+    checar('dahua: senha SIP fora do resultado', !JSON.stringify([rIfn, rIfn2]).includes(cfgInterfone.senha));
+
     // Evento ao vivo ISOLADO (nenhum outro depois): se o parser depender do
     // boundary seguinte, este acesso fica preso até a próxima pessoa passar.
     const antesDh = eventos.length;
