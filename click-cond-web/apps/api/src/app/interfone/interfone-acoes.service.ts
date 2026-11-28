@@ -360,9 +360,9 @@ export class InterfoneAcoesService {
   async historico(idUser: number, idApartamento: number): Promise<ItemHistorico[]> {
     const vinculo = await this.assertVinculo(idUser, idApartamento);
     if (!(await this.aptoComModulo(idApartamento))) throw moduloDesligado();
-    // 30 dias, mas nunca de antes de o morador entrar na unidade.
+    // 30 dias, mas nunca de antes de o morador entrar na unidade (created_at ou, se o vínculo mudou de unidade, updated_at).
     let desde = this.agora() - HISTORICO_DIAS * DIA_MS;
-    if (vinculo.created_at instanceof Date) desde = Math.max(desde, vinculo.created_at.getTime());
+    for (const d of [vinculo.created_at, vinculo.updated_at]) if (d instanceof Date) desde = Math.max(desde, d.getTime());
     const lista = await this.prisma.interfone_Chamadas.findMany({
       where: { id_apartamento: idApartamento, created_at: { gte: new Date(desde) } },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
@@ -494,14 +494,14 @@ export class InterfoneAcoesService {
   }
 
   /** Vínculo = existir a linha em Apartamentos_Users; o vencimento não conta (todo vínculo do app nasce com +45 dias). */
-  private async assertVinculo(idUser: number, idApartamento: number | null | undefined): Promise<{ id: number; created_at: Date | null }> {
+  private async assertVinculo(idUser: number, idApartamento: number | null | undefined): Promise<{ id: number; created_at: Date | null; updated_at: Date | null }> {
     if (!idApartamento || !Number.isInteger(idUser) || idUser <= 0) throw new ForbiddenException('Acesso negado à unidade.');
     const v = await this.prisma.apartamentos_Users.findFirst({
       where: {
         id_apto: idApartamento,
         id_user: idUser,
       },
-      select: { id: true, created_at: true },
+      select: { id: true, created_at: true, updated_at: true },
     });
     if (!v) throw new ForbiddenException('Acesso negado à unidade.');
     return v;

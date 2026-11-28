@@ -589,6 +589,16 @@ describe('correções da revisão 2', () => {
     await expect(m.acoes.historico(7, 100)).resolves.toHaveLength(1);
   });
 
+  it('histórico: vínculo criado há 20 dias e atualizado há 2 (mudou de unidade) não mostra chamadas de 5 dias atrás', async () => {
+    const m = montar();
+    await chamadaFacial(m);
+    m.tabelas['interfone_Chamadas'][0].created_at = new Date(AGORA - 5 * 86_400_000);
+    const v = m.tabelas['apartamentos_Users'].find((x: any) => x.id_user === 8);
+    v.created_at = new Date(AGORA - 20 * 86_400_000);
+    v.updated_at = new Date(AGORA - 2 * 86_400_000);
+    await expect(m.acoes.historico(8, 100)).resolves.toEqual([]);
+  });
+
   describe('abrir', () => {
     async function atendidaPorAna(m: ReturnType<typeof montar>) {
       const id = await chamadaFacial(m);
