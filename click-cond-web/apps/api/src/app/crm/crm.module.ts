@@ -16,6 +16,7 @@ import { SuperlogicaModule } from '../superlogica/superlogica.module';
 import { CrmSuperlogicaController } from './crm-superlogica.controller';
 import { CrmSuperlogicaService } from './crm-superlogica.service';
 import { CrmInterfoneController } from './crm-interfone.controller';
+import { CrmCentralController } from './crm-central.controller';
 import { InterfoneModule } from '../interfone/interfone.module';
 
 @Module({
@@ -40,7 +41,7 @@ import { InterfoneModule } from '../interfone/interfone.module';
     // Interfone pelo app: o CRM liga o módulo (contratado) por condomínio.
     InterfoneModule,
   ],
-  controllers: [CrmController, CrmAuthController, CrmSuperlogicaController, CrmInterfoneController],
+  controllers: [CrmController, CrmAuthController, CrmSuperlogicaController, CrmInterfoneController, CrmCentralController],
   providers: [
     CrmService,
     CrmCondominiosService,

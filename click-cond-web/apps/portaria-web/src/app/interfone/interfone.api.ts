@@ -68,15 +68,35 @@ export interface ResultadoAbrir {
   motivo?: string;
 }
 
+/** Faixa da agenda da portaria (0 = domingo; fim pode ser "24:00"). Quem edita é a Prestare, no CRM. */
+export interface FaixaAgendaPortaria {
+  dia_semana: number;
+  inicio: string;
+  fim: string;
+  destino: 'local' | 'central';
+}
+
 export interface ConfigInterfone {
   contratado: boolean;
   ativo: boolean;
   toque_apto_s: number;
   transferir: boolean;
   toque_portaria_s: number;
+  /** Central Prestare contratada (liga no CRM). */
+  central_contratada?: boolean;
+  /** Com a central, "Transferir para a portaria" é do contrato: o síndico não muda. */
+  transferir_travado?: boolean;
+  /** Agenda da central (só leitura no console). */
+  agenda?: FaixaAgendaPortaria[];
 }
 
-export type ConfigInterfoneEdicao = Omit<ConfigInterfone, 'contratado'>;
+/** O que o síndico grava. Com a central contratada o `transferir` não vai (a API ignora). */
+export interface ConfigInterfoneEdicao {
+  ativo: boolean;
+  toque_apto_s: number;
+  transferir?: boolean;
+  toque_portaria_s: number;
+}
 
 export interface RamalUnidade {
   id_apartamento: number;

@@ -29,10 +29,15 @@
               [value]="toqueApto()" (input)="toqueApto.set(numero($any($event.target).value))" />
           </span>
         </label>
-        <label class="flex cursor-pointer items-center gap-2 h-10 text-sm">
-          <input type="checkbox" name="interfone-transferir" class="h-4 w-4" style="accent-color: var(--brand)"
-            [checked]="transferir()" (change)="transferir.set($any($event.target).checked)" />
-          Transferir para a portaria se ninguém atender
+        <label class="flex items-center gap-2 h-10 text-sm" [class.cursor-pointer]="!transferirTravado()">
+          <input type="checkbox" name="interfone-transferir" class="h-4 w-4 disabled:opacity-60" style="accent-color: var(--brand)"
+            [checked]="transferir()" [disabled]="transferirTravado()" (change)="transferir.set($any($event.target).checked)" />
+          <span>
+            Transferir para a portaria se ninguém atender
+            @if (transferirTravado()) {
+              <span class="ps-cap block" data-transferir-travado>Sempre ligado: incluído no contrato da central.</span>
+            }
+          </span>
         </label>
         <label class="block">
           <span class="ps-label mb-1.5 block">Toque na portaria (s)</span>
@@ -49,6 +54,40 @@
         <p role="alert" class="px-5 pb-4 text-sm flex items-start gap-2.5"><span class="ps-dot ps-dot-danger mt-1.5"></span>{{ erroConfig() }}</p>
       }
     </section>
+
+    <!-- ===== Central Prestare (só leitura: a Prestare configura) ===== -->
+    @if (centralContratada()) {
+      <section class="ps-panel" aria-labelledby="titulo-interfone-central" data-central-prestare>
+        <div class="ps-panel-head">
+          <div class="min-w-0">
+            <h2 id="titulo-interfone-central" class="ps-h2">Central Prestare</h2>
+            <p class="ps-cap mt-1">
+              Serviço contratado. Nos horários abaixo a central atende a portaria; fora deles atende o porteiro do prédio e, sem
+              porteiro conectado, a central assume. Para mudar a agenda, fale com a Prestare.
+            </p>
+          </div>
+        </div>
+        <div class="px-5 py-4">
+          @if (agendaCentral().length === 0) {
+            <p class="ps-cap">Sem agenda: a central atende só quando não houver porteiro conectado.</p>
+          } @else {
+            <ul class="space-y-2 text-sm">
+              @for (g of agendaCentral(); track g.dia) {
+                <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span class="w-20 shrink-0 font-medium">{{ g.dia }}</span>
+                  @for (f of g.faixas; track $index) {
+                    <span class="ps-tag">
+                      <span class="ps-dot" [class.ps-dot-ok]="f.destino === 'central'"></span>{{ f.inicio }}–{{ f.fim }}
+                      · {{ f.destino === 'central' ? 'Central' : 'Porteiro do prédio' }}
+                    </span>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      </section>
+    }
 
     <!-- ===== Faciais ===== -->
     <section class="ps-panel" aria-labelledby="titulo-interfone-faciais">

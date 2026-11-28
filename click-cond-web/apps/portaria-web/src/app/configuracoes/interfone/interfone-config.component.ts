@@ -3,7 +3,9 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Observable, catchError, forkJoin, of } from 'rxjs';
 import {
   ConfigInterfone,
+  ConfigInterfoneEdicao,
   FacialInterfone,
+  FaixaAgendaPortaria,
   InterfoneApi,
   MonitorInterfone,
   RamalUnidade,
@@ -46,6 +48,17 @@ export function bloqueiaSalvar(p: ProblemaRamal): boolean {
   return p === 'duplicado' || p === 'invalido';
 }
 
+const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
+/** Agenda da central agrupada por dia, na ordem da semana (só dias com faixa). */
+export function agendaPorDia(agenda: FaixaAgendaPortaria[] | null | undefined): { dia: string; faixas: FaixaAgendaPortaria[] }[] {
+  const lista = Array.isArray(agenda) ? agenda : [];
+  return DIAS_SEMANA.map((dia, d) => ({
+    dia,
+    faixas: lista.filter((f) => f.dia_semana === d).sort((a, b) => a.inicio.localeCompare(b.inicio)),
+  })).filter((g) => g.faixas.length > 0);
+}
+
 interface EdicaoFacial {
   habilitado: boolean;
   blocos: string;
@@ -83,6 +96,10 @@ export class InterfoneConfigComponent implements OnInit {
   readonly toqueApto = signal(30);
   readonly transferir = signal(true);
   readonly toquePortaria = signal(45);
+  /** Central Prestare: bloco só leitura com a agenda; "transferir" travado (incluído no contrato). */
+  readonly centralContratada = signal(false);
+  readonly transferirTravado = signal(false);
+  readonly agendaCentral = signal<{ dia: string; faixas: FaixaAgendaPortaria[] }[]>([]);
   readonly salvandoConfig = signal(false);
   readonly erroConfig = signal<string | null>(null);
 
@@ -160,8 +177,10 @@ export class InterfoneConfigComponent implements OnInit {
     }
     this.erroConfig.set(null);
     this.salvandoConfig.set(true);
+    const dados: ConfigInterfoneEdicao = { ativo: this.ativo(), toque_apto_s: apto, toque_portaria_s: portaria };
+    if (!this.transferirTravado()) dados.transferir = this.transferir();
     this.api
-      .salvarConfig({ ativo: this.ativo(), toque_apto_s: apto, transferir: this.transferir(), toque_portaria_s: portaria })
+      .salvarConfig(dados)
       .subscribe({
         next: (c) => {
           this.salvandoConfig.set(false);
@@ -182,8 +201,11 @@ export class InterfoneConfigComponent implements OnInit {
   private aplicarConfig(c: ConfigInterfone): void {
     this.ativo.set(!!c.ativo);
     this.toqueApto.set(Number(c.toque_apto_s) || 30);
-    this.transferir.set(!!c.transferir);
+    this.transferir.set(!!c.transferir || !!c.transferir_travado);
     this.toquePortaria.set(Number(c.toque_portaria_s) || 45);
+    this.centralContratada.set(!!c.central_contratada);
+    this.transferirTravado.set(!!c.transferir_travado);
+    this.agendaCentral.set(c.central_contratada ? agendaPorDia(c.agenda) : []);
   }
 
   // ===================== Faciais =====================

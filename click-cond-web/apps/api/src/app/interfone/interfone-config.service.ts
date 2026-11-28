@@ -13,6 +13,8 @@ import { compararVersoesAgente } from '../facial/agent-version.service';
 import { contaFacial } from './interfone.service';
 import type { ContatoInterfoneAgente } from '../facial/agent-bridge.service';
 import { normalizarFabricante } from '../facial/fabricantes';
+import { validarAgenda } from './destino-portaria';
+import type { FaixaAgenda } from './destino-portaria';
 
 /**
  * Facial pelo tipo: cadastros antigos têm `tipo` vazio e contam como facial,
@@ -64,9 +66,36 @@ export interface ConfigInterfone {
   contratado: boolean;
   ativo: boolean;
   toque_apto_s: number;
+  /** Com a central contratada é sempre true (incluído no contrato) e o síndico não muda. */
   transferir: boolean;
   toque_portaria_s: number;
+  /** Portaria autônoma: a Prestare liga no CRM. */
+  central_contratada: boolean;
+  /** true = o console mostra o "transferir" travado ("incluído no contrato da central"). */
+  transferir_travado: boolean;
+  /** Agenda da portaria (só leitura para o síndico); vazia sem central contratada. */
+  agenda: FaixaAgenda[];
 }
+
+/** Campos que o síndico edita no PUT da config. */
+export type ConfigInterfoneEdicao = Partial<Pick<ConfigInterfone, 'ativo' | 'toque_apto_s' | 'transferir' | 'toque_portaria_s'>>;
+
+/** Cliente na aba Interfone do CRM. */
+export interface ClienteInterfoneCrm {
+  id: number;
+  nome: string;
+  contratado: boolean;
+  central_contratada: boolean;
+  ia_portao_ativa: boolean;
+  numero_portaria: string;
+  instrucao_entregas: string | null;
+}
+
+/** Número que o visitante digita no facial para chamar a portaria. */
+const NUMERO_PORTARIA = /^\d{1,8}$/;
+const INSTRUCAO_ENTREGAS_MAX = 2000;
+/** 7 dias × faixas de meia hora: folga larga, só para barrar lista absurda. */
+const AGENDA_MAX_FAIXAS = 336;
 
 /** Senha SIP: 24 caracteres [A-Za-z0-9] de crypto.randomBytes (sem viés: rejeita bytes ≥ 248). */
 export function gerarSenhaSip(tamanho = 24): string {
@@ -123,15 +152,21 @@ export class InterfoneConfigService {
 
   async config(idCondominio: number): Promise<ConfigInterfone> {
     const c = await this.condominio(idCondominio);
-    return this.paraConfig(c);
+    const agenda = c.central_contratada === 1 ? await this.lerAgenda(idCondominio) : [];
+    return this.paraConfig(c, agenda);
   }
 
-  async salvarConfig(
-    idCondominio: number,
-    body: Partial<Omit<ConfigInterfone, 'contratado'>>,
-    ator: AtorConfig,
-  ): Promise<ConfigInterfone> {
-    await this.assertContratado(idCondominio);
+  /**
+   * PUT do síndico. Com a central contratada a transferência é do contrato:
+   * `transferir` do corpo é ignorado (nem validado) e a resposta volta com
+   * `transferir: true, transferir_travado: true`.
+   */
+  async salvarConfig(idCondominio: number, body: ConfigInterfoneEdicao, ator: AtorConfig): Promise<ConfigInterfone> {
+    const c = await this.assertContratado(idCondominio);
+    if (c.central_contratada === 1 && body && typeof body === 'object' && 'transferir' in body) {
+      const { transferir: _ignorado, ...resto } = body;
+      body = resto;
+    }
     const data: Record<string, number> = {};
     const bool = (k: 'ativo' | 'transferir', col: string) => {
       const v = (body as any)?.[k];
@@ -177,8 +212,10 @@ export class InterfoneConfigService {
    * condomínio ou número repetido → 400 com a lista, nada gravado.
    */
   async salvarRamais(idCondominio: number, itens: { id_apartamento: number; ramal: string | null }[], ator: AtorConfig) {
-    await this.assertContratado(idCondominio);
+    const c = await this.assertContratado(idCondominio);
     if (!Array.isArray(itens) || itens.length > 5000) throw new BadRequestException('Envie a lista de ramais.');
+    // Com a central, o número da portaria tem precedência no facial: um ramal igual nunca tocaria a unidade.
+    const numPortaria = c.central_contratada === 1 ? String(c.interfone_numero_portaria ?? '').trim() : '';
     const aptos = await this.aptos(idCondominio);
     const porId = new Map(aptos.map((a) => [a.id, a]));
     const erros: { id_apartamento: number; ramal: string | null; motivo: string }[] = [];
@@ -188,7 +225,9 @@ export class InterfoneConfigService {
       const ramal = it?.ramal === null || it?.ramal === undefined || String(it.ramal).trim() === '' ? null : String(it.ramal).trim();
       if (!porId.has(id)) erros.push({ id_apartamento: id, ramal, motivo: 'unidade_invalida' });
       else if (ramal !== null && !ramalValido(ramal)) erros.push({ id_apartamento: id, ramal, motivo: 'ramal_invalido' });
-      else novos.set(id, ramal);
+      else if (ramal !== null && numPortaria && ramal === numPortaria) {
+        erros.push({ id_apartamento: id, ramal, motivo: 'ramal_conflita_portaria' });
+      } else novos.set(id, ramal);
     }
     // Estado final: o que foi enviado por cima do que está gravado.
     const final = new Map<number, string | null>(aptos.map((a) => [a.id, a.interfone_ramal ?? null]));
@@ -198,7 +237,12 @@ export class InterfoneConfigService {
     for (const [id, r] of novos) {
       if (r && (usados.get(r)?.length ?? 0) > 1) erros.push({ id_apartamento: id, ramal: r, motivo: 'ramal_repetido' });
     }
-    if (erros.length) throw new BadRequestException({ statusCode: 400, message: 'Ramais inválidos.', erros });
+    if (erros.length) {
+      const message = erros.some((e) => e.motivo === 'ramal_conflita_portaria')
+        ? `O ramal ${numPortaria} é o número da portaria (o visitante disca ${numPortaria} para chamar a portaria). Escolha outro número.`
+        : 'Ramais inválidos.';
+      throw new BadRequestException({ statusCode: 400, message, erros });
+    }
 
     const mudam = [...novos].filter(([id, r]) => (porId.get(id)?.interfone_ramal ?? null) !== r);
     if (mudam.length) {
@@ -443,12 +487,140 @@ export class InterfoneConfigService {
 
   // ─────────────────────────────────────────── CRM
 
-  async clientesCrm(): Promise<{ id: number; nome: string; contratado: boolean }[]> {
+  async clientesCrm(): Promise<ClienteInterfoneCrm[]> {
     const l = await this.prisma.condominios.findMany({
-      select: { id: true, nome: true, interfone_contratado: true },
+      select: {
+        id: true,
+        nome: true,
+        interfone_contratado: true,
+        central_contratada: true,
+        ia_portao_ativa: true,
+        interfone_numero_portaria: true,
+        instrucao_entregas: true,
+      },
       orderBy: { nome: 'asc' },
     });
-    return l.map((c) => ({ id: c.id, nome: c.nome, contratado: c.interfone_contratado === 1 }));
+    return l.map((c) => ({
+      id: c.id,
+      nome: c.nome,
+      contratado: c.interfone_contratado === 1,
+      central_contratada: c.central_contratada === 1,
+      ia_portao_ativa: c.ia_portao_ativa === 1,
+      numero_portaria: c.interfone_numero_portaria ?? '0',
+      instrucao_entregas: c.instrucao_entregas ?? null,
+    }));
+  }
+
+  /**
+   * Central Prestare (portaria autônoma). Ligar exige o interfone contratado
+   * (`400 interfone_nao_contratado`); desligar vale sempre, para o CRM poder
+   * limpar um condomínio que perdeu o interfone.
+   */
+  async definirCentral(idCondominio: number, ligado: boolean, ator: AtorConfig): Promise<{ id: number; central_contratada: boolean }> {
+    if (typeof ligado !== 'boolean') throw new BadRequestException('ligado deve ser true ou false.');
+    const c = await this.prisma.condominios.findUnique({ where: { id: idCondominio }, select: { id: true, interfone_contratado: true } });
+    if (!c) throw new NotFoundException('Condomínio não encontrado.');
+    if (ligado && c.interfone_contratado !== 1) {
+      throw new BadRequestException({
+        statusCode: 400,
+        motivo: 'interfone_nao_contratado',
+        message: 'Contrate o Interfone pelo app antes de ligar a central.',
+      });
+    }
+    await this.prisma.condominios.update({ where: { id: idCondominio }, data: { central_contratada: ligado ? 1 : 0 } });
+    await this.auditar(idCondominio, ator, `Central Prestare ${ligado ? 'CONTRATADA' : 'descontratada'} pelo CRM`, { central_contratada: ligado });
+    return { id: idCondominio, central_contratada: ligado };
+  }
+
+  /** IA no portão: só guarda a coluna (a IA age a partir da Entrega 2). */
+  async definirIa(idCondominio: number, ligado: boolean, ator: AtorConfig): Promise<{ id: number; ia_portao_ativa: boolean }> {
+    if (typeof ligado !== 'boolean') throw new BadRequestException('ligado deve ser true ou false.');
+    await this.condominioExiste(idCondominio);
+    await this.prisma.condominios.update({ where: { id: idCondominio }, data: { ia_portao_ativa: ligado ? 1 : 0 } });
+    await this.auditar(idCondominio, ator, `IA no portão ${ligado ? 'ligada' : 'desligada'} pelo CRM`, { ia_portao_ativa: ligado });
+    return { id: idCondominio, ia_portao_ativa: ligado };
+  }
+
+  /**
+   * Número da portaria (1–8 dígitos, diferente de todo ramal do condomínio:
+   * `400 numero_conflita_ramal`) e instruções de entrega (texto livre, vazio
+   * limpa). Campo ausente no corpo fica como está.
+   */
+  async salvarPortaria(
+    idCondominio: number,
+    body: { numero_portaria?: unknown; instrucao_entregas?: unknown },
+    ator: AtorConfig,
+  ): Promise<{ id: number; numero_portaria: string; instrucao_entregas: string | null }> {
+    const data: { interfone_numero_portaria?: string; instrucao_entregas?: string | null } = {};
+    if (body?.numero_portaria !== undefined) {
+      const n = body.numero_portaria;
+      if (typeof n !== 'string' || !NUMERO_PORTARIA.test(n.trim())) {
+        throw new BadRequestException({ statusCode: 400, motivo: 'numero_invalido', message: 'Número da portaria: de 1 a 8 dígitos.' });
+      }
+      data.interfone_numero_portaria = n.trim();
+    }
+    if (body?.instrucao_entregas !== undefined) {
+      const t = body.instrucao_entregas;
+      if (t !== null && typeof t !== 'string') throw new BadRequestException('instrucao_entregas deve ser texto.');
+      const limpo = (t ?? '').trim();
+      if (limpo.length > INSTRUCAO_ENTREGAS_MAX) {
+        throw new BadRequestException(`Instruções de entrega: até ${INSTRUCAO_ENTREGAS_MAX} caracteres.`);
+      }
+      data.instrucao_entregas = limpo || null;
+    }
+    await this.condominioExiste(idCondominio);
+    if (data.interfone_numero_portaria !== undefined) {
+      const conflito = await this.prisma.apartamentos.findFirst({
+        where: { id_condominio: idCondominio, interfone_ramal: data.interfone_numero_portaria },
+        select: { id: true, apto: true, bloco: true },
+      });
+      if (conflito) {
+        throw new BadRequestException({
+          statusCode: 400,
+          motivo: 'numero_conflita_ramal',
+          message: `O número ${data.interfone_numero_portaria} já é o ramal de ${rotuloAptoBloco(conflito.apto, conflito.bloco)}. Escolha outro.`,
+        });
+      }
+    }
+    if (Object.keys(data).length) {
+      await this.prisma.condominios.update({ where: { id: idCondominio }, data });
+      await this.auditar(idCondominio, ator, 'Portaria da central alterada pelo CRM', { alteracoes: data });
+    }
+    const c = await this.prisma.condominios.findUnique({
+      where: { id: idCondominio },
+      select: { interfone_numero_portaria: true, instrucao_entregas: true },
+    });
+    return { id: idCondominio, numero_portaria: c?.interfone_numero_portaria ?? '0', instrucao_entregas: c?.instrucao_entregas ?? null };
+  }
+
+  async agendaCrm(idCondominio: number): Promise<FaixaAgenda[]> {
+    await this.condominioExiste(idCondominio);
+    return this.lerAgenda(idCondominio);
+  }
+
+  /**
+   * Troca a agenda inteira (lista vazia = sem agenda, tudo local). Valida com
+   * `validarAgenda` antes de apagar qualquer coisa (`400 agenda_invalida`).
+   */
+  async salvarAgenda(idCondominio: number, faixas: unknown, ator: AtorConfig): Promise<FaixaAgenda[]> {
+    if (!Array.isArray(faixas) || faixas.length > AGENDA_MAX_FAIXAS) {
+      throw new BadRequestException({ statusCode: 400, motivo: 'agenda_invalida', message: 'Envie a lista de faixas da agenda.' });
+    }
+    const lista: FaixaAgenda[] = faixas.map((f: any) => ({
+      dia_semana: Number(f?.dia_semana),
+      inicio: String(f?.inicio ?? '').trim(),
+      fim: String(f?.fim ?? '').trim(),
+      destino: f?.destino,
+    }));
+    const erro = validarAgenda(lista);
+    if (erro) throw new BadRequestException({ statusCode: 400, motivo: 'agenda_invalida', message: erro });
+    await this.condominioExiste(idCondominio);
+    await this.prisma.$transaction([
+      this.prisma.portaria_Agenda.deleteMany({ where: { id_condominio: idCondominio } }),
+      ...lista.map((f) => this.prisma.portaria_Agenda.create({ data: { id_condominio: idCondominio, ...f } })),
+    ]);
+    await this.auditar(idCondominio, ator, `Agenda da portaria alterada pelo CRM (${lista.length} faixa(s))`, { agenda: lista });
+    return this.lerAgenda(idCondominio);
   }
 
   async definirContratado(idCondominio: number, ligado: boolean, ator: AtorConfig): Promise<{ id: number; contratado: boolean }> {
@@ -472,25 +644,45 @@ export class InterfoneConfigService {
         interfone_toque_apto_s: true,
         interfone_transferir: true,
         interfone_toque_portaria_s: true,
+        central_contratada: true,
+        interfone_numero_portaria: true,
       },
     });
     if (!c) throw new NotFoundException('Condomínio não encontrado.');
     return c;
   }
 
-  private paraConfig(c: Awaited<ReturnType<InterfoneConfigService['condominio']>>): ConfigInterfone {
+  private async condominioExiste(idCondominio: number): Promise<void> {
+    const c = await this.prisma.condominios.findUnique({ where: { id: idCondominio }, select: { id: true } });
+    if (!c) throw new NotFoundException('Condomínio não encontrado.');
+  }
+
+  private async lerAgenda(idCondominio: number): Promise<FaixaAgenda[]> {
+    const l = await this.prisma.portaria_Agenda.findMany({
+      where: { id_condominio: idCondominio },
+      orderBy: [{ dia_semana: 'asc' }, { inicio: 'asc' }],
+    });
+    return l.map((f) => ({ dia_semana: f.dia_semana, inicio: f.inicio, fim: f.fim, destino: f.destino as FaixaAgenda['destino'] }));
+  }
+
+  private paraConfig(c: Awaited<ReturnType<InterfoneConfigService['condominio']>>, agenda: FaixaAgenda[]): ConfigInterfone {
+    const central = c.central_contratada === 1;
     return {
       contratado: c.interfone_contratado === 1,
       ativo: c.interfone_ativo === 1,
       toque_apto_s: c.interfone_toque_apto_s,
-      transferir: c.interfone_transferir === 1,
+      transferir: central || c.interfone_transferir === 1,
       toque_portaria_s: c.interfone_toque_portaria_s,
+      central_contratada: central,
+      transferir_travado: central,
+      agenda: central ? agenda : [],
     };
   }
 
   private async assertContratado(idCondominio: number) {
     const c = await this.condominio(idCondominio);
     if (c.interfone_contratado !== 1) throw new ForbiddenException('O interfone não está contratado para este condomínio.');
+    return c;
   }
 
   private aptos(idCondominio: number) {

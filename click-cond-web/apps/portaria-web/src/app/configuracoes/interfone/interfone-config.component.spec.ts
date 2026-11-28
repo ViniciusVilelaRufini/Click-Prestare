@@ -134,12 +134,12 @@ describe('InterfoneConfigComponent', () => {
   let http: HttpTestingController;
   afterEach(() => TestBed.resetTestingModule());
 
-  function render(faciais: FacialInterfone[] = [FACIAL]) {
+  function render(faciais: FacialInterfone[] = [FACIAL], config: Record<string, unknown> = CONFIG) {
     TestBed.configureTestingModule({ imports: [InterfoneConfigComponent], providers: providers(SINDICO, 'Síndico') });
     http = TestBed.inject(HttpTestingController);
     const fixture = TestBed.createComponent(InterfoneConfigComponent);
     fixture.detectChanges();
-    http.expectOne(`${URL}/config`).flush(CONFIG);
+    http.expectOne(`${URL}/config`).flush(config);
     http.expectOne(`${URL}/faciais`).flush(faciais);
     http.expectOne(`${URL}/ramais`).flush(RAMAIS);
     http.expectOne(`${URL}/monitores`).flush([]);
@@ -148,6 +148,51 @@ describe('InterfoneConfigComponent', () => {
     const salvarRamais = () => el.querySelector('button[data-salvar-ramais]') as HTMLButtonElement;
     return { fixture, el, salvarRamais };
   }
+
+  describe('central Prestare', () => {
+    const CENTRAL = {
+      ...CONFIG,
+      transferir: true,
+      central_contratada: true,
+      transferir_travado: true,
+      agenda: [
+        { dia_semana: 1, inicio: '00:00', fim: '07:00', destino: 'central' },
+        { dia_semana: 1, inicio: '07:00', fim: '24:00', destino: 'local' },
+        { dia_semana: 6, inicio: '00:00', fim: '24:00', destino: 'central' },
+      ],
+    };
+
+    it('central contratada: bloco "Central Prestare" só leitura com a agenda e "transferir" travado', () => {
+      const { el } = render([FACIAL], CENTRAL);
+      const bloco = el.querySelector('[data-central-prestare]') as HTMLElement;
+      expect(bloco).not.toBeNull();
+      expect(bloco.textContent).toContain('Central Prestare');
+      expect(bloco.textContent).toContain('Segunda');
+      expect(bloco.textContent).toContain('00:00–07:00');
+      expect(bloco.textContent).toContain('Sábado');
+      expect(bloco.querySelectorAll('input, select, textarea, button')).toHaveLength(0);
+      const transferir = el.querySelector('input[name="interfone-transferir"]') as HTMLInputElement;
+      expect(transferir.checked).toBe(true);
+      expect(transferir.disabled).toBe(true);
+      expect(el.textContent).toContain('incluído no contrato da central');
+    });
+
+    it('central contratada: salvar não manda o "transferir"', () => {
+      const { el } = render([FACIAL], CENTRAL);
+      (el.querySelector('button[data-salvar-config]') as HTMLButtonElement).click();
+      const req = http.expectOne({ method: 'PUT', url: `${URL}/config` });
+      expect(req.request.body).not.toHaveProperty('transferir');
+      req.flush(CENTRAL);
+    });
+
+    it('sem central: sem bloco e o "transferir" segue editável', () => {
+      const { el } = render([FACIAL], { ...CONFIG, central_contratada: false, transferir_travado: false, agenda: [] });
+      expect(el.querySelector('[data-central-prestare]')).toBeNull();
+      const transferir = el.querySelector('input[name="interfone-transferir"]') as HTMLInputElement;
+      expect(transferir.disabled).toBe(false);
+      expect(el.textContent).not.toContain('incluído no contrato da central');
+    });
+  });
 
   it('unidade sem ramal e sem sugestão aparece destacada, mas não bloqueia salvar as outras', () => {
     const { fixture, el, salvarRamais } = render();

@@ -45,19 +45,207 @@
       }
       <ul class="space-y-1 p-3">
         @for (c of clientes(); track c.id) {
-          <li class="flex flex-wrap items-center justify-between gap-3 rounded-xl p-3 transition-colors hover:bg-surface-sunken">
-            <span class="min-w-0 truncate text-sm font-medium text-ink">{{ c.nome }}</span>
-            <label class="flex cursor-pointer items-center gap-2 text-xs text-ink-muted">
-              <input
-                #caixa
-                type="checkbox"
-                [attr.data-contratado]="c.id"
-                [checked]="c.contratado"
-                [disabled]="alterando() === c.id"
-                (change)="alternar(c, caixa)"
-              />
-              Contratado
-            </label>
+          <li class="rounded-xl transition-colors" [class.bg-surface-sunken]="aberto() === c.id">
+            <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl p-3 hover:bg-surface-sunken">
+              <span class="flex min-w-0 items-center gap-2">
+                <span class="truncate text-sm font-medium text-ink">{{ c.nome }}</span>
+                @if (c.central_contratada) {
+                  <span class="badge badge-info">Central</span>
+                }
+              </span>
+              <span class="flex items-center gap-3">
+                <label class="flex cursor-pointer items-center gap-2 text-xs text-ink-muted">
+                  <input
+                    #caixa
+                    type="checkbox"
+                    [attr.data-contratado]="c.id"
+                    [checked]="c.contratado"
+                    [disabled]="alterando() === c.id"
+                    (change)="alternar(c, caixa)"
+                  />
+                  Contratado
+                </label>
+                <button
+                  type="button"
+                  class="btn-ghost btn-sm press"
+                  [attr.data-abrir-central]="c.id"
+                  [attr.aria-expanded]="aberto() === c.id"
+                  (click)="abrirCentral(c)"
+                >
+                  {{ aberto() === c.id ? 'Fechar' : 'Central' }}
+                </button>
+              </span>
+            </div>
+
+            @if (aberto() === c.id) {
+              <div class="space-y-5 px-3 pb-4" [attr.data-painel-central]="c.id">
+                <!-- Chaves -->
+                <div class="flex flex-wrap gap-x-6 gap-y-2">
+                  <label class="flex cursor-pointer items-center gap-2 text-sm text-ink" [title]="c.contratado ? '' : 'Contrate o Interfone pelo app antes'">
+                    <input
+                      #caixaCentral
+                      type="checkbox"
+                      [attr.data-central]="c.id"
+                      [checked]="c.central_contratada"
+                      [disabled]="!c.contratado || alterandoCentral() === c.id"
+                      (change)="alternarCentral(c, caixaCentral)"
+                    />
+                    Central contratada
+                  </label>
+                  <label class="flex cursor-pointer items-center gap-2 text-sm text-ink">
+                    <input
+                      #caixaIa
+                      type="checkbox"
+                      [attr.data-ia]="c.id"
+                      [checked]="c.ia_portao_ativa"
+                      [disabled]="alterandoCentral() === c.id"
+                      (change)="alternarIa(c, caixaIa)"
+                    />
+                    IA no portão (Entrega 2)
+                  </label>
+                </div>
+                @if (!c.contratado) {
+                  <p class="text-xs text-ink-muted">A central só pode ser ligada com o Interfone pelo app contratado.</p>
+                }
+
+                <!-- Portaria -->
+                <div class="grid gap-3 sm:grid-cols-[10rem_1fr]">
+                  <label class="block">
+                    <span class="mb-1 block text-xs font-semibold text-ink-soft">Número da portaria</span>
+                    <input
+                      type="text"
+                      inputmode="numeric"
+                      maxlength="8"
+                      class="input"
+                      data-numero-portaria
+                      [value]="edNumero()"
+                      (input)="edNumero.set($any($event.target).value)"
+                    />
+                    <span class="mt-1 block text-2xs text-ink-muted">O visitante digita no facial para chamar a portaria.</span>
+                  </label>
+                  <label class="block">
+                    <span class="mb-1 block text-xs font-semibold text-ink-soft">Instruções de entrega</span>
+                    <textarea
+                      rows="2"
+                      maxlength="2000"
+                      class="input"
+                      data-instrucao
+                      placeholder="Ex.: deixe no armário de encomendas"
+                      [value]="edInstrucao()"
+                      (input)="edInstrucao.set($any($event.target).value)"
+                    ></textarea>
+                  </label>
+                </div>
+                <div>
+                  <button
+                    type="button"
+                    class="btn-secondary btn-sm press"
+                    data-salvar-portaria
+                    [disabled]="salvandoPortaria()"
+                    (click)="salvarPortaria(c)"
+                  >
+                    {{ salvandoPortaria() ? 'Salvando…' : 'Salvar portaria' }}
+                  </button>
+                </div>
+
+                <!-- Agenda -->
+                <div class="space-y-2">
+                  <div>
+                    <h3 class="section-title text-sm">Agenda da portaria</h3>
+                    <p class="text-xs text-ink-muted">
+                      Sem faixa no horário, atende o porteiro do prédio; sem porteiro conectado, a central assume.
+                      Faixa que cruza a meia-noite vira duas (até 24:00 e a partir de 00:00).
+                    </p>
+                  </div>
+                  @if (carregandoAgenda()) {
+                    <p class="text-sm text-ink-soft">Carregando agenda…</p>
+                  } @else {
+                    <ul class="space-y-2">
+                      @for (dia of dias; track $index; let d = $index) {
+                        <li class="rounded-xl border border-line bg-surface-raised p-3">
+                          <div class="flex flex-wrap items-center justify-between gap-2">
+                            <span class="text-sm font-medium text-ink">{{ dia }}</span>
+                            <span class="flex gap-2">
+                              <button type="button" class="btn-ghost btn-sm press" [attr.data-add-faixa]="d" (click)="adicionarFaixa(d)">
+                                + Faixa
+                              </button>
+                              <button
+                                type="button"
+                                class="btn-ghost btn-sm press"
+                                [attr.data-copiar-uteis]="d"
+                                [disabled]="agenda()[d].length === 0"
+                                (click)="copiarUteis(d)"
+                              >
+                                Copiar para dias úteis
+                              </button>
+                            </span>
+                          </div>
+                          @if (agenda()[d].length === 0) {
+                            <p class="mt-1 text-xs text-ink-muted">Sem faixas: porteiro do prédio.</p>
+                          }
+                          @for (f of agenda()[d]; track $index; let i = $index) {
+                            <div class="mt-2 flex flex-wrap items-center gap-2">
+                              <input
+                                type="text"
+                                class="input !w-24"
+                                maxlength="5"
+                                placeholder="HH:MM"
+                                aria-label="Início"
+                                [attr.data-faixa-inicio]="d + '-' + i"
+                                [value]="f.inicio"
+                                (input)="editarFaixa(d, i, 'inicio', $any($event.target).value)"
+                              />
+                              <span class="text-xs text-ink-muted">até</span>
+                              <input
+                                type="text"
+                                class="input !w-24"
+                                maxlength="5"
+                                placeholder="HH:MM"
+                                aria-label="Fim"
+                                [attr.data-faixa-fim]="d + '-' + i"
+                                [value]="f.fim"
+                                (input)="editarFaixa(d, i, 'fim', $any($event.target).value)"
+                              />
+                              <select
+                                class="input !w-auto"
+                                aria-label="Destino"
+                                [attr.data-faixa-destino]="d + '-' + i"
+                                [value]="f.destino"
+                                (change)="editarFaixa(d, i, 'destino', $any($event.target).value)"
+                              >
+                                <option value="central" [selected]="f.destino === 'central'">Central Prestare</option>
+                                <option value="local" [selected]="f.destino === 'local'">Porteiro do prédio</option>
+                              </select>
+                              <button
+                                type="button"
+                                class="btn-ghost btn-sm press"
+                                [attr.data-remover-faixa]="d + '-' + i"
+                                aria-label="Remover faixa"
+                                (click)="removerFaixa(d, i)"
+                              >
+                                Remover
+                              </button>
+                            </div>
+                          }
+                        </li>
+                      }
+                    </ul>
+                  }
+                  @if (erroAgenda()) {
+                    <p class="text-sm text-danger" role="alert" data-erro-agenda>{{ erroAgenda() }}</p>
+                  }
+                  <button
+                    type="button"
+                    class="btn-primary btn-sm press"
+                    data-salvar-agenda
+                    [disabled]="salvandoAgenda() || carregandoAgenda()"
+                    (click)="salvarAgenda(c)"
+                  >
+                    {{ salvandoAgenda() ? 'Salvando…' : 'Salvar agenda' }}
+                  </button>
+                </div>
+              </div>
+            }
           </li>
         }
       </ul>

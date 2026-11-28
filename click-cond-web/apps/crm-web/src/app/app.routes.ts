@@ -69,6 +69,11 @@ export const appRoutes: Route[] = [
             loadComponent: () => import('./crm/tabs/crm-interfone.component').then((m) => m.CrmInterfoneComponent),
           },
           {
+            path: 'central-operadores',
+            loadComponent: () =>
+              import('./crm/tabs/crm-central-operadores.component').then((m) => m.CrmCentralOperadoresComponent),
+          },
+          {
             path: 'configuracoes',
             loadComponent: () => import('./crm/tabs/crm-configuracoes.component').then((m) => m.CrmConfiguracoesComponent),
           },

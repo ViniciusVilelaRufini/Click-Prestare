@@ -63,6 +63,9 @@ describe('config do módulo', () => {
       toque_apto_s: 30,
       transferir: true,
       toque_portaria_s: 45,
+      central_contratada: false,
+      transferir_travado: false,
+      agenda: [],
     });
   });
 
@@ -79,7 +82,16 @@ describe('config do módulo', () => {
     const m = montar();
     await expect(
       m.svc.salvarConfig(1, { ativo: true, toque_apto_s: 40, transferir: false, toque_portaria_s: 60, contratado: true } as any, ATOR),
-    ).resolves.toEqual({ contratado: true, ativo: true, toque_apto_s: 40, transferir: false, toque_portaria_s: 60 });
+    ).resolves.toEqual({
+      contratado: true,
+      ativo: true,
+      toque_apto_s: 40,
+      transferir: false,
+      toque_portaria_s: 60,
+      central_contratada: false,
+      transferir_travado: false,
+      agenda: [],
+    });
     expect(m.tabelas['condominios'][0]).toMatchObject({ interfone_ativo: 1, interfone_transferir: 0, interfone_toque_apto_s: 40 });
     expect(m.auditoria.registrar).toHaveBeenCalledWith(expect.objectContaining({ acao: 'INTERFONE_CONFIG', modulo: 'interfone', id_condominio: 1 }));
     await expect(m.svc.salvarConfig(1, { toque_apto_s: 10 }, ATOR)).rejects.toMatchObject({ status: 400 });
@@ -490,7 +502,7 @@ describe('CRM: contratado', () => {
     const m = montar();
     const c = new CrmInterfoneController(m.svc);
     const lista = await c.clientes();
-    expect(lista).toEqual(expect.arrayContaining([{ id: 1, nome: 'Residencial Teste', contratado: true }]));
+    expect(lista).toEqual(expect.arrayContaining([expect.objectContaining({ id: 1, nome: 'Residencial Teste', contratado: true })]));
     await expect(c.contratado(1, false, { sub: 1, nome: 'Admin', role: 'crm_admin' } as any)).resolves.toEqual({ id: 1, contratado: false });
     expect(m.tabelas['condominios'][0].interfone_contratado).toBe(0);
     expect(m.auditoria.registrar).toHaveBeenCalledWith(
