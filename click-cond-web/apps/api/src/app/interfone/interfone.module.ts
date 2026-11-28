@@ -6,6 +6,7 @@ import { InterfoneConfigService } from './interfone-config.service';
 import { InterfoneSindicoController } from './interfone-sindico.controller';
 import { InterfoneFotoService } from './interfone-foto.service';
 import { InterfoneInternoController } from './interfone-interno.controller';
+import { InterfonePedidosService } from './interfone-pedidos.service';
 import { InterfonePortariaController } from './interfone-portaria.controller';
 import { InterfonePushService } from './interfone-push.service';
 import { InterfoneService } from './interfone.service';
@@ -23,9 +24,11 @@ import { VozControleClient } from './voz-controle.client';
     InterfoneConfigService,
     InterfonePushService,
     InterfoneFotoService,
+    InterfonePedidosService,
     VozControleClient,
   ],
   // InterfoneConfigService: o CRM liga o módulo (crm/crm-interfone.controller.ts).
-  exports: [InterfoneService, InterfoneAcoesService, InterfoneConfigService, InterfonePushService, VozControleClient],
+  // InterfonePedidosService: a central pede a autorização ao morador (central/central.service.ts).
+  exports: [InterfoneService, InterfoneAcoesService, InterfoneConfigService, InterfonePushService, InterfonePedidosService, VozControleClient],
 })
 export class InterfoneModule {}

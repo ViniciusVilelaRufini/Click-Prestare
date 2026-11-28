@@ -206,3 +206,98 @@ describe('InterfonePushService.fim e perdida', () => {
     await expect(svc.perdida(42, [1], '10:00')).resolves.toBeUndefined();
   });
 });
+
+describe('InterfonePushService.pedido e pedidoFim (pedido do portão)', () => {
+  const usuarios: U[] = [
+    { id: 1, fcm_token: 'f-ios', interfone_receber: 1 },
+    { id: 2, fcm_token: 'f-and1', interfone_receber: 1 },
+    { id: 3, fcm_token: 'f-and0', interfone_receber: 1 },
+    { id: 4, fcm_token: 'f-desligou', interfone_receber: 0 },
+  ];
+  const aparelhos: D[] = [
+    { id: 11, id_user: 1, fcm_token: 'f-ios', plataforma: 'iOS', voip_token: 'voip-1', interfone_versao: 1 },
+    { id: 12, id_user: 2, fcm_token: 'f-and1', plataforma: 'android', voip_token: null, interfone_versao: 1 },
+    { id: 13, id_user: 3, fcm_token: 'f-and0', plataforma: 'android', voip_token: null, interfone_versao: 0 },
+    { id: 14, id_user: 4, fcm_token: 'f-desligou', plataforma: 'android', voip_token: null, interfone_versao: 1 },
+  ];
+  const PEDIDO = {
+    id_chamada: 42,
+    unidade: 'Bloco A · Apto 106',
+    condominio: 'Residencial Teste',
+    portao: 'Portão social',
+    nome: 'Rodrigo',
+    motivo: null,
+    tipo: 'entrega',
+    foto_url: 'https://foto?assinada=1',
+  };
+  const CONTEUDO = {
+    type: 'interfone_pedido',
+    id: '77',
+    id_chamada: '42',
+    unidade: 'Bloco A · Apto 106',
+    condominio: 'Residencial Teste',
+    portao: 'Portão social',
+    nome: 'Rodrigo',
+    motivo: '',
+    tipo: 'entrega',
+    foto_url: 'https://foto?assinada=1',
+  };
+
+  it('Android novo → dados interfone_pedido (todas as chaves em texto); iPhone novo → alerta com os mesmos dados; nunca VoIP', async () => {
+    const { svc, notifications, apns } = montar(usuarios, aparelhos);
+    const r = await svc.pedido(77, [1, 2, 3, 4], PEDIDO);
+    expect(apns.enviar).not.toHaveBeenCalled();
+    expect(notifications.enviarDados).toHaveBeenCalledTimes(1);
+    expect(notifications.enviarDados).toHaveBeenCalledWith('f-and1', CONTEUDO);
+    for (const v of Object.values((notifications.enviarDados.mock.calls as any[])[0][1])) expect(typeof v).toBe('string');
+    expect(notifications.enviarParaAparelho).toHaveBeenCalledWith('f-ios', 'Entrega no portão', 'Rodrigo pede para entrar. Toque para responder.', CONTEUDO);
+    // App sem o interfone: push comum pedindo para atualizar.
+    expect(notifications.enviarParaAparelho).toHaveBeenCalledWith(
+      'f-and0',
+      'Entrega no portão',
+      'Atualize o app para responder pelo celular.',
+      { type: 'interfone_perdida', id: '42' },
+    );
+    // interfone_receber = 0 não recebe.
+    const tokens = [...(notifications.enviarDados.mock.calls as any[]), ...(notifications.enviarParaAparelho.mock.calls as any[])].map((c) => c[0]);
+    expect(tokens).not.toContain('f-desligou');
+    expect(r.ids).toEqual([1, 2]);
+  });
+
+  it('título pelo tipo e motivo no texto quando há', async () => {
+    const { svc, notifications } = montar(usuarios.slice(0, 1), aparelhos);
+    await svc.pedido(77, [1], { ...PEDIDO, tipo: 'visita', motivo: 'Aniversário' });
+    expect(notifications.enviarParaAparelho).toHaveBeenLastCalledWith(
+      'f-ios',
+      'Visita no portão',
+      'Rodrigo pede para entrar (Aniversário). Toque para responder.',
+      expect.objectContaining({ type: 'interfone_pedido', motivo: 'Aniversário', tipo: 'visita' }),
+    );
+    await svc.pedido(78, [1], { ...PEDIDO, tipo: 'servico' });
+    expect(notifications.enviarParaAparelho).toHaveBeenLastCalledWith('f-ios', 'Prestador no portão', expect.any(String), expect.anything());
+    await svc.pedido(79, [1], { ...PEDIDO, tipo: 'outro', foto_url: null });
+    expect(notifications.enviarParaAparelho).toHaveBeenLastCalledWith(
+      'f-ios',
+      'Pedido no portão',
+      expect.any(String),
+      expect.objectContaining({ foto_url: '' }),
+    );
+  });
+
+  it('pedidoFim: dados interfone_pedido_fim nos aparelhos com o interfone (Android e iPhone)', async () => {
+    const { svc, notifications, apns } = montar(usuarios, aparelhos);
+    await svc.pedidoFim(77, [1, 2, 3]);
+    expect(notifications.enviarDados).toHaveBeenCalledTimes(2);
+    expect(notifications.enviarDados).toHaveBeenCalledWith('f-ios', { type: 'interfone_pedido_fim', id: '77' });
+    expect(notifications.enviarDados).toHaveBeenCalledWith('f-and1', { type: 'interfone_pedido_fim', id: '77' });
+    expect(apns.enviar).not.toHaveBeenCalled();
+    expect(notifications.enviarParaAparelho).not.toHaveBeenCalled();
+  });
+
+  it('nunca lança (banco fora)', async () => {
+    const { svc, prisma } = montar(usuarios, aparelhos);
+    prisma.users.findMany.mockRejectedValue(new Error('banco fora'));
+    await expect(svc.pedido(77, [1], PEDIDO)).resolves.toEqual({ ids: [] });
+    await expect(svc.pedidoFim(77, [1])).resolves.toBeUndefined();
+  });
+});

@@ -5,6 +5,8 @@ import { UsuarioAppGuard, idUsuarioApp } from '../auth/usuario-app.guard';
 import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 import { InterfoneAcoesService } from './interfone-acoes.service';
 import type { QuemMorador } from './interfone-acoes.service';
+import { InterfonePedidosService } from './interfone-pedidos.service';
+import type { DecisaoPedido } from './interfone-pedidos.service';
 
 /** Id inteiro positivo do corpo, ou 400. */
 export function idDoCorpo(v: unknown, campo: string): number {
@@ -23,7 +25,10 @@ export function idDoCorpo(v: unknown, campo: string): number {
 @UseGuards(UsuarioAppGuard)
 @Controller('interfone')
 export class InterfoneAppController {
-  constructor(private readonly acoes: InterfoneAcoesService) {}
+  constructor(
+    private readonly acoes: InterfoneAcoesService,
+    private readonly pedidos: InterfonePedidosService,
+  ) {}
 
   private quem(user: JwtPayload | undefined): QuemMorador {
     const uid = idUsuarioApp(user);
@@ -66,6 +71,33 @@ export class InterfoneAppController {
   @HttpCode(200)
   ligarPortaria(@Body() body: { id_apartamento?: number }, @ReqUser() user: JwtPayload) {
     return this.acoes.ligarPortaria(this.quem(user), idDoCorpo(body?.id_apartamento, 'id_apartamento'));
+  }
+
+  /** Pedido do portão (tela de Autorizar/Negar). Vínculo com a unidade do pedido conferido no serviço. */
+  @Get('pedidos/:id')
+  pedido(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+    return this.pedidos.paraApp(id, this.quem(user).uid);
+  }
+
+  /**
+   * `{ decisao: 'autorizar' | 'negar', mensagem? }`. Autorizar abre o portão da chamada uma vez
+   * (auditado no serviço); 409 `pedido_respondido` / `pedido_expirado`; 403 sem vínculo.
+   */
+  @SkipAudit()
+  @Post('pedidos/:id/responder')
+  @HttpCode(200)
+  responderPedido(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { decisao?: DecisaoPedido; mensagem?: string } | undefined,
+    @ReqUser() user: JwtPayload,
+  ) {
+    const uid = this.quem(user).uid;
+    const decisao = body?.decisao;
+    if (decisao !== 'autorizar' && decisao !== 'negar') throw new BadRequestException('decisao deve ser autorizar ou negar.');
+    if (body?.mensagem !== undefined && body.mensagem !== null && typeof body.mensagem !== 'string') {
+      throw new BadRequestException('mensagem deve ser texto.');
+    }
+    return this.pedidos.responder(id, uid, decisao, body?.mensagem ?? undefined);
   }
 
   @Get('historico')

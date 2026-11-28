@@ -5,6 +5,7 @@ import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 import { idDoCorpo } from '../interfone/interfone-app.controller';
 import type { MotivoAberturaPedido } from '../interfone/interfone-acoes.service';
 import { CentralService } from './central.service';
+import type { PedidoDaCentral } from './central.service';
 import { operadorDoToken } from './operador.util';
 
 /**
@@ -58,6 +59,15 @@ export class CentralController {
   @Get('chamadas/:id/contexto')
   async contexto(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
     return this.central.contexto(operadorDoToken(user), id);
+  }
+
+  /** Pede a autorização ao morador (`{ nome, motivo?, tipo, id_apartamento? }`) → PedidoResumo. */
+  @SkipAudit()
+  @Post('chamadas/:id/pedido')
+  @HttpCode(200)
+  async pedido(@Param('id', ParseIntPipe) id: number, @Body() body: PedidoDaCentral | undefined, @ReqUser() user: JwtPayload) {
+    const op = operadorDoToken(user);
+    return this.central.pedido(op, id, body);
   }
 
   @SkipAudit()

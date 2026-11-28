@@ -21,6 +21,26 @@ export interface DadosToque {
   condominio: string;
 }
 
+/** O que o push `interfone_pedido` leva (o app mostra sem consultar a API). */
+export interface DadosPedidoPush {
+  id_chamada: number;
+  unidade: string;
+  condominio: string;
+  portao: string;
+  nome: string;
+  motivo: string | null;
+  tipo: string;
+  /** Link assinado da foto do visitante; null sem foto. */
+  foto_url: string | null;
+}
+
+const TITULO_PEDIDO: Record<string, string> = {
+  visita: 'Visita no portão',
+  entrega: 'Entrega no portão',
+  servico: 'Prestador no portão',
+  outro: 'Pedido no portão',
+};
+
 interface Aparelho {
   id_user: number;
   fcm_token: string;
@@ -169,6 +189,75 @@ export class InterfonePushService {
       );
     } catch (e: any) {
       this.logger.warn(`Interfone: fim da chamada ${idChamada} falhou: ${e?.message ?? e}`);
+    }
+  }
+
+  /**
+   * Pedido do portão aos moradores da unidade (exceto quem desligou o interfone). Android com o
+   * interfone → dados `interfone_pedido` (o app abre a tela de Autorizar/Negar); iPhone com o
+   * interfone → alerta com os mesmos dados (o toque abre a tela). Nunca VoIP: não é ligação. App sem
+   * o interfone → push comum pedindo para atualizar. `ids` = usuários em que o pedido saiu.
+   */
+  async pedido(idPedido: number, idsUsuarios: number[], dados: DadosPedidoPush): Promise<{ ids: number[] }> {
+    const saiu = new Set<number>();
+    try {
+      const alvos = await this.aparelhos(idsUsuarios, true);
+      const conteudo: Record<string, string> = {
+        type: 'interfone_pedido',
+        id: String(idPedido),
+        id_chamada: String(dados.id_chamada),
+        unidade: dados.unidade ?? '',
+        condominio: dados.condominio ?? '',
+        portao: dados.portao ?? '',
+        nome: dados.nome ?? '',
+        motivo: dados.motivo ?? '',
+        tipo: dados.tipo ?? '',
+        foto_url: dados.foto_url ?? '',
+      };
+      const titulo = TITULO_PEDIDO[dados.tipo] ?? TITULO_PEDIDO['outro'];
+      const texto = `${dados.nome} pede para entrar${dados.motivo ? ` (${dados.motivo})` : ''}. Toque para responder.`;
+      await Promise.all(
+        alvos.map(async (a) => {
+          try {
+            const plataforma = (a.plataforma ?? '').toLowerCase();
+            const novo = (a.interfone_versao ?? 0) >= INTERFONE_VERSAO_APP;
+            if (novo && plataforma === 'android') {
+              if ((await this.notifications.enviarDados(a.fcm_token, conteudo)) === 'ok') saiu.add(a.id_user);
+            } else if (novo && plataforma === 'ios') {
+              if (await this.notifications.enviarParaAparelho(a.fcm_token, titulo, texto, conteudo)) saiu.add(a.id_user);
+            } else {
+              await this.notifications.enviarParaAparelho(a.fcm_token, titulo, 'Atualize o app para responder pelo celular.', {
+                type: 'interfone_perdida',
+                id: String(dados.id_chamada),
+              });
+            }
+          } catch (e: any) {
+            this.logger.warn(`Interfone: pedido ${idPedido} no aparelho do usuário ${a.id_user} falhou: ${e?.message ?? e}`);
+          }
+        }),
+      );
+    } catch (e: any) {
+      this.logger.warn(`Interfone: push do pedido ${idPedido} falhou: ${e?.message ?? e}`);
+    }
+    return { ids: [...saiu].sort((x, y) => x - y) };
+  }
+
+  /**
+   * Fecha a tela do pedido nos outros celulares (alguém respondeu ou o pedido expirou): dados
+   * `interfone_pedido_fim` nos aparelhos com o interfone, Android e iPhone (no iPhone chega com o app
+   * aberto; fechado, a tela consulta o estado ao abrir).
+   */
+  async pedidoFim(idPedido: number, idsUsuarios: number[]): Promise<void> {
+    try {
+      const alvos = await this.aparelhos(idsUsuarios, false);
+      const dados = { type: 'interfone_pedido_fim', id: String(idPedido) };
+      await Promise.all(
+        alvos
+          .filter((a) => ['android', 'ios'].includes((a.plataforma ?? '').toLowerCase()) && (a.interfone_versao ?? 0) >= INTERFONE_VERSAO_APP)
+          .map((a) => this.notifications.enviarDados(a.fcm_token, dados).catch(() => undefined)),
+      );
+    } catch (e: any) {
+      this.logger.warn(`Interfone: fim do pedido ${idPedido} falhou: ${e?.message ?? e}`);
     }
   }
 

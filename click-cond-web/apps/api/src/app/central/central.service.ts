@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
 import { intervaloHojeBrasilia } from '../common/hora-brasilia.util';
@@ -13,6 +13,9 @@ import {
 } from '../interfone/interfone.service';
 import { InterfoneAcoesService } from '../interfone/interfone-acoes.service';
 import type { MotivoAberturaPedido, QuemCentral } from '../interfone/interfone-acoes.service';
+import { idDoCorpo } from '../interfone/interfone-app.controller';
+import { InterfonePedidosService } from '../interfone/interfone-pedidos.service';
+import type { PedidoResumo, TipoPedido } from '../interfone/interfone-pedidos.service';
 import type { DadosEntrada } from '../interfone/token-voz';
 
 /** Operador logado (de `operadorDoToken`). */
@@ -46,6 +49,17 @@ export interface ContextoChamada {
   moradores: string[];
   esperados_hoje: EsperadoHoje[];
   instrucao_entregas: string | null;
+  /** Último pedido de autorização ao morador nesta chamada (só o primeiro nome de quem respondeu). */
+  pedido: PedidoResumo | null;
+}
+
+/** Corpo de `POST central/chamadas/:id/pedido`. */
+export interface PedidoDaCentral {
+  nome?: string;
+  motivo?: string;
+  tipo?: TipoPedido;
+  /** Obrigatório em `facial_portaria` (o visitante discou a portaria e disse a unidade). */
+  id_apartamento?: number;
 }
 
 export interface ItemHistoricoCentral {
@@ -110,6 +124,7 @@ export class CentralService {
     private readonly prisma: PrismaService,
     private readonly nucleo: InterfoneService,
     private readonly acoes: InterfoneAcoesService,
+    private readonly pedidos: InterfonePedidosService,
     @Optional() private readonly storage?: StorageService,
   ) {}
 
@@ -241,7 +256,39 @@ export class CentralService {
       moradores,
       esperados_hoje: esperados,
       instrucao_entregas: cond?.instrucao_entregas?.trim() || null,
+      pedido: await this.pedidos.ultimoDaChamada(c.id),
     };
+  }
+
+  // ─────────────────────────────────────────── pedido ao morador
+
+  /**
+   * O operador pede a autorização ao morador (`origem: 'central'`): só na chamada encaminhada para a
+   * central que ele atendeu (ou na ligação que ele fez para a unidade) e que ainda não acabou.
+   * `facial_portaria`: o operador escolhe a unidade (do mesmo condomínio); nas outras vale a da chamada.
+   */
+  async pedido(op: OperadorCentral, id: number, body: PedidoDaCentral | null | undefined): Promise<PedidoResumo> {
+    const c = await this.nucleo.carregar(id);
+    if (!c) throw new NotFoundException('Chamada não encontrada.');
+    this.acoes.assertChamadaDaCentral(c, op.uid);
+    await this.acoes.assertModulo(c.id_condominio);
+    const comigo =
+      c.estado !== 'encerrada' &&
+      ((c.estado === 'atendida' && c.atendida_por_tipo === 'central' && c.atendida_por_id === op.uid) ||
+        (c.tipo === 'portaria_unidade' && c.id_operador_central === op.uid));
+    if (!comigo) throw new ForbiddenException('Esta chamada não está com você.');
+    const b = body ?? {};
+    const idApartamento =
+      b.id_apartamento !== undefined && b.id_apartamento !== null ? idDoCorpo(b.id_apartamento, 'id_apartamento') : c.id_apartamento;
+    if (!idApartamento) throw new BadRequestException('Escolha a unidade do pedido.');
+    return this.pedidos.criar({
+      idChamada: c.id,
+      idApartamento,
+      nome: b.nome as string,
+      motivo: b.motivo,
+      tipo: b.tipo as TipoPedido,
+      origem: 'central',
+    });
   }
 
   private async primeirosNomes(idApartamento: number): Promise<string[]> {

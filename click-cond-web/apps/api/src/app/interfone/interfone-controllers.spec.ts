@@ -38,6 +38,23 @@ describe('controllers do interfone (app e portaria)', () => {
     expect(a.hoje).toHaveBeenCalledWith(1);
   });
 
+  it('app: pedido do portão — GET e responder repassam o morador do token; decisão inválida → 400', async () => {
+    const p = { paraApp: jest.fn(async () => ({ id: 5 })), responder: jest.fn(async () => ({ id: 5 })) };
+    const c = new InterfoneAppController(acoesFalsas() as any, p as any);
+    await c.pedido(5, MORADOR);
+    expect(p.paraApp).toHaveBeenCalledWith(5, 7);
+    await c.responderPedido(5, { decisao: 'negar', mensagem: 'Já desço' }, MORADOR);
+    expect(p.responder).toHaveBeenCalledWith(5, 7, 'negar', 'Já desço');
+    await c.responderPedido(5, { decisao: 'autorizar' }, MORADOR);
+    expect(p.responder).toHaveBeenLastCalledWith(5, 7, 'autorizar', undefined);
+    expect(() => c.responderPedido(5, { decisao: 'abrir' as any }, MORADOR)).toThrow(/decisao/);
+    expect(() => c.responderPedido(5, undefined as any, MORADOR)).toThrow(/decisao/);
+    expect(() => c.responderPedido(5, { decisao: 'negar', mensagem: 12 as any }, MORADOR)).toThrow(/mensagem/);
+    expect(() => c.responderPedido(5, { decisao: 'autorizar' }, PORTEIRO)).toThrow(/aplicativo/);
+    expect(() => c.pedido(5, PORTEIRO)).toThrow(/aplicativo/);
+    expect(p.responder).toHaveBeenCalledTimes(2);
+  });
+
   it('portaria: dia repassa o condomínio do token e a data', async () => {
     const a = acoesFalsas();
     const c = new InterfonePortariaController(a as any);

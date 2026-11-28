@@ -12,6 +12,7 @@ import { InterfoneModule } from './interfone.module';
 import { InterfoneAcoesService } from './interfone-acoes.service';
 import { InterfoneService } from './interfone.service';
 import { InterfoneFotoService } from './interfone-foto.service';
+import { InterfonePedidosService } from './interfone-pedidos.service';
 @Global()
 @Module({ providers: [
   { provide: PrismaService, useValue: {} }, { provide: NotificationsService, useValue: {} }, { provide: AuditoriaService, useValue: { registrar: async () => 1 } },
@@ -27,4 +28,8 @@ it('o InterfoneModule resolve as dependências (FacialModule trocado por falso)'
   expect(s.auditoria).toBeDefined();
   // A foto do visitante vem ligada no núcleo.
   expect(m.get(InterfoneService).foto).toBeInstanceOf(InterfoneFotoService);
+  // Pedido do portão: resolvido com as ações (abrir) e o push.
+  const pedidos: any = m.get(InterfonePedidosService);
+  expect(pedidos.acoes).toBe(s);
+  expect(pedidos.push).toBeDefined();
 });

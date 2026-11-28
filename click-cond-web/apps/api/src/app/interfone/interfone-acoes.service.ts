@@ -69,6 +69,16 @@ const TIPOS_NA_PORTARIA: readonly string[] = ['facial_unidade', 'facial_portaria
 /** Tipos de chamada com portão (o facial da chamada) para abrir. */
 const TIPOS_COM_PORTAO: readonly string[] = ['facial_unidade', 'facial_portaria'];
 
+/**
+ * Pedido do portão: autorizar só abre com a chamada ativa ou encerrada há até 5 min (conta do
+ * `encerrada_em`). Chamada encerrada sem horário de fim gravado: fora da janela (falha fechado).
+ */
+export const PEDIDO_JANELA_MS = 5 * 60_000;
+export function chamadaNaJanelaDoPedido(c: { estado: string; encerrada_em: Date | null }, agoraMs: number): boolean {
+  if (c.estado !== 'encerrada') return true;
+  return !!c.encerrada_em && agoraMs - c.encerrada_em.getTime() <= PEDIDO_JANELA_MS;
+}
+
 const AUTOR_TIPO: Record<Quem['papel'], AuditoriaAutorTipo> = {
   morador: 'user',
   portaria: 'funcionario_portaria',
@@ -259,7 +269,7 @@ export class InterfoneAcoesService {
     if (c.atendida_por_tipo !== quem.papel || c.atendida_por_id !== quem.uid) {
       return { ok: false, motivo: 'atendida_por_outro' };
     }
-    if (!TIPOS_COM_PORTAO.includes(c.tipo) || !c.id_facial || !c.facial) return { ok: false, motivo: 'sem_portao' };
+    if (!temPortao(c)) return { ok: false, motivo: 'sem_portao' };
     if (!this.facial) return { ok: false, motivo: 'indisponivel' };
     const agoraMs = this.agora();
     // Chamada que ficou "atendida" porque o serviço perdeu o encerrada não abre.
@@ -272,6 +282,59 @@ export class InterfoneAcoesService {
     }
 
     const unidade = unidadeDaChamada(c);
+    const aberto = await this.abrirPortaoDaChamada(c, unidade, quem, {
+      descricao: `Portão "${c.facial.nome}" aberto pelo interfone${quem.papel === 'central' ? ' pela central' : ''} (${unidade || 'sem unidade'})`,
+      detalhes: motivoCentral ? { motivo: motivoCentral } : {},
+    });
+    return aberto ? { ok: true } : { ok: false, motivo: 'falha_ao_abrir' };
+  }
+
+  /**
+   * Pedido do portão: o morador autorizou pelo app. Mesmo caminho físico do `abrir` (agente → relé,
+   * DTMF de reserva), sem exigir que o morador tenha atendido a chamada, só no portão do facial da
+   * chamada e só na janela do pedido (chamada ativa ou encerrada há até 5 min). Não passa pelo
+   * limite de aberturas de quem atendeu: quem garante "uma vez" é o InterfonePedidosService (troca
+   * condicional pendente → autorizado antes de chamar aqui), que também confere o vínculo do morador
+   * com a unidade do pedido. Nenhuma rota chama isto direto.
+   */
+  async abrirPorPedido(
+    idChamada: number,
+    morador: { uid: number; nome: string },
+    extra: { idPedido?: number; unidade?: string } = {},
+  ): Promise<{ ok: boolean; motivo?: string }> {
+    const c = await this.nucleo.carregar(idChamada);
+    if (!c) return { ok: false, motivo: 'chamada_nao_encontrada' };
+    try {
+      await this.assertModulo(c.id_condominio);
+    } catch {
+      return { ok: false, motivo: 'modulo_desligado' };
+    }
+    if (!chamadaNaJanelaDoPedido(c, this.agora())) return { ok: false, motivo: 'chamada_expirada' };
+    if (!temPortao(c)) return { ok: false, motivo: 'sem_portao' };
+    if (!this.facial) return { ok: false, motivo: 'indisponivel' };
+    // facial_portaria não tem unidade na chamada: vale a que a central escolheu no pedido.
+    const unidade = extra.unidade || unidadeDaChamada(c);
+    const nome = (morador.nome || '').trim() || 'Morador';
+    const aberto = await this.abrirPortaoDaChamada(c, unidade, { papel: 'morador', uid: morador.uid, nome }, {
+      descricao: `Portão "${c.facial.nome}" aberto por autorização do morador ${nome} (pedido do interfone) — ${unidade || 'sem unidade'}`,
+      detalhes: { pedido: true, ...(extra.idPedido ? { id_pedido: extra.idPedido } : {}) },
+    });
+    return aberto ? { ok: true } : { ok: false, motivo: 'falha_ao_abrir' };
+  }
+
+  /**
+   * Parte física de abrir o portão do facial da chamada, comum ao `abrir` e ao `abrirPorPedido`:
+   * agente local (relé) e, se falhar e o facial tiver DTMF, o DTMF pela ligação; grava a abertura
+   * na chamada (`porta_aberta_*`) e a auditoria INTERFONE_ABRIR. Quem chama já conferiu quem pode,
+   * o portão e a janela. False se nada abriu (nada é gravado).
+   */
+  private async abrirPortaoDaChamada(
+    c: ChamadaComPortao,
+    unidade: string,
+    autor: { papel: Quem['papel']; uid: number; nome: string },
+    registro: { descricao: string; detalhes: Record<string, unknown> },
+  ): Promise<boolean> {
+    if (!this.facial) return false;
     // facial_portaria não tem unidade: o visitante discou a portaria.
     const ctx = { origem: 'interfone' as const, tipoPessoa: 'visitante', nomePessoa: `Interfone ${unidade || 'portaria'}`.trim() };
     let como: 'agente' | 'dtmf' | null = null;
@@ -282,25 +345,25 @@ export class InterfoneAcoesService {
       // O histórico de acessos já tem a falha do agente; registra a abertura que deu certo.
       await this.facial.registrarAberturaExterna(c.id_facial, { ...ctx, nota: 'DTMF' });
     }
-    if (!como) return { ok: false, motivo: 'falha_ao_abrir' };
+    if (!como) return false;
 
     const agora = new Date(this.agora());
     await this.prisma.interfone_Chamadas.update({
       where: { id: c.id },
-      data: { porta_aberta_em: agora, porta_aberta_por_nome: (quem.nome || '').slice(0, 120) || null, porta_aberta_como: como },
+      data: { porta_aberta_em: agora, porta_aberta_por_nome: (autor.nome || '').slice(0, 120) || null, porta_aberta_como: como },
     });
     await this.auditoria?.registrar({
       id_condominio: c.id_condominio,
-      usuario_nome: quem.nome || ROTULO_AUTOR[quem.papel],
-      autor_id: quem.uid,
-      autor_tipo: AUTOR_TIPO[quem.papel],
+      usuario_nome: autor.nome || ROTULO_AUTOR[autor.papel],
+      autor_id: autor.uid,
+      autor_tipo: AUTOR_TIPO[autor.papel],
       acao: 'INTERFONE_ABRIR',
       modulo: 'interfone',
       entidade_id: c.id,
-      descricao: `Portão "${c.facial.nome}" aberto pelo interfone${quem.papel === 'central' ? ' pela central' : ''} (${unidade || 'sem unidade'})`,
-      detalhes: { como, papel: quem.papel, id_facial: c.id_facial, ...(motivoCentral ? { motivo: motivoCentral } : {}) },
+      descricao: registro.descricao,
+      detalhes: { como, papel: autor.papel, id_facial: c.id_facial, ...registro.detalhes },
     });
-    return { ok: true };
+    return true;
   }
 
   /**
@@ -647,7 +710,7 @@ export class InterfoneAcoesService {
   }
 
   /** Vínculo = existir a linha em Apartamentos_Users; o vencimento não conta (todo vínculo do app nasce com +45 dias). */
-  private async assertVinculo(idUser: number, idApartamento: number | null | undefined): Promise<{ id: number; created_at: Date | null; updated_at: Date | null }> {
+  async assertVinculo(idUser: number, idApartamento: number | null | undefined): Promise<{ id: number; created_at: Date | null; updated_at: Date | null }> {
     if (!idApartamento || !Number.isInteger(idUser) || idUser <= 0) throw new ForbiddenException('Acesso negado à unidade.');
     const v = await this.prisma.apartamentos_Users.findFirst({
       where: {
@@ -700,6 +763,13 @@ export class InterfoneAcoesService {
       return [];
     }
   }
+}
+
+type ChamadaCarregada = NonNullable<Awaited<ReturnType<InterfoneService['carregar']>>>;
+/** Chamada de facial (facial_unidade, facial_portaria) com o facial ainda cadastrado: tem portão para abrir. */
+type ChamadaComPortao = ChamadaCarregada & { id_facial: number; facial: NonNullable<ChamadaCarregada['facial']> };
+function temPortao(c: ChamadaCarregada): c is ChamadaComPortao {
+  return TIPOS_COM_PORTAO.includes(c.tipo) && !!c.id_facial && !!c.facial;
 }
 
 /** O que as conferências de acesso leem da chamada. */

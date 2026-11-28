@@ -38,6 +38,11 @@ const RELACOES: Record<string, Record<string, Rel>> = {
   guarita_Alertas: {
     condominio: { modelo: 'condominios', local: 'id_condominio', remoto: 'id', muitos: false },
   },
+  interfone_Pedidos: {
+    chamada: { modelo: 'interfone_Chamadas', local: 'id_chamada', remoto: 'id', muitos: false },
+    condominio: { modelo: 'condominios', local: 'id_condominio', remoto: 'id', muitos: false },
+    apartamento: { modelo: 'apartamentos', local: 'id_apartamento', remoto: 'id', muitos: false },
+  },
 };
 
 const PADROES: Record<string, Row> = {
@@ -66,6 +71,15 @@ const PADROES: Record<string, Row> = {
   },
   interfone_Monitores: { ativo: 1 },
   guarita_Alertas: { visto_em: null, visto_por: null, dados: null },
+  interfone_Pedidos: {
+    motivo: null,
+    foto: null,
+    estado: 'pendente',
+    mensagem: null,
+    respondido_por_id: null,
+    respondido_por_nome: null,
+    respondido_em: null,
+  },
 };
 
 const MODELOS = [
@@ -87,6 +101,8 @@ const MODELOS = [
   'visitantes',
   'deliveryAtendimentos',
   'guarita_Alertas',
+  // Pedido do portão (morador autoriza pelo app).
+  'interfone_Pedidos',
 ];
 
 const ehOperador = (v: any) =>

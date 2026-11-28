@@ -1,6 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { InterfoneService } from '../interfone/interfone.service';
 import { InterfoneAcoesService, MOTIVOS_ABERTURA } from '../interfone/interfone-acoes.service';
+import { InterfonePedidosService } from '../interfone/interfone-pedidos.service';
 import { verificarTokenVoz } from '../interfone/token-voz';
 import { criarBancoFalso } from '../interfone/banco-falso.spec';
 import { CentralController } from './central.controller';
@@ -105,6 +106,8 @@ function montar(opts: { porteiroOnline?: boolean } = {}) {
     fim: jest.fn(async () => undefined),
     perdida: jest.fn(async () => undefined),
     podemTocar: jest.fn(async (ids: number[]) => ids.filter((i) => i === 7 || i === 8)),
+    pedido: jest.fn(async (_id: number, ids: number[]) => ({ ids })),
+    pedidoFim: jest.fn(async () => undefined),
   };
   const voz = { portaria: jest.fn(async () => true), dtmf: jest.fn(async () => true), encerrar: jest.fn(async () => true) };
   const realtime = {
@@ -124,10 +127,12 @@ function montar(opts: { porteiroOnline?: boolean } = {}) {
   nucleo.dormir = async () => undefined;
   const acoes = new InterfoneAcoesService(banco.prisma, nucleo, push as any, voz as any, facial as any, auditoria as any, storage as any);
   acoes.agora = () => AGORA;
-  const central = new CentralService(banco.prisma, nucleo, acoes, storage as any);
+  const pedidos = new InterfonePedidosService(banco.prisma, nucleo, acoes, push as any, realtime as any, storage as any);
+  pedidos.agora = () => AGORA;
+  const central = new CentralService(banco.prisma, nucleo, acoes, pedidos, storage as any);
   central.agora = () => AGORA;
   const ctrl = new CentralController(central);
-  return { ...banco, push, voz, realtime, facial, storage, auditoria, nucleo, acoes, central, ctrl };
+  return { ...banco, push, voz, realtime, facial, storage, auditoria, nucleo, acoes, pedidos, central, ctrl };
 }
 
 type M = ReturnType<typeof montar>;
@@ -222,6 +227,7 @@ describe('central — acesso (Review Focus 3)', () => {
         () => m.ctrl.historico('2026-11-27', t),
         () => m.ctrl.alertas('1', t),
         () => m.ctrl.alertaVisto(1, t),
+        () => m.ctrl.pedido(1, { nome: 'Rodrigo', tipo: 'visita' }, t),
       ];
       for (const f of chamadas) await expect((async () => f())()).rejects.toBeInstanceOf(ForbiddenException);
     }
@@ -519,6 +525,7 @@ describe('central — contexto (LGPD)', () => {
         { nome: 'Diarista Sexta', horario: null, tipo: 'convite' },
       ],
       instrucao_entregas: 'Deixe no armário 3.',
+      pedido: null,
     });
   });
 
@@ -528,7 +535,7 @@ describe('central — contexto (LGPD)', () => {
     const ctx = await m.ctrl.contexto(id, TOKEN_OPERADORA);
     const todas = [...chaves(ctx)];
     expect(todas.sort()).toEqual(
-      ['condominio', 'portao', 'unidade', 'moradores', 'esperados_hoje', 'instrucao_entregas', 'nome', 'horario', 'tipo'].sort(),
+      ['condominio', 'portao', 'unidade', 'moradores', 'esperados_hoje', 'instrucao_entregas', 'pedido', 'nome', 'horario', 'tipo'].sort(),
     );
     for (const k of todas) expect(k).not.toMatch(/telefone|email|e-mail|documento|doc|cpf/i);
     const texto = JSON.stringify(ctx);
@@ -547,6 +554,7 @@ describe('central — contexto (LGPD)', () => {
       moradores: [],
       esperados_hoje: [],
       instrucao_entregas: 'Deixe no armário 3.',
+      pedido: null,
     });
   });
 
@@ -734,5 +742,99 @@ describe('central — histórico só de condomínios ativos com central', () => 
     const id = await naPortaria(m, { cond: 3, apto: null, facial: null, created_at: HOJE_UTC(15) });
     await m.nucleo.evento(id, { evento: 'atendida', papel: 'central', uid: 5 });
     await expect(m.ctrl.historico('2026-11-27', TOKEN_OPERADORA)).resolves.toEqual([]);
+  });
+});
+
+describe('central — pedido de autorização ao morador', () => {
+  async function atendidaPelaOperadora(m: M, o: Parameters<typeof naPortaria>[1] = {}) {
+    const id = await naPortaria(m, { foto: 'interfone/fotos/9.jpg', ...o });
+    await m.nucleo.evento(id, { evento: 'atendida', papel: 'central', uid: 5 });
+    return id;
+  }
+
+  it('operador que atendeu pede ao morador: PedidoResumo, push aos moradores da unidade e origem central', async () => {
+    const m = montar();
+    const id = await atendidaPelaOperadora(m);
+    const r = await m.ctrl.pedido(id, { nome: 'Rodrigo', motivo: 'Visita', tipo: 'visita' }, TOKEN_OPERADORA);
+    await m.nucleo.ociosos();
+    expect(r).toEqual({
+      id: expect.any(Number),
+      estado: 'pendente',
+      nome_falado: 'Rodrigo',
+      motivo: 'Visita',
+      tipo: 'visita',
+      mensagem: null,
+      respondido_por_nome: null,
+      respondido_em: null,
+      portao_aberto: false,
+    });
+    expect(m.tabelas['interfone_Pedidos'][0]).toMatchObject({ id_chamada: id, id_apartamento: 100, origem: 'central', foto: 'interfone/fotos/9.jpg' });
+    expect(m.push.pedido).toHaveBeenCalledWith(r.id, [7, 8], expect.objectContaining({ id_chamada: id, condominio: 'Residencial Central' }));
+    expect(m.realtime.emitirCentral).toHaveBeenCalledWith('interfone:pedido', expect.objectContaining({ id: r.id, id_chamada: id, id_condominio: 1 }));
+  });
+
+  it('facial_portaria: o operador escolhe a unidade (obrigatória, do mesmo condomínio)', async () => {
+    const m = montar();
+    const id = await atendidaPelaOperadora(m, { tipo: 'facial_portaria', apto: null });
+    await expect(m.ctrl.pedido(id, { nome: 'Rodrigo', tipo: 'entrega' }, TOKEN_OPERADORA)).rejects.toMatchObject({ status: 400 });
+    await expect(m.ctrl.pedido(id, { nome: 'Rodrigo', tipo: 'entrega', id_apartamento: 900 }, TOKEN_OPERADORA)).rejects.toMatchObject({ status: 403 });
+    await expect(m.ctrl.pedido(id, { nome: 'Rodrigo', tipo: 'entrega', id_apartamento: 'x' as any }, TOKEN_OPERADORA)).rejects.toMatchObject({ status: 400 });
+    const r = await m.ctrl.pedido(id, { nome: 'Rodrigo', tipo: 'entrega', id_apartamento: 200 }, TOKEN_OPERADORA);
+    await m.nucleo.ociosos();
+    expect(m.tabelas['interfone_Pedidos'].find((p: any) => p.id === r.id).id_apartamento).toBe(200);
+    expect(m.push.pedido).toHaveBeenCalledWith(r.id, [9], expect.anything());
+  });
+
+  it('chamada só na fila (não atendida), atendida por outra pessoa, encerrada, sem central ou de outro destino → 403 sem criar pedido', async () => {
+    const m = montar();
+    const naFila = await naPortaria(m);
+    await expect(m.ctrl.pedido(naFila, { nome: 'R', tipo: 'visita' }, TOKEN_OPERADORA)).rejects.toMatchObject({ status: 403 });
+    const doPorteiro = await naPortaria(m);
+    await m.nucleo.evento(doPorteiro, { evento: 'atendida', papel: 'portaria', uid: 3 });
+    await expect(m.ctrl.pedido(doPorteiro, { nome: 'R', tipo: 'visita' }, TOKEN_OPERADORA)).rejects.toMatchObject({ status: 403 });
+    const outroOperador = await naPortaria(m);
+    await m.nucleo.evento(outroOperador, { evento: 'atendida', papel: 'central', uid: 6 });
+    await expect(m.ctrl.pedido(outroOperador, { nome: 'R', tipo: 'visita' }, TOKEN_OPERADORA)).rejects.toMatchObject({ status: 403 });
+    const fora = await naPortaria(m, { cond: 2 });
+    await expect(m.ctrl.pedido(fora, { nome: 'R', tipo: 'visita' }, TOKEN_OPERADORA)).rejects.toMatchObject({ status: 403 });
+    const local = await naPortaria(m, { destino: 'local' });
+    await expect(m.ctrl.pedido(local, { nome: 'R', tipo: 'visita' }, TOKEN_OPERADORA)).rejects.toMatchObject({ status: 403 });
+    const dela = await atendidaPelaOperadora(m);
+    linha(m, dela).estado = 'encerrada';
+    linha(m, dela).encerrada_em = new Date(AGORA);
+    await expect(m.ctrl.pedido(dela, { nome: 'R', tipo: 'visita' }, TOKEN_OPERADORA)).rejects.toMatchObject({ status: 403 });
+    await expect(m.ctrl.pedido(999, { nome: 'R', tipo: 'visita' }, TOKEN_OPERADORA)).rejects.toMatchObject({ status: 404 });
+    expect(m.tabelas['interfone_Pedidos']).toHaveLength(0);
+    expect(m.push.pedido).not.toHaveBeenCalled();
+  });
+
+  it('corpo inválido → 400 (nome vazio, tipo desconhecido, sem corpo)', async () => {
+    const m = montar();
+    const id = await atendidaPelaOperadora(m);
+    await expect(m.ctrl.pedido(id, { nome: '', tipo: 'visita' }, TOKEN_OPERADORA)).rejects.toMatchObject({ status: 400 });
+    await expect(m.ctrl.pedido(id, { nome: 'R', tipo: 'festa' as any }, TOKEN_OPERADORA)).rejects.toMatchObject({ status: 400 });
+    await expect(m.ctrl.pedido(id, undefined, TOKEN_OPERADORA)).rejects.toMatchObject({ status: 400 });
+    expect(m.tabelas['interfone_Pedidos']).toHaveLength(0);
+  });
+
+  it('ligação que o operador fez para a unidade (sem portão): pode pedir; autorizar não abre nada', async () => {
+    const m = montar();
+    const { id } = await m.ctrl.ligar({ id_apartamento: 100 }, TOKEN_OPERADORA);
+    await m.nucleo.ociosos();
+    const r = await m.ctrl.pedido(id, { nome: 'Rodrigo', tipo: 'servico' }, TOKEN_OPERADORA);
+    await expect(m.pedidos.responder(r.id, 7, 'autorizar')).resolves.toMatchObject({ estado: 'autorizado', portao_aberto: false });
+    expect(m.facial.abrirDispositivoInterno).not.toHaveBeenCalled();
+  });
+
+  it('contexto traz o último pedido da chamada, com o primeiro nome de quem respondeu e a mensagem', async () => {
+    const m = montar();
+    const id = await atendidaPelaOperadora(m);
+    await expect(m.ctrl.contexto(id, TOKEN_OPERADORA)).resolves.toMatchObject({ pedido: null });
+    const r = await m.ctrl.pedido(id, { nome: 'Rodrigo', tipo: 'entrega' }, TOKEN_OPERADORA);
+    await expect(m.ctrl.contexto(id, TOKEN_OPERADORA)).resolves.toMatchObject({ pedido: { id: r.id, estado: 'pendente' } });
+    await m.pedidos.responder(r.id, 7, 'negar', 'Deixe na portaria');
+    const ctx = await m.ctrl.contexto(id, TOKEN_OPERADORA);
+    expect(ctx.pedido).toMatchObject({ id: r.id, estado: 'negado', mensagem: 'Deixe na portaria', respondido_por_nome: 'Ana', portao_aberto: false });
+    expect(JSON.stringify(ctx)).not.toContain('Souza');
   });
 });
