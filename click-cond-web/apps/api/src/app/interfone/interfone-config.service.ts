@@ -9,6 +9,12 @@ import { facialAtendeBloco, ramalValido, sugerirRamais } from './regras';
 import { TOQUE_APTO_S, TOQUE_PORTARIA_S } from './interfone.service';
 import { VOZ_HOST } from './token-voz';
 
+/**
+ * Facial pelo tipo: cadastros antigos têm `tipo` vazio e contam como facial,
+ * como no resto do código (facial.service). A coluna é NOT NULL, então não há null.
+ */
+const TIPO_FACIAL = { OR: [{ tipo: 'facial' }, { tipo: '' }] };
+
 /** Porta SIP do facial e do monitor (UDP/TCP). */
 export const VOZ_SIP_PORTA = 5060;
 const ALFABETO_SENHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -198,7 +204,7 @@ export class InterfoneConfigService {
   async faciais(idCondominio: number) {
     await this.assertContratado(idCondominio);
     const lista = await this.prisma.facial_Devices.findMany({
-      where: { id_condominio: idCondominio, tipo: 'facial' },
+      where: { id_condominio: idCondominio, ...TIPO_FACIAL },
       orderBy: { id: 'asc' },
     });
     return lista.map((f) => this.paraFacial(f));
@@ -379,7 +385,7 @@ export class InterfoneConfigService {
   }
 
   private async facialDoCondominio(idCondominio: number, idFacial: number) {
-    const f = await this.prisma.facial_Devices.findFirst({ where: { id: idFacial, id_condominio: idCondominio, tipo: 'facial' } });
+    const f = await this.prisma.facial_Devices.findFirst({ where: { id: idFacial, id_condominio: idCondominio, ...TIPO_FACIAL } });
     if (!f) throw new NotFoundException('Facial não encontrado.');
     return f;
   }

@@ -174,6 +174,22 @@ describe('faciais', () => {
     expect(JSON.stringify((m.auditoria.registrar.mock.calls as any[]).map((c) => c[0]))).not.toContain(senha);
   });
 
+  it("facial antigo com tipo '' conta como facial: aparece na lista e pode ser configurado", async () => {
+    const m = montar();
+    m.tabelas['facial_Devices'].push({
+      id: 14, id_condominio: 1, nome: 'Portão antigo', tipo: '', modelo: null, fabricante: 'intelbras', ativo: 1,
+      interfone_habilitado: 0, interfone_senha: null, interfone_blocos: null, interfone_dtmf: null, interfone_registrado: 0,
+    });
+    const l = await m.svc.faciais(1);
+    expect(l.map((f) => f.id)).toEqual([12, 14]);
+    await expect(m.svc.salvarFacial(1, 14, { habilitado: true, blocos: null, dtmf: null }, ATOR)).resolves.toMatchObject({
+      id: 14,
+      habilitado: true,
+    });
+    await expect(m.svc.novaSenha(1, 14, ATOR)).resolves.toMatchObject({ senha: expect.stringMatching(/^[A-Za-z0-9]{24}$/) });
+    await expect(m.svc.listaTelefonica(1, 14)).resolves.toEqual(expect.any(String));
+  });
+
   it('facial de outro condomínio ou que não é facial → 404', async () => {
     const m = montar();
     await expect(m.svc.salvarFacial(1, 90, { habilitado: true, blocos: null, dtmf: null }, ATOR)).rejects.toMatchObject({ status: 404 });
