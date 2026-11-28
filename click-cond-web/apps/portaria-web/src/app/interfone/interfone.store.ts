@@ -32,6 +32,8 @@ const MOTIVOS: Record<string, string> = {
   sem_app: 'Ninguém dessa unidade recebe chamadas pelo app.',
   portaria_indisponivel: 'Portaria indisponível agora.',
   modulo_desligado: 'O interfone não está ligado neste condomínio.',
+  // Portaria autônoma: a central e o porteiro do prédio disputam a mesma chamada.
+  atendida_por_outro: 'Outra pessoa já atendeu esta chamada.',
 };
 
 const FALHA_ABRIR = 'Não foi possível abrir o portão.';

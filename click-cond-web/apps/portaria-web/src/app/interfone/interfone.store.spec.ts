@@ -288,6 +288,18 @@ describe('InterfoneStore', () => {
       expect(store.aviso()).toBe('Interfone indisponível no momento.');
       expect(store.tocando()).toEqual([]);
     });
+
+    // Portaria autônoma: a central e o porteiro do prédio disputam a mesma chamada.
+    it('atender com 409 atendida_por_outro (a central levou) avisa em pt-BR e tira da lista', async () => {
+      rt.emitir('interfone:chamada', CHAMADA_FACIAL);
+      api.atender.mockReturnValueOnce(
+        throwError(() => new HttpErrorResponse({ status: 409, error: { motivo: 'atendida_por_outro', message: 'Conflict' } })),
+      );
+      await store.atender(41);
+      expect(store.aviso()).toBe('Outra pessoa já atendeu esta chamada.');
+      expect(store.tocando()).toEqual([]);
+      expect(sip.entrar).not.toHaveBeenCalled();
+    });
   });
 
   describe('som bloqueado pelo navegador', () => {
