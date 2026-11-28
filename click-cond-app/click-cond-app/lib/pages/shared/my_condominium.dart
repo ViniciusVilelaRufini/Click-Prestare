@@ -125,10 +125,18 @@ class _MyCondominiumState extends State<MyCondominium> {
     }
   }
 
-  void _ligarParaPortaria() {
+  /// Pedido de ligação em curso: trava o botão contra toque duplo.
+  bool _ligando = false;
+
+  Future<void> _ligarParaPortaria() async {
     final id = Singleton.instance.id_apartamento;
-    if (id is! int || id <= 0) return;
-    ligarParaPortaria(context, id, unidade: _unidadeAtual);
+    if (_ligando || id is! int || id <= 0) return;
+    setState(() => _ligando = true);
+    try {
+      await ligarParaPortaria(context, id, unidade: _unidadeAtual);
+    } finally {
+      if (mounted) setState(() => _ligando = false);
+    }
   }
 
   @override
@@ -1187,6 +1195,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                       icon: PhosphorIcons.phoneOutgoing,
                       variant: AppButtonVariant.secondary,
                       fullWidth: true,
+                      loading: _ligando,
                       onPressed: _ligarParaPortaria,
                     ),
                   ],

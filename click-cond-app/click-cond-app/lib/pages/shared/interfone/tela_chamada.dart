@@ -26,6 +26,10 @@ String mensagemDaRecusa(String? motivo) {
       return 'A chamada já terminou';
     case 'portaria_indisponivel':
       return 'Portaria indisponível agora';
+    case 'em_andamento':
+      return 'Você já tem uma ligação em andamento.';
+    case 'indisponivel':
+      return 'Interfone indisponível no momento.';
     default:
       return 'Não foi possível entrar na chamada';
   }
@@ -581,11 +585,36 @@ Future<void> abrirTelaDaChamada(int id, Map<String, dynamic> extra) async {
 
 /// "Ligar para a portaria": pede o microfone, pede a ligação à API e abre a
 /// tela já conectando. Sem porteiro com o console aberto, avisa sem ligar.
-Future<void> ligarParaPortaria(BuildContext context, int idApartamento, {String? unidade}) async {
+///
+/// Toque duplo (ou um botão em outra tela) enquanto uma ligação está sendo
+/// pedida, ou com uma chamada já na tela, não faz nada.
+Future<void> ligarParaPortaria(
+  BuildContext context,
+  int idApartamento, {
+  String? unidade,
+  @visibleForTesting Future<bool> Function() pedirMicrofone = _pedirMicrofonePadrao,
+}) async {
+  if (_pedindoLigacao || ChamadaNaTela.ativa) return;
+  _pedindoLigacao = true;
+  try {
+    await _ligarParaPortaria(context, idApartamento, unidade: unidade, pedirMicrofone: pedirMicrofone);
+  } finally {
+    _pedindoLigacao = false;
+  }
+}
+
+bool _pedindoLigacao = false;
+
+Future<void> _ligarParaPortaria(
+  BuildContext context,
+  int idApartamento, {
+  String? unidade,
+  required Future<bool> Function() pedirMicrofone,
+}) async {
   final messenger = ScaffoldMessenger.maybeOf(context);
   void avisar(String texto) => messenger?.showSnackBar(SnackBar(content: Text(texto)));
 
-  if (!await _pedirMicrofonePadrao()) {
+  if (!await pedirMicrofone()) {
     avisar('Sem acesso ao microfone. Libere o microfone do Prestare nas configurações do celular.');
     return;
   }

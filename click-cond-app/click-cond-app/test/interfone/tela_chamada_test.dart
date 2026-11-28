@@ -301,11 +301,69 @@ void main() {
     expect(rotas.where((r) => r.endsWith('/recusar')), isEmpty);
   });
 
+  group('ligarParaPortaria', () {
+    late Completer<http.Response> resposta;
+    late int pedidos;
+
+    setUp(() {
+      resposta = Completer<http.Response>();
+      pedidos = 0;
+      ChamadaNaTela.redefinirParaTeste();
+      ApiClient.client = MockClient((r) async {
+        if (r.url.path.endsWith('/ligar-portaria')) {
+          pedidos++;
+          return resposta.future;
+        }
+        return http.Response('{}', 500);
+      });
+    });
+
+    tearDown(ChamadaNaTela.redefinirParaTeste);
+
+    Future<BuildContext> montar(WidgetTester tester) async {
+      late BuildContext ctx;
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: Builder(builder: (c) {
+        ctx = c;
+        return const SizedBox();
+      }))));
+      return ctx;
+    }
+
+    testWidgets('toque duplo faz um pedido só', (tester) async {
+      final ctx = await montar(tester);
+      await tester.runAsync(() async {
+        final a = ligarParaPortaria(ctx, 7, pedirMicrofone: () async => true);
+        final b = ligarParaPortaria(ctx, 7, pedirMicrofone: () async => true);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        resposta.complete(http.Response(jsonEncode({'motivo': 'em_andamento'}), 409));
+        await a;
+        await b;
+      });
+      await tester.pump();
+      expect(pedidos, 1);
+      expect(find.text('Você já tem uma ligação em andamento.'), findsOneWidget);
+    });
+
+    testWidgets('dá certo: a chamada vai para a tela', (tester) async {
+      final ctx = await montar(tester);
+      resposta.complete(http.Response(jsonEncode(_entrada), 201));
+      await tester.runAsync(
+          () => ligarParaPortaria(ctx, 7, unidade: 'Bloco A · Apto 106', pedirMicrofone: () async => true));
+      expect(ChamadaNaTela.atual.value?.id, 41);
+      expect(ChamadaNaTela.atual.value?.tipo, 'unidade_portaria');
+      // Com a chamada na tela, outro toque não liga de novo.
+      await tester.runAsync(() => ligarParaPortaria(ctx, 7, pedirMicrofone: () async => true));
+      expect(pedidos, 1);
+    });
+  });
+
   test('mensagens das recusas', () {
     expect(mensagemDaRecusa('ja_atendida'), 'Já atendida em outro aparelho');
     expect(mensagemDaRecusa('encerrada'), 'A chamada já terminou');
     expect(mensagemDaRecusa('portaria_indisponivel'), 'Portaria indisponível agora');
     expect(mensagemDaRecusa(null), 'Não foi possível entrar na chamada');
+    expect(mensagemDaRecusa('em_andamento'), 'Você já tem uma ligação em andamento.');
+    expect(mensagemDaRecusa('indisponivel'), 'Interfone indisponível no momento.');
   });
 
   test('ICE do contrato vira um servidor por URL no sip_ua', () {
