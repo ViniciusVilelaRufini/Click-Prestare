@@ -77,6 +77,19 @@ describe('ToqueInterfone — autoplay', () => {
     expect(AudioFalso.ultimo!.paused).toBe(false);
   });
 
+  it('falha que não é de autoplay (AbortError) não marca bloqueado', async () => {
+    toque.tocar();
+    await tique();
+    toque.parar();
+    AudioFalso.ultimo!.play = jest.fn(() => Promise.reject(Object.assign(new Error('abortado'), { name: 'AbortError' })));
+    toque.desbloquear();
+    await tique();
+    expect(toque.bloqueado()).toBe(false);
+    toque.tocar();
+    await tique();
+    expect(toque.bloqueado()).toBe(false);
+  });
+
   it('desbloquear sem chamada tocando destrava e fica em silêncio', async () => {
     toque.preparar();
     document.body.dispatchEvent(new Event('keydown', { bubbles: true }));

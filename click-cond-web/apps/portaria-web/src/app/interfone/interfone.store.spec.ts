@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import { RealtimeService } from '../shared/realtime.service';
 import { InterfoneApi } from './interfone.api';
@@ -152,14 +152,23 @@ describe('InterfoneStore', () => {
 
   describe('reconciliação (fim perdido)', () => {
     beforeEach(() => {
+      jest.useFakeTimers();
       montar();
       store.iniciar();
     });
+    afterEach(() => {
+      store.parar();
+      jest.useRealTimers();
+    });
+
+    /** As chamadas tocam há mais de 5 s (abaixo disso a lista do dia não derruba). */
+    const passar5s = () => jest.advanceTimersByTime(5_000);
 
     it('socket reconectado recarrega o dia e tira o que já não toca na portaria', () => {
       rt.emitir('interfone:chamada', CHAMADA_FACIAL);
       rt.emitir('interfone:chamada', CHAMADA_MORADOR);
       rt.emitir('interfone:chamada', { ...CHAMADA_FACIAL, id: 43 });
+      passar5s();
       api.hoje.mockClear();
       api.hoje.mockReturnValueOnce(
         of([
@@ -176,6 +185,7 @@ describe('InterfoneStore', () => {
     it('chamada de facial em "chamando" (de volta no apartamento) sai; encerrada também', () => {
       rt.emitir('interfone:chamada', CHAMADA_FACIAL);
       rt.emitir('interfone:chamada', CHAMADA_MORADOR);
+      passar5s();
       api.hoje.mockReturnValueOnce(
         of([
           { ...HOJE[0], id: 41, estado: 'chamando' },
@@ -188,9 +198,46 @@ describe('InterfoneStore', () => {
 
     it('chamada fora da lista do dia ou sem estado continua (o teto local cuida)', () => {
       rt.emitir('interfone:chamada', CHAMADA_FACIAL);
+      passar5s();
       api.hoje.mockReturnValueOnce(of([]) as never);
       store.recarregarHoje();
       expect(store.tocando().map((c) => c.id)).toEqual([41]);
+    });
+
+    it('GET disparado antes do interfone:chamada não derruba a chamada recém-transferida', () => {
+      const resposta = new Subject<unknown>();
+      api.hoje.mockReturnValueOnce(resposta as never);
+      store.recarregarHoje(); // sai antes da transferência
+      rt.emitir('interfone:chamada', CHAMADA_FACIAL);
+      passar5s();
+      resposta.next([{ ...HOJE[0], id: 41, estado: 'chamando' }]); // foto velha: ainda no apartamento
+      resposta.complete();
+      expect(store.tocando().map((c) => c.id)).toEqual([41]);
+    });
+
+    it('evento repetido depois do disparo também protege a chamada', () => {
+      rt.emitir('interfone:chamada', CHAMADA_FACIAL);
+      passar5s();
+      const resposta = new Subject<unknown>();
+      api.hoje.mockReturnValueOnce(resposta as never);
+      store.recarregarHoje();
+      rt.emitir('interfone:chamada', { ...CHAMADA_FACIAL, motivo: 'recusou' }); // a API reemitiu: toca de novo agora
+      passar5s();
+      resposta.next([{ ...HOJE[0], id: 41, estado: 'atendida' }]);
+      resposta.complete();
+      expect(store.tocando().map((c) => c.id)).toEqual([41]);
+    });
+
+    it('chamada com menos de 5 s desde o evento nunca é derrubada pela lista', () => {
+      rt.emitir('interfone:chamada', CHAMADA_FACIAL);
+      jest.advanceTimersByTime(4_000);
+      api.hoje.mockReturnValueOnce(of([{ ...HOJE[0], id: 41, estado: 'atendida' }]) as never);
+      store.recarregarHoje();
+      expect(store.tocando().map((c) => c.id)).toEqual([41]);
+      jest.advanceTimersByTime(1_000);
+      api.hoje.mockReturnValueOnce(of([{ ...HOJE[0], id: 41, estado: 'atendida' }]) as never);
+      store.recarregarHoje();
+      expect(store.tocando()).toEqual([]);
     });
   });
 

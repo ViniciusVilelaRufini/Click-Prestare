@@ -68,9 +68,10 @@ export class ToqueInterfone {
         this.bloqueado.set(false);
         this.pararDeOuvirGesto();
       },
-      () => {
+      (e: { name?: string }) => {
         audio.muted = false;
-        this.bloqueado.set(true);
+        // Só a regra de autoplay conta como bloqueio; outra falha (ex.: AbortError) não acende o aviso.
+        if (e?.name === 'NotAllowedError') this.bloqueado.set(true);
       },
     );
   }

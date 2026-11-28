@@ -22,6 +22,8 @@ const RECONFERIR_DESLIGADO_MS = 10 * 60_000;
 const NOVA_TENTATIVA_MS = 60_000;
 /** Teto local de uma chamada tocando sem `interfone:fim` (o toque na portaria vai até 120 s). */
 const TETO_TOQUE_MS = 130_000;
+/** Chamada que tocou há menos que isto nunca é derrubada pela lista do dia (a lista pode ser mais velha que o evento). */
+const PROTECAO_EVENTO_MS = 5_000;
 
 /** Mensagens dos 409 com `motivo` (contrato da API). */
 const MOTIVOS: Record<string, string> = {
@@ -100,6 +102,8 @@ export class InterfoneStore {
   private timerReconferir: ReturnType<typeof setTimeout> | null = null;
   /** Teto local por chamada tocando (id → timer). */
   private readonly tetos = new Map<number, ReturnType<typeof setTimeout>>();
+  /** Hora (ms) do último `interfone:chamada` de cada chamada tocando. */
+  private readonly ultimoEvento = new Map<number, number>();
 
   /** É "a portaria" do interfone: login de porteiro (vale o token; o turno é texto livre). */
   private souPortaria(): boolean {
@@ -142,6 +146,7 @@ export class InterfoneStore {
     this.encerradas.clear();
     for (const t of this.tetos.values()) clearTimeout(t);
     this.tetos.clear();
+    this.ultimoEvento.clear();
     this.toque.descartar();
     if (estavaAtivo) this.realtime.disconnect();
   }
@@ -171,7 +176,7 @@ export class InterfoneStore {
         this.tirarDoToque(id);
         const motivo = err?.error?.motivo;
         this.mostrarAviso(
-          MOTIVOS[motivo] ??
+          (typeof motivo === 'string' && Object.hasOwn(MOTIVOS, motivo) ? MOTIVOS[motivo] : undefined) ??
             (motivo === 'encerrada' || err?.status === 404 ? 'Chamada encerrada.' : 'Chamada já atendida.'),
         );
       } else {
@@ -263,10 +268,13 @@ export class InterfoneStore {
 
   recarregarHoje(): void {
     if (!this.ativo()) return;
+    // Foto do momento do disparo: só essas chamadas podem ser reconciliadas com a resposta.
+    const disparo = Date.now();
+    const tocavam = new Set(this.tocando().map((c) => c.id));
     this.api.hoje().subscribe({
       next: (lista) => {
         this.hoje.set(Array.isArray(lista) ? lista : []);
-        this.reconciliarToque();
+        this.reconciliarToque(tocavam, disparo);
       },
       error: () => undefined,
     });
@@ -309,6 +317,7 @@ export class InterfoneStore {
     if (tipo === 'portaria_unidade') return;
     if (this.emChamada()?.id === id) return;
     this.encerradas.delete(id);
+    this.ultimoEvento.set(id, Date.now());
     this.colocarNoToque({
       id,
       tipo,
@@ -403,9 +412,15 @@ export class InterfoneStore {
    * `portaria`, chamada do morador que não está em `portaria`/`chamando`. Sem item ou sem `estado`, fica (o teto
    * local de 130 s cuida).
    */
-  private reconciliarToque(): void {
+  private reconciliarToque(tocavam: Set<number>, disparo: number): void {
     const estados = new Map(this.hoje().map((h) => [h.id, h.estado] as const));
+    const agora = Date.now();
     const fora = this.tocando().filter((c) => {
+      // A resposta pode ser mais velha que o evento: só mexe no que já tocava quando o GET saiu, cujo último
+      // evento é anterior ao disparo e tem pelo menos 5 s.
+      if (!tocavam.has(c.id)) return false;
+      const ev = this.ultimoEvento.get(c.id) ?? 0;
+      if (ev >= disparo || agora - ev < PROTECAO_EVENTO_MS) return false; // mesmo ms do disparo conta como mais novo
       const e = estados.get(c.id);
       if (!e) return false;
       return c.tipo === 'unidade_portaria' ? e !== 'portaria' && e !== 'chamando' : e !== 'portaria';
@@ -446,6 +461,7 @@ export class InterfoneStore {
     const teto = this.tetos.get(id);
     if (teto) clearTimeout(teto);
     this.tetos.delete(id);
+    this.ultimoEvento.delete(id);
     this.tocando.update((lista) => lista.filter((c) => c.id !== id));
   }
 
@@ -468,7 +484,7 @@ export class InterfoneStore {
 
 function mensagemDaApi(e: HttpErrorResponse | null | undefined): string | null {
   const motivo = e?.error?.motivo;
-  if (typeof motivo === 'string' && MOTIVOS[motivo]) return MOTIVOS[motivo];
+  if (typeof motivo === 'string' && Object.hasOwn(MOTIVOS, motivo)) return MOTIVOS[motivo];
   const m = e?.error?.message;
   if (typeof m === 'string' && m.trim()) return m;
   if (Array.isArray(m) && typeof m[0] === 'string') return m[0];
