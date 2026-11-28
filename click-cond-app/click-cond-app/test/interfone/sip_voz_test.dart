@@ -37,6 +37,16 @@ class _Stream extends Fake implements MediaStream {
 
 class _SessaoRtc extends Fake implements RTCSession {}
 
+class _StreamRemoto extends Fake implements MediaStream {
+  @override
+  List<MediaStreamTrack> getVideoTracks() => [_Faixa('video')];
+}
+
+class _Renderizador extends Fake implements RTCVideoRenderer {
+  @override
+  MediaStream? srcObject;
+}
+
 class _Ligacao {
   final String alvo;
   final bool voiceOnly;
@@ -80,10 +90,10 @@ class _HelperFalso extends SIPUAHelper {
     }
   }
 
-  void estadoDaChamada(CallStateEnum e) {
+  void estadoDaChamada(CallStateEnum e, {MediaStream? stream, Originator? origem}) {
     final call = Call('c1', _SessaoRtc(), e, false);
     for (final o in List.of(ouvintes)) {
-      o.callStateChanged(call, CallState(e));
+      o.callStateChanged(call, CallState(e, stream: stream, originator: origem));
     }
   }
 }
@@ -185,6 +195,34 @@ void main() {
     expect(s.estadoAtual, 'encerrada');
     expect(helper.parou, isTrue);
     expect(microfone.audio.parada, isTrue);
+  });
+
+  test('encerrar duas vezes não dá erro', () async {
+    final s = await entrar();
+    helper.transporte(TransportStateEnum.CONNECTED);
+    await Future<void>.delayed(Duration.zero);
+    s.encerrar();
+    s.encerrar();
+    helper.estadoDaChamada(CallStateEnum.ENDED);
+    await Future<void>.delayed(Duration.zero);
+    expect(s.estadoAtual, 'encerrada');
+  });
+
+  test('STREAM remoto com vídeo vai para o renderizador e marca temVideo', () async {
+    final video = _Renderizador();
+    final s = await SipVoz.entrar(_dados, video: video, helper: helper, obterMicrofone: (_) async => microfone);
+    helper.transporte(TransportStateEnum.CONNECTED);
+    await Future<void>.delayed(Duration.zero);
+    expect(s.temVideo.value, isFalse);
+    // O STREAM local (o próprio microfone) não conta.
+    helper.estadoDaChamada(CallStateEnum.STREAM, stream: microfone, origem: Originator.local);
+    expect(s.temVideo.value, isFalse);
+    final remoto = _StreamRemoto();
+    helper.estadoDaChamada(CallStateEnum.STREAM, stream: remoto, origem: Originator.remote);
+    expect(s.temVideo.value, isTrue);
+    expect(video.srcObject, same(remoto));
+    s.encerrar();
+    expect(s.temVideo.value, isFalse);
   });
 
   test('sem microfone não sobe o cliente SIP', () async {
