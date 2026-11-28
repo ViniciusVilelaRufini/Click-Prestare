@@ -521,6 +521,8 @@ export class RelatoriosPageComponent {
       EXPORT:           'text-amber-300 bg-amber-500/15 border-amber-500/30',
       LOGIN:            'text-sky-400 bg-sky-400/10 border-sky-400/20',
       LOGIN_FALHA:     'text-red-300 bg-red-500/15 border-red-500/30',
+      INTERFONE_ABRIR:  'text-emerald-300 bg-emerald-500/15 border-emerald-500/30',
+      INTERFONE_CONFIG: 'text-indigo-300 bg-indigo-500/15 border-indigo-500/30',
     };
     return colors[acao] ?? 'text-slate-400 bg-slate-400/10 border-slate-400/20';
   }
@@ -553,6 +555,8 @@ export class RelatoriosPageComponent {
       EXPORT:           'Exportação de dados',
       LOGIN:            'Login',
       LOGIN_FALHA:     'Tentativa de login',
+      INTERFONE_ABRIR:  'Portão aberto pelo interfone',
+      INTERFONE_CONFIG: 'Configuração do interfone',
     };
     return labels[acao] ?? acao;
   }
@@ -589,6 +593,7 @@ export class RelatoriosPageComponent {
       funcionarios:    'Funcionários',
       convites:        'Convites',
       delivery:        'Delivery',
+      interfone:       'Interfone',
       users:           'Contas de usuário',
       auditoria:       'Exportações e auditoria',
       tags:            'Tags de Veículo',

@@ -61,7 +61,7 @@ describe('RelatoriosPageComponent — auditoria e eventos', () => {
       const neutra = c.getAcaoColor('__desconhecida__');
       for (const acao of [
         'ENTREGA', 'ONLINE', 'OFFLINE', 'FANTASMAS_REMOVIDOS', 'DISPOSITIVO_IP_CORRIGIDO',
-        'DISPOSITIVO_MAC_ATUALIZADO', 'DEACTIVATE', 'REACTIVATE', 'EXECUTE', 'EXPORT',
+        'DISPOSITIVO_MAC_ATUALIZADO', 'DEACTIVATE', 'REACTIVATE', 'EXECUTE', 'EXPORT', 'INTERFONE_ABRIR', 'INTERFONE_CONFIG',
       ]) {
         expect(c.getAcaoLabel(acao)).not.toBe(acao);
         expect(c.getAcaoColor(acao)).not.toBe(neutra);
@@ -72,7 +72,7 @@ describe('RelatoriosPageComponent — auditoria e eventos', () => {
       const c = montar().componentInstance;
       for (const modulo of [
         'dispositivos', 'facial-health', 'visitas', 'pessoas', 'caminhos-acesso', 'condominios', 'crm',
-        'crm-condominio', 'superlogica', 'veiculos', 'vagas', 'funcionarios', 'convites', 'delivery', 'users',
+        'crm-condominio', 'superlogica', 'veiculos', 'vagas', 'funcionarios', 'convites', 'delivery', 'users', 'interfone',
       ]) {
         expect(c.getModuloLabel(modulo)).not.toBe(modulo);
       }
