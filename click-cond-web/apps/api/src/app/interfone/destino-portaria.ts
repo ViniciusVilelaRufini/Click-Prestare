@@ -16,22 +16,18 @@ export interface MomentoBrasilia {
   minutos: number;
 }
 
-const DIAS: Record<string, number> = { dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sáb: 6, sab: 6 };
+/** Brasília é UTC−3 o ano todo (sem horário de verão desde 2019). */
+const FUSO_BRASILIA_MS = -3 * 3_600_000;
 
-/** Dia da semana e minutos desde 00:00 no horário de Brasília. */
+/**
+ * Dia da semana e minutos desde 00:00 no horário de Brasília. Conta fixa (UTC−3), sem os nomes do
+ * Intl/ICU: com small-icu o pt-BR cai para o inglês ("Sun") e o dia virava sempre domingo.
+ */
 export function agoraEmBrasilia(agora: Date): MomentoBrasilia {
-  const partes = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    weekday: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(agora);
-  const pega = (t: string) => partes.find((p) => p.type === t)?.value ?? '';
-  const dia = pega('weekday').toLowerCase().replace('.', '');
+  const local = new Date(agora.getTime() + FUSO_BRASILIA_MS);
   return {
-    diaSemana: DIAS[dia] ?? 0,
-    minutos: (Number(pega('hour')) % 24) * 60 + Number(pega('minute')),
+    diaSemana: local.getUTCDay(),
+    minutos: local.getUTCHours() * 60 + local.getUTCMinutes(),
   };
 }
 

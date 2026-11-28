@@ -46,6 +46,27 @@ describe('agoraEmBrasilia', () => {
   it('meia-noite local é minuto 0', () => {
     expect(agoraEmBrasilia(new Date('2026-11-29T03:00:00Z'))).toEqual({ diaSemana: 0, minutos: 0 });
   });
+  it('os 7 dias da semana (domingo 29/11/2026 a sábado 05/12), na virada e no meio do dia', () => {
+    for (let d = 0; d < 7; d++) {
+      const meiaNoite = Date.UTC(2026, 10, 29 + d, 3, 0); // 00:00 em Brasília
+      expect(agoraEmBrasilia(new Date(meiaNoite))).toEqual({ diaSemana: d, minutos: 0 });
+      expect(agoraEmBrasilia(new Date(meiaNoite + (13 * 60 + 45) * 60_000))).toEqual({ diaSemana: d, minutos: 13 * 60 + 45 });
+      // Um minuto antes da meia-noite ainda é o dia anterior.
+      expect(agoraEmBrasilia(new Date(meiaNoite - 60_000))).toEqual({ diaSemana: (d + 6) % 7, minutos: 1439 });
+    }
+  });
+  it('não depende dos nomes do ICU (Node com small-icu devolve "Sun", "Mon"…)', () => {
+    const original = Intl.DateTimeFormat;
+    const espiao = jest
+      .spyOn(Intl, 'DateTimeFormat')
+      .mockImplementation(((_l?: any, o?: any) => new original('en-US', o)) as any);
+    try {
+      // Segunda-feira 30/11/2026 10:00 em Brasília.
+      expect(agoraEmBrasilia(new Date('2026-11-30T13:00:00Z'))).toEqual({ diaSemana: 1, minutos: 600 });
+    } finally {
+      espiao.mockRestore();
+    }
+  });
 });
 
 describe('validarAgenda', () => {

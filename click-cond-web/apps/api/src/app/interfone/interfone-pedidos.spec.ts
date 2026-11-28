@@ -205,6 +205,33 @@ describe('pedido do portão — criar', () => {
     await expect(m.pedidos.ultimoDaChamada(idChamada)).resolves.toMatchObject({ alcance: { apps: 2, antigos: 1 } });
   });
 
+  it('foto que chega depois do pedido (snapshot do facial atrasado) vai no push e fica no pedido', async () => {
+    const m = montar();
+    const idChamada = await chamada(m, { foto: null });
+    // O snapshot fica pronto entre criar o pedido e montar o push.
+    const original = m.nucleo.moradoresDaUnidade.bind(m.nucleo);
+    jest.spyOn(m.nucleo, 'moradoresDaUnidade').mockImplementation(async (id: number) => {
+      chamadaRow(m, idChamada).foto = 'interfone/fotos/tarde.jpg';
+      return original(id);
+    });
+    const r = await m.pedidos.criar(entrada(idChamada));
+    await m.esperar();
+    expect(m.push.pedido).toHaveBeenCalledWith(r.id, [7, 8], expect.objectContaining({ foto_url: 'interfone/fotos/tarde.jpg?assinada=1' }));
+    expect(pedidoRow(m, r.id).foto).toBe('interfone/fotos/tarde.jpg');
+  });
+
+  it('sem foto atual na chamada, o push usa a que o pedido guardou', async () => {
+    const m = montar();
+    const idChamada = await chamada(m);
+    jest.spyOn(m.nucleo, 'moradoresDaUnidade').mockImplementation(async () => {
+      chamadaRow(m, idChamada).foto = null;
+      return [7, 8];
+    });
+    const r = await m.pedidos.criar(entrada(idChamada));
+    await m.esperar();
+    expect(m.push.pedido).toHaveBeenCalledWith(r.id, [7, 8], expect.objectContaining({ foto_url: 'interfone/fotos/1.jpg?assinada=1' }));
+  });
+
   it('condomínio sem central contratada: o evento vai só para a portaria do prédio', async () => {
     const m = montar({ central: 0 });
     const idChamada = await chamada(m);
@@ -671,6 +698,45 @@ describe('pedido do portão — correções da revisão (uma abertura por chamad
     m.relogio.t = AGORA + 2 * MIN;
     await expect(m.pedidos.expirarVencidos()).resolves.toBe(1);
     expect(pedidoRow(m, p.id).estado).toBe('expirado');
+  });
+
+  it('rodada de vencidos: sem condomínio com central contratada não pega o lock nem consulta os pedidos (reconfere a cada 5 min)', async () => {
+    const m = montar();
+    // GET_LOCK/RELEASE_LOCK do executarComLock (o banco falso não tem $queryRaw).
+    m.prisma.$queryRaw = jest.fn(async () => [{ ok: 1 }]);
+    for (const c of m.tabelas['condominios']) c.central_contratada = 0;
+    const expirar = jest.spyOn(m.pedidos, 'expirarVencidos');
+    await m.pedidos.rodadaVencidos();
+    await m.pedidos.rodadaVencidos();
+    expect(expirar).not.toHaveBeenCalled();
+    expect(m.prisma.interfone_Pedidos.findMany).not.toHaveBeenCalled();
+    expect(m.prisma.$queryRaw).not.toHaveBeenCalled();
+    // A consulta "há central?" fica em cache: uma só nas duas rodadas.
+    expect(m.prisma.condominios.findFirst).toHaveBeenCalledTimes(1);
+
+    // Contratou a central: dentro dos 5 min ainda pula; depois volta a rodar.
+    m.tabelas['condominios'][0].central_contratada = 1;
+    m.relogio.t = AGORA + 4 * MIN;
+    await m.pedidos.rodadaVencidos();
+    expect(expirar).not.toHaveBeenCalled();
+    m.relogio.t = AGORA + 5 * MIN + 1_000;
+    await m.pedidos.rodadaVencidos();
+    expect(expirar).toHaveBeenCalledTimes(1);
+  });
+
+  it('rodada de vencidos: com central contratada roda como antes; erro ao conferir não deixa de rodar', async () => {
+    const m = montar();
+    m.prisma.$queryRaw = jest.fn(async () => [{ ok: 1 }]);
+    const expirar = jest.spyOn(m.pedidos, 'expirarVencidos');
+    await m.pedidos.rodadaVencidos();
+    expect(expirar).toHaveBeenCalledTimes(1);
+
+    const m2 = montar();
+    m2.prisma.$queryRaw = jest.fn(async () => [{ ok: 1 }]);
+    m2.prisma.condominios.findFirst.mockRejectedValueOnce(new Error('banco fora'));
+    const expirar2 = jest.spyOn(m2.pedidos, 'expirarVencidos');
+    await expect(m2.pedidos.rodadaVencidos()).resolves.toBeUndefined();
+    expect(expirar2).toHaveBeenCalledTimes(1);
   });
 
   it('rotina de vencidos nunca lança (banco fora)', async () => {

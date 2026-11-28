@@ -31,6 +31,8 @@ export const MENSAGEM_PEDIDO_MAX = 120;
 export const PEDIDOS_POR_CHAMADA_MAX = 3;
 /** Rotina que expira os pedidos pendentes que ninguém pode mais responder. */
 const VENCIDOS_VERIFICA_MS = 30_000;
+/** De quanto em quanto tempo a rotina reconfere se algum condomínio contrata a central (sem nenhum, ela pula). */
+const CENTRAL_RECONFERE_MS = 5 * 60_000;
 const VENCIDOS_POR_VEZ = 100;
 const NOME_MAX = 120;
 const MOTIVO_MAX = 255;
@@ -146,6 +148,8 @@ export class InterfonePedidosService implements OnModuleInit, OnModuleDestroy {
   /** `criar` em fila por chamada (memória desta réplica): clique duplo não manda dois pushes. */
   private readonly criando = new Map<number, Promise<unknown>>();
   private vencidosInterval?: ReturnType<typeof setInterval>;
+  /** "Há condomínio com central contratada?" em cache (CENTRAL_RECONFERE_MS). */
+  private centralCache: { valor: boolean; expira: number } | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -158,11 +162,35 @@ export class InterfonePedidosService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit() {
     if (process.env['NODE_ENV'] === 'test') return;
-    this.vencidosInterval = setInterval(
-      () => void executarComLock(this.prisma, 'interfone:pedidos-vencidos', async () => void (await this.expirarVencidos())),
-      VENCIDOS_VERIFICA_MS,
-    );
+    this.vencidosInterval = setInterval(() => void this.rodadaVencidos(), VENCIDOS_VERIFICA_MS);
     this.vencidosInterval.unref?.();
+  }
+
+  /**
+   * Uma passada da rotina de vencidos (a cada 30 s em toda réplica). Sem nenhum condomínio com a central
+   * contratada não há pedido para vencer: pula o lock e a consulta. A resposta fica em cache por 5 min;
+   * erro ao conferir roda como antes. Nunca lança.
+   */
+  async rodadaVencidos(): Promise<void> {
+    try {
+      if (!(await this.haCentralContratada())) return;
+      await executarComLock(this.prisma, 'interfone:pedidos-vencidos', async () => void (await this.expirarVencidos()));
+    } catch (e: any) {
+      this.logger.warn(`Interfone: rotina de pedidos vencidos falhou: ${e?.message ?? e}`);
+    }
+  }
+
+  private async haCentralContratada(): Promise<boolean> {
+    const agora = this.agora();
+    if (this.centralCache && this.centralCache.expira > agora) return this.centralCache.valor;
+    try {
+      const c = await this.prisma.condominios.findFirst({ where: { central_contratada: 1, ativo: 1 }, select: { id: true } });
+      this.centralCache = { valor: !!c, expira: agora + CENTRAL_RECONFERE_MS };
+      return !!c;
+    } catch {
+      // Sem saber, roda (o comportamento de antes); tenta conferir de novo na próxima passada.
+      return true;
+    }
   }
 
   onModuleDestroy() {
@@ -226,6 +254,7 @@ export class InterfonePedidosService implements OnModuleInit, OnModuleDestroy {
     const unidade = rotuloAptoBloco(apto.apto, apto.bloco);
     this.nucleo.emSegundoPlano(`push do pedido ${p.id}`, async () => {
       const moradores = await this.nucleo.moradoresDaUnidade(apto.id);
+      const foto = await this.fotoAtual(c.id, p.id, p.foto ?? null);
       const r = await this.push.pedido(p.id, moradores, {
         id_chamada: c.id,
         unidade,
@@ -234,7 +263,7 @@ export class InterfonePedidosService implements OnModuleInit, OnModuleDestroy {
         nome: e.nome,
         motivo: e.motivo,
         tipo: e.tipo,
-        foto_url: await this.assinar(c.foto),
+        foto_url: await this.assinar(foto),
       });
       // O console e a central veem quantos aparelhos têm a tela do pedido (e quantos só o aviso).
       await this.prisma.interfone_Pedidos.updateMany({
@@ -245,6 +274,25 @@ export class InterfonePedidosService implements OnModuleInit, OnModuleDestroy {
       if (atual) this.emitir(atual, central, this.resumoSala(atual, atual.chamada));
     });
     return resumo;
+  }
+
+  /**
+   * Foto da chamada agora (o snapshot do facial pode ficar pronto depois de o pedido nascer); sem ela, a que o
+   * pedido guardou. A que chegou depois também passa a ficar no pedido. Nunca lança.
+   */
+  private async fotoAtual(idChamada: number, idPedido: number, guardada: string | null): Promise<string | null> {
+    try {
+      const c = await this.prisma.interfone_Chamadas.findFirst({ where: { id: idChamada }, select: { foto: true } });
+      const atual = c?.foto ?? null;
+      if (!atual) return guardada;
+      if (atual !== guardada) {
+        await this.prisma.interfone_Pedidos.updateMany({ where: { id: idPedido }, data: { foto: atual } });
+      }
+      return atual;
+    } catch (e: any) {
+      this.logger.warn(`Interfone: foto atual da chamada ${idChamada} não lida: ${e?.message ?? e}`);
+      return guardada;
+    }
   }
 
   /** Um `criar` por vez por chamada: o segundo espera o primeiro e então vê o pendente (409). */

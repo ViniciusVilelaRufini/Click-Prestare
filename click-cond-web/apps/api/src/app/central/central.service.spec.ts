@@ -601,6 +601,37 @@ describe('central — histórico', () => {
     expect(ontem.map((c: any) => c.id)).toEqual([deOntem]);
   });
 
+  it('LGPD: morador (ou porteiro) aparece só pelo primeiro nome; o operador da central, inteiro', async () => {
+    const m = montar();
+    const dela = await naPortaria(m, { created_at: HOJE_UTC(15) });
+    await m.nucleo.evento(dela, { evento: 'atendida', papel: 'central', uid: 5 });
+    // O operador abriu o portão na conversa dele.
+    linha(m, dela).porta_aberta_em = HOJE_UTC(15, 1);
+    linha(m, dela).porta_aberta_por_nome = 'Olga Operadora';
+
+    const autorizada = await naPortaria(m, { created_at: HOJE_UTC(15, 20) });
+    await m.nucleo.evento(autorizada, { evento: 'atendida', papel: 'central', uid: 5 });
+    // O morador autorizou pelo pedido do portão: quem abriu foi ele.
+    linha(m, autorizada).porta_aberta_em = HOJE_UTC(15, 21);
+    linha(m, autorizada).porta_aberta_por_nome = 'Ana Maria Souza';
+
+    const ligacao = await m.ctrl.ligar({ id_apartamento: 100 }, TOKEN_OPERADORA);
+    Object.assign(linha(m, ligacao.id), {
+      created_at: HOJE_UTC(16),
+      estado: 'encerrada',
+      atendida_por_tipo: 'morador',
+      atendida_por_id: 9,
+      atendida_por_nome: 'Ana Maria Souza',
+    });
+
+    const hoje = await m.ctrl.historico('2026-11-27', TOKEN_OPERADORA);
+    const por = (id: number) => hoje.find((c: any) => c.id === id) as any;
+    expect(por(dela)).toMatchObject({ atendida_por_nome: 'Olga Operadora', porta_aberta_por_nome: 'Olga Operadora' });
+    expect(por(autorizada)).toMatchObject({ atendida_por_nome: 'Olga Operadora', porta_aberta_por_nome: 'Ana' });
+    expect(por(ligacao.id)).toMatchObject({ atendida_por_nome: 'Ana' });
+    expect(JSON.stringify(hoje)).not.toContain('Souza');
+  });
+
   it('data inválida, futura ou além de 30 dias → 400', async () => {
     const m = montar();
     for (const d of ['ontem', '2026-11-28', '2026-10-01', '2026-02-30', undefined]) {

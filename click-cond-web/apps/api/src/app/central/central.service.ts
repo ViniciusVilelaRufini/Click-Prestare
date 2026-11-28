@@ -120,6 +120,26 @@ function primeiroNome(v: unknown): string | null {
 }
 
 /**
+ * Nomes de quem atendeu e de quem abriu no histórico da central (LGPD): o operador da central aparece inteiro;
+ * morador e porteiro, só pelo primeiro nome. A coluna de quem abriu não diz o papel: é o operador quando a
+ * chamada foi atendida pela central e o nome é o mesmo de quem atendeu (só quem atendeu abre na conversa); senão
+ * foi o morador (pedido do portão) ou o porteiro.
+ */
+function nomesDoHistorico(c: {
+  atendida_por_tipo?: string | null;
+  atendida_por_nome?: string | null;
+  porta_aberta_por_nome?: string | null;
+}): { atendida_por_nome: string | null; porta_aberta_por_nome: string | null } {
+  const daCentral = c.atendida_por_tipo === 'central';
+  const atendeu = c.atendida_por_nome ?? null;
+  const abriu = c.porta_aberta_por_nome ?? null;
+  return {
+    atendida_por_nome: daCentral ? atendeu : primeiroNome(atendeu),
+    porta_aberta_por_nome: daCentral && abriu !== null && abriu === atendeu ? abriu : primeiroNome(abriu),
+  };
+}
+
+/**
  * Central de portaria (portaria autônoma, Entrega 1): o operador atende vários condomínios. Toda
  * consulta é limitada aos condomínios com `central_contratada = 1` (e ativos); as ações sobre a
  * chamada passam pelo InterfoneAcoesService com `QuemCentral`, que confere o mesmo por chamada.
@@ -399,10 +419,9 @@ export class CentralService {
         inicio: c.created_at,
         estado: c.estado,
         resultado: c.resultado ?? null,
-        atendida_por_nome: c.atendida_por_nome ?? null,
+        ...nomesDoHistorico(c),
         foto_url: await this.assinar(c.foto),
         porta_aberta: !!c.porta_aberta_em,
-        porta_aberta_por_nome: c.porta_aberta_por_nome ?? null,
         unidade: unidadeDaChamada(c),
         id_apartamento: c.id_apartamento ?? null,
         id_condominio: c.id_condominio,
