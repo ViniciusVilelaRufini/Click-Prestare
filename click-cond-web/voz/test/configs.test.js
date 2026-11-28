@@ -1,0 +1,124 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { preencherModelo, arquivoEnv, validarValor } from '../deploy/preencher.mjs';
+
+const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const ler = (rel) => readFileSync(path.join(RAIZ, rel), 'utf8');
+
+/** Seções de um .conf do Asterisk: { nome: [linhas sem comentário] } (nomes repetidos são juntados). */
+function secoes(texto) {
+  const r = {};
+  let atual = null;
+  for (const bruta of texto.split('\n')) {
+    const linha = bruta.replace(/;.*$/, '').trim();
+    if (!linha) continue;
+    const m = /^\[([^\]]+)\]/.exec(linha);
+    if (m) { atual = m[1]; r[atual] ??= []; continue; }
+    if (atual) r[atual].push(linha);
+  }
+  return r;
+}
+
+test('pjsip.conf: transportes udp/tcp/wss com IP público, anonymous WebRTC no contexto prestare-entrar', () => {
+  const s = secoes(ler('asterisk/pjsip.conf'));
+  for (const t of ['transport-udp', 'transport-tcp']) {
+    assert.ok(s[t].includes('bind=0.0.0.0:5060'), t);
+    assert.ok(s[t].includes('external_media_address=54.21.36.213'), t);
+    assert.ok(s[t].includes('external_signaling_address=54.21.36.213'), t);
+    assert.ok(s[t].includes('local_net=172.31.0.0/16'), t);
+  }
+  assert.ok(s['transport-wss'].includes('protocol=wss'));
+  const anon = s.anonymous;
+  for (const l of ['type=endpoint', 'context=prestare-entrar', 'webrtc=yes', 'allow=ulaw,alaw,opus,h264', 'max_video_streams=1']) {
+    assert.ok(anon.includes(l), l);
+  }
+  assert.match(ler('asterisk/pjsip.conf'), /^#include pjsip_prestare\.conf$/m);
+  assert.ok(!/max_contacts/.test(ler('asterisk/pjsip.conf')), 'max_contacts vem só do render das contas');
+  assert.ok(!/password=/.test(ler('asterisk/pjsip.conf')), 'nenhuma senha fixa');
+});
+
+test('extensions.conf: facial e entrar vão ao Stasis prestare; nada disca para fora', () => {
+  const txt = ler('asterisk/extensions.conf');
+  const s = secoes(txt);
+  assert.ok(s['prestare-facial'].includes('exten => _X.,1,Stasis(prestare,facial,${CHANNEL(endpoint)},${EXTEN})'));
+  assert.ok(s['prestare-entrar'].includes('exten => entrar,1,Stasis(prestare,entrar,${PJSIP_HEADER(read,X-Prestare-Token)})'));
+  assert.ok(s['prestare-monitor'].includes('exten => _X.,1,Hangup()'));
+  assert.ok(s['prestare-facial-teste'].some((l) => l.includes('Stasis(prestare,facial,${GLOBAL(PRESTARE_CONTA_TESTE)},${EXTEN})')));
+  assert.ok(!/\bDial\(/.test(txt), 'sem Dial');
+  assert.ok(!/\binclude\s*=>/.test(txt), 'sem include entre contextos');
+});
+
+test('http.conf: ARI em texto só no loopback, TLS 8089 com o certificado do hook', () => {
+  const g = secoes(ler('asterisk/http.conf')).general;
+  assert.ok(g.includes('bindaddr=127.0.0.1'));
+  assert.ok(g.includes('bindport=8088'));
+  assert.ok(g.includes('tlsenable=yes'));
+  assert.ok(g.includes('tlsbindaddr=0.0.0.0:8089'));
+  assert.ok(g.includes('tlscertfile=/etc/asterisk/keys/voz.crt'));
+  assert.ok(g.includes('tlsprivatekey=/etc/asterisk/keys/voz.key'));
+});
+
+test('ari.conf: usuário prestare com senha do SSM', () => {
+  const s = secoes(ler('asterisk/ari.conf'));
+  assert.ok(s.prestare.includes('type=user'));
+  assert.ok(s.prestare.includes('password=__VOZ_ARI_SENHA__'));
+});
+
+test('rtp.conf: faixa 10000–20000, ICE e candidato com o IP público', () => {
+  const s = secoes(ler('asterisk/rtp.conf'));
+  assert.ok(s.general.includes('rtpstart=10000'));
+  assert.ok(s.general.includes('rtpend=20000'));
+  assert.ok(s.general.includes('icesupport=yes'));
+  assert.ok(s.ice_host_candidates.includes('__IP_PRIVADO__ => 54.21.36.213'));
+});
+
+test('modules.conf não carrega chan_sip', () => {
+  assert.ok(secoes(ler('asterisk/modules.conf')).modules.includes('noload => chan_sip.so'));
+});
+
+test('turnserver.conf: auth por segredo, faixa 50000–50999, IP externo', () => {
+  const linhas = ler('coturn/turnserver.conf').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
+  for (const l of ['use-auth-secret', 'static-auth-secret=__VOZ_TURN_SECRET__', 'realm=voz.prestarecondominios.com.br',
+    'listening-port=3478', 'min-port=50000', 'max-port=50999', 'external-ip=54.21.36.213/__IP_PRIVADO__', 'no-cli', 'fingerprint']) {
+    assert.ok(linhas.includes(l), l);
+  }
+  assert.ok(linhas.includes('denied-peer-ip=172.16.0.0-172.31.255.255'));
+});
+
+test('unidade systemd se chama prestare-voz e lê o EnvironmentFile', () => {
+  const u = ler('deploy/prestare-voz.service');
+  assert.match(u, /^EnvironmentFile=\/etc\/prestare-voz\.env$/m);
+  assert.match(u, /^ExecStart=__NODE__ src\/index\.js$/m);
+  assert.match(u, /^ReadWritePaths=\/etc\/asterisk\/pjsip_prestare\.conf$/m);
+  assert.match(u, /^WorkingDirectory=\/opt\/prestare-voz\/atual$/m);
+});
+
+test('instalar.sh lê os quatro segredos do SSM', () => {
+  const s = ler('deploy/instalar.sh');
+  assert.match(s, /for nome in VOZ_TOKEN_SECRET VOZ_INTERNAL_TOKEN VOZ_TURN_SECRET VOZ_ARI_SENHA/);
+  assert.match(s, /--name "\/prestare\/voz\/\$nome"/);
+  assert.match(s, /--with-decryption/);
+  assert.match(s, /chmod 600 \/etc\/prestare-voz\.env/);
+});
+
+test('preencher troca os marcadores e recusa ausentes ou perigosos', () => {
+  assert.equal(preencherModelo('a=__X__\nb=__Y_2__\n', { X: 'um', Y_2: 'dois/+=' }), 'a=um\nb=dois/+=\n');
+  assert.throws(() => preencherModelo('a=__X__', {}), /X ausente/);
+  for (const ruim of ['tem espaço', 'linha\nnova', 'com;comentario', "aspa'", 'dolar$', 'cerquilha#']) {
+    assert.throws(() => validarValor('V', ruim), /não permitido/, ruim);
+  }
+  assert.equal(arquivoEnv(['A', 'B'], { A: '1', B: 'https://x/api' }), "A='1'\nB='https://x/api'\n");
+});
+
+test('scripts de shell passam no bash -n', (t) => {
+  const bash = spawnSync('bash', ['--version']);
+  if (bash.error || bash.status !== 0) return t.skip('bash indisponível');
+  for (const nome of readdirSync(path.join(RAIZ, 'deploy')).filter((n) => n.endsWith('.sh'))) {
+    const r = spawnSync('bash', ['-n', path.join(RAIZ, 'deploy', nome)], { encoding: 'utf8' });
+    assert.equal(r.status, 0, `${nome}: ${r.stderr}`);
+  }
+});
