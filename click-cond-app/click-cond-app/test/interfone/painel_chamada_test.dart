@@ -160,6 +160,42 @@ void main() {
     expect(TickerMode.valuesOf(tester.element(find.byType(TextField))).enabled, isTrue);
   });
 
+  testWidgets('ao sair a chamada devolve o foco ao campo que o tinha', (tester) async {
+    await montar(tester);
+    final foco = FocusNode();
+    addTearDown(foco.dispose);
+    unawaited(nav.currentState!.push(MaterialPageRoute<void>(builder: (_) => Scaffold(body: TextField(focusNode: foco)))));
+    await tester.pumpAndSettle();
+    foco.requestFocus();
+    await tester.pump();
+
+    await abrirTelaDaChamada(41, const {});
+    await tester.pump();
+    expect(foco.hasFocus, isFalse);
+    await tester.tap(find.text('ENCERRAR'));
+    await tester.pumpAndSettle();
+    expect(foco.hasFocus, isTrue);
+  });
+
+  testWidgets('campo que sumiu durante a chamada não recebe foco nem quebra', (tester) async {
+    await montar(tester);
+    final foco = FocusNode();
+    addTearDown(foco.dispose);
+    unawaited(nav.currentState!.push(MaterialPageRoute<void>(builder: (_) => Scaffold(body: TextField(focusNode: foco)))));
+    await tester.pumpAndSettle();
+    foco.requestFocus();
+    await tester.pump();
+
+    await abrirTelaDaChamada(41, const {});
+    await tester.pump();
+    nav.currentState!.pop();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ENCERRAR'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(foco.hasFocus, isFalse);
+  });
+
   testWidgets('a mesma chamada aceita duas vezes abre uma tela só', (tester) async {
     await montar(tester);
     await abrirTelaDaChamada(41, const {});

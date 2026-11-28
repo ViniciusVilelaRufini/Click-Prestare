@@ -550,21 +550,36 @@ class ChamadaNaTela {
   /// Mostra a chamada. A mesma chamada de novo não abre outra tela.
   static void mostrar(PedidoChamada p) {
     if (atual.value?.id == p.id) return;
-    // Teclado aberto embaixo não fica por cima da chamada.
-    FocusManager.instance.primaryFocus?.unfocus();
+    // Teclado aberto embaixo não fica por cima da chamada; o foco volta
+    // para quem o tinha quando ela sair.
+    final foco = FocusManager.instance.primaryFocus;
+    if (atual.value == null) _focoAnterior = foco;
+    foco?.unfocus();
     atual.value = p;
   }
 
   /// Tira a chamada [id] da tela (se ainda for ela).
   static void fechar(int id) {
-    if (atual.value?.id == id) atual.value = null;
+    if (atual.value?.id != id) return;
+    atual.value = null;
+    final anterior = _focoAnterior;
+    _focoAnterior = null;
+    // Só devolve se o campo ainda existe na árvore.
+    if (anterior != null && anterior.context?.mounted == true && anterior.canRequestFocus) {
+      anterior.requestFocus();
+    }
   }
+
+  static FocusNode? _focoAnterior;
 
   /// Voltar do Android com a chamada na tela: não mexe na navegação de baixo.
   static bool consumirVoltar() => ativa;
 
   @visibleForTesting
-  static void redefinirParaTeste() => atual.value = null;
+  static void redefinirParaTeste() {
+    _focoAnterior = null;
+    atual.value = null;
+  }
 }
 
 /// Hospeda a [TelaChamada] por cima do app inteiro.
