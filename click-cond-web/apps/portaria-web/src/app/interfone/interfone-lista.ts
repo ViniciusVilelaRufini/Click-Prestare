@@ -84,14 +84,17 @@ export function frequentes(lista: ChamadaHoje[], max = 5): UnidadeFrequente[] {
   return [...porApto.values()].sort((a, b) => b.total - a.total).slice(0, max);
 }
 
-/** AAAA-MM-DD no calendário do navegador. */
-export function dataLocal(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+const DIA_BRASILIA = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' });
+
+/** AAAA-MM-DD no calendário de Brasília (o mesmo da API), qualquer que seja o fuso do navegador. */
+export function dataBrasilia(d: Date): string {
+  return DIA_BRASILIA.format(d);
 }
 
-/** Limites do seletor de data: hoje até DIAS_ANTERIORES atrás. */
-export function limitesData(hoje: Date): { min: string; max: string } {
-  const min = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - DIAS_ANTERIORES);
-  return { min: dataLocal(min), max: dataLocal(hoje) };
+/** Limites do seletor de data: hoje (Brasília) até DIAS_ANTERIORES atrás. */
+export function limitesData(agora: Date): { min: string; max: string } {
+  const max = dataBrasilia(agora);
+  const [a, m, d] = max.split('-').map(Number);
+  const min = new Date(Date.UTC(a, m - 1, d - DIAS_ANTERIORES)).toISOString().slice(0, 10);
+  return { min, max };
 }

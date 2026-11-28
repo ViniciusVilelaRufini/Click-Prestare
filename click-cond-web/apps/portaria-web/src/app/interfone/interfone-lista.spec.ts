@@ -1,5 +1,5 @@
 import type { ChamadaHoje, ResultadoChamada } from './interfone.api';
-import { contar, dataLocal, filtrar, frequentes, grupo, limitesData } from './interfone-lista';
+import { contar, dataBrasilia, filtrar, frequentes, grupo, limitesData } from './interfone-lista';
 
 function ch(id: number, resultado: ResultadoChamada | null, extra: Partial<ChamadaHoje> = {}): ChamadaHoje {
   return {
@@ -55,10 +55,11 @@ describe('interfone-lista', () => {
     expect(frequentes([ch(1, 'falha', { id_apartamento: undefined })])).toEqual([]);
   });
 
-  it('dataLocal e limitesData usam o calendário do navegador e 30 dias', () => {
-    const d = new Date(2026, 10, 28, 23, 50);
-    expect(dataLocal(d)).toBe('2026-11-28');
-    expect(limitesData(d)).toEqual({ min: '2026-10-29', max: '2026-11-28' });
-    expect(limitesData(new Date(2026, 2, 5, 8, 0))).toEqual({ min: '2026-02-03', max: '2026-03-05' });
+  it('dataBrasilia e limitesData usam o calendário de Brasília e 30 dias', () => {
+    // 23h50 de 28/11 em Brasília = 02h50 UTC de 29/11 (e 22h50 em Manaus).
+    const noite = new Date(Date.UTC(2026, 10, 29, 2, 50));
+    expect(dataBrasilia(noite)).toBe('2026-11-28');
+    expect(limitesData(noite)).toEqual({ min: '2026-10-29', max: '2026-11-28' });
+    expect(limitesData(new Date(Date.UTC(2026, 2, 5, 12)))).toEqual({ min: '2026-02-03', max: '2026-03-05' });
   });
 });

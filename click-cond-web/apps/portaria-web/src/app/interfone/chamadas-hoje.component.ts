@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, catchError, of, switchMap } from 'rxjs';
@@ -42,7 +42,7 @@ const PONTO: Record<GrupoResultado, string> = {
           <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/></svg>
           <input type="date" name="dia-chamadas" aria-label="Dia das chamadas" class="text-sm text-[var(--ink)]"
             [min]="limites().min" [max]="limites().max" [value]="data() ?? limites().max"
-            (change)="trocarData($any($event.target).value)" />
+            (change)="trocarData($any($event.target))" />
         </label>
       </div>
 
@@ -53,11 +53,12 @@ const PONTO: Record<GrupoResultado, string> = {
         </div>
       }
 
-      <div class="ps-kpis !border-x-0 !border-t-0 !grid-cols-2 min-[700px]:!grid-cols-5" role="group" aria-label="Filtrar chamadas">
+      <!-- flex-wrap em vez das colunas fixas do .ps-kpis: quebra pela largura do painel, sem célula vazia. -->
+      <div class="ps-kpis !flex flex-wrap !border-x-0 !border-t-0" role="group" aria-label="Filtrar chamadas">
         @for (k of cartoes; track k.id) {
-          <button type="button" [class]="'ps-kpi !px-4 !py-3 !gap-1.5 text-left ' + k.tom + (filtro() === k.id && k.id !== 'todas' ? ' outline outline-1 -outline-offset-1 [outline-color:var(--ink)]' : '')"
+          <button type="button" [class]="'ps-kpi flex-1 basis-[9.5rem] min-w-0 !px-4 !py-3 !gap-1.5 text-left ' + k.tom + (filtro() === k.id && k.id !== 'todas' ? ' outline outline-1 -outline-offset-1 [outline-color:var(--ink)]' : '')"
             [attr.aria-pressed]="filtro() === k.id" [attr.data-filtro]="k.id" (click)="alternar(k.id)">
-            <span class="ps-label flex items-center gap-2 truncate"><span [class]="'ps-dot ' + k.ponto"></span>{{ k.rotulo }}</span>
+            <span class="ps-label flex items-center gap-2 min-w-0"><span [class]="'ps-dot ' + k.ponto"></span><span class="truncate">{{ k.rotulo }}</span></span>
             <span class="text-[28px] leading-8 font-light tabular-nums [font-family:var(--font-display)]">{{ numeros()[k.id] }}</span>
           </button>
         }
@@ -142,6 +143,10 @@ export class ChamadasHojeComponent {
   private readonly dias = new Subject<string | null>();
 
   constructor() {
+    // Chamada chegando ou em curso: a foto ampliada (scrim acima do painel de chamada) sai da frente.
+    effect(() => {
+      if (this.store.tocando().length || this.store.emChamada()) untracked(() => this.foto.set(null));
+    });
     this.dias
       .pipe(
         // switchMap: trocar de dia de novo descarta a resposta do dia anterior.
@@ -164,9 +169,12 @@ export class ChamadasHojeComponent {
     return limitesData(new Date());
   }
 
-  trocarData(valor: string): void {
+  trocarData(campo: HTMLInputElement): void {
+    const valor = campo.value;
     const { min, max } = this.limites();
     if (!valor || valor === max || valor < min || valor > max) {
+      // Digitada fora do limite estando em hoje, data() não muda e o [value] não reescreveria o campo.
+      campo.value = max;
       this.voltarHoje();
       return;
     }

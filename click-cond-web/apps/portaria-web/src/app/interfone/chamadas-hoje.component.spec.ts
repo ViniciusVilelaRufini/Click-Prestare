@@ -35,6 +35,7 @@ const HOJE: ChamadaHoje[] = [
 function montar(api: Partial<Record<'dia', jest.Mock>> = {}) {
   const store = {
     hoje: signal<ChamadaHoje[]>(HOJE),
+    tocando: signal<unknown[]>([]),
     emChamada: signal<unknown>(null),
     discando: signal(false),
     atendendo: signal<number | null>(null),
@@ -66,7 +67,7 @@ function montar(api: Partial<Record<'dia', jest.Mock>> = {}) {
 describe('ChamadasHojeComponent', () => {
   beforeEach(() => {
     jest.useFakeTimers();
-    jest.setSystemTime(new Date(2026, 10, 28, 10, 0));
+    jest.setSystemTime(new Date(Date.UTC(2026, 10, 28, 13, 0)));
   });
   afterEach(() => {
     jest.useRealTimers();
@@ -128,6 +129,16 @@ describe('ChamadasHojeComponent', () => {
     expect(el.querySelector('[role="dialog"]')).toBeNull();
   });
 
+  it('chamada chegando fecha a foto ampliada (o painel da chamada fica livre)', () => {
+    const { f, el, store } = montar();
+    (el.querySelector('[data-teste="abrir-foto"]') as HTMLButtonElement).click();
+    f.detectChanges();
+    expect(el.querySelector('[role="dialog"]')).not.toBeNull();
+    store.tocando.set([{ id: 77 }]);
+    f.detectChanges();
+    expect(el.querySelector('[role="dialog"]')).toBeNull();
+  });
+
   it('dia anterior: busca na API, mostra a faixa e volta para hoje', () => {
     const { el, api, linhas, botao, f, store, escolherDia } = montar();
     const input = el.querySelector('input[type="date"]') as HTMLInputElement;
@@ -156,6 +167,7 @@ describe('ChamadasHojeComponent', () => {
     const { el, escolherDia } = montar({ dia });
     escolherDia('2026-10-01');
     expect(dia).not.toHaveBeenCalled();
+    expect((el.querySelector('input[type="date"]') as HTMLInputElement).value).toBe('2026-11-28');
     expect(el.querySelector('[data-teste="faixa-dia"]')).toBeNull();
     escolherDia('2026-11-27');
     expect(el.querySelector('[role="alert"]')?.textContent).toContain('Não foi possível carregar as chamadas desse dia.');
