@@ -606,7 +606,7 @@ Future<void> ligarParaPortaria(BuildContext context, int idApartamento, {String?
       handle: unidade ?? '',
       type: 0,
       extra: {'id': '${dados.id}', 'tipo': 'unidade_portaria'},
-      ios: const IOSParams(handleType: 'generic', supportsVideo: false),
+      ios: const IOSParams(handleType: 'generic', supportsVideo: false, includesCallsInRecents: false, normalHandle: 1),
       callingNotification: const NotificationParams(
         showNotification: true,
         isShowCallback: true,

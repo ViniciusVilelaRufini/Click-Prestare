@@ -80,6 +80,10 @@ CallKitParams? parametrosDaChamada(Map<String, dynamic> data) {
     ),
     ios: const IOSParams(
       handleType: 'generic',
+      // Fora dos Recentes do app Telefone e com a unidade legível (o plugin
+      // cifra o handle quando normalHandle é 0).
+      includesCallsInRecents: false,
+      normalHandle: 1,
       supportsVideo: false,
       maximumCallGroups: 1,
       maximumCallsPerCallGroup: 1,

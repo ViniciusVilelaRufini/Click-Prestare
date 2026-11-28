@@ -95,6 +95,10 @@ import WebRTC
     dados.appName = "Prestare"
     dados.duration = 60000
     dados.handleType = "generic"
+    // Fora dos Recentes do app Telefone e com a unidade legível (com
+    // normalHandle 0 o plugin cifra o handle).
+    dados.includesCallsInRecents = false
+    dados.normalHandle = 1
     dados.supportsVideo = false
     dados.supportsDTMF = false
     dados.supportsHolding = false

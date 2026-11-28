@@ -6,6 +6,7 @@ import 'package:click/services/interfone/token_voip.dart';
 import 'package:click/utils/api_client.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/segredos_sessao.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -85,6 +86,26 @@ void main() {
     await FirebaseService.instance.registrarNoServidor('fcm-1');
     expect(corpos.single['interfone_versao'], 1);
     expect(corpos.single.containsKey('voip_token'), isFalse);
+  });
+
+  test('iPhone sem token VoIP manda interfone_versao 0; com token, 1', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    FirebaseService.instance.obterTokenVoip = () async => null;
+    await FirebaseService.instance.registrarNoServidor('fcm-1');
+    expect(corpos.last['interfone_versao'], 0);
+    expect(corpos.last.containsKey('voip_token'), isFalse);
+
+    FirebaseService.instance.obterTokenVoip = () async => 'abcdef0123456789';
+    await FirebaseService.instance.registrarNoServidor('fcm-1');
+    expect(corpos.last['interfone_versao'], 1);
+    expect(corpos.last['voip_token'], 'abcdef0123456789');
+  });
+
+  test('versaoDoInterfone', () {
+    expect(versaoDoInterfone(ios: false, voipToken: null), 1);
+    expect(versaoDoInterfone(ios: true, voipToken: null), 0);
+    expect(versaoDoInterfone(ios: true, voipToken: 'abcdef0123456789'), 1);
   });
 
   test('tokenVoipValido aceita só hex de 16 a 200', () {

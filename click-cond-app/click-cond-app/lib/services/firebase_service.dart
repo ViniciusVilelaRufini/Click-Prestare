@@ -417,7 +417,10 @@ class FirebaseService {
           // Android pelo push de dados. Versão 1 = este app atende a chamada
           // (o servidor manda push comum "atualize o app" para quem tem 0).
           if (voipToken != null) 'voip_token': voipToken,
-          'interfone_versao': 1,
+          'interfone_versao': versaoDoInterfone(
+            ios: defaultTargetPlatform == TargetPlatform.iOS,
+            voipToken: voipToken,
+          ),
         }),
       );
       _temaEnviado = tema;

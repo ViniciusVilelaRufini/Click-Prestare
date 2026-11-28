@@ -10,6 +10,12 @@ String? tokenVoipValido(String? token) {
   return _hex.hasMatch(t) ? t.toLowerCase() : null;
 }
 
+/// `interfone_versao` mandado no registro do aparelho. 1 = este app atende a
+/// chamada. No iPhone isso só vale com o token VoIP: sem ele (PushKit ainda
+/// sem token no primeiro arranque) o servidor não tem como tocar, e 0 faz ele
+/// mandar o push comum em vez de nada.
+int versaoDoInterfone({required bool ios, required String? voipToken}) => ios && voipToken == null ? 0 : 1;
+
 /// Token VoIP do PushKit, guardado pelo AppDelegate no flutter_callkit_incoming.
 /// No Android não existe (o toque chega pelo push de dados do FCM).
 Future<String?> tokenVoipDoAparelho() async {

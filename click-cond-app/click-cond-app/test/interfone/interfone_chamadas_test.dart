@@ -71,6 +71,8 @@ void main() {
       expect(p.android?.textDecline, 'Recusar');
       expect(p.missedCallNotification?.showNotification, isFalse);
       expect(p.ios?.supportsVideo, isFalse);
+      expect(p.ios?.includesCallsInRecents, isFalse);
+      expect(p.ios?.normalHandle, 1);
     });
     test('sem id válido não mostra nada', () {
       expect(parametrosDaChamada({'type': 'interfone_chamada'}), isNull);
