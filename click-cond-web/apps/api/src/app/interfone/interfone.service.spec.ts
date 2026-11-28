@@ -42,6 +42,7 @@ function bancoFalso(opts: { cond?: Partial<Linha>; facial?: Partial<Linha>; apto
     { id: 8, name: 'Bruno Morador' },
   ];
   const porteiros: Linha[] = [{ id: 3, nome: 'Carlos Porteiro', id_condominio: 1 }];
+  const moradores: Linha[] = [];
   const monitores: Linha[] = [];
   const chamadas: Linha[] = [];
 
@@ -107,6 +108,13 @@ function bancoFalso(opts: { cond?: Partial<Linha>; facial?: Partial<Linha>; apto
     funcionarios_Portaria: {
       findUnique: jest.fn(async ({ where }: any) => porteiros.find((p) => p.id === where.id) ?? null),
     },
+    moradores: {
+      findFirst: jest.fn(async ({ where, orderBy }: any) => {
+        const achados = moradores.filter((m) => casa(m, where));
+        if (orderBy) achados.sort((a, b) => b.id - a.id);
+        return achados[0] ?? null;
+      }),
+    },
     interfone_Monitores: {
       findMany: jest.fn(async ({ where }: any) => monitores.filter((m) => casa(m, where))),
       findUnique: jest.fn(async ({ where }: any) => monitores.find((m) => m.id === where.id) ?? null),
@@ -133,7 +141,7 @@ function bancoFalso(opts: { cond?: Partial<Linha>; facial?: Partial<Linha>; apto
       findMany: jest.fn(async ({ where, take }: any) => chamadas.filter((c) => casa(c, where)).slice(0, take).map(comRel)),
     },
   };
-  return { prisma, cond, faciais, aptos, vinculos, monitores, chamadas };
+  return { prisma, cond, faciais, aptos, vinculos, usuarios, porteiros, moradores, monitores, chamadas };
 }
 
 function montar(banco = bancoFalso(), online = true, opcoes: { esperarSegundoPlano?: boolean } = {}) {
@@ -463,6 +471,66 @@ describe('InterfoneService.evento', () => {
     await svc.evento(1, { evento: 'toque_esgotado' });
     await svc.evento(1, { evento: 'atendida', papel: 'portaria', uid: 3 });
     expect(chamadas[0]).toMatchObject({ estado: 'atendida', atendida_por_tipo: 'portaria', atendida_por_nome: 'Carlos Porteiro' });
+  });
+
+  describe('atendida_por_nome (veio NULL numa chamada real)', () => {
+    it('morador sem Users.name → nome do cadastro de morador no condomínio da chamada', async () => {
+      const banco = bancoFalso();
+      banco.usuarios[0].name = null;
+      banco.moradores.push(
+        { id: 1, id_user: 7, id_condominio: 2, nome: 'Ana de outro condomínio' },
+        { id: 2, id_user: 7, id_condominio: 1, nome: 'Ana Souza' },
+      );
+      const { svc, chamadas } = await comChamada(banco);
+      await svc.evento(1, { evento: 'atendida', papel: 'morador', uid: 7 });
+      expect(chamadas[0].atendida_por_nome).toBe('Ana Souza');
+    });
+
+    it('Users.name em branco conta como sem nome', async () => {
+      const banco = bancoFalso();
+      banco.usuarios[0].name = '   ';
+      banco.moradores.push({ id: 2, id_user: 7, id_condominio: 1, nome: ' Ana Souza ' });
+      const { svc, chamadas } = await comChamada(banco);
+      await svc.evento(1, { evento: 'atendida', papel: 'morador', uid: 7 });
+      expect(chamadas[0].atendida_por_nome).toBe('Ana Souza');
+    });
+
+    it('sem nome no banco → usa o nome que o serviço de voz trouxe do token', async () => {
+      const banco = bancoFalso();
+      banco.usuarios[0].name = null;
+      const { svc, chamadas } = await comChamada(banco);
+      await svc.evento(1, { evento: 'atendida', papel: 'morador', uid: 7, nome: '  Ana do Token  ' });
+      expect(chamadas[0].atendida_por_nome).toBe('Ana do Token');
+    });
+
+    it('banco falhando na consulta do nome → nome do token, e a chamada fica atendida', async () => {
+      const banco = bancoFalso();
+      banco.prisma.users.findUnique.mockRejectedValueOnce(new Error('banco fora'));
+      const { svc, chamadas } = await comChamada(banco);
+      await svc.evento(1, { evento: 'atendida', papel: 'morador', uid: 7, nome: 'Ana do Token' });
+      expect(chamadas[0]).toMatchObject({ estado: 'atendida', atendida_por_nome: 'Ana do Token' });
+    });
+
+    it('o nome do banco vence o do token', async () => {
+      const { svc, chamadas } = await comChamada();
+      await svc.evento(1, { evento: 'atendida', papel: 'morador', uid: 7, nome: 'Outro' });
+      expect(chamadas[0].atendida_por_nome).toBe('Ana Morador');
+    });
+
+    it('porteiro fora de Funcionarios_Portaria → nome do token (cortado em 120)', async () => {
+      const { svc, chamadas } = await comChamada();
+      await svc.evento(1, { evento: 'toque_esgotado' });
+      await svc.evento(1, { evento: 'atendida', papel: 'portaria', uid: 99, nome: 'P'.repeat(200) });
+      expect(chamadas[0]).toMatchObject({ atendida_por_tipo: 'portaria', atendida_por_nome: 'P'.repeat(120) });
+    });
+
+    it('nome do token que não é texto é ignorado', async () => {
+      const banco = bancoFalso();
+      banco.usuarios[0].name = null;
+      const { svc, chamadas } = await comChamada(banco);
+      await svc.evento(1, { evento: 'atendida', papel: 'morador', uid: 7, nome: 123 as any });
+      expect(chamadas[0].atendida_por_nome).toBeNull();
+    });
   });
 
   it('encerrada nao_atendida de facial → grava, para tudo e manda perdida com a hora de Brasília', async () => {

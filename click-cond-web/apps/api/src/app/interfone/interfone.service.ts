@@ -41,7 +41,8 @@ export type ResultadoChamada = (typeof RESULTADOS)[number];
 const PAPEIS_ATENDE = ['morador', 'portaria', 'monitor'] as const;
 
 export type EventoServico =
-  | { evento: 'atendida'; papel: string; uid: number }
+  /** `nome`: o do token de voz (o serviço repassa); reserva para quando o banco não tem o nome. */
+  | { evento: 'atendida'; papel: string; uid: number; nome?: string }
   | { evento: 'toque_esgotado' }
   | { evento: 'encerrada'; resultado: string; duracao_s: number };
 
@@ -419,13 +420,14 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     return this.encerrada(c, ev as Extract<EventoServico, { evento: 'encerrada' }>);
   }
 
-  private async atendida(c: ChamadaCarregada, ev: { papel: string; uid: number }): Promise<{ ok: true }> {
+  private async atendida(c: ChamadaCarregada, ev: { papel: string; uid: number; nome?: unknown }): Promise<{ ok: true }> {
     const papel = ev?.papel;
     const uid = Number(ev?.uid);
     if (!(PAPEIS_ATENDE as readonly string[]).includes(papel) || !Number.isInteger(uid) || uid <= 0) {
       throw new BadRequestException('Quem atendeu é inválido.');
     }
-    const nome = await this.nomeDe(papel as (typeof PAPEIS_ATENDE)[number], uid);
+    // Banco primeiro (Users.name → cadastro de morador; Funcionarios_Portaria.nome); sem ele, o nome do token.
+    const nome = (await this.nomeDe(papel as (typeof PAPEIS_ATENDE)[number], uid, c.id_condominio)) ?? textoNome(ev?.nome);
     // Condicional: o primeiro que entra ganha; o segundo evento não sobrescreve.
     const r = await this.prisma.interfone_Chamadas.updateMany({
       where: { id: c.id, atendida_em: null, estado: { in: ['chamando', 'portaria'] } },
@@ -434,7 +436,7 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
         atendida_em: new Date(this.agora()),
         atendida_por_tipo: papel,
         atendida_por_id: uid,
-        atendida_por_nome: nome ? nome.slice(0, 120) : null,
+        atendida_por_nome: nome,
       },
     });
     if (r.count === 0) return { ok: true };
@@ -698,14 +700,27 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     return this.moradoresDaUnidade(c.id_apartamento);
   }
 
-  private async nomeDe(papel: (typeof PAPEIS_ATENDE)[number], uid: number): Promise<string | null> {
+  /** Nome de quem atendeu pelo banco, ou null (sem cadastro, nome em branco ou banco falhando). */
+  private async nomeDe(papel: (typeof PAPEIS_ATENDE)[number], uid: number, idCondominio: number): Promise<string | null> {
     try {
-      if (papel === 'morador') return (await this.prisma.users.findUnique({ where: { id: uid }, select: { name: true } }))?.name ?? null;
-      if (papel === 'portaria') {
-        return (await this.prisma.funcionarios_Portaria.findUnique({ where: { id: uid }, select: { nome: true } }))?.nome ?? null;
+      if (papel === 'morador') {
+        const u = await this.prisma.users.findUnique({ where: { id: uid }, select: { name: true } });
+        const doUsuario = textoNome(u?.name);
+        if (doUsuario) return doUsuario;
+        // Users.name pode estar vazio: o nome do morador também fica no cadastro dele no condomínio.
+        const m = await this.prisma.moradores.findFirst({
+          where: { id_user: uid, id_condominio: idCondominio },
+          orderBy: { id: 'desc' },
+          select: { nome: true },
+        });
+        return textoNome(m?.nome);
       }
-      return (await this.prisma.interfone_Monitores.findUnique({ where: { id: uid }, select: { nome: true } }))?.nome ?? null;
-    } catch {
+      if (papel === 'portaria') {
+        return textoNome((await this.prisma.funcionarios_Portaria.findUnique({ where: { id: uid }, select: { nome: true } }))?.nome);
+      }
+      return textoNome((await this.prisma.interfone_Monitores.findUnique({ where: { id: uid }, select: { nome: true } }))?.nome);
+    } catch (e) {
+      this.logger.warn(`Interfone: nome de quem atendeu (${papel} ${uid}) não veio do banco: ${(e as Error)?.message ?? e}`);
       return null;
     }
   }
@@ -727,3 +742,10 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
 }
 
 type ChamadaCarregada = NonNullable<Awaited<ReturnType<InterfoneService['carregar']>>>;
+
+/** Nome limpo e cortado em 120, ou null se não for texto ou estiver em branco. */
+function textoNome(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const t = v.trim();
+  return t ? t.slice(0, 120) : null;
+}
