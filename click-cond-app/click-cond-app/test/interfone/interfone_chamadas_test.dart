@@ -184,6 +184,19 @@ void main() {
       expect(recebido, isNull);
     });
 
+    test('tela encerrada há pouco não reabre pelo toque no aviso', () async {
+      estados[41] = _estado('chamando');
+      var agora = DateTime(2026, 11, 28, 10);
+      InterfoneChamadas.relogioParaTeste = () => agora;
+      InterfoneChamadas.telaFechada(41);
+      agora = agora.add(const Duration(seconds: 10));
+      await InterfoneChamadas.abrirPeloAviso({'type': 'interfone_chamada', 'id': '41'});
+      expect(abertas, isEmpty);
+      agora = agora.add(const Duration(seconds: 25));
+      await InterfoneChamadas.abrirPeloAviso({'type': 'interfone_chamada', 'id': '41'});
+      expect(abertas, [41]);
+    });
+
     test('toque no aviso de chamada que já acabou não abre nada', () async {
       estados[41] = _estado('encerrada');
       await InterfoneChamadas.abrirPeloAviso({'type': 'interfone_chamada', 'id': '41'});

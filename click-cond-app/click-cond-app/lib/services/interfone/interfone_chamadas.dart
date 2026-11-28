@@ -160,6 +160,9 @@ class InterfoneChamadas {
     final id = int.tryParse('${data['id'] ?? ''}');
     if (id == null || id <= 0) return;
     try {
+      // A tela desta chamada acabou de ser encerrada aqui: a API pode demorar
+      // a refletir o fim, e o toque no aviso não deve reabri-la.
+      if (_encerradaRecentemente(id)) return;
       await _garantirSessao();
       final e = await _consultar(id);
       if (e?.estado != 'chamando') return;
@@ -221,10 +224,26 @@ class InterfoneChamadas {
 
   /// A tela da chamada terminou: libera o id para uma próxima abertura.
   static void telaFechada(int id) {
+    _encerradasEm[id] = _agora();
     _telasAbertas.remove(id);
     _telasRegistradas.remove(id);
     _mudoDasTelas.remove(id);
     _mudoPendente.remove(id);
+  }
+
+  static const _janelaReabrir = Duration(seconds: 30);
+  static final Map<int, DateTime> _encerradasEm = {};
+  static DateTime Function() _agora = DateTime.now;
+
+  @visibleForTesting
+  static set relogioParaTeste(DateTime Function() r) => _agora = r;
+
+  static bool _encerradaRecentemente(int id) {
+    final em = _encerradasEm[id];
+    if (em == null) return false;
+    if (_agora().difference(em) < _janelaReabrir) return true;
+    _encerradasEm.remove(id);
+    return false;
   }
 
   static final Map<int, void Function()> _telasRegistradas = {};
@@ -366,6 +385,8 @@ class InterfoneChamadas {
     _telasRegistradas.clear();
     _mudoDasTelas.clear();
     _mudoPendente.clear();
+    _encerradasEm.clear();
+    _agora = DateTime.now;
     _extras.clear();
     _mostrar = mostrar ?? FlutterCallkitIncoming.showCallkitIncoming;
     _encerrar = encerrar ?? FlutterCallkitIncoming.endCall;
