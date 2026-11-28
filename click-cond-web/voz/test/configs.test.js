@@ -122,3 +122,24 @@ test('scripts de shell passam no bash -n', (t) => {
     assert.equal(r.status, 0, `${nome}: ${r.stderr}`);
   }
 });
+
+test('tom do beep: 0,2 s a 8 kHz em 16 bits, sem estalo nas pontas', async () => {
+  const { gerarTom } = await import('../deploy/tom.mjs');
+  const buf = gerarTom({ hz: 1000, segundos: 0.2 });
+  assert.equal(buf.length, 1600 * 2);
+  assert.equal(buf.readInt16LE(0), 0);
+  assert.equal(buf.readInt16LE(buf.length - 2), 0);
+  let pico = 0;
+  for (let i = 0; i < buf.length; i += 2) pico = Math.max(pico, Math.abs(buf.readInt16LE(i)));
+  assert.ok(pico > 15000 && pico <= 16384, `pico ${pico}`);
+});
+
+test('gerar-sons.sh tem os quatro textos do plano', () => {
+  const s = ler('deploy/gerar-sons.sh');
+  for (const t of ['Apartamento não encontrado. Confira o número e tente de novo.', 'O interfone está indisponível no momento.',
+    'Ninguém atendeu. Tente novamente mais tarde.', 'Aguarde um pouco para chamar novamente.']) {
+    assert.ok(s.includes(t), t);
+  }
+  assert.match(s, /--voice-id Camila/);
+  assert.match(s, /--sample-rate 8000/);
+});
