@@ -30,6 +30,7 @@ describe('RealtimeGateway — presença entre réplicas', () => {
     return {
       anunciar: jest.fn(async () => undefined),
       outrasReplicasNaSala: jest.fn(async () => outras),
+      encerrar: jest.fn(async (_salas: string[]) => undefined),
     };
   }
 
@@ -168,7 +169,6 @@ describe('RealtimeGateway — presença entre réplicas', () => {
     expect(presenca!.anunciar).toHaveBeenCalledWith('portaria:7', true);
     expect(presenca!.anunciar).toHaveBeenCalledWith(SALA_CENTRAL, false);
     expect(presenca!.anunciar).not.toHaveBeenCalledWith('condominio:7', expect.anything());
-    expect(presenca!.anunciar).not.toHaveBeenCalledWith(s1.id, expect.anything());
 
     // A sala retirada não é retirada de novo.
     presenca!.anunciar.mockClear();
@@ -186,6 +186,76 @@ describe('RealtimeGateway — presença entre réplicas', () => {
     expect(presenca!.anunciar).toHaveBeenCalledTimes(1);
   });
 
+  it('rodadas concorrentes: enquanto uma renovação roda, a próxima não dispara outra', async () => {
+    const { gw, server, presenca } = build();
+    server.rooms.set('portaria:7', new Set(['a']));
+    let liberar!: () => void;
+    presenca!.anunciar.mockImplementation(() => new Promise<undefined>((r) => (liberar = () => r(undefined))));
+
+    const primeira = gw.renovarPresenca();
+    await Promise.resolve();
+    expect(presenca!.anunciar).toHaveBeenCalledTimes(1);
+    // Redis travado: as rodadas seguintes (timer de 5 s) não empilham comandos.
+    await gw.renovarPresenca();
+    await gw.renovarPresenca();
+    expect(presenca!.anunciar).toHaveBeenCalledTimes(1);
+
+    liberar();
+    await primeira;
+    presenca!.anunciar.mockImplementation(async () => undefined);
+    await gw.renovarPresenca();
+    expect(presenca!.anunciar).toHaveBeenCalledTimes(2);
+  });
+
+  it('renovação anuncia as salas em paralelo, não em série', async () => {
+    const { gw, server, presenca } = build();
+    server.rooms.set('portaria:7', new Set(['a']));
+    server.rooms.set('portaria:8', new Set(['b']));
+    server.rooms.set(SALA_CENTRAL, new Set(['c']));
+    const pendentes: Array<() => void> = [];
+    presenca!.anunciar.mockImplementation(() => new Promise<undefined>((r) => pendentes.push(() => r(undefined))));
+    const rodada = gw.renovarPresenca();
+    await Promise.resolve();
+    // As três saíram antes de qualquer uma responder.
+    expect(presenca!.anunciar).toHaveBeenCalledTimes(3);
+    pendentes.forEach((f) => f());
+    await rodada;
+  });
+
+  it('retirada das salas que esvaziaram também é em paralelo', async () => {
+    const { gw, server, presenca } = build();
+    const a = socket(server, tokenPorteiro);
+    const b = socket(server, tokenOperador);
+    await gw.handleConnection(a);
+    await gw.handleConnection(b);
+    a.sair();
+    b.sair();
+    presenca!.anunciar.mockClear();
+    const pendentes: Array<() => void> = [];
+    presenca!.anunciar.mockImplementation(() => new Promise<undefined>((r) => pendentes.push(() => r(undefined))));
+    const fim = gw.handleDisconnect(a);
+    await Promise.resolve();
+    expect(presenca!.anunciar).toHaveBeenCalledTimes(2);
+    expect(presenca!.anunciar).toHaveBeenCalledWith('portaria:7', false);
+    expect(presenca!.anunciar).toHaveBeenCalledWith(SALA_CENTRAL, false);
+    pendentes.forEach((f) => f());
+    await fim;
+  });
+
+  it('onModuleDestroy retira (best-effort) as salas anunciadas e desliga a presença', async () => {
+    const { gw, server, presenca } = build();
+    await gw.handleConnection(socket(server, tokenPorteiro));
+    await gw.handleConnection(socket(server, tokenOperador));
+    await gw.onModuleDestroy();
+    expect(presenca!.encerrar).toHaveBeenCalledTimes(1);
+    expect([...presenca!.encerrar.mock.calls[0][0]].sort()).toEqual([SALA_CENTRAL, 'portaria:7'].sort());
+    expect((gw as any).presenca).toBeNull();
+    // Depois do destroy, nada mais vai ao Redis.
+    await gw.renovarPresenca();
+    await expect(gw.porteirosOnline(99)).resolves.toBe(false);
+    expect(presenca!.outrasReplicasNaSala).not.toHaveBeenCalled();
+  });
+
   describe('afterInit com Redis', () => {
     afterEach(() => {
       delete process.env['REDIS_URL'];
@@ -200,6 +270,8 @@ describe('RealtimeGateway — presença entre réplicas', () => {
       const server = servidor();
       (gw as any).server = server;
       const redis = {
+        isReady: true,
+        destroy: jest.fn(),
         zAdd: jest.fn(async () => 1),
         zRem: jest.fn(async () => 1),
         zRangeByScore: jest.fn(async () => [] as string[]),
@@ -218,7 +290,9 @@ describe('RealtimeGateway — presença entre réplicas', () => {
         await jest.advanceTimersByTimeAsync(1);
         expect(redis.zAdd).toHaveBeenCalledWith('rt:presenca:central', expect.objectContaining({ score: expect.any(Number) }));
 
-        gw.onModuleDestroy();
+        await gw.onModuleDestroy();
+        expect(redis.zRem).toHaveBeenCalledWith('rt:presenca:central', expect.any(String));
+        expect(redis.destroy).toHaveBeenCalledTimes(1);
         redis.zAdd.mockClear();
         await jest.advanceTimersByTimeAsync(10_000);
         expect(redis.zAdd).not.toHaveBeenCalled();

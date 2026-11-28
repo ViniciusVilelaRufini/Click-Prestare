@@ -7,6 +7,8 @@ function redisFalso() {
   const cliente = {
     zsets,
     expira,
+    isReady: true,
+    destroy: jest.fn(),
     zAdd: jest.fn(async (chave: string, m: { value: string; score: number }) => {
       if (!zsets.has(chave)) zsets.set(chave, new Map());
       zsets.get(chave)!.set(String(m.value), m.score);
@@ -93,7 +95,7 @@ describe('PresencaRedis — presença por sala entre réplicas (ElastiCache Serv
     r.zAdd.mockRejectedValue(new Error('ECONNRESET'));
     r.zRem.mockRejectedValue(new Error('ECONNRESET'));
     const p = new PresencaRedis(r as unknown as ClientePresenca, { idReplica: 'A', agora: relogio });
-    (p as any).logger = { warn: jest.fn() };
+    (p as any).logger = { warn: jest.fn(), log: jest.fn() };
     await expect(p.outrasReplicasNaSala('central')).resolves.toBe(false);
     await expect(p.anunciar('central', true)).resolves.toBeUndefined();
     await expect(p.anunciar('central', false)).resolves.toBeUndefined();
@@ -105,7 +107,7 @@ describe('PresencaRedis — presença por sala entre réplicas (ElastiCache Serv
       const r = redisFalso();
       r.zRangeByScore.mockImplementation(() => new Promise<string[]>(() => undefined));
       const p = new PresencaRedis(r as unknown as ClientePresenca, { idReplica: 'A', agora: relogio });
-      (p as any).logger = { warn: jest.fn() };
+      (p as any).logger = { warn: jest.fn(), log: jest.fn() };
       let resultado: boolean | undefined;
       void p.outrasReplicasNaSala('central').then((v: boolean) => (resultado = v));
       await jest.advanceTimersByTimeAsync(1_999);
@@ -123,14 +125,114 @@ describe('PresencaRedis — presença por sala entre réplicas (ElastiCache Serv
       const r = redisFalso();
       r.zAdd.mockImplementation(() => new Promise<number>(() => undefined));
       const p = new PresencaRedis(r as unknown as ClientePresenca, { idReplica: 'A', agora: relogio });
-      (p as any).logger = { warn: jest.fn() };
+      (p as any).logger = { warn: jest.fn(), log: jest.fn() };
       let fim = false;
       void p.anunciar('central', true).then(() => (fim = true));
-      await jest.advanceTimersByTimeAsync(2_000);
+      await jest.advanceTimersByTimeAsync(1_999);
+      expect(fim).toBe(false);
+      await jest.advanceTimersByTimeAsync(1);
       expect(fim).toBe(true);
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  describe('cliente fora do ar (isReady=false): nada enfileira', () => {
+    it('anunciar é no-op e a consulta responde false na hora, sem mandar comando', async () => {
+      const r = redisFalso();
+      r.isReady = false;
+      const p = new PresencaRedis(r as unknown as ClientePresenca, { idReplica: 'A', agora: relogio });
+      (p as any).logger = { warn: jest.fn(), log: jest.fn() };
+      await p.anunciar('central', true);
+      await p.anunciar('central', false);
+      expect(r.zAdd).not.toHaveBeenCalled();
+      expect(r.pExpire).not.toHaveBeenCalled();
+      expect(r.zRem).not.toHaveBeenCalled();
+
+      jest.useFakeTimers();
+      try {
+        let resultado: boolean | undefined;
+        void p.outrasReplicasNaSala('central').then((v: boolean) => (resultado = v));
+        await jest.advanceTimersByTimeAsync(0);
+        expect(resultado).toBe(false);
+        expect(r.zRangeByScore).not.toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('voltou (isReady=true): anuncia e consulta de novo', async () => {
+      const r = redisFalso();
+      r.isReady = false;
+      const a = new PresencaRedis(r as unknown as ClientePresenca, { idReplica: 'A', agora: relogio });
+      const b = new PresencaRedis(r as unknown as ClientePresenca, { idReplica: 'B', agora: relogio });
+      (a as any).logger = { warn: jest.fn(), log: jest.fn() };
+      await a.anunciar('central', true);
+      r.isReady = true;
+      await a.anunciar('central', true);
+      await expect(b.outrasReplicasNaSala('central')).resolves.toBe(true);
+    });
+  });
+
+  describe('logs: um aviso por transição, não por sala', () => {
+    it('Redis fora em várias salas e rodadas → um aviso; voltou → um log; caiu de novo → outro aviso', async () => {
+      const r = redisFalso();
+      const p = new PresencaRedis(r as unknown as ClientePresenca, { idReplica: 'A', agora: relogio });
+      const logger = { warn: jest.fn(), log: jest.fn() };
+      (p as any).logger = logger;
+
+      r.isReady = false;
+      for (let i = 0; i < 3; i++) {
+        await p.anunciar('central', true);
+        await p.anunciar('portaria:7', true);
+        await p.outrasReplicasNaSala('portaria:8');
+      }
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+
+      r.isReady = true;
+      await p.anunciar('central', true);
+      await p.anunciar('portaria:7', true);
+      expect(logger.log).toHaveBeenCalledTimes(1);
+
+      r.zAdd.mockRejectedValue(new Error('ECONNRESET'));
+      r.zRangeByScore.mockRejectedValue(new Error('ECONNRESET'));
+      await p.anunciar('central', true);
+      await p.anunciar('portaria:7', true);
+      await p.outrasReplicasNaSala('central');
+      expect(logger.warn).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('encerrar (destroy do módulo)', () => {
+    it('ZREM das salas informadas e destrói o cliente da presença', async () => {
+      const r = redisFalso();
+      const p = new PresencaRedis(r as unknown as ClientePresenca, { idReplica: 'A', agora: relogio });
+      await p.anunciar('central', true);
+      await p.anunciar('portaria:7', true);
+      await p.encerrar(['central', 'portaria:7']);
+      expect(r.zRem).toHaveBeenCalledWith('rt:presenca:central', 'A');
+      expect(r.zRem).toHaveBeenCalledWith('rt:presenca:portaria:7', 'A');
+      expect(r.destroy).toHaveBeenCalledTimes(1);
+    });
+
+    it('ZREM que não responde: desiste em 2 s e destrói assim mesmo', async () => {
+      jest.useFakeTimers();
+      try {
+        const r = redisFalso();
+        r.zRem.mockImplementation(() => new Promise<0 | 1>(() => undefined));
+        const p = new PresencaRedis(r as unknown as ClientePresenca, { idReplica: 'A', agora: relogio });
+        (p as any).logger = { warn: jest.fn(), log: jest.fn() };
+        let fim = false;
+        void p.encerrar(['central', 'portaria:7']).then(() => (fim = true));
+        await jest.advanceTimersByTimeAsync(1_999);
+        expect(fim).toBe(false);
+        await jest.advanceTimersByTimeAsync(1);
+        expect(fim).toBe(true);
+        expect(r.destroy).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
   });
 
   it('id da réplica é aleatório por processo quando não informado', () => {

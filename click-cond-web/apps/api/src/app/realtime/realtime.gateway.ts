@@ -83,6 +83,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
    * é por este Set que se sabe o que conferir (sala esvaziou → anúncio inativo).
    */
   private readonly salasAnunciadas = new Set<string>();
+  /** Trava da renovação: a rodada seguinte não começa enquanto a anterior não terminou. */
+  private renovando = false;
 
   @WebSocketServer()
   server!: Server;
@@ -130,10 +132,21 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
   }
 
-  onModuleDestroy() {
+  async onModuleDestroy(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
     if (this.timerPresenca) clearInterval(this.timerPresenca);
     this.timerPresenca = undefined;
+    // Sai da presença antes de parar (best-effort, teto de 2 s por sala): a outra réplica não espera os 15 s do TTL.
+    const presenca = this.presenca;
+    if (!presenca) return;
+    this.presenca = null;
+    const salas = [...this.salasAnunciadas];
+    this.salasAnunciadas.clear();
+    try {
+      await presenca.encerrar(salas);
+    } catch (err: any) {
+      this.logger.warn(`Presença no encerramento falhou: ${err?.message ?? err}`);
+    }
   }
 
   /** Quantos sockets DESTA réplica estão na sala (as salas do adaptador são sempre locais). */
@@ -148,32 +161,40 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     await this.presenca.anunciar(sala, true);
   }
 
-  /** Retira o anúncio das salas que ficaram sem socket local. */
-  private async retirarVazias(presenca: PresencaRedis): Promise<void> {
+  /** Tira do Set as salas anunciadas que ficaram sem socket local e devolve os anúncios de saída (em paralelo). */
+  private retiradasVazias(presenca: PresencaRedis): Promise<void>[] {
+    const saidas: Promise<void>[] = [];
     for (const sala of [...this.salasAnunciadas]) {
       if (this.locaisNaSala(sala) > 0) continue;
       this.salasAnunciadas.delete(sala);
-      await presenca.anunciar(sala, false);
+      saidas.push(presenca.anunciar(sala, false));
     }
+    return saidas;
   }
 
   /**
    * Renovação periódica (RENOVAR_PRESENCA_MS): reanuncia toda sala vigiada com socket local — inclusive alguma
-   * que o join não anunciou (presença ligada depois, anúncio que falhou) — e retira as que esvaziaram. Nunca lança.
+   * que o join não anunciou (presença ligada depois, anúncio que falhou) — e retira as que esvaziaram, tudo em
+   * paralelo. Uma rodada por vez: com o Redis travado, o timer não empilha comandos. Nunca lança.
    */
   async renovarPresenca(): Promise<void> {
     const presenca = this.presenca;
-    if (!presenca) return;
+    if (!presenca || this.renovando) return;
+    this.renovando = true;
     try {
       const rooms: Map<string, Set<string>> | undefined = this.server?.of('/')?.adapter?.rooms;
+      const comandos: Promise<void>[] = [];
       for (const [sala, ids] of rooms ?? []) {
         if (!salaVigiada(sala) || !ids?.size) continue;
         this.salasAnunciadas.add(sala);
-        await presenca.anunciar(sala, true);
+        comandos.push(presenca.anunciar(sala, true));
       }
-      await this.retirarVazias(presenca);
+      comandos.push(...this.retiradasVazias(presenca));
+      await Promise.allSettled(comandos);
     } catch (err: any) {
       this.logger.warn(`Renovação da presença falhou: ${err?.message ?? err}`);
+    } finally {
+      this.renovando = false;
     }
   }
 
@@ -282,7 +303,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const presenca = this.presenca;
     if (!presenca) return;
     try {
-      await this.retirarVazias(presenca);
+      await Promise.allSettled(this.retiradasVazias(presenca));
     } catch (err: any) {
       this.logger.warn(`Presença no disconnect falhou: ${err?.message ?? err}`);
     }
