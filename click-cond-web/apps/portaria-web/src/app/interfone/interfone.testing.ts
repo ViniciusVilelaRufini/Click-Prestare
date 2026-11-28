@@ -33,6 +33,7 @@ export const HOJE: ChamadaHoje[] = [
   {
     id: 30, tipo: 'facial_unidade', inicio: '2026-11-27T13:00:00.000Z', resultado: 'atendida_morador',
     atendida_por_nome: 'Ana Souza', foto_url: null, porta_aberta: true, unidade: 'Bloco A · Apto 106',
+    id_apartamento: 100, porta_aberta_por_nome: 'Ana Souza',
   },
 ];
 
@@ -42,6 +43,7 @@ export class InterfoneApiStub {
   abrir = jest.fn(() => of({ ok: true }));
   encerrar = jest.fn(() => of({ ok: true }));
   hoje = jest.fn(() => of([...HOJE]));
+  dia = jest.fn(() => of([] as ChamadaHoje[]));
   config = jest.fn();
   salvarConfig = jest.fn();
   ramais = jest.fn();

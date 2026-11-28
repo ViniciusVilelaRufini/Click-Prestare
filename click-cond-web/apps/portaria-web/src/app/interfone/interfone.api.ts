@@ -52,7 +52,11 @@ export interface ChamadaHoje {
   atendida_por_nome: string | null;
   foto_url: string | null;
   porta_aberta: boolean;
+  /** Quem abriu o portão nesta chamada (null se não abriu ou se a API não informou). */
+  porta_aberta_por_nome?: string | null;
   unidade: string;
+  /** Unidade da chamada, para ligar de volta (null: sem unidade). */
+  id_apartamento?: number | null;
   /** Estado atual da chamada (a API manda no item de hoje): reconcilia o toque quando um `interfone:fim` se perde. */
   estado?: EstadoChamada;
 }
@@ -168,6 +172,11 @@ export class InterfoneApi {
   /** Chamadas de hoje. 403/404 = módulo desligado para esta sessão (o painel some). */
   hoje(): Observable<ChamadaHoje[]> {
     return this.http.get<ChamadaHoje[]>(`${this.base}/portaria/hoje`);
+  }
+
+  /** Chamadas de um dia anterior (AAAA-MM-DD, até 30 dias atrás). Só leitura, sem atualização ao vivo. */
+  dia(data: string): Observable<ChamadaHoje[]> {
+    return this.http.get<ChamadaHoje[]>(`${this.base}/portaria/dia`, { params: { data } });
   }
 
   // ===== Síndico =====
