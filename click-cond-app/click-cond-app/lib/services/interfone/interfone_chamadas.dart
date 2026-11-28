@@ -177,8 +177,24 @@ class InterfoneChamadas {
     }
   }
 
+  /// A tela da chamada aberta para [id] quer saber quando a ligação acaba no
+  /// sistema (Encerrar no CallKit da tela bloqueada, na notificação do
+  /// Android): aí ela desliga a conversa.
+  static void registrarTela(int id, void Function() aoEncerrarNoSistema) =>
+      _telasRegistradas[id] = aoEncerrarNoSistema;
+
   /// A tela da chamada terminou: libera o id para uma próxima abertura.
-  static void telaFechada(int id) => _telasAbertas.remove(id);
+  static void telaFechada(int id) {
+    _telasAbertas.remove(id);
+    _telasRegistradas.remove(id);
+  }
+
+  static final Map<int, void Function()> _telasRegistradas = {};
+
+  static void _avisarTela(int id) {
+    final cb = _telasRegistradas.remove(id);
+    if (cb != null) cb();
+  }
 
   @visibleForTesting
   static Future<void> tratarEvento(CallEvent? ev) async {
@@ -195,6 +211,7 @@ class InterfoneChamadas {
         final id = idDaChamadaDoParams(callKitParams);
         if (id == null) return;
         _pararVigia(id);
+        _avisarTela(id);
         // O iPhone manda DECLINE também quando o próprio app encerra uma
         // chamada que não foi atendida: aí não é recusa do morador.
         if (_fechadasPeloApp.remove(id)) return;
@@ -205,6 +222,7 @@ class InterfoneChamadas {
         if (id != null) {
           _pararVigia(id);
           _fechadasPeloApp.remove(id);
+          _avisarTela(id);
         }
       case CallEventActionCallTimeout(:final id):
         final idChamada = idDaChamadaPeloUuid(id);
@@ -294,6 +312,7 @@ class InterfoneChamadas {
     _vigias.clear();
     _fechadasPeloApp.clear();
     _telasAbertas.clear();
+    _telasRegistradas.clear();
     _mostrar = mostrar ?? FlutterCallkitIncoming.showCallkitIncoming;
     _encerrar = encerrar ?? FlutterCallkitIncoming.endCall;
     _consultar = consultar ?? InterfoneApi.estado;

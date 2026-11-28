@@ -1,3 +1,4 @@
+import 'package:click/services/interfone/interfone_api.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -30,10 +31,44 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   /// uma reversão por falha não desfazer outro toque.
   bool _salvando = false;
 
+  /// Interfone pelo app: o switch só aparece com o módulo ligado no
+  /// condomínio e a preferência lida (GET /interfone/preferencia).
+  bool? _receberPortao;
+
   @override
   void initState() {
     super.initState();
     _loadSettings();
+    _carregarInterfone();
+  }
+
+  Future<void> _carregarInterfone() async {
+    if (!await InterfoneApi.disponivel()) return;
+    final receber = await InterfoneApi.preferencia();
+    if (!mounted || receber == null) return;
+    setState(() => _receberPortao = receber);
+  }
+
+  Future<void> _alterarPortao(bool novo) async {
+    if (_salvando) return;
+    setState(() {
+      _receberPortao = novo;
+      _salvando = true;
+    });
+    final ok = await InterfoneApi.definirPreferencia(novo);
+    if (!mounted) return;
+    setState(() {
+      if (!ok) _receberPortao = !novo;
+      _salvando = false;
+    });
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Não foi possível salvar a preferência. Tente novamente.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -175,6 +210,16 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                     icon: PhosphorIcons.userList,
                     onChanged: (val) => _alterar(val, (v) => _visitantes = v),
                   ),
+                  if (_receberPortao != null) ...[
+                    const Divider(height: AppSpacing.xxl),
+                    _buildSwitch(
+                      title: 'Receber chamadas do portão',
+                      subtitle: 'O interfone toca neste celular. Desligado, os outros moradores da unidade e a portaria continuam recebendo.',
+                      value: _receberPortao!,
+                      icon: PhosphorIcons.phoneCall,
+                      onChanged: _alterarPortao,
+                    ),
+                  ],
                 ],
               ),
             ),

@@ -17,6 +17,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'package:click/services/atualizacoes_app.dart';
 import 'package:click/services/firebase_service.dart';
+import 'package:click/services/interfone/interfone_chamadas.dart';
+import 'package:click/pages/shared/interfone/tela_chamada.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,6 +44,13 @@ void main() async {
   // para funcionar mesmo sem push).
   WidgetsBinding.instance.addObserver(ObservadorVoltaAoApp());
   FirebaseService.instance.init();
+
+  // Interfone pelo app: Atender/Recusar da tela de ligação nativa e a chamada
+  // que acordou o app (aceita com o app fechado, ou tocando no iPhone).
+  unawaited(InterfoneChamadas.iniciar(
+    abrirTela: abrirTelaDaChamada,
+    aoMudarTokenVoip: () => FirebaseService.instance.registrarNoServidor(),
+  ));
 }
 
 /// `AppColors.primary` e afins são getters sem `BuildContext`: quem só lê neles
