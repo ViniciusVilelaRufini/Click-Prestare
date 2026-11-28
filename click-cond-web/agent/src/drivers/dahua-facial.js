@@ -525,6 +525,8 @@ function configurarInterfone(device, entrada, cmd) {
     lanRequest,
     lanTimeoutMs,
     restanteDoPrazo: () => restanteDoPrazo(cmd),
+    // Abrir porta esperando atrás deste comando (ver core/despacho.js): cede entre as gravações.
+    haUrgenteNaFila: () => !!(cmd && typeof cmd._haUrgenteNaFila === 'function' && cmd._haUrgenteNaFila()),
   });
 }
 

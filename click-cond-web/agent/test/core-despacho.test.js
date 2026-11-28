@@ -654,3 +654,30 @@ test('interfone_config chega ao driver com _prazoRestanteMs (para parar antes de
   relogio.t = 25000;
   assert.equal(visto(), 0);
 });
+
+test('interfone_config enxerga um open_door que chegou depois na fila do mesmo aparelho (para ceder a vez)', async () => {
+  const segura = adiado();
+  let ifn = null;
+  const ordem = [];
+  const d = criarDespachante({
+    executar: async (device, cmd) => {
+      ordem.push(cmd.type);
+      if (cmd.type === 'interfone_config') {
+        ifn = cmd;
+        await segura.promessa;
+      }
+      return { ok: true };
+    },
+    postarResultado: async () => {},
+    log: logMudo,
+  });
+  const p1 = d.despachar([{ device: PORTA, commands: [{ id: 'ifn', type: 'interfone_config', ttl_ms: 20000 }] }]);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(typeof ifn._haUrgenteNaFila, 'function');
+  assert.equal(ifn._haUrgenteNaFila(), false, 'sem porta esperando');
+  const p2 = d.despachar([{ device: PORTA, commands: [{ id: 'od', type: 'open_door', ttl_ms: 9000 }] }]);
+  assert.equal(ifn._haUrgenteNaFila(), true, 'porta esperando atrás do interfone');
+  segura.resolver();
+  await Promise.all([p1, p2]);
+  assert.deepEqual(ordem, ['interfone_config', 'open_door']);
+});

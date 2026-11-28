@@ -405,3 +405,106 @@ test('executar: comando interfone_config chega ao driver; sem dados → recusa',
   const sem = await dahua.executar(device, { type: 'interfone_config' });
   assert.equal(sem.ok, false);
 });
+
+// ---------- Re-revisão ----------
+
+test('firmware que corta o nome: depois de gravado, a diferença vira aviso (sem "parcial" eterno); nome novo grava de novo', async () => {
+  aparelhoNovo();
+  estado.dahua.cortaNomeContato = 8;
+  const r1 = await configurar(cfg());
+  assert.equal(r1.contatos.inseridos, 2);
+  for (let i = 0; i < 2; i++) {
+    const r = await configurar(cfg());
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.equal(r.parcial, false);
+    assert.equal(r.restantes, 0);
+    assert.equal(r.contatos.atualizados, 0, `rodada ${i}`);
+    assert.ok(r.avisos.some((a) => /106/.test(a)), JSON.stringify(r.avisos));
+  }
+  assert.deepEqual(gravacoesDeContato().filter((x) => x.includes('update')), []);
+  // Nome desejado mudou de verdade: grava.
+  const r4 = await configurar(cfg({ contatos: [{ nome: 'Outro 106', numero: '106', bloco: 'A', andar: '1' }] }));
+  assert.equal(r4.contatos.atualizados, 1);
+  // Alterado à mão no aparelho depois: grava de novo.
+  estado.dahua.cortaNomeContato = null;
+  estado.dahua.contatos.find((c) => c.VTShortNumber === '106').FirstName = 'Mexido';
+  await configurar(cfg({ contatos: [{ nome: 'Outro 106', numero: '106', bloco: 'A', andar: '1' }] }));
+  const r6 = await configurar(cfg({ contatos: [{ nome: 'Outro 106', numero: '106', bloco: 'A', andar: '1' }] }));
+  assert.equal(estado.dahua.contatos.find((c) => c.VTShortNumber === '106').FirstName, 'Outro 106');
+  assert.equal(r6.contatos.iguais, 1);
+});
+
+test('lote: inclusões e remoções andam mesmo com muitas alterações pendentes; restantes = operações que faltam', async () => {
+  aparelhoNovo();
+  preencherAparelho(contatosNossos(40).map((c) => ({ ...c, nome: `Antigo ${c.numero}` })));
+  preencherAparelho([{ nome: 'Sai', numero: '8888', bloco: '' }]);
+  const lista = [...contatosNossos(40), ...contatosNossos(5, 7000)];
+  const r = await configurar(cfg({ contatos: lista }));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.parcial, true);
+  assert.equal(r.contatos.inseridos, 5);
+  assert.equal(r.contatos.removidos, 1);
+  assert.equal(r.contatos.atualizados, 24);
+  assert.equal(r.restantes, 16);
+});
+
+test('só a leitura da lista já estoura o prazo: ok:false "lista grande demais para o prazo" (não parcial)', async () => {
+  aparelhoNovo();
+  Object.assign(estado.dahua.sip, { SIPServer: 'voz.prestarecondominios.com.br', UserID: 'fac12', AuthID: 'fac12', UserEnable: 'true', AuthPassword: SENHA });
+  preencherAparelho(contatosNossos(1000));
+  estado.dahua.atrasoMs = 30;
+  const fim = Date.now() + 400;
+  const r = await configurar(cfg({ contatos: contatosNossos(1000) }), { _prazoRestanteMs: () => Math.max(0, fim - Date.now()) });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /lista grande demais para o prazo/);
+  assert.equal(r.parcial, undefined);
+  assert.deepEqual(gravacoesDeContato(), []);
+});
+
+test('sem total conhecido e firmware que corta o count abaixo da página: pagina até vir página vazia', async () => {
+  aparelhoNovo();
+  const lista = contatosNossos(120);
+  preencherAparelho(lista);
+  estado.dahua.semQuerySize = true;
+  estado.dahua.semTotalCount = true;
+  estado.dahua.limiteBuscaContatos = 50;
+  const r = await configurar(cfg({ contatos: lista }));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.contatos.iguais, 120);
+  assert.deepEqual(gravacoesDeContato(), []);
+});
+
+test('corpo de resposta com senha (Password=, pwd=, secret=) sai mascarado no erro', async () => {
+  aparelhoNovo();
+  estado.dahua.respostaSipCrua = 'table.SIP[0].Password=xyz123&pwd=abc777 secret_key=zzz999';
+  const r = await configurar(cfg());
+  assert.equal(r.ok, false);
+  for (const s of ['xyz123', 'abc777', 'zzz999']) assert.ok(!r.error.includes(s), r.error);
+});
+
+test('porta esperando na fila: o interfone cede entre as gravações e devolve parcial', async () => {
+  aparelhoNovo();
+  let chamadas = 0;
+  const cmd = { _haUrgenteNaFila: () => ++chamadas > 3 };
+  const r = await configurar(cfg({ contatos: contatosNossos(10) }), cmd);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.parcial, true);
+  assert.ok(r.contatos.inseridos < 10);
+  assert.ok(r.avisos.some((a) => /porta/.test(a)));
+
+  aparelhoNovo();
+  const logo = await configurar(cfg(), { _haUrgenteNaFila: () => true });
+  assert.equal(logo.ok, false);
+  assert.match(logo.error, /porta/);
+  assert.equal(estado.dahua.gravacoesSip, 0, 'não começa a gravar com porta esperando');
+});
+
+test('servidor vazio, 0.0.0.0 ou conta desativada não contam como "outro servidor"', async () => {
+  for (const sip of [{ SIPServer: '0.0.0.0', UserEnable: 'true' }, { SIPServer: '192.168.1.10', UserEnable: 'false' }, { SIPServer: '' }]) {
+    aparelhoNovo();
+    Object.assign(estado.dahua.sip, sip);
+    const r = await configurar(cfg());
+    assert.equal(r.ok, true, `${JSON.stringify(sip)} → ${JSON.stringify(r)}`);
+    assert.equal(estado.dahua.sip.SIPServer, 'voz.prestarecondominios.com.br');
+  }
+});

@@ -133,6 +133,10 @@ function criarDespachante({ executar, postarResultado, log = console, agora = ()
     if (cmd.type === 'interfone_config') {
       const fim = item.chegouEm + prazo;
       cmd._prazoRestanteMs = () => Math.max(0, fim - agora());
+      // Abrir porta que chegar enquanto o interfone grava não pode esperar o
+      // comando inteiro (até 22 s, mais que o prazo da porta): o driver
+      // consulta isto entre as gravações e cede.
+      cmd._haUrgenteNaFila = () => fila.itens.some((i) => i && i.cmd && TIPOS_COM_TETO.has(i.cmd.type));
     }
     // Colapso: vários "abrir porta" seguidos na fila (cliques acumulados
     // enquanto o aparelho não respondia) viram UMA abertura física; os que

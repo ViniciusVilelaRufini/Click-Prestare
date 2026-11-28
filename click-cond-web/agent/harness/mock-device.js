@@ -432,6 +432,10 @@ function reiniciarInterfoneDahua() {
   estado.dahua.semTotalCount = false;
   // Atraso (ms) em cada resposta do aparelho (para testar o prazo do comando).
   estado.dahua.atrasoMs = 0;
+  // Firmware que corta o FirstName do contato em N caracteres.
+  estado.dahua.cortaNomeContato = null;
+  // getConfig SIP responde este corpo cru com HTTP 400 (teste de mascaramento).
+  estado.dahua.respostaSipCrua = null;
   estado.dahua.gravacoesSip = 0;
   estado.dahua.ultimoSetSip = '';
   estado.dahua.urls = [];
@@ -466,6 +470,10 @@ function contatosParaIni(lista, total) {
 function responderConfigSip(url, acao, texto) {
   const p = url.searchParams;
   if (acao === 'getConfig' && p.get('name') === 'SIP') {
+    if (estado.dahua.respostaSipCrua) {
+      texto(estado.dahua.respostaSipCrua, 400);
+      return true;
+    }
     if (estado.dahua.semConfigSip) {
       texto('Error\r\nBad Request!\r\n', 400);
       return true;
@@ -529,6 +537,8 @@ function responderContatos(caminho, url, acao, texto) {
   if (caminho !== '/cgi-bin/recordUpdater.cgi') return false;
   const campos = {};
   for (const k of CAMPOS_CONTATO) if (p.has(k)) campos[k] = p.get(k);
+  // Firmware que corta o nome do contato (o cliente não pode tratar isso como "mudou").
+  if (campos.FirstName && estado.dahua.cortaNomeContato) campos.FirstName = campos.FirstName.slice(0, estado.dahua.cortaNomeContato).trim();
   if (acao === 'insert') {
     // VTShortNumber, RegisterType e VTHPassword são obrigatórios (tabela 13-8).
     if (!campos.VTShortNumber || !campos.RegisterType || !campos.VTHPassword) {
