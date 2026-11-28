@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, Logger, NotFoundException, Optional } f
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
 import { intervaloHojeBrasilia } from '../common/hora-brasilia.util';
+import { diaPermitido, diaSemanaBrt } from '../facial/escolha-visita.util';
 import type { DestinoPortaria } from '../interfone/destino-portaria';
 import {
   ChamadaCentralEvento,
@@ -140,7 +141,11 @@ export class CentralService {
     );
   }
 
-  /** Chamadas esperando na portaria nos condomínios da central (com o interfone ligado), mais antigas primeiro. */
+  /**
+   * Chamadas esperando na portaria encaminhadas para a central (`destino = 'central'`), nos
+   * condomínios da central com o interfone ligado, mais antigas primeiro. A que a agenda mandou para
+   * o porteiro do prédio não aparece.
+   */
   async fila(): Promise<ChamadaCentralEvento[]> {
     const conds = await this.prisma.condominios.findMany({
       where: { ...ONDE_CENTRAL, interfone_contratado: 1, interfone_ativo: 1 },
@@ -150,6 +155,7 @@ export class CentralService {
     const lista = await this.prisma.interfone_Chamadas.findMany({
       where: {
         estado: 'portaria',
+        destino: 'central',
         tipo: { in: TIPOS_FILA },
         id_condominio: { in: conds.map((c) => c.id) },
         // Na portaria além do prazo é órfã (a rotina do núcleo encerra): não aparece na fila.
@@ -207,16 +213,20 @@ export class CentralService {
   // ─────────────────────────────────────────── contexto
 
   /**
-   * O que o operador precisa para decidir: só da chamada que está na portaria ou que ele atendeu,
-   * em condomínio da central. Sem telefone, e-mail nem documento (LGPD).
+   * O que o operador precisa para decidir: só da chamada encaminhada para a central (ou do próprio
+   * operador) que está na portaria, que ele atendeu ou que ele ligou e ainda está em curso, em
+   * condomínio da central. Sem telefone, e-mail nem documento (LGPD).
    */
   async contexto(op: OperadorCentral, id: number): Promise<ContextoChamada> {
     const c = await this.nucleo.carregar(id);
     if (!c) throw new NotFoundException('Chamada não encontrada.');
-    this.acoes.assertCentral(c);
+    this.acoes.assertChamadaDaCentral(c, op.uid);
     await this.acoes.assertModulo(c.id_condominio);
     const comigo =
-      c.estado === 'portaria' || (c.estado === 'atendida' && c.atendida_por_tipo === 'central' && c.atendida_por_id === op.uid);
+      c.estado === 'portaria' ||
+      (c.estado === 'atendida' && c.atendida_por_tipo === 'central' && c.atendida_por_id === op.uid) ||
+      // Ligação que o operador fez para a unidade (tocando ou em conversa com o morador).
+      (c.tipo === 'portaria_unidade' && c.id_operador_central === op.uid && c.estado !== 'encerrada');
     if (!comigo) throw new ForbiddenException('Esta chamada não está com a central.');
 
     const [cond, moradores, esperados] = await Promise.all([
@@ -243,11 +253,18 @@ export class CentralService {
     return [...new Set(us.map((u) => primeiroNome(u.name)).filter((n): n is string => !!n))];
   }
 
-  /** Convites (Visitas e o cadastro antigo de Visitantes) e entregas de hoje para a unidade. */
+  /**
+   * Convites (Visitas e o cadastro antigo de Visitantes) e entregas de hoje para a unidade. Convite
+   * só liberado (pendente, negado ou revogado não entra) e, se recorrente, só no dia da semana de
+   * hoje (Brasília).
+   */
   private async esperadosHoje(idApartamento: number): Promise<EsperadoHoje[]> {
-    const { inicio, fim } = intervaloHojeBrasilia(new Date(this.agora()));
+    const agora = this.agora();
+    const { inicio, fim } = intervaloHojeBrasilia(new Date(agora));
+    const hoje = { diaSemana: diaSemanaBrt(agora) };
     const janela = {
       bloqueado: 0,
+      liberado: 1,
       data_saida: null,
       OR: [
         { data_hora_inicio: { gte: inicio, lte: fim } },
@@ -257,12 +274,12 @@ export class CentralService {
     const [visitas, antigos, entregas] = await Promise.all([
       this.prisma.visitas.findMany({
         where: { id_apartamento: idApartamento, ...janela },
-        select: { data_hora_inicio: true, pessoa: { select: { nome: true } } },
+        select: { data_hora_inicio: true, dias_semana: true, pessoa: { select: { nome: true } } },
         take: ESPERADOS_MAX,
       }),
       this.prisma.visitantes.findMany({
         where: { id_apartamento: idApartamento, ...janela },
-        select: { nome: true, data_hora_inicio: true },
+        select: { nome: true, data_hora_inicio: true, dias_semana: true },
         take: ESPERADOS_MAX,
       }),
       this.prisma.deliveryAtendimentos.findMany({
@@ -278,8 +295,8 @@ export class CentralService {
     // Hora só quando cai no dia (visita de vários dias que começou antes: sem hora).
     const hora = (d: Date | null | undefined) => (d && d >= inicio && d <= fim ? horaBrasiliaHHMM(d) : null);
     const lista: EsperadoHoje[] = [
-      ...visitas.map((v) => ({ nome: String(v.pessoa?.nome ?? '').trim(), horario: hora(v.data_hora_inicio), tipo: 'convite' as const })),
-      ...antigos.map((v) => ({ nome: String(v.nome ?? '').trim(), horario: hora(v.data_hora_inicio), tipo: 'convite' as const })),
+      ...visitas.filter((v) => diaPermitido(v, hoje)).map((v) => ({ nome: String(v.pessoa?.nome ?? '').trim(), horario: hora(v.data_hora_inicio), tipo: 'convite' as const })),
+      ...antigos.filter((v) => diaPermitido(v, hoje)).map((v) => ({ nome: String(v.nome ?? '').trim(), horario: hora(v.data_hora_inicio), tipo: 'convite' as const })),
       ...entregas.map((e) => ({ nome: String(e.estabelecimento ?? '').trim() || 'Entrega', horario: hora(e.previsao_em), tipo: 'entrega' as const })),
     ].filter((x) => x.nome);
     lista.sort((a, b) => {
@@ -297,14 +314,16 @@ export class CentralService {
 
   /**
    * Chamadas do dia (AAAA-MM-DD, até 30 dias atrás) atendidas pela central ou originadas por ela,
-   * em todos os condomínios que hoje contratam a central.
+   * nos condomínios ativos que hoje contratam a central.
    */
   async historico(data: string): Promise<ItemHistoricoCentral[]> {
     const { inicio, fim } = intervaloHojeBrasilia(this.acoes.instanteDoDia(data));
+    const conds = await this.prisma.condominios.findMany({ where: ONDE_CENTRAL, select: { id: true } });
+    if (!conds.length) return [];
     const lista = await this.prisma.interfone_Chamadas.findMany({
       where: {
         created_at: { gte: inicio, lte: fim },
-        condominio: { central_contratada: 1 },
+        id_condominio: { in: conds.map((c) => c.id) },
         OR: [{ atendida_por_tipo: 'central' }, { tipo: 'portaria_unidade', id_operador_central: { not: null } }],
       },
       include: {

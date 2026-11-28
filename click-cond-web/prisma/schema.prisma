@@ -2393,8 +2393,11 @@ model Interfone_Chamadas {
   /// JSON array de Users.id em que o toque saiu (VoIP/dados): "todos
   /// recusaram" compara com estes, não com todos os moradores.
   tocou_ids             String?         @db.Text
-  /// Central_Operadores.id que atendeu (atendida_por_tipo 'central').
+  /// Central_Operadores.id que atendeu (atendida_por_tipo 'central') ou que ligou para a unidade.
   id_operador_central   Int?
+  /// Para onde a chamada foi encaminhada na portaria: 'local' | 'central'. Null nas antigas e nas
+  /// que não passaram pela portaria. A central só vê e age nas 'central' (ou nas do próprio operador).
+  destino               String?         @db.VarChar(8)
   /// Resumo da conversa feito pela IA.
   ia_resumo             String?         @db.Text
   /// Transcrição completa da conversa com a IA.

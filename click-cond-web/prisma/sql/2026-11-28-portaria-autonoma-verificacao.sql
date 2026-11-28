@@ -28,6 +28,11 @@ SELECT 'Interfone_Chamadas.ia_transcricao' AS item,
   IF((SELECT COUNT(*) FROM information_schema.COLUMNS
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Chamadas' AND COLUMN_NAME = 'ia_transcricao') = 1, 'OK', 'FALTA') AS status
 UNION ALL
+SELECT 'Interfone_Chamadas.destino' AS item,
+  IF((SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Chamadas' AND COLUMN_NAME = 'destino'
+      AND DATA_TYPE = 'varchar' AND CHARACTER_MAXIMUM_LENGTH = 8 AND IS_NULLABLE = 'YES') = 1, 'OK', 'FALTA') AS status
+UNION ALL
 SELECT 'tabela Portaria_Agenda',
   IF((SELECT COUNT(*) FROM information_schema.TABLES
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Portaria_Agenda') = 1, 'OK', 'FALTA')

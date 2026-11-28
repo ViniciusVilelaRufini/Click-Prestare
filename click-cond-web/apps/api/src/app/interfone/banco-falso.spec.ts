@@ -62,6 +62,7 @@ const PADROES: Record<string, Row> = {
     recusas: null,
     tocou_ids: null,
     id_operador_central: null,
+    destino: null,
   },
   interfone_Monitores: { ativo: 1 },
   guarita_Alertas: { visto_em: null, visto_por: null, dados: null },

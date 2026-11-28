@@ -479,6 +479,8 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
         id_facial: facial.id,
         numero_discado: num,
         motivo_portaria: 'portaria',
+        // Para onde foi encaminhada: a central só vê e age nas 'central'.
+        destino,
         created_at: new Date(agora),
       },
     });
@@ -610,7 +612,8 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     }
     const r = await this.prisma.interfone_Chamadas.updateMany({
       where: { id: c.id, estado: 'chamando' },
-      data: { estado: 'portaria', motivo_portaria: motivo },
+      // `destino`: a central só vê e age nas 'central' (com porteiro online toca nos dois e segue 'central').
+      data: { estado: 'portaria', motivo_portaria: motivo, destino },
     });
     if (r.count === 0) return 'encerrar';
     this.liberarReserva(c.id);

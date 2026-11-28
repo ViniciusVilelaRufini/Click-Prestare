@@ -65,18 +65,30 @@ function montar(opts: { porteiroOnline?: boolean } = {}) {
       { id: 1, id_condominio: 1, nome: 'Rodrigo Visitante', doc_identificacao: '12345678900', telefone: '17988880000' },
       { id: 2, id_condominio: 1, nome: 'Ontem Visitante', doc_identificacao: '1', telefone: '1' },
       { id: 3, id_condominio: 1, nome: 'Vizinho Visitante', doc_identificacao: '2', telefone: '2' },
+      { id: 4, id_condominio: 1, nome: 'Pendente Visitante', doc_identificacao: '3', telefone: '3' },
+      { id: 5, id_condominio: 1, nome: 'Diarista Sexta', doc_identificacao: '4', telefone: '4' },
+      { id: 6, id_condominio: 1, nome: 'Jardineiro Segunda', doc_identificacao: '5', telefone: '5' },
     ],
     visitas: [
       // Hoje às 15:30 (Brasília), para a unidade 100: aparece.
-      { id: 1, id_pessoa: 1, id_condominio: 1, id_apartamento: 100, bloqueado: 0, data_saida: null, data_hora_inicio: HOJE_UTC(18, 30), data_hora_termino: HOJE_UTC(22) },
+      { id: 1, id_pessoa: 1, id_condominio: 1, id_apartamento: 100, bloqueado: 0, liberado: 1, data_saida: null, data_hora_inicio: HOJE_UTC(18, 30), data_hora_termino: HOJE_UTC(22) },
       // Ontem: não aparece.
-      { id: 2, id_pessoa: 2, id_condominio: 1, id_apartamento: 100, bloqueado: 0, data_saida: null, data_hora_inicio: ONTEM_UTC(18), data_hora_termino: ONTEM_UTC(20) },
+      { id: 2, id_pessoa: 2, id_condominio: 1, id_apartamento: 100, bloqueado: 0, liberado: 1, data_saida: null, data_hora_inicio: ONTEM_UTC(18), data_hora_termino: ONTEM_UTC(20) },
       // Outra unidade: não aparece.
-      { id: 3, id_pessoa: 3, id_condominio: 1, id_apartamento: 200, bloqueado: 0, data_saida: null, data_hora_inicio: HOJE_UTC(18), data_hora_termino: HOJE_UTC(20) },
+      { id: 3, id_pessoa: 3, id_condominio: 1, id_apartamento: 200, bloqueado: 0, liberado: 1, data_saida: null, data_hora_inicio: HOJE_UTC(18), data_hora_termino: HOJE_UTC(20) },
+      // Não liberada (pedido pendente, negado ou revogado): não aparece.
+      { id: 4, id_pessoa: 4, id_condominio: 1, id_apartamento: 100, bloqueado: 0, liberado: 0, data_saida: null, data_hora_inicio: HOJE_UTC(19), data_hora_termino: HOJE_UTC(21) },
+      // Recorrente de vários dias, às sextas (27/11/2026 é sexta): aparece, sem hora no dia.
+      { id: 5, id_pessoa: 5, id_condominio: 1, id_apartamento: 100, bloqueado: 0, liberado: 1, data_saida: null, dias_semana: 'seg,sex', data_hora_inicio: new Date(Date.UTC(2026, 10, 1, 11)), data_hora_termino: new Date(Date.UTC(2026, 11, 31, 20)) },
+      // Recorrente só às segundas: hoje (sexta) não aparece.
+      { id: 6, id_pessoa: 6, id_condominio: 1, id_apartamento: 100, bloqueado: 0, liberado: 1, data_saida: null, dias_semana: 'seg', data_hora_inicio: new Date(Date.UTC(2026, 10, 1, 11)), data_hora_termino: new Date(Date.UTC(2026, 11, 31, 20)) },
     ],
     visitantes: [
       // Cadastro antigo (Visitantes), hoje às 10:00 (Brasília).
-      { id: 1, nome: 'Paula Legado', doc_identificacao: '99988877766', id_apartamento: 100, id_condominio: 1, bloqueado: 0, data_saida: null, data_hora_inicio: HOJE_UTC(13), data_hora_termino: HOJE_UTC(23) },
+      { id: 1, nome: 'Paula Legado', doc_identificacao: '99988877766', id_apartamento: 100, id_condominio: 1, bloqueado: 0, liberado: 1, data_saida: null, data_hora_inicio: HOJE_UTC(13), data_hora_termino: HOJE_UTC(23) },
+      // Cadastro antigo não liberado e recorrente fora do dia: não aparecem.
+      { id: 2, nome: 'Negado Legado', id_apartamento: 100, id_condominio: 1, bloqueado: 0, liberado: 0, data_saida: null, data_hora_inicio: HOJE_UTC(14), data_hora_termino: HOJE_UTC(23) },
+      { id: 3, nome: 'Quarta Legado', id_apartamento: 100, id_condominio: 1, bloqueado: 0, liberado: 1, data_saida: null, dias_semana: 'qua', data_hora_inicio: HOJE_UTC(14), data_hora_termino: HOJE_UTC(23) },
     ],
     deliveryAtendimentos: [
       { id: 1, id_condominio: 1, id_apartamento: 100, estabelecimento: 'iFood', nome_entregador: 'Zé Entregador', telefone_entregador: '17977776666', status: 'AGENDADA', previsao_em: HOJE_UTC(17, 30), created_at: HOJE_UTC(16) },
@@ -123,7 +135,16 @@ type M = ReturnType<typeof montar>;
 /** Chamada já na portaria (o toque esgotou ou o visitante discou a portaria). */
 async function naPortaria(
   m: M,
-  o: { cond?: number; tipo?: string; apto?: number | null; facial?: number | null; created_at?: Date; foto?: string | null } = {},
+  o: {
+    cond?: number;
+    tipo?: string;
+    apto?: number | null;
+    facial?: number | null;
+    created_at?: Date;
+    foto?: string | null;
+    /** Para onde foi encaminhada (padrão 'central'). */
+    destino?: string | null;
+  } = {},
 ): Promise<number> {
   const cond = o.cond ?? 1;
   const c = await m.prisma.interfone_Chamadas.create({
@@ -134,6 +155,7 @@ async function naPortaria(
       id_apartamento: o.apto === undefined ? (cond === 1 ? 100 : 900) : o.apto,
       id_facial: o.facial === undefined ? (cond === 1 ? 12 : 22) : o.facial,
       motivo_portaria: 'nao_atendeu',
+      destino: o.destino === undefined ? 'central' : o.destino,
       foto: o.foto ?? null,
       created_at: o.created_at ?? new Date(AGORA - 30_000),
     },
@@ -232,6 +254,8 @@ describe('central — condomínios e fila', () => {
     const encerrada = await naPortaria(m);
     linha(m, encerrada).estado = 'encerrada';
     const portariaSemUnidade = await naPortaria(m, { tipo: 'facial_portaria', apto: null });
+    await naPortaria(m, { destino: 'local' });
+    await naPortaria(m, { destino: null });
 
     const fila = await m.ctrl.fila(TOKEN_OPERADORA);
     expect(fila.map((c: any) => c.id).sort()).toEqual([daCentral, portariaSemUnidade].sort());
@@ -342,6 +366,19 @@ describe('central — atender', () => {
     // O operador desistiu; a reserva venceu e o porteiro entrou.
     await m.nucleo.evento(outra, { evento: 'atendida', papel: 'portaria', uid: 3 });
     expect(linha(m, outra)).toMatchObject({ atendida_por_tipo: 'portaria', id_operador_central: null });
+  });
+
+  it('o mesmo operador que já entrou repete o atender (reconexão): mesmos dados; outro operador → 409', async () => {
+    const m = montar();
+    const id = await naPortaria(m);
+    await m.ctrl.atender(id, TOKEN_OPERADORA);
+    await m.nucleo.evento(id, { evento: 'atendida', papel: 'central', uid: 5 });
+    const d = await m.ctrl.atender(id, TOKEN_OPERADORA);
+    expect(verificarTokenVoz(d.token, SEGREDO, AGORA / 1000)).toEqual({ cid: id, papel: 'central', uid: 5, nome: 'Olga Operadora' });
+    await expect(m.ctrl.atender(id, { ...TOKEN_OPERADORA, sub: 6, nome: 'Outro Operador' })).rejects.toMatchObject({
+      status: 409,
+      response: { motivo: 'atendida_por_outro' },
+    });
   });
 
   it('chamada atendida pelo porteiro → 409 atendida_por_outro para o operador', async () => {
@@ -479,6 +516,7 @@ describe('central — contexto (LGPD)', () => {
         { nome: 'Paula Legado', horario: '10:00', tipo: 'convite' },
         { nome: 'iFood', horario: '14:30', tipo: 'entrega' },
         { nome: 'Rodrigo Visitante', horario: '15:30', tipo: 'convite' },
+        { nome: 'Diarista Sexta', horario: null, tipo: 'convite' },
       ],
       instrucao_entregas: 'Deixe no armário 3.',
     });
@@ -599,4 +637,102 @@ describe('central — alertas do Guarita', () => {
 
 it('OPERADORA usada nos testes é a do token', () => {
   expect(OPERADORA).toEqual({ uid: TOKEN_OPERADORA.sub, nome: TOKEN_OPERADORA.nome });
+});
+
+describe('central — só chamadas encaminhadas para a central (destino)', () => {
+  it('chamada da janela local (ou antiga, sem destino) não está na fila e o operador não atende, abre, encerra nem vê o contexto', async () => {
+    for (const destino of ['local', null]) {
+      const m = montar({ porteiroOnline: true });
+      const id = await naPortaria(m, { destino });
+      await expect(m.ctrl.fila(TOKEN_OPERADORA)).resolves.toEqual([]);
+      await expect(m.ctrl.atender(id, TOKEN_OPERADORA)).rejects.toMatchObject({ status: 403 });
+      await expect(m.ctrl.encerrar(id, TOKEN_OPERADORA)).rejects.toMatchObject({ status: 403 });
+      await expect(m.ctrl.contexto(id, TOKEN_OPERADORA)).rejects.toMatchObject({ status: 403 });
+      // Nem forjando o "atendida" pelo serviço de voz o operador abre o portão da chamada local.
+      await m.nucleo.evento(id, { evento: 'atendida', papel: 'central', uid: 5 });
+      linha(m, id).id_operador_central = null;
+      await expect(m.ctrl.abrir(id, { codigo: 'entrega' }, TOKEN_OPERADORA)).rejects.toMatchObject({ status: 403 });
+      expect(m.voz.encerrar).not.toHaveBeenCalled();
+      expect(m.facial.abrirDispositivoInterno).not.toHaveBeenCalled();
+      // O porteiro do prédio segue atendendo.
+      const outra = await naPortaria(m, { destino });
+      await expect(m.acoes.atender(outra, PORTEIRO)).resolves.toMatchObject({ id: outra });
+    }
+  });
+
+  it('chamada da janela da central: está na fila, o operador atende, vê o contexto e o porteiro online também pode atender', async () => {
+    const m = montar({ porteiroOnline: true });
+    const id = await naPortaria(m, { destino: 'central' });
+    await expect(m.ctrl.fila(TOKEN_OPERADORA)).resolves.toEqual([expect.objectContaining({ id })]);
+    await expect(m.ctrl.contexto(id, TOKEN_OPERADORA)).resolves.toMatchObject({ unidade: 'Bloco A · Apto 106' });
+    const outra = await naPortaria(m, { destino: 'central' });
+    await expect(m.acoes.atender(outra, PORTEIRO)).resolves.toMatchObject({ id: outra });
+    await expect(m.ctrl.atender(id, TOKEN_OPERADORA)).resolves.toMatchObject({ id });
+  });
+
+  it('o núcleo grava o destino ao levar a chamada para a portaria: sem porteiro (salvaguarda) → central; porteiro online sem faixa da central → local', async () => {
+    const semPorteiro = montar({ porteiroOnline: false });
+    const r1 = await semPorteiro.nucleo.novaChamadaFacial('fac-12', '106');
+    if (!r1.ok) throw new Error('chamada não criada');
+    await semPorteiro.nucleo.evento(r1.id, { evento: 'toque_esgotado' });
+    expect(linha(semPorteiro, r1.id)).toMatchObject({ estado: 'portaria', destino: 'central' });
+    await expect(semPorteiro.ctrl.fila(TOKEN_OPERADORA)).resolves.toEqual([expect.objectContaining({ id: r1.id })]);
+
+    const comPorteiro = montar({ porteiroOnline: true });
+    const r2 = await comPorteiro.nucleo.novaChamadaFacial('fac-12', '106');
+    if (!r2.ok) throw new Error('chamada não criada');
+    await comPorteiro.nucleo.evento(r2.id, { evento: 'toque_esgotado' });
+    expect(linha(comPorteiro, r2.id)).toMatchObject({ estado: 'portaria', destino: 'local' });
+    await expect(comPorteiro.ctrl.fila(TOKEN_OPERADORA)).resolves.toEqual([]);
+  });
+
+  it('faixa da central na agenda com porteiro online: toca nos dois e o destino fica central', async () => {
+    const m = montar({ porteiroOnline: true });
+    // 27/11/2026 é sexta (5); 14:05 em Brasília.
+    m.tabelas['portaria_Agenda'].push({ id: 1, id_condominio: 1, dia_semana: 5, inicio: '08:00', fim: '18:00', destino: 'central' });
+    const r = await m.nucleo.novaChamadaFacial('fac-12', '106');
+    if (!r.ok) throw new Error('chamada não criada');
+    await m.nucleo.evento(r.id, { evento: 'toque_esgotado' });
+    await m.nucleo.ociosos();
+    expect(linha(m, r.id).destino).toBe('central');
+    expect(m.realtime.emitirPortaria).toHaveBeenCalledWith(1, 'interfone:chamada', expect.objectContaining({ id: r.id }));
+    expect(m.realtime.emitirCentral).toHaveBeenCalledWith('interfone:chamada', expect.objectContaining({ id: r.id }));
+  });
+
+  it('ligação feita pelo operador: destino central, contexto enquanto em curso e encerrar pelo operador', async () => {
+    const m = montar();
+    const d = await m.ctrl.ligar({ id_apartamento: 100 }, TOKEN_OPERADORA);
+    expect(linha(m, d.id)).toMatchObject({ destino: 'central', id_operador_central: 5, estado: 'chamando' });
+    await expect(m.ctrl.contexto(d.id, TOKEN_OPERADORA)).resolves.toMatchObject({ unidade: 'Bloco A · Apto 106', moradores: ['Ana', 'Bruno'] });
+    // Outro operador não vê a ligação que não é dele e nem foi para a fila (estado chamando).
+    await expect(m.ctrl.contexto(d.id, { ...TOKEN_OPERADORA, sub: 6, nome: 'Outro' })).rejects.toMatchObject({ status: 403 });
+    await m.nucleo.evento(d.id, { evento: 'atendida', papel: 'morador', uid: 7 });
+    await expect(m.ctrl.contexto(d.id, TOKEN_OPERADORA)).resolves.toMatchObject({ unidade: 'Bloco A · Apto 106' });
+    await expect(m.ctrl.encerrar(d.id, TOKEN_OPERADORA)).resolves.toEqual({ ok: true });
+    linha(m, d.id).estado = 'encerrada';
+    await expect(m.ctrl.contexto(d.id, TOKEN_OPERADORA)).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('ligação do app para a portaria nasce com destino local', async () => {
+    const m = montar({ porteiroOnline: true });
+    await m.acoes.ligarPortaria({ papel: 'morador', uid: 7, nome: 'Ana Maria Souza' }, 100);
+    expect(m.tabelas['interfone_Chamadas'][0]).toMatchObject({ tipo: 'unidade_portaria', estado: 'portaria', destino: 'local' });
+    await expect(m.ctrl.fila(TOKEN_OPERADORA)).resolves.toEqual([]);
+  });
+
+  it('visitante discou a portaria em condomínio da central sem porteiro: facial_portaria nasce com destino central', async () => {
+    const m = montar({ porteiroOnline: false });
+    const r = await m.nucleo.novaChamadaFacial('fac-12', '0');
+    if (!r.ok) throw new Error('chamada não criada');
+    expect(linha(m, r.id)).toMatchObject({ tipo: 'facial_portaria', estado: 'portaria', destino: 'central' });
+  });
+});
+
+describe('central — histórico só de condomínios ativos com central', () => {
+  it('condomínio desativado (mesmo com central) não entra no histórico', async () => {
+    const m = montar();
+    const id = await naPortaria(m, { cond: 3, apto: null, facial: null, created_at: HOJE_UTC(15) });
+    await m.nucleo.evento(id, { evento: 'atendida', papel: 'central', uid: 5 });
+    await expect(m.ctrl.historico('2026-11-27', TOKEN_OPERADORA)).resolves.toEqual([]);
+  });
 });

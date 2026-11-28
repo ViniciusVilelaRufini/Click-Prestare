@@ -170,6 +170,10 @@ export class InterfoneAcoesService {
     if (quem.papel !== 'portaria') await this.assertModulo(c.id_condominio);
     if (c.estado === 'encerrada') throw conflito('encerrada', 'A chamada já terminou.');
     if (c.estado === 'atendida') {
+      // O mesmo operador que já entrou (reconexão do console): mesmos dados de entrada, token novo.
+      if (quem.papel === 'central' && c.atendida_por_tipo === 'central' && c.atendida_por_id === quem.uid) {
+        return this.dadosEntrada(c.id, quem.papel, quem.uid, quem.nome, this.segredos(), this.agora());
+      }
       if (quem.papel === 'central' || c.atendida_por_tipo === 'central') throw atendidaPorOutro();
       throw conflito('ja_atendida', 'A chamada já foi atendida.');
     }
@@ -354,6 +358,8 @@ export class InterfoneAcoesService {
         id_condominio: apto.id_condominio,
         tipo: 'unidade_portaria',
         estado: 'portaria',
+        // Ligação do app para a portaria: sempre o console do prédio (exige porteiro online).
+        destino: 'local',
         id_apartamento: apto.id,
         id_user_origem: quem.uid,
         created_at: new Date(agora),
@@ -395,7 +401,9 @@ export class InterfoneAcoesService {
         tipo: 'portaria_unidade',
         estado: 'chamando',
         id_apartamento: apto.id,
-        ...(quem.papel === 'portaria' ? { id_porteiro_origem: quem.uid } : { id_operador_central: quem.uid }),
+        ...(quem.papel === 'portaria'
+          ? { id_porteiro_origem: quem.uid, destino: 'local' }
+          : { id_operador_central: quem.uid, destino: 'central' }),
         created_at: new Date(agora),
       },
     });
@@ -607,13 +615,22 @@ export class InterfoneAcoesService {
   }
 
   /** Morador: vínculo com a unidade da chamada. Porteiro: mesmo condomínio. Central: condomínio com a central. */
-  private async assertPodeVer(
-    c: { id_condominio: number; id_apartamento: number | null; condominio?: { central_contratada?: number | null } | null },
-    quem: Quem,
-  ) {
+  private async assertPodeVer(c: ChamadaParaVer, quem: Quem) {
     if (quem.papel === 'portaria') this.assertMesmoCondominio(c.id_condominio, quem);
-    else if (quem.papel === 'central') this.assertCentral(c);
+    else if (quem.papel === 'central') this.assertChamadaDaCentral(c, quem.uid);
     else await this.assertVinculo(quem.uid, c.id_apartamento);
+  }
+
+  /**
+   * Central: só chamada de condomínio com a central contratada E encaminhada para a central
+   * (`destino = 'central'`) — ou a do próprio operador (ele ligou ou atendeu). Chamada que a agenda
+   * mandou para o porteiro do prédio não é da central.
+   */
+  assertChamadaDaCentral(c: ChamadaParaVer, uid: number): void {
+    this.assertCentral(c);
+    if (c.destino !== 'central' && c.id_operador_central !== uid) {
+      throw new ForbiddenException('Acesso negado: esta chamada não foi encaminhada para a central.');
+    }
   }
 
   /** O operador só vê condomínio que contratou a central (o módulo ligado é conferido à parte). */
@@ -684,6 +701,15 @@ export class InterfoneAcoesService {
     }
   }
 }
+
+/** O que as conferências de acesso leem da chamada. */
+type ChamadaParaVer = {
+  id_condominio: number;
+  id_apartamento: number | null;
+  destino?: string | null;
+  id_operador_central?: number | null;
+  condominio?: { central_contratada?: number | null } | null;
+};
 
 function moduloLigado(
   c: { ativo: number | null; interfone_contratado: number | null; interfone_ativo: number | null } | null | undefined,

@@ -55,7 +55,8 @@ export function remotaConsumida(v: any, ctx: Pick<ContextoVisita, 'comVagaVigent
   return ehAutorizacaoRemota(v) && !!v.data_entrada;
 }
 
-function diaPermitido(v: any, ctx: ContextoVisita): boolean {
+/** Dia da semana permitido pela visita (`dias_semana` 'seg,qua,...'; vazio = todos). */
+export function diaPermitido(v: { dias_semana?: string | null }, ctx: Pick<ContextoVisita, 'diaSemana'>): boolean {
   const dias: string[] = v.dias_semana
     ? String(v.dias_semana).split(',').map((d) => d.trim().toLowerCase()).filter(Boolean)
     : [];

@@ -12,7 +12,10 @@
 -- O que faz (só ADD — nada é apagado nem reescrito, sem migração de dados):
 --   1. Condominios: central_contratada, ia_portao_ativa (0 = desligado),
 --      instrucao_entregas (TEXT), interfone_numero_portaria (VARCHAR(8), '0').
---   2. Interfone_Chamadas: id_operador_central, ia_resumo, ia_transcricao.
+--   2. Interfone_Chamadas: id_operador_central, ia_resumo, ia_transcricao,
+--      destino (VARCHAR(8) NULL: 'local' | 'central', para onde a chamada foi
+--      encaminhada na portaria; null nas chamadas antigas e nas que não
+--      passaram pela portaria).
 --      (tipo 'facial_portaria', atendida_por_tipo 'central' e resultado
 --      'atendida_central' cabem nas colunas VarChar atuais.)
 --   3. Portaria_Agenda: janelas semanais (dia, HH:MM-HH:MM) e destino
@@ -89,6 +92,15 @@ SET @sql = IF(
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Chamadas' AND COLUMN_NAME = 'ia_transcricao') = 0,
   'ALTER TABLE `Interfone_Chamadas` ADD COLUMN `ia_transcricao` MEDIUMTEXT NULL',
   'SELECT ''Interfone_Chamadas.ia_transcricao: ja existe'' AS passo_2c');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Chamadas' AND COLUMN_NAME = 'destino') = 0,
+  'ALTER TABLE `Interfone_Chamadas` ADD COLUMN `destino` VARCHAR(8) NULL',
+  'SELECT ''Interfone_Chamadas.destino: ja existe'' AS passo_2d');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
