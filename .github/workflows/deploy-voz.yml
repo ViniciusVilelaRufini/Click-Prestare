@@ -1,0 +1,129 @@
+name: Deploy Voz to EC2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'click-cond-web/voz/**'
+      - '.github/workflows/deploy-voz.yml'
+  # Disparo manual só publica a partir da main (ver `if` do job):
+  #   gh workflow run deploy-voz.yml --ref main
+  workflow_dispatch:
+
+concurrency:
+  group: ec2-voz-production
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Test and deploy voz
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: click-cond-web/voz
+    env:
+      AWS_REGION: sa-east-1
+      INSTANCE_ID: i-0bdd877976ff40bf6
+      BUCKET: prestare-arquivos-850401152034
+      DOMINIO: voz.prestarecondominios.com.br
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: click-cond-web/voz/package-lock.json
+
+      - name: Install and test
+        run: |
+          npm ci --no-audit --no-fund
+          npm test
+          for s in deploy/*.sh; do bash -n "$s"; done
+
+      - name: Package release
+        id: pacote
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARQUIVO="voz-${GITHUB_SHA}.tgz"
+          tar --exclude=node_modules -czf "$RUNNER_TEMP/$ARQUIVO" .
+          echo "arquivo=$ARQUIVO" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::850401152034:role/github-deploy-prestare
+          role-session-name: prestare-deploy-voz
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload release
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws s3 cp "$RUNNER_TEMP/${{ steps.pacote.outputs.arquivo }}" \
+            "s3://${BUCKET}/deploy/voz/${{ steps.pacote.outputs.arquivo }}" --only-show-errors
+
+      - name: Install on the instance (SSM)
+        shell: bash
+        run: |
+          set -euo pipefail
+          REL="/opt/prestare-voz/releases/${GITHUB_SHA}"
+          TGZ="/tmp/voz-${GITHUB_SHA}.tgz"
+          # AWS-RunShellScript roda com sh (dash): o instalar.sh roda em bash.
+          PARAMS="$(jq -nc \
+            --arg rel "$REL" --arg tgz "$TGZ" --arg sha "$GITHUB_SHA" \
+            --arg src "s3://${BUCKET}/deploy/voz/voz-${GITHUB_SHA}.tgz" --arg reg "$AWS_REGION" \
+            '{commands: [
+                "set -eu",
+                "AWS=/snap/bin/aws; [ -x \"$AWS\" ] || AWS=aws",
+                ("\"$AWS\" s3 cp " + $src + " " + $tgz + " --region " + $reg + " --only-show-errors"),
+                ("rm -rf " + $rel + " && mkdir -p " + $rel),
+                ("tar -xzf " + $tgz + " -C " + $rel),
+                ("rm -f " + $tgz),
+                ("bash " + $rel + "/deploy/instalar.sh " + $sha + " 2>&1")
+              ],
+              executionTimeout: ["1200"]}')"
+          COMANDO="$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "prestare-voz ${GITHUB_SHA:0:8}" \
+            --timeout-seconds 600 \
+            --parameters "$PARAMS" \
+            --query 'Command.CommandId' --output text)"
+          echo "Comando SSM: $COMANDO"
+
+          # O waiter da CLI desiste em ~100 s; o npm ci pode passar disso.
+          STATUS=Pending
+          for _ in $(seq 1 12); do
+            aws ssm wait command-executed --command-id "$COMANDO" --instance-id "$INSTANCE_ID" 2>/dev/null || true
+            STATUS="$(aws ssm get-command-invocation --command-id "$COMANDO" --instance-id "$INSTANCE_ID" \
+              --query Status --output text 2>/dev/null || echo Pending)"
+            case "$STATUS" in Pending|InProgress|Delayed) continue ;; *) break ;; esac
+          done
+
+          echo "----- saída do instalar.sh -----"
+          aws ssm get-command-invocation --command-id "$COMANDO" --instance-id "$INSTANCE_ID" \
+            --query StandardOutputContent --output text || true
+          echo "----- erros -----"
+          aws ssm get-command-invocation --command-id "$COMANDO" --instance-id "$INSTANCE_ID" \
+            --query StandardErrorContent --output text || true
+          echo "Status: $STATUS"
+          test "$STATUS" = "Success"
+
+      - name: Health check
+        shell: bash
+        run: |
+          set -euo pipefail
+          SAUDE="$(curl -fsS --retry 10 --retry-delay 3 --retry-all-errors "https://${DOMINIO}/controle/saude")"
+          echo "$SAUDE"
+          echo "$SAUDE" | jq -e '.ok == true and .ari == true' >/dev/null
