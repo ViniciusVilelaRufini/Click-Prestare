@@ -125,6 +125,7 @@ test('origem desliga durante o toque: cancelada', () => {
 test('origem desliga na conversa: resultado conforme quem atendeu, com duração', () => {
   const { c, relogio } = facial();
   c.iniciar();
+  c.forcarPortaria();
   c.entrou({ papel: 'portaria', uid: 3, canal: 'web1' });
   relogio.avancar(42);
   assert.deepEqual(c.origemDesligou(), [
@@ -205,6 +206,7 @@ test('encerrar pelo controle: sem atender vira não atendida (facial), atendida 
   ]);
   const { c: d } = facial();
   d.iniciar();
+  d.forcarPortaria();
   d.entrou({ papel: 'portaria', uid: 3, canal: 'web1' });
   assert.equal(d.encerrar().at(-1).resultado, 'atendida_portaria');
 });
@@ -251,4 +253,37 @@ test('portaria_unidade: toque esgotado encerra sem transferir e sem mensagem; en
 
 test('tipo desconhecido é recusado', () => {
   assert.throws(() => criarChamada({ id: 1, tipo: 'x', toqueS: 30, canalOrigem: 'a' }));
+});
+
+test('M3: morador só entra com a chamada tocando no apartamento (chamando)', () => {
+  const { c } = facial();
+  c.iniciar();
+  c.expirou('toque');
+  c.resposta('portaria');
+  assert.equal(c.estado, 'portaria');
+  // Token pego antes da transferência; o INVITE chegou depois: não atende mais.
+  assert.deepEqual(c.entrou({ papel: 'morador', uid: 42, canal: 'app1' }), [{ acao: 'recusar_canal', canal: 'app1' }]);
+  assert.equal(c.estado, 'portaria');
+  assert.equal(c.canalAtendido, null);
+  // O porteiro continua podendo atender.
+  assert.ok(nomes(c.entrou({ papel: 'portaria', uid: 3, canal: 'web1' })).includes('ponte'));
+  assert.equal(c.papelAtendido, 'portaria');
+});
+
+test('M3: portaria só entra com a chamada na portaria', () => {
+  const { c } = facial();
+  c.iniciar();
+  assert.deepEqual(c.entrou({ papel: 'portaria', uid: 3, canal: 'web1' }), [{ acao: 'recusar_canal', canal: 'web1' }]);
+  assert.equal(c.estado, 'chamando');
+  assert.ok(nomes(c.entrou({ papel: 'morador', uid: 42, canal: 'app1' })).includes('ponte'));
+
+  const p = criarChamada({ id: 2, tipo: 'portaria_unidade', toqueS: 30, toquePortariaS: 45, canalOrigem: 'web', relogio: relogioFalso() });
+  p.iniciar();
+  assert.deepEqual(p.entrou({ papel: 'portaria', uid: 3, canal: 'web2' }), [{ acao: 'recusar_canal', canal: 'web2' }]);
+  assert.ok(nomes(p.entrou({ papel: 'morador', uid: 42, canal: 'app1' })).includes('ponte'));
+
+  const u = criarChamada({ id: 3, tipo: 'unidade_portaria', toqueS: 45, toquePortariaS: 45, canalOrigem: 'app', relogio: relogioFalso() });
+  u.iniciar();
+  assert.deepEqual(u.entrou({ papel: 'morador', uid: 9, canal: 'app2' }), [{ acao: 'recusar_canal', canal: 'app2' }]);
+  assert.ok(nomes(u.entrou({ papel: 'portaria', uid: 3, canal: 'web' })).includes('ponte'));
 });

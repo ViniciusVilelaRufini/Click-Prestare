@@ -395,3 +395,35 @@ test('conferirCanais ignora chamadas criadas depois do início da consulta', asy
   assert.equal(eventos(api).length, 0);
   assert.equal(servico.ativas(), 2);
 });
+
+test('M3: INVITE do morador que chega depois da transferência para a portaria é desligado', async () => {
+  const api = apiFalsa({
+    async evento(id, ev) { api.chamadas.push(['evento', id, ev]); return ev.evento === 'toque_esgotado' ? { proximo: 'portaria' } : { ok: true }; },
+  });
+  const { ari, servico, temporizador } = montar({ api });
+  ari.iniciar('fac1', ['facial', 'fac-12', '106']);
+  await servico.ocioso();
+  temporizador.disparar(30_000);
+  await servico.ocioso();
+  ari.iniciar('app1', ['entrar', token({ cid: 77, papel: 'morador', uid: 42 })]);
+  await servico.ocioso();
+  assert.deepEqual(ari.de('hangup'), [['hangup', 'app1', 'busy']]);
+  assert.equal(ari.de('adicionarNaPonte').length, 0);
+  assert.ok(!eventos(api).some((e) => e.evento === 'atendida'), 'morador não vira atendida_morador');
+  ari.iniciar('web1', ['entrar', token({ cid: 77, papel: 'portaria', uid: 3 })]);
+  await servico.ocioso();
+  assert.deepEqual(eventos(api).at(-1), { evento: 'atendida', papel: 'portaria', uid: 3 });
+});
+
+test('M3: porteiro com a chamada ainda tocando no apartamento é desligado', async () => {
+  const { ari, api, servico } = montar();
+  ari.iniciar('fac1', ['facial', 'fac-12', '106']);
+  await servico.ocioso();
+  ari.iniciar('web1', ['entrar', token({ cid: 77, papel: 'portaria', uid: 3 })]);
+  await servico.ocioso();
+  assert.deepEqual(ari.de('hangup'), [['hangup', 'web1', 'busy']]);
+  assert.equal(eventos(api).length, 0);
+  ari.iniciar('app1', ['entrar', token({ cid: 77, papel: 'morador', uid: 42 })]);
+  await servico.ocioso();
+  assert.deepEqual(eventos(api).at(-1), { evento: 'atendida', papel: 'morador', uid: 42 });
+});

@@ -58,8 +58,14 @@ export function criarChamada({
     return [{ acao: 'agendar', nome: 'toque_portaria', s: toquePortaria }];
   }
 
+  // Papel × estado: o morador só atende enquanto toca no apartamento; o
+  // porteiro só depois que a chamada foi para a portaria (unidade_portaria já
+  // nasce lá). Token válido pego antes da transferência não vale depois dela.
+  const PODE_ENTRAR = { morador: 'chamando', portaria: 'portaria' };
+
   function entrou({ papel, uid, canal }) {
     if (estado === 'encerrada' || estado === 'atendida') return [{ acao: 'recusar_canal', canal }];
+    if (Object.hasOwn(PODE_ENTRAR, papel) && PODE_ENTRAR[papel] !== estado) return [{ acao: 'recusar_canal', canal }];
     atendida = { papel, uid, canal, em: relogio() };
     estado = 'atendida';
     aguardandoResposta = false;
