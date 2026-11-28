@@ -404,8 +404,52 @@ describe('consultas do app e do console', () => {
     const m = montar();
     const id = await chamadaFacial(m);
     const h = await m.acoes.hoje(1);
-    expect(h).toEqual([expect.objectContaining({ id, unidade: 'Bloco A · Apto 106', porta_aberta: false })]);
+    expect(h).toEqual([
+      expect.objectContaining({ id, unidade: 'Bloco A · Apto 106', porta_aberta: false, id_apartamento: 100, porta_aberta_por_nome: null }),
+    ]);
     await expect(m.acoes.hoje(2)).resolves.toEqual([]);
+  });
+
+  describe('dia: chamadas de um dia anterior (console)', () => {
+    /** AGORA = 27/11/2026 14:05 em Brasília. */
+    async function comChamada() {
+      const m = montar();
+      const id = await chamadaFacial(m);
+      m.tabelas['interfone_Chamadas'][0].created_at = new Date(AGORA);
+      return { m, id };
+    }
+
+    it('traz as chamadas do dia pedido, com unidade e apartamento', async () => {
+      const { m, id } = await comChamada();
+      await expect(m.acoes.dia(1, '2026-11-27')).resolves.toEqual([
+        expect.objectContaining({ id, unidade: 'Bloco A · Apto 106', id_apartamento: 100 }),
+      ]);
+      await expect(m.acoes.dia(1, '2026-11-26')).resolves.toEqual([]);
+      await expect(m.acoes.dia(2, '2026-11-27')).resolves.toEqual([]);
+    });
+
+    it('o dia é o de Brasília: 23h30 de Brasília (02h30 UTC do dia seguinte) fica no próprio dia', async () => {
+      const { m, id } = await comChamada();
+      m.tabelas['interfone_Chamadas'][0].created_at = new Date(Date.UTC(2026, 10, 26, 2, 30));
+      await expect(m.acoes.dia(1, '2026-11-25')).resolves.toEqual([expect.objectContaining({ id })]);
+      await expect(m.acoes.dia(1, '2026-11-26')).resolves.toEqual([]);
+    });
+
+    it('aceita até 30 dias atrás', async () => {
+      const { m } = await comChamada();
+      await expect(m.acoes.dia(1, '2026-10-28')).resolves.toEqual([]);
+    });
+
+    it.each(['2026-11-28', '2026-10-27', '27/11/2026', '2026-02-30', '', 'abc'])('data %p → 400', async (data) => {
+      const { m } = await comChamada();
+      await expect(m.acoes.dia(1, data)).rejects.toMatchObject({ status: 400 });
+    });
+
+    it('módulo desligado → 403', async () => {
+      const { m } = await comChamada();
+      m.tabelas['condominios'][0].interfone_ativo = 0;
+      await expect(m.acoes.dia(1, '2026-11-27')).rejects.toMatchObject({ status: 403 });
+    });
   });
 
   it('estadoParaApp: estado, unidade, portão e se fui eu que atendi; sem vínculo → 403', async () => {

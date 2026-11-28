@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, HttpCode, Param, ParseIntPipe, Post } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, HttpCode, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { requireTenant } from '../auth/tenant.util';
@@ -58,5 +58,11 @@ export class InterfonePortariaController {
   @Get('hoje')
   hoje(@ReqUser() user: JwtPayload) {
     return this.acoes.hoje(this.porteiro(user).idCondominio);
+  }
+
+  /** Chamadas de um dia anterior (`?data=AAAA-MM-DD`, até 30 dias atrás). */
+  @Get('dia')
+  dia(@ReqUser() user: JwtPayload, @Query('data') data: string) {
+    return this.acoes.dia(this.porteiro(user).idCondominio, data);
   }
 }

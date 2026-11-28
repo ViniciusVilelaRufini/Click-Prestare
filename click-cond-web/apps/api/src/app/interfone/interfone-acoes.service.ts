@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -11,7 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { StorageService } from '../common/storage/storage.service';
-import { intervaloHojeBrasilia } from '../common/hora-brasilia.util';
+import { hojeBrasilia, intervaloHojeBrasilia } from '../common/hora-brasilia.util';
 import { rotuloAptoBloco } from '../visitantes/rotulo-apto-bloco.util';
 import { InterfoneService, unidadeDaChamada } from './interfone.service';
 import { InterfonePushService } from './interfone-push.service';
@@ -57,6 +58,15 @@ export interface ItemHistorico {
   foto_url: string | null;
   porta_aberta: boolean;
 }
+
+/** Item da lista de chamadas do console (hoje ou um dia anterior). */
+export type ItemConsole = ItemHistorico & {
+  unidade: string;
+  estado: string;
+  /** Para ligar de volta; null quando a unidade foi apagada ou a chamada não tem unidade. */
+  id_apartamento: number | null;
+  porta_aberta_por_nome: string | null;
+};
 
 function conflito(motivo: string, message: string): ConflictException {
   return new ConflictException({ statusCode: 409, motivo, message });
@@ -372,16 +382,45 @@ export class InterfoneAcoesService {
   }
 
   /** Console: chamadas de hoje (Brasília) do condomínio. */
-  async hoje(idCondominio: number): Promise<(ItemHistorico & { unidade: string; estado: string })[]> {
+  async hoje(idCondominio: number): Promise<ItemConsole[]> {
     await this.assertModulo(idCondominio);
-    const { inicio, fim } = intervaloHojeBrasilia(new Date(this.agora()));
+    return this.chamadasDoDia(idCondominio, new Date(this.agora()));
+  }
+
+  /**
+   * Console: chamadas de um dia (AAAA-MM-DD, calendário de Brasília) de hoje até HISTORICO_DIAS atrás — o mesmo
+   * limite do histórico do app do morador. Só leitura: a lista de hoje (que reconcilia o toque) não muda.
+   */
+  async dia(idCondominio: number, data: string): Promise<ItemConsole[]> {
+    await this.assertModulo(idCondominio);
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(data ?? ''));
+    const pedido = m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : NaN;
+    const valido = m && new Date(pedido).toISOString().slice(0, 10) === data;
+    const hoje = hojeBrasilia(new Date(this.agora())).getTime();
+    if (!valido || pedido > hoje || pedido < hoje - HISTORICO_DIAS * DIA_MS) {
+      throw new BadRequestException(`Escolha uma data de hoje até ${HISTORICO_DIAS} dias atrás.`);
+    }
+    // Meio-dia UTC do dia pedido = 09h em Brasília: cai sempre dentro do dia civil pedido.
+    return this.chamadasDoDia(idCondominio, new Date(pedido + 12 * 3_600_000));
+  }
+
+  private async chamadasDoDia(idCondominio: number, instante: Date): Promise<ItemConsole[]> {
+    const { inicio, fim } = intervaloHojeBrasilia(instante);
     const lista = await this.prisma.interfone_Chamadas.findMany({
       where: { id_condominio: idCondominio, created_at: { gte: inicio, lte: fim } },
       include: { apartamento: { select: { apto: true, bloco: true } } },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: HOJE_MAX,
     });
-    return Promise.all(lista.map(async (c) => ({ ...(await this.item(c)), estado: c.estado, unidade: unidadeDaChamada(c) })));
+    return Promise.all(
+      lista.map(async (c) => ({
+        ...(await this.item(c)),
+        estado: c.estado,
+        unidade: unidadeDaChamada(c),
+        id_apartamento: c.id_apartamento ?? null,
+        porta_aberta_por_nome: c.porta_aberta_por_nome ?? null,
+      })),
+    );
   }
 
   async estadoParaApp(id: number, idUser: number) {

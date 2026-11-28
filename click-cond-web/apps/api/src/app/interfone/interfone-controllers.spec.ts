@@ -6,7 +6,7 @@ describe('controllers do interfone (app e portaria)', () => {
     const fn = () => jest.fn(async () => ({ ok: true }));
     return {
       disponivel: fn(), estadoParaApp: fn(), atender: fn(), recusar: fn(), abrir: fn(), ligarPortaria: fn(),
-      historico: fn(), preferencia: fn(), definirPreferencia: fn(), ligarUnidade: fn(), encerrarPortaria: fn(), hoje: fn(),
+      historico: fn(), preferencia: fn(), definirPreferencia: fn(), ligarUnidade: fn(), encerrarPortaria: fn(), hoje: fn(), dia: fn(),
     };
   }
   const MORADOR: any = { sub: 7, nome: 'Ana', typeAccess: 'Morador' };
@@ -36,5 +36,13 @@ describe('controllers do interfone (app e portaria)', () => {
     expect(() => c.hoje(MORADOR)).toThrow(/porteiro/);
     await c.hoje(PORTEIRO);
     expect(a.hoje).toHaveBeenCalledWith(1);
+  });
+
+  it('portaria: dia repassa o condomínio do token e a data', async () => {
+    const a = acoesFalsas();
+    const c = new InterfonePortariaController(a as any);
+    expect(() => c.dia(MORADOR, '2026-11-27')).toThrow(/porteiro/);
+    await c.dia(PORTEIRO, '2026-11-27');
+    expect(a.dia).toHaveBeenCalledWith(1, '2026-11-27');
   });
 });
