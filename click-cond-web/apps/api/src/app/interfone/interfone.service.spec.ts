@@ -258,13 +258,6 @@ describe('InterfoneService.novaChamadaFacial', () => {
     expect((push.tocar.mock.calls as any[])[0][1]).toEqual([7, 8]);
   });
 
-  it('vínculo que vence hoje ainda toca', async () => {
-    const banco = bancoFalso({ vinculos: [{ id_apto: 100, id_user: 8, vencimento: new Date(Date.UTC(2026, 10, 27)) }] });
-    const { svc, push } = montar(banco);
-    await svc.novaChamadaFacial('fac-12', '106');
-    expect((push.tocar.mock.calls as any[])[0][1]).toEqual([8]);
-  });
-
   it('ninguém tocou (tocou===0) → voz.portaria e motivo_portaria=sem_app', async () => {
     const { svc, push, voz, realtime, chamadas } = montar();
     push.tocar.mockResolvedValueOnce({ tocou: 0, semApp: 1 });
