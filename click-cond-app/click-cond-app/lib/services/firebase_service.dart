@@ -426,12 +426,12 @@ class FirebaseService {
           // (o servidor só manda card de delivery a partir dela).
           'card_versao': 2,
           // Interfone pelo app: o iPhone toca pelo push VoIP (PushKit); o
-          // Android pelo push de dados. Versão 1 = este app atende a chamada
+          // Android pelo push de dados. Versão 1 = este app atende a chamada; 2 = também abre o pedido do portão
           // (o servidor manda push comum "atualize o app" para quem tem 0).
           if (voipToken != null) 'voip_token': voipToken,
           // Também no iPhone sem token VoIP: aí o servidor manda um push de
           // alerta com type interfone_chamada, e o toque nele abre a chamada.
-          'interfone_versao': 1,
+          'interfone_versao': 2,
         }),
       );
       _temaEnviado = tema;
