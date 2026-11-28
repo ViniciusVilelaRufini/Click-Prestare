@@ -1,0 +1,66 @@
+<div class="animate-fade-in space-y-5">
+  <!-- ══ Cabeçalho da área ══ -->
+  <div class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h2 class="section-title text-xl">Interfone pelo app</h2>
+      <p class="mt-0.5 text-sm text-ink-muted">
+        Libere o módulo condomínio a condomínio quando a venda fechar. O síndico liga e configura no console.
+      </p>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="badge badge-success">{{ totalContratados() }} contratado(s)</span>
+      <button
+        type="button"
+        class="icon-btn press"
+        (click)="carregar()"
+        [disabled]="carregando()"
+        title="Atualizar"
+        aria-label="Atualizar"
+      >
+        <svg class="h-5 w-5" [class.animate-spin]="carregando()" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 0 0 4.582 9M20 20v-5h-.581m0 0A8.003 8.003 0 0 1 4.06 13" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  @if (erro()) {
+    <div class="card flex items-start gap-4 p-6" role="alert">
+      <div>
+        <h3 class="section-title">Erro ao carregar</h3>
+        <p class="mt-1 text-sm text-ink-muted">{{ erro() }}</p>
+        <button type="button" class="btn-secondary btn-sm press mt-3" (click)="carregar()">Tentar de novo</button>
+      </div>
+    </div>
+  } @else if (carregando()) {
+    <div class="card p-6 text-sm text-ink-soft">Carregando…</div>
+  } @else {
+    <div class="card overflow-hidden">
+      @if (clientes().length === 0) {
+        <app-empty-state
+          icone="pessoas"
+          titulo="Nenhum condomínio cadastrado"
+          descricao="Cadastre condomínios no Clique para liberar o interfone."
+        />
+      }
+      <ul class="space-y-1 p-3">
+        @for (c of clientes(); track c.id) {
+          <li class="flex flex-wrap items-center justify-between gap-3 rounded-xl p-3 transition-colors hover:bg-surface-sunken">
+            <span class="min-w-0 truncate text-sm font-medium text-ink">{{ c.nome }}</span>
+            <label class="flex cursor-pointer items-center gap-2 text-xs text-ink-muted">
+              <input
+                #caixa
+                type="checkbox"
+                [attr.data-contratado]="c.id"
+                [checked]="c.contratado"
+                [disabled]="alterando() === c.id"
+                (change)="alternar(c, caixa)"
+              />
+              Contratado
+            </label>
+          </li>
+        }
+      </ul>
+    </div>
+  }
+</div>

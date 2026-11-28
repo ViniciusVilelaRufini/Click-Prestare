@@ -51,6 +51,15 @@
           Equipe da portaria
         </button>
       }
+      @if (ehSindico() && interfoneContratado()) {
+        <button
+          data-aba-interfone
+          (click)="currentTab.set('interfone')"
+          [class.on]="abaAtual() === 'interfone'"
+        >
+          Interfone
+        </button>
+      }
     }
   </div>
 
@@ -293,6 +302,8 @@
     <div class="ps-panel p-6 animate-fadeIn">
       <app-equipe-portaria />
     </div>
+  } @else if (abaAtual() === 'interfone' && ehSindico() && interfoneContratado()) {
+    <app-interfone-config />
   }
 
 </div>

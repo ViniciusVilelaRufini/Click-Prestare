@@ -16,11 +16,14 @@ import { direcaoLabel as direcaoLabelUtil } from '../shared/direcao-label.util';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 import { BlocoLabelPipe } from '../shared/bloco-label.pipe';
 import { GuaritaPortariaComponent } from '../guarita/guarita-portaria.component';
+import { InterfoneStore } from '../interfone/interfone.store';
+import { LigarUnidadeComponent } from '../interfone/ligar-unidade.component';
+import { ChamadasHojeComponent } from '../interfone/chamadas-hoje.component';
 
 @Component({
   selector: 'app-dashboard-page',
   standalone: true,
-  imports: [CommonModule, RouterLink, FormsModule, MaskDocPipe, SlideIndicatorDirective, GuaritaPortariaComponent, BlocoLabelPipe, UnidadeLabelPipe],
+  imports: [CommonModule, RouterLink, FormsModule, MaskDocPipe, SlideIndicatorDirective, GuaritaPortariaComponent, BlocoLabelPipe, UnidadeLabelPipe, LigarUnidadeComponent, ChamadasHojeComponent],
   templateUrl: './dashboard-page.component.html',
   host: {
     '(window:keydown.escape)': 'onEscapePressed()'
@@ -31,6 +34,8 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   readonly auth = inject(AuthService);
   private visitantesService = inject(VisitantesService);
   private aptosService = inject(ApartamentosApi);
+  /** Interfone pelo app: a seção "Ligar para a unidade" só aparece com o módulo ligado para este porteiro. */
+  readonly interfone = inject(InterfoneStore);
   private relogio = inject(ServerClockService);
   readonly network = inject(NetworkStatusService);
 

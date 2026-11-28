@@ -10,6 +10,8 @@ import { TerminaisFaciaisPageComponent } from '../terminais-faciais/terminais-fa
 import { RegrasAcessoComponent } from './regras-acesso/regras-acesso.component';
 import { CaminhoLeitoresComponent } from './caminho-leitores/caminho-leitores.component';
 import { EquipePortariaComponent } from './equipe-portaria/equipe-portaria.component';
+import { InterfoneConfigComponent } from './interfone/interfone-config.component';
+import { InterfoneApi } from '../interfone/interfone.api';
 
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 
@@ -33,6 +35,7 @@ type OpcaoCredenciais = { qr_app_habilitado: boolean; wallet_habilitado?: boolea
     RegrasAcessoComponent,
     CaminhoLeitoresComponent,
     EquipePortariaComponent,
+    InterfoneConfigComponent,
     SlideIndicatorDirective,
   ],
   templateUrl: './configuracoes-page.component.html',
@@ -41,6 +44,13 @@ export class ConfiguracoesPageComponent implements OnInit {
   readonly auth = inject(AuthService);
   private readonly http = inject(HttpClient);
   private readonly confirm = inject(ConfirmService);
+  private readonly interfoneApi = inject(InterfoneApi);
+
+  /**
+   * Aba "Interfone": só para o síndico e só com o módulo contratado (interruptor da Prestare no CRM). A API devolve
+   * 403 às rotas do síndico quando não contratado; `contratado:false` também esconde.
+   */
+  readonly interfoneContratado = signal(false);
 
   // ===================== QR no app =====================
 
@@ -74,7 +84,13 @@ export class ConfiguracoesPageComponent implements OnInit {
   );
 
   ngOnInit() {
-    if (this.ehSindico()) this.carregarQrApp();
+    if (this.ehSindico()) {
+      this.carregarQrApp();
+      this.interfoneApi.config().subscribe({
+        next: (c) => this.interfoneContratado.set(!!c?.contratado),
+        error: () => this.interfoneContratado.set(false),
+      });
+    }
   }
 
   private urlOpcaoQrApp(): string | null {
@@ -176,7 +192,7 @@ export class ConfiguracoesPageComponent implements OnInit {
   }
 
   /** 'equipe' (Equipe da portaria) só aparece e só abre para o síndico (ehSindico, pelo typeAccess do token). */
-  readonly currentTab = signal<'conta' | 'terminais' | 'regras' | 'caminho' | 'equipe'>(
+  readonly currentTab = signal<'conta' | 'terminais' | 'regras' | 'caminho' | 'equipe' | 'interfone'>(
     'conta',
   );
 

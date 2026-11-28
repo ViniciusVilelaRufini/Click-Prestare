@@ -65,6 +65,10 @@ export const appRoutes: Route[] = [
             loadComponent: () => import('./crm/tabs/crm-superlogica.component').then((m) => m.CrmSuperlogicaComponent),
           },
           {
+            path: 'interfone',
+            loadComponent: () => import('./crm/tabs/crm-interfone.component').then((m) => m.CrmInterfoneComponent),
+          },
+          {
             path: 'configuracoes',
             loadComponent: () => import('./crm/tabs/crm-configuracoes.component').then((m) => m.CrmConfiguracoesComponent),
           },
