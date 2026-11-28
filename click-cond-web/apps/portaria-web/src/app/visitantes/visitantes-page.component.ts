@@ -641,6 +641,8 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.stopAuthPolling();
     if (this.recargaTimer) clearInterval(this.recargaTimer);
     this.recargaTimer = null;
+    this.tirarOuvintesRealtime?.();
+    this.tirarOuvintesRealtime = null;
     this.realtime.disconnect();
   }
 
@@ -721,10 +723,13 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     const socket = this.realtime.connect();
     if (!socket) return;
     const recarregar = () => this.carregar(true);
-    socket.on('visitante.autorizacao_solicitada', recarregar);
-    socket.on('visitante.autorizado', recarregar);
-    socket.on('visitante.negado', recarregar);
+    const eventos = ['visitante.autorizacao_solicitada', 'visitante.autorizado', 'visitante.negado'];
+    for (const ev of eventos) socket.on(ev, recarregar);
+    // O socket pode sobreviver à tela (o interfone o mantém aberto): sai tirando os próprios ouvintes.
+    this.tirarOuvintesRealtime = () => { for (const ev of eventos) socket.off(ev, recarregar); };
   }
+
+  private tirarOuvintesRealtime: (() => void) | null = null;
 
   fecharAuthModal() {
     this.authModalPessoaId.set(null);

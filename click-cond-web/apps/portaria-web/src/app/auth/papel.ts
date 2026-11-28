@@ -14,6 +14,20 @@ export function ehPorteiro(info: { turno?: string | null } | null | undefined): 
  */
 export const ROTAS_SO_SINDICO = ['financeiro', 'relatorios', 'terminais-faciais'];
 
+/** Payload do JWT da sessão, sem conferir assinatura (quem confere é a API). Ilegível → null. */
+function payloadDoToken(token: string | null | undefined): Record<string, any> | null {
+  const parte = token?.split('.')[1];
+  if (!parte) return null;
+  try {
+    const b64 = parte.replace(/-/g, '+').replace(/_/g, '/');
+    const bytes = Uint8Array.from(atob(b64.padEnd(Math.ceil(b64.length / 4) * 4, '=')), (c) => c.charCodeAt(0));
+    const payload = JSON.parse(new TextDecoder().decode(bytes));
+    return payload && typeof payload === 'object' ? payload : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * `typeAccess` do token da sessão ('Sindico', 'Funcionario'…), em minúsculas.
  * É carimbado pela API no login a partir do banco — o porteiro de
@@ -21,15 +35,15 @@ export const ROTAS_SO_SINDICO = ['financeiro', 'relatorios', 'terminais-faciais'
  * assinatura e decide de verdade. Token ausente ou ilegível → null.
  */
 export function papelDoToken(token: string | null | undefined): string | null {
-  const parte = token?.split('.')[1];
-  if (!parte) return null;
-  try {
-    const b64 = parte.replace(/-/g, '+').replace(/_/g, '/');
-    const bytes = Uint8Array.from(atob(b64.padEnd(Math.ceil(b64.length / 4) * 4, '=')), (c) => c.charCodeAt(0));
-    const payload = JSON.parse(new TextDecoder().decode(bytes));
-    const tipo = payload?.typeAccess ?? payload?.user?.typeAccess;
-    return typeof tipo === 'string' && tipo ? tipo.toLowerCase() : null;
-  } catch {
-    return null;
-  }
+  const payload = payloadDoToken(token);
+  const tipo = payload?.['typeAccess'] ?? payload?.['user']?.typeAccess;
+  return typeof tipo === 'string' && tipo ? tipo.toLowerCase() : null;
+}
+
+/**
+ * Login de porteiro (`Funcionarios_Portaria`): o token traz `tipo_sub: 'funcionario_portaria'`. É o critério da API
+ * para "a portaria" do interfone — o `turno` é texto livre e um porteiro pode ter "Síndico" escrito nele.
+ */
+export function ehLoginDePortaria(token: string | null | undefined): boolean {
+  return payloadDoToken(token)?.['tipo_sub'] === 'funcionario_portaria';
 }
