@@ -288,6 +288,20 @@ describe('InterfoneConfigComponent', () => {
       expect(res).toContain('301');
     });
 
+    it('sucesso com avisos ou conflitos: "Configurado com ressalvas"', () => {
+      const { fixture, el } = render([{ ...FACIAL, config_automatica: true }]);
+      botaoConfigurar(el)!.click();
+      http.expectOne(`${URL}/faciais/9/configurar`).flush({
+        ok: true, parcial: false, restantes: 0, conflitos: ['301'], avisos: ['contato 106: o aparelho mostra "Bloco A"'],
+      });
+      fixture.detectChanges();
+      const res = el.querySelector('[data-resultado-config="9"]')?.textContent ?? '';
+      expect(res).toContain('Configurado com ressalvas');
+      expect(res).toContain('301');
+      expect(res).toContain('o aparelho mostra');
+      expect(res).not.toContain('Facial configurado');
+    });
+
     it('conta SIP de outro servidor: pergunta antes; confirmando, manda de novo com forcar', async () => {
       const { fixture, el } = render([{ ...FACIAL, config_automatica: true }]);
       const confirm = TestBed.inject(ConfirmService) as unknown as { ask: jest.Mock };

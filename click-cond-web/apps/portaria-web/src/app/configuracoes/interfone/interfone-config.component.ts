@@ -434,10 +434,13 @@ export class InterfoneConfigComponent implements OnInit {
 
 /** Texto do card depois de um "Configurar automaticamente" que deu certo (inteiro ou parcial). */
 function textoDoResultado(r: ResultadoConfigFacial): string {
+  const ressalvas = !!(r.conflitos?.length || r.avisos?.length);
   const partes = [
     r.parcial
       ? `Parcial: clique de novo para continuar${r.restantes ? ` (faltam ${r.restantes})` : ''}.`
-      : 'Facial configurado: conta SIP e lista telefônica gravadas no aparelho.',
+      : ressalvas
+        ? 'Configurado com ressalvas:'
+        : 'Facial configurado: conta SIP e lista telefônica gravadas no aparelho.',
   ];
   if (r.conflitos?.length) partes.push(`Já cadastrados à mão no facial (não mexidos): ${r.conflitos.join(', ')}.`);
   if (r.avisos?.length) partes.push(r.avisos.join(' '));
