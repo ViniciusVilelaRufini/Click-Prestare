@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { intervaloHojeBrasilia } from '../common/hora-brasilia.util';
 import { diaPermitido, diaSemanaBrt } from '../facial/escolha-visita.util';
 import type { DestinoPortaria } from '../interfone/destino-portaria';
@@ -135,6 +136,7 @@ export class CentralService {
     private readonly acoes: InterfoneAcoesService,
     private readonly pedidos: InterfonePedidosService,
     @Optional() private readonly storage?: StorageService,
+    @Optional() private readonly realtime?: RealtimeGateway,
   ) {}
 
   private quem(op: OperadorCentral): QuemCentral {
@@ -438,13 +440,25 @@ export class CentralService {
   async alertaVisto(op: OperadorCentral, id: number): Promise<{ ok: true }> {
     const a = await this.prisma.guarita_Alertas.findFirst({
       where: { id, condominio: ONDE_CENTRAL },
-      select: { id: true },
+      select: { id: true, id_condominio: true },
     });
     if (!a) throw new NotFoundException('Alerta não encontrado.');
     await this.prisma.guarita_Alertas.updateMany({
       where: { id: a.id, visto_em: null },
       data: { visto_em: new Date(this.agora()), visto_por: `Central: ${op.nome || 'operador'}`.slice(0, VISTO_POR_MAX) },
     });
+    // Os outros operadores tiram o alerta da tela e param a sirene na hora (com quem viu primeiro).
+    try {
+      const visto = await this.prisma.guarita_Alertas.findFirst({ where: { id: a.id }, select: { visto_em: true, visto_por: true } });
+      this.realtime?.emitirCentral('alerta:visto', {
+        id: a.id,
+        id_condominio: a.id_condominio,
+        visto_por: visto?.visto_por ?? null,
+        visto_em: visto?.visto_em ? visto.visto_em.toISOString() : null,
+      });
+    } catch (e) {
+      this.logger.warn(`Central: alerta:visto ${a.id} não emitido: ${(e as Error)?.message ?? e}`);
+    }
     return { ok: true };
   }
 

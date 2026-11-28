@@ -129,7 +129,7 @@ function montar(opts: { porteiroOnline?: boolean } = {}) {
   acoes.agora = () => AGORA;
   const pedidos = new InterfonePedidosService(banco.prisma, nucleo, acoes, push as any, realtime as any, storage as any);
   pedidos.agora = () => AGORA;
-  const central = new CentralService(banco.prisma, nucleo, acoes, pedidos, storage as any);
+  const central = new CentralService(banco.prisma, nucleo, acoes, pedidos, storage as any, realtime as any);
   central.agora = () => AGORA;
   const ctrl = new CentralController(central);
   return { ...banco, push, voz, realtime, facial, storage, auditoria, nucleo, acoes, pedidos, central, ctrl };
@@ -640,6 +640,25 @@ describe('central — alertas do Guarita', () => {
     expect(m.tabelas['guarita_Alertas'].find((x: any) => x.id === 2).visto_por).toBe('Carlos Porteiro');
     await expect(m.ctrl.alertaVisto(3, TOKEN_OPERADORA)).rejects.toMatchObject({ status: 404 });
     expect(m.tabelas['guarita_Alertas'].find((x: any) => x.id === 3).visto_em).toBeNull();
+  });
+
+  it('visto emite alerta:visto na sala da central (a sirene para para todos os operadores)', async () => {
+    const m = montar();
+    await m.ctrl.alertaVisto(1, TOKEN_OPERADORA);
+    expect(m.realtime.emitirCentral).toHaveBeenCalledWith('alerta:visto', {
+      id: 1,
+      id_condominio: 1,
+      visto_por: 'Central: Olga Operadora',
+      visto_em: new Date(AGORA).toISOString(),
+    });
+    // Já visto por outra pessoa: avisa com quem viu primeiro.
+    m.realtime.emitirCentral.mockClear();
+    await m.ctrl.alertaVisto(2, TOKEN_OPERADORA);
+    expect(m.realtime.emitirCentral).toHaveBeenCalledWith('alerta:visto', expect.objectContaining({ id: 2, visto_por: 'Carlos Porteiro' }));
+    // 404: não emite.
+    m.realtime.emitirCentral.mockClear();
+    await expect(m.ctrl.alertaVisto(3, TOKEN_OPERADORA)).rejects.toMatchObject({ status: 404 });
+    expect(m.realtime.emitirCentral).not.toHaveBeenCalled();
   });
 });
 
