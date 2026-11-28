@@ -490,6 +490,52 @@ describe('correções da revisão 2', () => {
     expect(m.push.perdida).not.toHaveBeenCalled();
   });
 
+  it('unidade com monitor ativo não entra em "todos recusaram" (o toque segue)', async () => {
+    const m = montar();
+    m.tabelas['interfone_Monitores'].push({ id: 5, id_condominio: 1, id_apartamento: 100, nome: 'Sala', senha: 'x', ativo: 1 });
+    const id = await chamadaFacial(m);
+    await m.esperar();
+    await m.acoes.recusar(id, 7);
+    await m.acoes.recusar(id, 8);
+    expect(m.voz.portaria).not.toHaveBeenCalled();
+    expect(m.voz.encerrar).not.toHaveBeenCalled();
+    expect(m.tabelas['interfone_Chamadas'][0].estado).toBe('chamando');
+  });
+
+  it('recusas que chegam antes de o toque gravar quem tocou são reavaliadas depois', async () => {
+    const m = montar();
+    let soltarToque!: () => void;
+    m.push.tocar.mockImplementationOnce(
+      () => new Promise((r) => (soltarToque = () => r({ tocou: 2, semApp: 0, ids: [7, 8] }))) as any,
+    );
+    const id = await chamadaFacial(m);
+    await m.acoes.recusar(id, 7);
+    await m.acoes.recusar(id, 8);
+    expect(m.voz.portaria).not.toHaveBeenCalled();
+    soltarToque();
+    await m.esperar();
+    expect(m.voz.portaria).toHaveBeenCalledWith(id);
+    expect(m.tabelas['interfone_Chamadas'][0]).toMatchObject({ estado: 'portaria', motivo_portaria: 'recusou' });
+  });
+
+  it('todos recusam sem portaria, mas a chamada mudou antes da gravação: não pede ao serviço para encerrar', async () => {
+    const m = montar({ online: false });
+    const id = await chamadaFacial(m);
+    await m.esperar();
+    jest.spyOn(m.nucleo, 'encerrarComo').mockResolvedValueOnce(false);
+    await m.acoes.recusar(id, 7);
+    await m.acoes.recusar(id, 8);
+    expect(m.voz.encerrar).not.toHaveBeenCalled();
+  });
+
+  it('a trava de ligar dura 5 s depois da resposta', async () => {
+    const m = montar();
+    await m.acoes.ligarUnidade(PORTEIRO, 100);
+    await expect(m.acoes.ligarUnidade(PORTEIRO, 100)).rejects.toMatchObject({ status: 409, response: { motivo: 'em_andamento' } });
+    m.acoes.agora = () => AGORA + 5_001;
+    await expect(m.acoes.ligarUnidade(PORTEIRO, 100)).resolves.toMatchObject({ id: 2 });
+  });
+
   it('reserva do morador não bloqueia o porteiro depois que a chamada vai para a portaria', async () => {
     const m = montar();
     const id = await chamadaFacial(m);
@@ -617,6 +663,7 @@ describe('correções da revisão 2', () => {
     const m = montar();
     m.push.tocar.mockImplementationOnce(() => new Promise(() => undefined) as any);
     await expect(m.acoes.ligarUnidade(PORTEIRO, 100)).resolves.toMatchObject({ id: 1 });
+    m.acoes.agora = () => AGORA + 5_001; // passa a trava de ligar
     m.push.podemTocar.mockResolvedValueOnce([]);
     await expect(m.acoes.ligarUnidade(PORTEIRO, 200)).rejects.toMatchObject({ status: 409, response: { motivo: 'sem_app' } });
     expect(m.tabelas['interfone_Chamadas'][1]).toMatchObject({ estado: 'encerrada', resultado: 'falha' });

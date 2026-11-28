@@ -125,34 +125,10 @@ export class InterfoneAcoesService {
     this.nucleo.liberarReserva(c.id, `morador:${idUser}`);
     if (c.estado !== 'chamando' || (c.tipo !== 'facial_unidade' && c.tipo !== 'portaria_unidade')) return { ok: true };
 
-    const recusas = await this.acrescentarRecusa(c.id, idUser);
-    if (!recusas) return { ok: true };
-
-    // Todos em que o toque SAIU recusaram? (morador sem app não conta)
-    const atual = await this.nucleo.carregar(c.id);
-    if (!atual || atual.estado !== 'chamando') return { ok: true };
-    const tocaram = this.nucleo.tocouDaChamada(atual) ?? [];
-    if (!tocaram.length || !tocaram.every((u) => recusas.has(u))) return { ok: true };
-
-    const transfere =
-      c.tipo === 'facial_unidade' &&
-      c.condominio?.interfone_transferir === 1 &&
-      (await this.nucleo.porteirosOnline(c.id_condominio));
-    if (!transfere) {
-      // Grava `recusada` ANTES de pedir ao serviço: o `encerrada nao_atendida`
-      // que ele manda depois é descartado (sem "Chamada perdida" para quem recusou).
-      await this.nucleo.encerrarComo(atual, 'recusada');
-      await this.voz.encerrar(c.id);
-      return { ok: true };
-    }
-    const r = await this.prisma.interfone_Chamadas.updateMany({
-      where: { id: c.id, estado: 'chamando' },
-      data: { estado: 'portaria', motivo_portaria: 'recusou' },
-    });
-    if (r.count === 0) return { ok: true };
-    this.nucleo.liberarReserva(c.id);
-    await this.nucleo.emitirChamadaPortaria(c, 'recusou');
-    await this.voz.portaria(c.id);
+    if (!(await this.acrescentarRecusa(c.id, idUser))) return { ok: true };
+    // Todos em que o toque SAIU recusaram? (regra no núcleo, também chamada
+    // depois de o toque gravar quem tocou)
+    await this.nucleo.avaliarRecusas(c.id);
     return { ok: true };
   }
 
@@ -338,6 +314,7 @@ export class InterfoneAcoesService {
         condominio: apto.condominio.nome,
       });
       await this.nucleo.gravarTocou(c.id, r.ids);
+      await this.nucleo.avaliarRecusas(c.id);
     });
     return this.dadosEntrada(c.id, 'origem', porteiro.uid, porteiro.nome, segredos, agora);
   }
@@ -349,9 +326,14 @@ export class InterfoneAcoesService {
     if (t && agora - t < LIGAR_TRAVA_MS) throw conflito('em_andamento', 'Já existe uma ligação em andamento.');
     this.ligando.set(chave, agora);
     try {
-      return await fn();
-    } finally {
+      const r = await fn();
+      // Segura mais 5 s depois da resposta (o segundo toque chega depois do primeiro terminar).
+      this.ligando.set(chave, this.agora());
+      return r;
+    } catch (e) {
+      // Pedido recusado (sem porteiro, sem app…) não trava a nova tentativa.
       this.ligando.delete(chave);
+      throw e;
     }
   }
 

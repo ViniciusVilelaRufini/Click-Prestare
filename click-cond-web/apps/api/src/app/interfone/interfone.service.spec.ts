@@ -111,6 +111,7 @@ function bancoFalso(opts: { cond?: Partial<Linha>; facial?: Partial<Linha>; apto
     interfone_Monitores: {
       findMany: jest.fn(async ({ where }: any) => monitores.filter((m) => casa(m, where))),
       findUnique: jest.fn(async ({ where }: any) => monitores.find((m) => m.id === where.id) ?? null),
+      count: jest.fn(async ({ where }: any) => monitores.filter((m) => casa(m, where)).length),
     },
     interfone_Chamadas: {
       count: jest.fn(async ({ where }: any) => chamadas.filter((c) => casa(c, where)).length),
@@ -605,22 +606,24 @@ describe('InterfoneService.fecharOrfas (serviço de voz reiniciou e perdeu o enc
     expect(chamadas.every((c) => c.resultado === 'falha')).toBe(true);
   });
 
-  it('ligação originada não atendida: falha em toque + 15 s (unidade: toque_apto; portaria: toque_portaria)', async () => {
-    const { svc, push, realtime, chamadas } = montar();
+  it('ligação originada não atendida: falha em toque + 25 s (unidade: toque_apto; portaria: toque_portaria) e encerra no serviço', async () => {
+    const { svc, push, voz, realtime, chamadas } = montar();
     chamadas.push(
       { id: 1, id_condominio: 1, tipo: 'portaria_unidade', estado: 'chamando', id_apartamento: 100, created_at: new Date(AGORA) },
       { id: 2, id_condominio: 1, tipo: 'unidade_portaria', estado: 'portaria', id_apartamento: 100, created_at: new Date(AGORA) },
       { id: 3, id_condominio: 1, tipo: 'unidade_portaria', estado: 'atendida', id_apartamento: 100, created_at: new Date(AGORA) },
     );
-    svc.agora = () => AGORA + 45_000;
+    svc.agora = () => AGORA + 55_000;
     await expect(svc.fecharOrfas()).resolves.toBe(0);
-    svc.agora = () => AGORA + 45_001; // 30 + 15
+    svc.agora = () => AGORA + 55_001; // 30 + 25
     await expect(svc.fecharOrfas()).resolves.toBe(1);
     expect(chamadas[0]).toMatchObject({ estado: 'encerrada', resultado: 'falha' });
     expect(push.fim).toHaveBeenCalledWith(1, [7]);
     expect(realtime.emitirPortaria).toHaveBeenCalledWith(1, 'interfone:fim', { id: 1 });
-    svc.agora = () => AGORA + 60_001; // 45 + 15
+    expect(voz.encerrar).toHaveBeenCalledWith(1);
+    svc.agora = () => AGORA + 70_001; // 45 + 25
     await expect(svc.fecharOrfas()).resolves.toBe(1);
+    expect(voz.encerrar).toHaveBeenCalledWith(2);
     expect(chamadas[1]).toMatchObject({ estado: 'encerrada', resultado: 'falha' });
     expect(chamadas[2].estado).toBe('atendida');
   });
@@ -630,6 +633,29 @@ describe('InterfoneService.fecharOrfas (serviço de voz reiniciou e perdeu o enc
     await svc.novaChamadaFacial('fac-12', '106');
     chamadas[0].estado = 'portaria';
     await expect(svc.evento(1, { evento: 'toque_esgotado' })).resolves.toEqual({ proximo: 'portaria' });
+  });
+
+  it('encerrarComo com leitura velha (atendida entre a leitura e a escrita) não sobrescreve', async () => {
+    const { svc, chamadas } = montar();
+    await svc.novaChamadaFacial('fac-12', '106');
+    const lida = await svc.carregar(1);
+    await svc.evento(1, { evento: 'atendida', papel: 'morador', uid: 7 });
+    await expect(svc.encerrarComo(lida!, 'recusada')).resolves.toBe(false);
+    expect(chamadas[0]).toMatchObject({ estado: 'atendida', resultado: null });
+  });
+
+  it('rotina de órfãs não fecha a chamada que mudou de estado depois da leitura', async () => {
+    const { svc, prisma, chamadas } = montar();
+    await svc.novaChamadaFacial('fac-12', '106');
+    svc.agora = () => AGORA + 3 * 60_000 + 1;
+    const original = prisma.interfone_Chamadas.findMany.getMockImplementation();
+    prisma.interfone_Chamadas.findMany.mockImplementationOnce(async (a: any) => {
+      const r = await original(a);
+      chamadas[0].estado = 'atendida'; // atendida logo depois da leitura
+      return r;
+    });
+    await expect(svc.fecharOrfas()).resolves.toBe(0);
+    expect(chamadas[0].estado).toBe('atendida');
   });
 
   it('reserva vale só no estado em que foi feita e é liberada ao transferir', async () => {

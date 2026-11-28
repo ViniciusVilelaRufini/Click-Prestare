@@ -27,7 +27,7 @@ export const ORFA_APOS_MS = { chamando: 3 * MIN_MS, portaria: 4 * MIN_MS, atendi
  * toque + isto é dada como `falha`: a origem pode nunca conectar (microfone
  * negado, app fechado, JsSIP falhou) e ninguém encerraria.
  */
-export const ORIGINADA_FOLGA_MS = 15_000;
+export const ORIGINADA_FOLGA_MS = 25_000;
 const ORFAS_VERIFICA_MS = 15_000;
 /** Reserva do "atender": vale para o estado em que foi feita. */
 export const RESERVA_ATENDER_MS = 15_000;
@@ -79,6 +79,17 @@ const INCLUDE_CHAMADA = {
 /** Rótulo da unidade da chamada ("Bloco A · Apto 106"); '' sem unidade. */
 export function unidadeDaChamada(c: { apartamento?: { apto: string | null; bloco: string | null } | null }): string {
   return c.apartamento ? rotuloAptoBloco(c.apartamento.apto, c.apartamento.bloco) : '';
+}
+
+/** JSON array de ids inteiros (recusas, tocou_ids); null se vazio ou inválido. */
+function lerIds(json: string | null | undefined): number[] | null {
+  if (!json) return null;
+  try {
+    const v = JSON.parse(json);
+    return Array.isArray(v) ? v.filter((n) => Number.isInteger(n)) : null;
+  } catch {
+    return null;
+  }
 }
 
 const contaFacial = (id: number) => `fac-${id}`;
@@ -185,7 +196,14 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
       });
       for (const c of orfas) {
         try {
-          if (await this.fecharComo(c, 'falha', null)) fechadas++;
+          // Condicional ao estado lido: atendida entre a leitura e a escrita não é sobrescrita.
+          if (await this.fecharComo(c, 'falha', null, true)) {
+            fechadas++;
+            // Originada fechada pelo relógio: o serviço pode ainda ter a origem tocando.
+            if (c.tipo === 'portaria_unidade' || c.tipo === 'unidade_portaria') {
+              this.emSegundoPlano(`encerrar ligação ${c.id} no serviço`, () => this.voz.encerrar(c.id));
+            }
+          }
         } catch (e: any) {
           this.logger.warn(`Interfone: não fechou a chamada órfã ${c.id}: ${e?.message ?? e}`);
         }
@@ -345,6 +363,8 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
         condominio: cond.nome,
       });
       await this.gravarTocou(chamada.id, r.ids);
+      // Recusas que chegaram antes de saber quem tocou.
+      await this.avaliarRecusas(chamada.id);
       // Nenhum celular tocou (sem app novo, push falhou, ninguém com vínculo)
       // e não há monitor na unidade: vai direto para a portaria, se houver.
       if (r.tocou === 0 && monitores.length === 0) {
@@ -491,12 +511,17 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
    * `encerrada`, que então é descartado pela idempotência).
    */
   async encerrarComo(c: ChamadaCarregada, resultado: ResultadoChamada, duracao: number | null = null): Promise<boolean> {
-    return this.fecharComo(c, resultado, duracao);
+    return this.fecharComo(c, resultado, duracao, true);
   }
 
-  private async fecharComo(c: ChamadaCarregada, resultado: ResultadoChamada, duracao: number | null): Promise<boolean> {
+  /**
+   * `condicional`: só grava se a chamada ainda está no estado lido (rotina de
+   * órfãs, ações). O `encerrada` do serviço de voz é a palavra final e grava
+   * em qualquer estado não terminal.
+   */
+  private async fecharComo(c: ChamadaCarregada, resultado: ResultadoChamada, duracao: number | null, condicional = false): Promise<boolean> {
     const r = await this.prisma.interfone_Chamadas.updateMany({
-      where: { id: c.id, estado: { not: 'encerrada' } },
+      where: { id: c.id, estado: condicional && c.estado !== 'encerrada' ? c.estado : { not: 'encerrada' } },
       data: { estado: 'encerrada', resultado, duracao_s: duracao, encerrada_em: new Date(this.agora()) },
     });
     if (r.count === 0) return false;
@@ -625,6 +650,39 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     return ms.map((m) => contaMonitor(m.id));
   }
 
+  /**
+   * Todos em que o toque SAIU recusaram? Então, se o condomínio transfere e há
+   * porteiro, vai para a portaria (`recusou`); senão grava `recusada` e só
+   * então pede ao serviço para encerrar (o `encerrada nao_atendida` que ele
+   * manda depois é descartado: sem "Chamada perdida" para quem recusou).
+   * Unidade com monitor ativo não entra: o toque segue e a transferência
+   * acontece no toque esgotado.
+   */
+  async avaliarRecusas(id: number): Promise<void> {
+    const c = await this.carregar(id);
+    if (!c || c.estado !== 'chamando' || (c.tipo !== 'facial_unidade' && c.tipo !== 'portaria_unidade')) return;
+    const recusas = lerIds(c.recusas) ?? [];
+    const tocaram = lerIds(c.tocou_ids) ?? [];
+    if (!recusas.length || !tocaram.length || !tocaram.every((u) => recusas.includes(u))) return;
+    if (c.id_apartamento && (await this.prisma.interfone_Monitores.count({ where: { id_apartamento: c.id_apartamento, ativo: 1 } })) > 0) {
+      return;
+    }
+    const transfere =
+      c.tipo === 'facial_unidade' && c.condominio?.interfone_transferir === 1 && (await this.porteirosOnline(c.id_condominio));
+    if (!transfere) {
+      if (await this.encerrarComo(c, 'recusada')) await this.voz.encerrar(c.id);
+      return;
+    }
+    const r = await this.prisma.interfone_Chamadas.updateMany({
+      where: { id: c.id, estado: 'chamando' },
+      data: { estado: 'portaria', motivo_portaria: 'recusou' },
+    });
+    if (r.count === 0) return;
+    this.liberarReserva(c.id);
+    await this.emitirChamadaPortaria(c, 'recusou');
+    await this.voz.portaria(c.id);
+  }
+
   /** Grava em `tocou_ids` os usuários em que o toque saiu. */
   async gravarTocou(id: number, ids: number[]): Promise<void> {
     await this.prisma.interfone_Chamadas.updateMany({ where: { id }, data: { tocou_ids: JSON.stringify(ids ?? []) } });
@@ -632,13 +690,7 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
 
   /** Users.id em que o toque saiu (`tocou_ids`), ou null se ainda não gravado. */
   tocouDaChamada(c: { tocou_ids?: string | null }): number[] | null {
-    if (!c.tocou_ids) return null;
-    try {
-      const v = JSON.parse(c.tocou_ids);
-      return Array.isArray(v) ? v.filter((n) => Number.isInteger(n)) : null;
-    } catch {
-      return null;
-    }
+    return lerIds(c.tocou_ids);
   }
 
   /** Quem tocou nesta chamada: os moradores da unidade (chamada para a unidade). */
