@@ -5,9 +5,11 @@ import { SidebarComponent } from './sidebar.component';
 import { AuthService } from '../auth/auth.service';
 import { NetworkStatusService } from '../core/network-status.service';
 import { ThemeService } from '../shared/theme.service';
+import { InterfoneStore } from '../interfone/interfone.store';
 
 describe('SidebarComponent — itens do menu por papel', () => {
   let info: any;
+  const interfoneAtivo = signal(false);
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -15,8 +17,10 @@ describe('SidebarComponent — itens do menu por papel', () => {
         provideRouter([]),
         { provide: AuthService, useValue: { porteiroInfo: () => info } },
         { provide: ThemeService, useValue: { isLight: signal(false), toggleTheme: jest.fn() } },
+        { provide: InterfoneStore, useValue: { ativo: interfoneAtivo } },
       ],
     });
+    interfoneAtivo.set(false);
   });
 
   const visiveis = () => {
@@ -30,6 +34,14 @@ describe('SidebarComponent — itens do menu por papel', () => {
     expect(paths).toContain('/configuracoes');
     expect(paths).not.toContain('/financeiro');
     expect(paths).not.toContain('/relatorios');
+  });
+
+  it('Interfone fica logo abaixo do Dashboard e só aparece com o interfone ativo (porteiro com o módulo ligado)', () => {
+    info = { id_condominio: 1, nome: 'Porteiro', turno: 'Noturno' };
+    expect(visiveis()).not.toContain('/interfone');
+    interfoneAtivo.set(true);
+    const paths = visiveis();
+    expect(paths.slice(0, 2)).toEqual(['/dashboard', '/interfone']);
   });
 
   it('síndico vê todos os itens', () => {
@@ -47,6 +59,7 @@ describe('SidebarComponent — estado de conexão', () => {
         { provide: AuthService, useValue: { porteiroInfo: () => null } },
         { provide: ThemeService, useValue: { isLight: signal(false), toggleTheme: jest.fn() } },
         { provide: NetworkStatusService, useValue: rede },
+        { provide: InterfoneStore, useValue: { ativo: signal(false) } },
       ],
     });
     const s = TestBed.runInInjectionContext(() => new SidebarComponent());

@@ -6,6 +6,7 @@ import { ehPorteiro, ROTAS_SO_SINDICO } from '../auth/papel';
 import { NetworkStatusService } from '../core/network-status.service';
 import { ThemeService } from '../shared/theme.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
+import { InterfoneStore } from '../interfone/interfone.store';
 
 interface NavItem {
   label: string;
@@ -77,12 +78,15 @@ export class SidebarComponent {
   @Output() linkClicked = new EventEmitter<void>();
 
   readonly isPorteiro = computed(() => ehPorteiro(this.auth.porteiroInfo()));
+  /** Interfone ligado para este login (porteiro de condomínio com o módulo contratado e ativo). */
+  private readonly interfone = inject(InterfoneStore);
 
   /**
    * O porteiro não vê as telas que o guard recusa a ele (ROTAS_SO_SINDICO). Configurações aparece: ele abre a
    * tela para trocar a própria senha, e ela só mostra a aba "Segurança e Perfil".
    */
   mostraNoMenu(path: string): boolean {
+    if (path === '/interfone') return this.interfone.ativo();
     return !this.isPorteiro() || !ROTAS_SO_SINDICO.includes(path.replace(/^\//, ''));
   }
 
@@ -101,7 +105,8 @@ export class SidebarComponent {
     {
       category: 'Principal',
       items: [
-        { label: 'Dashboard', path: '/dashboard', icon: '◉' }
+        { label: 'Dashboard', path: '/dashboard', icon: '◉' },
+        { label: 'Interfone', path: '/interfone', icon: '☏' }
       ]
     },
     {

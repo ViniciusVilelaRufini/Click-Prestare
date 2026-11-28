@@ -169,6 +169,13 @@ export const appRoutes: Route[] = [
           ),
       },
       {
+        path: 'interfone',
+        loadComponent: () =>
+          import('./interfone/interfone-page.component').then(
+            (m) => m.InterfonePageComponent,
+          ),
+      },
+      {
         path: 'visitantes',
         data: { modo: 'visitante' },
         loadComponent: () =>

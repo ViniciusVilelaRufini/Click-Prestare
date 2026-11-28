@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, input } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { ChamadaHoje, ResultadoChamada, TipoChamada } from './interfone.api';
 import { InterfoneStore } from './interfone.store';
@@ -34,7 +34,7 @@ export function rotuloResultado(c: Pick<ChamadaHoje, 'resultado'>): string {
         <h2 id="titulo-chamadas-hoje" class="ps-h2">Chamadas de hoje</h2>
         <span class="ps-tag">{{ store.hoje().length }} chamadas</span>
       </div>
-      <div class="max-h-[15.5rem] overflow-y-auto" data-teste="lista-chamadas-hoje">
+      <div class="overflow-y-auto" data-teste="lista-chamadas-hoje" [style.max-height]="alturaLivre() ? 'calc(100dvh - 14rem)' : '15.5rem'">
       @for (c of store.hoje(); track c.id) {
         <div class="flex items-center gap-3 px-4 py-2 border-b border-[var(--line-100)] last:border-b-0">
           @if (c.foto_url) {
@@ -64,6 +64,8 @@ export function rotuloResultado(c: Pick<ChamadaHoje, 'resultado'>): string {
 })
 export class ChamadasHojeComponent {
   readonly store = inject(InterfoneStore);
+  /** Na página do interfone a lista usa a altura da tela; fora dela fica em ~5 linhas com rolagem. */
+  readonly alturaLivre = input(false);
 
   tipo(c: ChamadaHoje): string {
     return TIPO[c.tipo] ?? c.tipo;

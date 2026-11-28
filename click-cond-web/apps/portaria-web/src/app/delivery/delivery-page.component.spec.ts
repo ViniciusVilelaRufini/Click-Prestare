@@ -4,6 +4,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
 import { appRoutes } from '../app.routes';
 import { SidebarComponent } from '../shell/sidebar.component';
+import { InterfoneStore } from '../interfone/interfone.store';
 import { AuthService } from '../auth/auth.service';
 import { ThemeService } from '../shared/theme.service';
 import { DeliveryApi } from './delivery.service';
@@ -26,6 +27,7 @@ describe('DeliveryPageComponent', () => {
         provideRouter([]),
         { provide: AuthService, useValue: { porteiroInfo: () => authInfo } },
         { provide: ThemeService, useValue: { isLight: signal(false), toggleTheme: jest.fn() } },
+        { provide: InterfoneStore, useValue: { ativo: signal(false) } },
         { provide: DeliveryApi, useClass: DeliveryApiStub },
       ],
     }).compileComponents();
