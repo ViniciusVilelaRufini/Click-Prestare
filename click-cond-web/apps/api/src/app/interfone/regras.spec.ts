@@ -1,15 +1,95 @@
 import { facialAtendeBloco, ramalValido, sugerirRamais } from './regras';
 
 describe('sugerirRamais', () => {
-  it('dois aptos com o mesmo número ficam em conflito e sem sugestão; o único recebe a sugestão', () => {
+  it('mesmo número em blocos diferentes: prefixo = posição do bloco + dígitos; o único fica só com os dígitos', () => {
     const r = sugerirRamais([
       { id: 1, apto: '106', bloco: 'A', ramal: null },
       { id: 2, apto: '106', bloco: 'B', ramal: null },
       { id: 3, apto: '201', bloco: 'A', ramal: null },
     ]);
+    expect(r.get(1)).toEqual({ sugestao: '1106', conflito: false });
+    expect(r.get(2)).toEqual({ sugestao: '2106', conflito: false });
+    expect(r.get(3)).toEqual({ sugestao: '201', conflito: false });
+  });
+
+  it('4 blocos com 101–110: toda unidade recebe sugestão, sem conflito', () => {
+    const aptos = ['Bloco A', 'Bloco B', 'Bloco C', 'Bloco D'].flatMap((bloco, b) =>
+      Array.from({ length: 10 }, (_, i) => ({ id: b * 100 + i, apto: String(101 + i), bloco, ramal: null })),
+    );
+    const r = sugerirRamais(aptos);
+    expect([...r.values()].every((v) => v.sugestao && !v.conflito)).toBe(true);
+    expect(r.get(5)?.sugestao).toBe('1106');
+    expect(r.get(105)?.sugestao).toBe('2106');
+    expect(r.get(309)?.sugestao).toBe('4110');
+    expect(new Set([...r.values()].map((v) => v.sugestao)).size).toBe(40);
+  });
+
+  it('ordem natural dos blocos: "Bloco 2" antes de "Bloco 10"; "Bloco A" e "A" são o mesmo bloco', () => {
+    const r = sugerirRamais([
+      { id: 1, apto: '101', bloco: 'Bloco 10', ramal: null },
+      { id: 2, apto: '101', bloco: 'Bloco 2', ramal: null },
+      { id: 3, apto: '101', bloco: 'Bloco 1', ramal: null },
+    ]);
+    expect(r.get(3)?.sugestao).toBe('1101');
+    expect(r.get(2)?.sugestao).toBe('2101');
+    expect(r.get(1)?.sugestao).toBe('3101');
+    const r2 = sugerirRamais([
+      { id: 1, apto: '101', bloco: 'Bloco B', ramal: null },
+      { id: 2, apto: '102', bloco: 'A', ramal: null },
+      { id: 3, apto: '101', bloco: 'Bloco A', ramal: null },
+    ]);
+    expect(r2.get(3)?.sugestao).toBe('1101');
+    expect(r2.get(1)?.sugestao).toBe('2101');
+    expect(r2.get(2)?.sugestao).toBe('102');
+  });
+
+  it('unidade sem bloco mantém só os dígitos', () => {
+    const r = sugerirRamais([
+      { id: 1, apto: '106', bloco: null, ramal: null },
+      { id: 2, apto: '106', bloco: 'A', ramal: null },
+    ]);
+    expect(r.get(1)).toEqual({ sugestao: '106', conflito: false });
+    expect(r.get(2)).toEqual({ sugestao: '1106', conflito: false });
+  });
+
+  it('conflito real: mesmo número no mesmo bloco continua sem sugestão', () => {
+    const r = sugerirRamais([
+      { id: 1, apto: '106', bloco: 'A', ramal: null },
+      { id: 2, apto: '106-B', bloco: 'A', ramal: null },
+      { id: 3, apto: '106', bloco: 'B', ramal: null },
+    ]);
     expect(r.get(1)).toEqual({ sugestao: null, conflito: true });
     expect(r.get(2)).toEqual({ sugestao: null, conflito: true });
-    expect(r.get(3)).toEqual({ sugestao: '201', conflito: false });
+    expect(r.get(3)).toEqual({ sugestao: '2106', conflito: false });
+  });
+
+  it('com o prefixo ainda colide (outra unidade usa o número) → sem sugestão e conflito', () => {
+    const r = sugerirRamais([
+      { id: 1, apto: '106', bloco: 'A', ramal: null },
+      { id: 2, apto: '106', bloco: 'B', ramal: null },
+      { id: 3, apto: '1106', bloco: null, ramal: null },
+    ]);
+    expect(r.get(1)).toEqual({ sugestao: null, conflito: true });
+    expect(r.get(3)).toEqual({ sugestao: null, conflito: true });
+    expect(r.get(2)).toEqual({ sugestao: '2106', conflito: false });
+  });
+
+  it('prefixo que passa de 10 dígitos → sem sugestão e conflito', () => {
+    const r = sugerirRamais([
+      { id: 1, apto: '1234567890', bloco: 'A', ramal: null },
+      { id: 2, apto: '1234567890', bloco: 'B', ramal: null },
+    ]);
+    expect(r.get(1)).toEqual({ sugestao: null, conflito: true });
+    expect(r.get(2)).toEqual({ sugestao: null, conflito: true });
+  });
+
+  it('dígitos já usados como ramal gravado de outro bloco → sugestão com prefixo', () => {
+    const r = sugerirRamais([
+      { id: 1, apto: '106', bloco: 'A', ramal: '106' },
+      { id: 2, apto: '106', bloco: 'B', ramal: null },
+    ]);
+    expect(r.get(2)).toEqual({ sugestao: '2106', conflito: false });
+    expect(r.get(1)?.conflito).toBe(false);
   });
 
   it('a sugestão é só os dígitos do apto', () => {
@@ -35,13 +115,22 @@ describe('sugerirRamais', () => {
     expect(r.get(2)).toEqual({ sugestao: null, conflito: false });
   });
 
-  it('sugestão que bate no ramal gravado de outra unidade vira conflito (nunca sugere número em uso)', () => {
+  it('sugestão que bate no ramal gravado de outra unidade ganha o prefixo (nunca sugere número em uso)', () => {
     const r = sugerirRamais([
       { id: 1, apto: '1106', bloco: 'B', ramal: null },
       { id: 2, apto: '106', bloco: 'A', ramal: '1106' },
     ]);
-    expect(r.get(1)).toEqual({ sugestao: null, conflito: true });
+    expect(r.get(1)).toEqual({ sugestao: '21106', conflito: false });
     // O ramal gravado do 2 continua válido: o 1 não tem ramal gravado.
+    expect(r.get(2)?.conflito).toBe(false);
+  });
+
+  it('sugestão que bate no ramal gravado e não tem bloco para prefixar vira conflito', () => {
+    const r = sugerirRamais([
+      { id: 1, apto: '1106', bloco: null, ramal: null },
+      { id: 2, apto: '106', bloco: 'A', ramal: '1106' },
+    ]);
+    expect(r.get(1)).toEqual({ sugestao: null, conflito: true });
     expect(r.get(2)?.conflito).toBe(false);
   });
 
