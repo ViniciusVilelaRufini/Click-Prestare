@@ -1,0 +1,19 @@
+{
+  "name": "prestare-voz",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Serviço de controle de chamadas do interfone Prestare (Asterisk ARI)",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "dependencies": {
+    "ari-client": "^2.2.0",
+    "jsonwebtoken": "^9.0.3"
+  }
+}
