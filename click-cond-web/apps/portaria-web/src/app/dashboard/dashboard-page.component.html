@@ -119,6 +119,14 @@
     <!-- Módulo Guarita: portões e alertas (nada aparece sem Guarita) -->
     <app-guarita-portaria />
 
+    <!-- Interfone pelo app: ligar para a unidade e chamadas do dia (só porteiro com o módulo ligado) -->
+    @if (interfone.ativo()) {
+      <section class="grid grid-cols-1 lg:grid-cols-2 gap-5" aria-label="Interfone">
+        <app-ligar-unidade />
+        <app-chamadas-hoje />
+      </section>
+    }
+
     <!-- KPIs -->
     <div class="ps-kpis">
 

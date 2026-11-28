@@ -2,11 +2,12 @@ import { Component, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { SidebarComponent } from './sidebar.component';
 import { CommonModule } from '@angular/common';
+import { PainelChamadaComponent } from '../interfone/painel-chamada.component';
 
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, SidebarComponent],
+  imports: [CommonModule, RouterOutlet, SidebarComponent, PainelChamadaComponent],
   template: `
     <div class="app-bg flex flex-col min-[900px]:flex-row overflow-x-hidden min-h-screen min-[900px]:h-screen min-[900px]:overflow-hidden">
       <!-- Topbar mobile -->
@@ -56,6 +57,9 @@ import { CommonModule } from '@angular/common';
       <main class="flex-1 min-w-0 min-[900px]:h-screen min-[900px]:overflow-y-auto">
         <router-outlet />
       </main>
+
+      <!-- Interfone pelo app: painel fixo de chamada (só login de porteiro com o módulo ligado) -->
+      <app-painel-chamada />
     </div>
   `,
 })
