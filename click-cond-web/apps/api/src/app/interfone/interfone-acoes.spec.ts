@@ -734,3 +734,33 @@ describe('C1: módulo desligado no condomínio → 403 em todas as rotas', () =>
     await expect(m.acoes.hoje(2)).resolves.toEqual([]);
   });
 });
+
+describe('M6: abrir reconfere o módulo antes de acionar o portão', () => {
+  it.each([
+    ['módulo desligado pelo síndico', { interfone_ativo: 0 }],
+    ['contrato encerrado', { interfone_contratado: 0 }],
+    ['condomínio desativado', { ativo: 0 }],
+  ])('%s no meio da conversa: morador e porteiro não abrem; religado, abre', async (_, flags) => {
+    const m = montar();
+    const idMorador = await chamadaFacial(m);
+    await m.nucleo.evento(idMorador, { evento: 'atendida', papel: 'morador', uid: 7 });
+    const idPortaria = await chamadaFacial(m);
+    await m.nucleo.evento(idPortaria, { evento: 'toque_esgotado' });
+    await m.nucleo.evento(idPortaria, { evento: 'atendida', papel: 'portaria', uid: 3 });
+
+    const cond = m.tabelas['condominios'][0];
+    const antes = { ...cond };
+    Object.assign(cond, flags);
+    await expect(m.acoes.abrir(idMorador, ANA)).rejects.toMatchObject({ status: 403 });
+    await expect(m.acoes.abrir(idPortaria, PORTEIRO)).rejects.toMatchObject({ status: 403 });
+    expect(m.facial.abrirDispositivoInterno).not.toHaveBeenCalled();
+    expect(m.voz.dtmf).not.toHaveBeenCalled();
+    expect(m.auditoria.registrar).not.toHaveBeenCalled();
+    expect(m.tabelas['interfone_Chamadas'].every((c: any) => c.porta_aberta_em === null)).toBe(true);
+
+    // A recusa não gasta as 3 aberturas: religado dentro da janela, abre.
+    Object.assign(cond, antes);
+    await expect(m.acoes.abrir(idMorador, ANA)).resolves.toEqual({ ok: true });
+    await expect(m.acoes.abrir(idPortaria, PORTEIRO)).resolves.toEqual({ ok: true });
+  });
+});

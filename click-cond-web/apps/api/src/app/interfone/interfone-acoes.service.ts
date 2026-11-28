@@ -165,6 +165,9 @@ export class InterfoneAcoesService {
   }
 
   async abrir(id: number, quem: Quem): Promise<{ ok: boolean; motivo?: string }> {
+    // O módulo é reconferido a cada abertura, antes de acionar o portão: desligado
+    // (ou condomínio desativado) no meio da conversa não abre, nem dentro dos 210 s.
+    // A recusa vem antes do contador de aberturas e não gasta nenhuma das 3.
     if (quem.papel === 'portaria') await this.assertModulo(quem.idCondominio);
     const c = await this.nucleo.carregar(id);
     if (!c) return { ok: false, motivo: 'chamada_nao_encontrada' };
