@@ -266,6 +266,41 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('Encerrar em "Conectando…" devolve a chamada (recusar)', (tester) async {
+    await abrir(tester);
+    expect(find.text('CONECTANDO…'), findsOneWidget);
+    await tester.tap(find.text('ENCERRAR'));
+    await tester.pumpAndSettle();
+    expect(rotas, contains('POST /api/interfone/chamadas/41/recusar'));
+    expect(find.byType(TelaChamada), findsNothing);
+    expect(encerradasNativas, [uuidDaChamada(41)]);
+  });
+
+  testWidgets('Encerrar depois de conversar não recusa', (tester) async {
+    await abrir(tester);
+    sessao.mudar('em_chamada');
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.text('ENCERRAR'));
+    await tester.pumpAndSettle();
+    expect(rotas.where((r) => r.endsWith('/recusar')), isEmpty);
+  });
+
+  testWidgets('sem microfone recusa a chamada', (tester) async {
+    await abrir(tester, microfone: false);
+    expect(rotas, contains('POST /api/interfone/chamadas/41/recusar'));
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('409 não recusa (a chamada não é deste aparelho)', (tester) async {
+    atenderConflito = true;
+    await abrir(tester);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+    expect(rotas.where((r) => r.endsWith('/recusar')), isEmpty);
+  });
+
   test('mensagens das recusas', () {
     expect(mensagemDaRecusa('ja_atendida'), 'Já atendida em outro aparelho');
     expect(mensagemDaRecusa('encerrada'), 'A chamada já terminou');

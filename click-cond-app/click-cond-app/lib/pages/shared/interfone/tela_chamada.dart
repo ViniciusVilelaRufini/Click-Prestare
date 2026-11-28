@@ -127,6 +127,11 @@ class TelaChamadaState extends State<TelaChamada> {
   bool _saindo = false;
   bool _desmontada = false;
 
+  /// O "atender" deu certo: a API guardou a chamada para este aparelho por
+  /// 15 s. Saindo antes de a conversa começar, a tela devolve (recusar).
+  bool _reservada = false;
+  bool _devolvida = false;
+
   String get _uuid => uuidDaChamada(widget.id);
   String get _tipo => _estado?.tipo ?? widget.tipoInicial ?? '';
   bool get _ehDoFacial => _tipo == 'facial_unidade';
@@ -152,6 +157,9 @@ class TelaChamadaState extends State<TelaChamada> {
     unawaited(_carregarEstado());
 
     if (!await widget.pedirMicrofone()) {
+      // Sem microfone não há conversa: recusa, e a chamada segue para os
+      // outros moradores ou para a portaria.
+      if (widget.jaConectado == null) unawaited(InterfoneApi.recusar(widget.id));
       _terminar('Sem acesso ao microfone. Libere o microfone do Prestare nas configurações do celular.');
       return;
     }
@@ -165,8 +173,12 @@ class TelaChamadaState extends State<TelaChamada> {
         _terminar(mensagemDaRecusa(r.motivo));
         return;
       }
+      _reservada = true;
     }
-    if (_desmontada) return;
+    if (_desmontada) {
+      _devolverReserva();
+      return;
+    }
 
     try {
       _video = await widget.criarVideo();
@@ -231,10 +243,19 @@ class TelaChamadaState extends State<TelaChamada> {
     }
   }
 
+  /// Saiu sem conversar depois de atender (Encerrar em "Conectando…", a
+  /// central não respondeu): avisa a API para liberar a reserva de 15 s.
+  void _devolverReserva() {
+    if (!_reservada || _devolvida || _conectadaEm != null) return;
+    _devolvida = true;
+    unawaited(InterfoneApi.recusar(widget.id));
+  }
+
   /// Mostra a mensagem final e fecha a tela.
   void _terminar(String mensagem) {
     if (_saindo) return;
     _saindo = true;
+    _devolverReserva();
     _relogio?.cancel();
     _sessao?.encerrar();
     if (!mounted) return;
@@ -257,6 +278,7 @@ class TelaChamadaState extends State<TelaChamada> {
 
   void _encerrarAgora() {
     _saindo = true;
+    _devolverReserva();
     _sessao?.encerrar();
     _fechar();
   }
@@ -291,6 +313,7 @@ class TelaChamadaState extends State<TelaChamada> {
   @override
   void dispose() {
     _desmontada = true;
+    _devolverReserva();
     _relogio?.cancel();
     unawaited(_escuta?.cancel());
     _sessao?.temVideo.removeListener(_aoMudarVideo);
