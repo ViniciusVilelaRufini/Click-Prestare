@@ -4,6 +4,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../common/storage/storage.service';
 import { executarComLock } from '../common/lock-distribuido';
 import { ApnsClient, RespostaApns, tokenMorto } from './apns.client';
+import { CHAVE_APNS_S3, carregarChaveApns } from './apns-chave';
 import { miniaturaBase64 } from './miniatura';
 import {
   AtendimentoCard,
@@ -121,7 +122,7 @@ export const FOTO_TETO_MS = 3_000;
 export const LIBERADO_ESPERA_SEG = 600;
 export const DISMISSAL_ENTROU_SEG = 300;
 export const DISMISSAL_FINAL_SEG = 120;
-export const CHAVE_APNS_S3 = 'config/apns/AuthKey.p8';
+export { CHAVE_APNS_S3 };
 /** Estado final do card do portão quando o pedido do entregador vence sem resposta. */
 export const MOTIVO_ENTREGADOR_NAO_ESPEROU = 'Entregador não esperou';
 
@@ -139,11 +140,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     private readonly notifications: NotificationsService,
     @Optional() private readonly storage?: StorageService,
   ) {
-    this.apns = new ApnsClient(async () => {
-      const b64 = process.env['APNS_KEY_P8_BASE64'];
-      if (b64) return Buffer.from(b64, 'base64').toString('utf-8');
-      return (await this.storage?.lerObjetoTexto(CHAVE_APNS_S3)) ?? null;
-    });
+    this.apns = new ApnsClient(() => carregarChaveApns(this.storage));
   }
 
   onModuleInit() {

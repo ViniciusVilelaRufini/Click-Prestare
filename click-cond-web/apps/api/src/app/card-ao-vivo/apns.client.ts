@@ -18,6 +18,8 @@ export const APNS_KEY_ID = process.env['APNS_KEY_ID'] || 'V76D4R22A2';
 export const APNS_TEAM_ID = process.env['APNS_TEAM_ID'] || '9FD7V97G5V';
 export const APNS_BUNDLE_ID = 'br.com.clickprestare.app';
 export const APNS_TOPICO_LIVE_ACTIVITY = `${APNS_BUNDLE_ID}.push-type.liveactivity`;
+/** PushKit (ligação do interfone no CallKit). */
+export const APNS_TOPICO_VOIP = `${APNS_BUNDLE_ID}.voip`;
 /** Builds do TestFlight/App Store usam o APNs de produção. */
 export const APNS_HOST = process.env['APNS_HOST'] || 'https://api.push.apple.com';
 
@@ -31,6 +33,17 @@ export interface RespostaApns {
 }
 
 export type CarregarChave = () => Promise<string | null>;
+
+/**
+ * Opções do envio. Sem opções = Live Activity (cabeçalhos de sempre do card ao
+ * vivo). O interfone usa `{ topico: APNS_TOPICO_VOIP, tipo: 'voip' }`.
+ */
+export interface OpcoesApns {
+  topico?: string;
+  tipo?: 'liveactivity' | 'voip';
+  /** `apns-expiration` (epoch em segundos): passou, o APNs descarta em vez de entregar atrasado. */
+  expiracao?: number;
+}
 
 function base64url(entrada: Buffer | string): string {
   return Buffer.from(entrada).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
@@ -61,18 +74,18 @@ export class ApnsClient {
     private readonly host: string = APNS_HOST,
   ) {}
 
-  async enviar(token: string, corpo: object, prioridade: 5 | 10): Promise<RespostaApns> {
+  async enviar(token: string, corpo: object, prioridade: 5 | 10, opcoes?: OpcoesApns): Promise<RespostaApns> {
     const jwt = await this.obterJwt();
     if (!jwt) return { status: 0, motivo: 'sem-chave' };
     try {
-      const r = await this.post(token, JSON.stringify(corpo), prioridade, jwt);
+      const r = await this.post(token, JSON.stringify(corpo), prioridade, jwt, opcoes);
       // Timeout: não repete (o tempo do porteiro já foi gasto); a reserva cobre.
       return r;
     } catch (e: any) {
       // Sessão HTTP/2 caída (GOAWAY, rede): descarta e tenta uma vez numa nova.
       this.fecharSessao();
       try {
-        return await this.post(token, JSON.stringify(corpo), prioridade, jwt);
+        return await this.post(token, JSON.stringify(corpo), prioridade, jwt, opcoes);
       } catch (e2: any) {
         this.logger.warn(`APNs indisponível: ${e2?.message ?? e2}`);
         return { status: 0, motivo: 'rede' };
@@ -130,7 +143,7 @@ export class ApnsClient {
     this.sessao = null;
   }
 
-  private post(token: string, corpo: string, prioridade: 5 | 10, jwt: string): Promise<RespostaApns> {
+  private post(token: string, corpo: string, prioridade: 5 | 10, jwt: string, opcoes?: OpcoesApns): Promise<RespostaApns> {
     return new Promise((resolveOriginal, reject) => {
       // Toda saída passa por aqui uma vez só. Um stream cancelado pelo timeout
       // (RST_STREAM CANCEL) não emite 'error' nem 'end' no Node: sem o
@@ -146,9 +159,10 @@ export class ApnsClient {
         ':method': 'POST',
         ':path': `/3/device/${token}`,
         authorization: `bearer ${jwt}`,
-        'apns-push-type': 'liveactivity',
-        'apns-topic': APNS_TOPICO_LIVE_ACTIVITY,
+        'apns-push-type': opcoes?.tipo ?? 'liveactivity',
+        'apns-topic': opcoes?.topico ?? APNS_TOPICO_LIVE_ACTIVITY,
         'apns-priority': String(prioridade),
+        ...(opcoes?.expiracao !== undefined ? { 'apns-expiration': String(opcoes.expiracao) } : {}),
         'content-type': 'application/json',
       });
       req.setTimeout(8_000, () => {

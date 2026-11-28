@@ -2727,6 +2727,8 @@ export class MobileAuthService {
     cardAndroid?: boolean,
     cardTema?: string,
     cardVersao?: number,
+    voipToken?: string | null,
+    interfoneVersao?: number,
   ) {
     if (!this.prisma.isConnected) return { success: true };
     if (!idUser || Number.isNaN(idUser)) {
@@ -2754,6 +2756,20 @@ export class MobileAuthService {
       typeof cardVersao === 'number' && Number.isInteger(cardVersao) && cardVersao >= 1 && cardVersao <= 99
         ? cardVersao
         : null;
+    // Interfone: token PushKit (VoIP) do iPhone. Mesma regra do token do card:
+    // ausente = não mexe; vazio ou inválido = o aparelho deixou de ter.
+    const voip =
+      voipToken === undefined || voipToken === null
+        ? undefined
+        : typeof voipToken === 'string' && /^[0-9a-fA-F]{16,200}$/.test(voipToken.trim())
+          ? voipToken.trim()
+          : null;
+    // Versão do interfone que o app sabe atender (0 = sem interfone). Ausente
+    // ou inválida = não mexe.
+    const versaoInterfone =
+      typeof interfoneVersao === 'number' && Number.isInteger(interfoneVersao) && interfoneVersao >= 0 && interfoneVersao <= 99
+        ? interfoneVersao
+        : null;
 
     // O token é único na tabela: o upsert é o que migra o aparelho de dono.
     // Antes dele, encerra os cards ao vivo que o aparelho ainda mostra do dono
@@ -2771,6 +2787,8 @@ export class MobileAuthService {
         ...(cardAndroid === true ? { card_android: 1 } : {}),
         ...(tema ? { card_tema: tema } : {}),
         ...(versao ? { card_versao: versao } : {}),
+        ...(voip ? { voip_token: voip } : {}),
+        ...(versaoInterfone !== null ? { interfone_versao: versaoInterfone } : {}),
       },
       update: {
         id_user: idUser,
@@ -2780,8 +2798,19 @@ export class MobileAuthService {
         ...(cardAndroid === true ? { card_android: 1 } : {}),
         ...(tema ? { card_tema: tema } : {}),
         ...(versao ? { card_versao: versao } : {}),
+        ...(voip !== undefined ? { voip_token: voip } : {}),
+        ...(versaoInterfone !== null ? { interfone_versao: versaoInterfone } : {}),
       },
     });
+
+    // Um token VoIP é um iPhone: se ele aparece noutro registro (o FCM trocou
+    // de token e de conta ao mesmo tempo), sai de lá — senão o interfone da
+    // conta antiga continuaria tocando neste aparelho.
+    if (voip && this.prisma.users_Devices?.updateMany) {
+      await this.prisma.users_Devices
+        .updateMany({ where: { voip_token: voip, fcm_token: { not: token } }, data: { voip_token: null } })
+        .catch(() => undefined);
+    }
 
     // Remove tokens antigos/desconectados deste usuário
     if (this.prisma.users_Devices?.deleteMany) {
