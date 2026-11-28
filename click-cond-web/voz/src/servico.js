@@ -174,7 +174,7 @@ export function criarServico({
         if (!c.ponte) c.ponte = await ari.criarPonte();
         await ari.adicionarNaPonte(c.ponte, a.canais);
         // Vídeo só vem do facial; se o Asterisk cair no softmix, fixa a fonte.
-        if (c.maquina.tipo === 'facial_unidade' && ari.definirVideo) {
+        if (TIPOS_FACIAL.has(c.maquina.tipo) && ari.definirVideo) {
           await Promise.resolve()
             .then(() => ari.definirVideo(c.ponte, c.origem))
             .catch((e) => log.info(`[chamada ${c.id}] fonte de vídeo não definida: ${e.message}`));
@@ -496,7 +496,7 @@ export function criarServico({
     async dtmf(id, digitos) {
       const c = chamadas.get(id);
       // DTMF de abrir só vai ao facial de uma chamada já atendida.
-      if (!c || c.maquina.tipo !== 'facial_unidade' || c.maquina.estado !== 'atendida') return false;
+      if (!c || !TIPOS_FACIAL.has(c.maquina.tipo) || c.maquina.estado !== 'atendida') return false;
       try {
         await ari.enviarDtmf(c.origem, digitos);
         return true;

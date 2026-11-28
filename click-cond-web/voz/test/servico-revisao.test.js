@@ -427,3 +427,19 @@ test('M3: porteiro com a chamada ainda tocando no apartamento é desligado', asy
   await servico.ocioso();
   assert.deepEqual(eventos(api).at(-1), { evento: 'atendida', papel: 'morador', uid: 42 });
 });
+
+test('facial_portaria atendida pela central fixa o vídeo no facial e aceita dtmf de abrir', async () => {
+  const api = apiFalsa({
+    async novaChamada() { return { ok: true, id: 95, tipo: 'facial_portaria', estado: 'portaria', toque_s: 0, monitores: [] }; },
+    async chamada(id) { return { id, tipo: 'facial_portaria', estado: 'portaria', toque_s: 0, toque_portaria_s: 45, monitores: [] }; },
+  });
+  const { ari, servico } = montar({ api });
+  ari.iniciar('fac1', ['facial', 'fac-12', '106']);
+  await servico.ocioso();
+  assert.equal(await servico.dtmf(95, '1'), false, 'ainda não atendida');
+  ari.iniciar('cen1', ['entrar', token({ cid: 95, papel: 'central', uid: 3 })]);
+  await servico.ocioso();
+  assert.deepEqual(ari.de('definirVideo'), [['definirVideo', 'p1', 'fac1']]);
+  assert.equal(await servico.dtmf(95, '1'), true);
+  assert.deepEqual(ari.de('enviarDtmf'), [['enviarDtmf', 'fac1', '1']]);
+});

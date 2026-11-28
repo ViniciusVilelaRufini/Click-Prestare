@@ -120,6 +120,7 @@ export function criarChamada({
       if (nome === 'toque') {
         if (estado !== 'chamando' || aguardandoResposta) return [];
         // Portaria ligando para a unidade não transfere: só avisa que ninguém atendeu.
+        // facial_portaria nunca fica em 'chamando' (nasce em 'portaria'), então não chega aqui.
         if (tipo !== 'facial_unidade') return naoAtendida();
         aguardandoResposta = true;
         return [{ acao: 'evento', evento: 'toque_esgotado' }];
