@@ -151,8 +151,12 @@ class TelaChamadaState extends State<TelaChamada> {
       },
       aoMudo: (m) => _aplicarMudo(m, avisarSistema: false),
     );
+    _iniciada = true;
     unawaited(_iniciar());
   }
+
+  /// O initState terminou (setState dentro dele não vale).
+  bool _iniciada = false;
 
   Future<void> _iniciar() async {
     try {
@@ -207,6 +211,8 @@ class TelaChamadaState extends State<TelaChamada> {
       return;
     }
     _sessao = sessao;
+    // Mudo tocado enquanto conectava (no app ou no CallKit) vale já.
+    if (_mudo) sessao.mudo(true);
     sessao.temVideo.addListener(_aoMudarVideo);
     _escuta = sessao.estado.listen(_aoMudarFase);
     _aoMudarFase(sessao.estadoAtual);
@@ -304,7 +310,8 @@ class TelaChamadaState extends State<TelaChamada> {
   void _alternarMudo() => _aplicarMudo(!_mudo, avisarSistema: true);
 
   void _aplicarMudo(bool mudo, {required bool avisarSistema}) {
-    if (mounted) setState(() => _mudo = mudo);
+    _mudo = mudo;
+    if (mounted && _iniciada) setState(() {});
     _sessao?.mudo(mudo);
     if (avisarSistema) unawaited(widget.sincronizarMudo(_uuid, mudo).catchError((Object _) {}));
   }

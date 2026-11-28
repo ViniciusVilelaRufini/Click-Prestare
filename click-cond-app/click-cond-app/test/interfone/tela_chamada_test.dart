@@ -245,6 +245,42 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('Mudo do CallKit antes de a tela existir vale quando a sessão chega', (tester) async {
+    // O Mudo chega enquanto o app abre, antes do registrarTela.
+    await InterfoneChamadas.tratarEvento(CallEventActionCallToggleMute(uuidDaChamada(41), true));
+    await abrir(tester);
+    expect(find.text('MUDO LIGADO'), findsOneWidget);
+    expect(sessao.mudoLigado, isTrue);
+    await tester.tap(find.text('ENCERRAR'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('Mudo do app antes de conectar vale quando a sessão chega', (tester) async {
+    final chegou = Completer<SessaoVoz>();
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MaterialApp(
+      home: TelaChamada(
+        id: 41,
+        conectar: (DadosEntrada d, RTCVideoRenderer? v) => chegou.future,
+        pedirMicrofone: () async => true,
+        criarVideo: () async => null,
+        encerrarTelaNativa: (_) async {},
+        marcarConectada: (_) async {},
+        sincronizarMudo: (_, __) async {},
+        prepararSessao: () async {},
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('MUDO'));
+    await tester.pump();
+    expect(sessao.mudoLigado, isNull);
+    chegou.complete(sessao);
+    await tester.pumpAndSettle();
+    expect(sessao.mudoLigado, isTrue);
+  });
+
   testWidgets('chamada do facial liga o alto-falante ao conectar', (tester) async {
     await abrir(tester);
     sessao.mudar('em_chamada');

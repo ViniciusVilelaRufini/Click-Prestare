@@ -193,16 +193,23 @@ class InterfoneChamadas {
     _telasRegistradas[id] = aoEncerrarNoSistema;
     if (aoMudo != null) {
       _mudoDasTelas[id] = aoMudo;
+      // Mudo tocado no CallKit antes de a tela existir (app abrindo).
+      final pendente = _mudoPendente.remove(id);
+      if (pendente != null) aoMudo(pendente);
     } else {
       _mudoDasTelas.remove(id);
     }
   }
+
+  /// Último Mudo do sistema que chegou antes de a tela registrar.
+  static final Map<int, bool> _mudoPendente = {};
 
   /// A tela da chamada terminou: libera o id para uma próxima abertura.
   static void telaFechada(int id) {
     _telasAbertas.remove(id);
     _telasRegistradas.remove(id);
     _mudoDasTelas.remove(id);
+    _mudoPendente.remove(id);
   }
 
   static final Map<int, void Function()> _telasRegistradas = {};
@@ -243,7 +250,14 @@ class InterfoneChamadas {
         }
       case CallEventActionCallToggleMute(:final id, :final isMuted):
         final idChamada = idDaChamadaPeloUuid(id);
-        if (idChamada != null) _mudoDasTelas[idChamada]?.call(isMuted);
+        if (idChamada != null) {
+          final tela = _mudoDasTelas[idChamada];
+          if (tela != null) {
+            tela(isMuted);
+          } else {
+            _mudoPendente[idChamada] = isMuted;
+          }
+        }
       case CallEventActionCallTimeout(:final id):
         final idChamada = idDaChamadaPeloUuid(id);
         if (idChamada != null) _pararVigia(idChamada);
@@ -335,6 +349,7 @@ class InterfoneChamadas {
     _telasAbertas.clear();
     _telasRegistradas.clear();
     _mudoDasTelas.clear();
+    _mudoPendente.clear();
     _extras.clear();
     _mostrar = mostrar ?? FlutterCallkitIncoming.showCallkitIncoming;
     _encerrar = encerrar ?? FlutterCallkitIncoming.endCall;
