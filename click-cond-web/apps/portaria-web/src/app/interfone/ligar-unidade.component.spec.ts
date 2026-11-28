@@ -2,7 +2,6 @@ import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { of } from 'rxjs';
 import { ApartamentosApi } from '../apartamentos/apartamentos.service';
-import { ChamadasHojeComponent } from './chamadas-hoje.component';
 import { HOJE } from './interfone.testing';
 import { InterfoneStore } from './interfone.store';
 import { LigarUnidadeComponent } from './ligar-unidade.component';
@@ -52,36 +51,5 @@ describe('LigarUnidadeComponent', () => {
     } finally {
       jest.useRealTimers();
     }
-  });
-});
-
-describe('ChamadasHojeComponent', () => {
-  afterEach(() => TestBed.resetTestingModule());
-
-  it('lista tipo, resultado, quem atendeu e o portão aberto', () => {
-    TestBed.configureTestingModule({
-      imports: [ChamadasHojeComponent],
-      providers: [{ provide: InterfoneStore, useValue: storeFalso() }],
-    });
-    const fixture = TestBed.createComponent(ChamadasHojeComponent);
-    fixture.detectChanges();
-    const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(texto).toContain('Bloco A · Apto 106');
-    expect(texto).toContain('Portão → unidade');
-    expect(texto).toContain('Atendida pelo morador');
-    expect(texto).toContain('Ana Souza');
-    expect(texto).toContain('Portão aberto');
-  });
-
-  it('sem chamadas', () => {
-    const store = storeFalso();
-    store.hoje.set([]);
-    TestBed.configureTestingModule({
-      imports: [ChamadasHojeComponent],
-      providers: [{ provide: InterfoneStore, useValue: store }],
-    });
-    const fixture = TestBed.createComponent(ChamadasHojeComponent);
-    fixture.detectChanges();
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Nenhuma chamada hoje.');
   });
 });

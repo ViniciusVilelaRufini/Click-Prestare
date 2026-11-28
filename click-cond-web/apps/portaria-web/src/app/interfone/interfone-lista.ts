@@ -1,4 +1,27 @@
-import type { ChamadaHoje } from './interfone.api';
+import type { ChamadaHoje, ResultadoChamada, TipoChamada } from './interfone.api';
+
+const TIPO: Record<TipoChamada, string> = {
+  facial_unidade: 'Portão → unidade',
+  portaria_unidade: 'Portaria → unidade',
+  unidade_portaria: 'Unidade → portaria',
+};
+
+const RESULTADO: Record<ResultadoChamada, string> = {
+  atendida_morador: 'Atendida pelo morador',
+  atendida_portaria: 'Atendida pela portaria',
+  nao_atendida: 'Não atendida',
+  recusada: 'Recusada',
+  falha: 'Falha',
+  cancelada: 'Desligou antes',
+};
+
+export function rotuloTipo(c: Pick<ChamadaHoje, 'tipo'>): string {
+  return TIPO[c.tipo] ?? c.tipo;
+}
+
+export function rotuloResultado(c: Pick<ChamadaHoje, 'resultado'>): string {
+  return c.resultado ? (RESULTADO[c.resultado] ?? c.resultado) : 'Em andamento';
+}
 
 /** Dias anteriores que o porteiro pode ver (o mesmo limite do histórico do app do morador e da API). */
 export const DIAS_ANTERIORES = 30;
