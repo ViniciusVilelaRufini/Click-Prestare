@@ -2483,7 +2483,7 @@ export class FacialService {
   async abrirDispositivoInterno(
     idDevice: number,
     ctx: {
-      origem: 'credencial_qr' | 'delivery_portao';
+      origem: 'credencial_qr' | 'delivery_portao' | 'interfone';
       tipoPessoa: string;
       idPessoa?: number | null;
       nomePessoa: string;

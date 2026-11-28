@@ -72,7 +72,12 @@ export class InterfonePushService {
             const plataforma = (a.plataforma ?? '').toLowerCase();
             const versao = a.interfone_versao ?? 0;
             if (plataforma === 'ios' && a.voip_token && versao >= INTERFONE_VERSAO_APP) {
-              const r = await this.apns.enviar(a.voip_token, conteudo, 10, { topico: APNS_TOPICO_VOIP, tipo: 'voip', expiracao });
+              // Chaves no topo junto de um `aps` mínimo: o app lê do topo ou de `data`.
+              const r = await this.apns.enviar(a.voip_token, { aps: {}, ...conteudo }, 10, {
+                topico: APNS_TOPICO_VOIP,
+                tipo: 'voip',
+                expiracao,
+              });
               if (r.status === 200) {
                 tocou++;
               } else if (tokenMorto(r)) {

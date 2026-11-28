@@ -52,7 +52,7 @@ describe('InterfonePushService.tocar', () => {
     expect(apns.enviar).toHaveBeenCalledTimes(1);
     const [token, corpo, prioridade, opcoes] = (apns.enviar.mock.calls as any[])[0];
     expect(token).toBe('voip-1');
-    expect(corpo).toEqual({ type: 'interfone_chamada', id: '42', ...DADOS });
+    expect(corpo).toEqual({ aps: {}, type: 'interfone_chamada', id: '42', ...DADOS });
     expect(prioridade).toBe(10);
     expect(opcoes).toMatchObject({ topico: 'br.com.clickprestare.app.voip', tipo: 'voip' });
     expect(opcoes.expiracao).toBe(1_800_000_000 + 60);

@@ -115,6 +115,18 @@ describe('FacialService.abrirDispositivoInterno', () => {
     );
   });
 
+  it('interfone: aciona o facial da chamada e registra a origem interfone', async () => {
+    const { svc, acessos } = build(aparelho('facial'));
+
+    await expect(
+      svc.abrirDispositivoInterno(20, { origem: 'interfone', tipoPessoa: 'visitante', nomePessoa: 'Interfone Bloco A · Apto 106' }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(acessos[0]).toEqual(
+      expect.objectContaining({ face_id: 'interfone', tipo_pessoa: 'visitante', evento: 'acionado_auto' }),
+    );
+  });
+
   it('acionamento que devolve ok:false grava falha_acionamento e devolve { ok:false, erro }', async () => {
     const comErro = build(aparelho('botoeira'), async () => ({ ok: false, error: 'Agente offline' }));
     expect(await comErro.svc.abrirDispositivoInterno(20, ctx)).toEqual({ ok: false, erro: 'Agente offline' });

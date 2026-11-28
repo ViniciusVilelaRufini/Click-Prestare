@@ -63,8 +63,13 @@ const INCLUDE_CHAMADA = {
     select: { id: true, nome: true, interfone_transferir: true, interfone_toque_apto_s: true, interfone_toque_portaria_s: true },
   },
   apartamento: { select: { id: true, apto: true, bloco: true } },
-  facial: { select: { id: true, nome: true } },
+  facial: { select: { id: true, nome: true, interfone_dtmf: true } },
 } as const;
+
+/** Rótulo da unidade da chamada ("Bloco A · Apto 106"); '' sem unidade. */
+export function unidadeDaChamada(c: { apartamento?: { apto: string | null; bloco: string | null } | null }): string {
+  return c.apartamento ? rotuloAptoBloco(c.apartamento.apto, c.apartamento.bloco) : '';
+}
 
 const contaFacial = (id: number) => `fac-${id}`;
 const contaMonitor = (id: number) => `mon-${id}`;
@@ -330,15 +335,28 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     if (r.count === 0) return { proximo: 'encerrar' };
     // Os celulares param: na portaria o morador não atende mais.
     await this.push.fim(c.id, await this.tocadosDaChamada(c));
-    this.realtime?.emitirPortaria(c.id_condominio, 'interfone:chamada', {
+    await this.emitirChamadaPortaria(c, motivo);
+    return { proximo: 'portaria' };
+  }
+
+  /** `interfone:chamada` para os porteiros do condomínio (chamada do facial transferida). */
+  async emitirChamadaPortaria(c: ChamadaCarregada, motivo: 'nao_atendeu' | 'recusou' | 'sem_app' | string): Promise<void> {
+    this.emitirParaPortaria(c.id_condominio, {
       id: c.id,
       tipo: c.tipo,
-      unidade: this.unidadeDe(c),
+      unidade: unidadeDaChamada(c),
       motivo,
       morador_nome: null,
       foto_url: await this.fotoUrl(c.foto),
     });
-    return { proximo: 'portaria' };
+  }
+
+  /** Payload do contrato de `interfone:chamada`. */
+  emitirParaPortaria(
+    idCondominio: number,
+    dados: { id: number; tipo: string; unidade: string; motivo: string | null; morador_nome: string | null; foto_url: string | null },
+  ) {
+    this.realtime?.emitirPortaria(idCondominio, 'interfone:chamada', dados);
   }
 
   private async encerrada(c: ChamadaCarregada, ev: { resultado: string; duracao_s: number }): Promise<{ ok: true }> {
@@ -371,7 +389,8 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
   async dadosParaServico(id: number) {
     const c = await this.carregar(id);
     if (!c) throw new NotFoundException('Chamada não encontrada.');
-    const comMonitor = c.tipo === 'facial_unidade' && c.id_apartamento;
+    // Monitor IP toca quando alguém chama a unidade (facial ou portaria).
+    const comMonitor = c.tipo !== 'unidade_portaria' && c.id_apartamento;
     return {
       id: c.id,
       tipo: c.tipo,
@@ -483,10 +502,6 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     } catch {
       return null;
     }
-  }
-
-  private unidadeDe(c: ChamadaCarregada): string {
-    return c.apartamento ? rotuloAptoBloco(c.apartamento.apto, c.apartamento.bloco) : '';
   }
 
   private async fotoUrl(foto: string | null | undefined): Promise<string | null> {
