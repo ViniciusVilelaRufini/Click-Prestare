@@ -65,10 +65,10 @@ void main() {
     await storageLogout();
   });
 
-  test('registro manda interfone_versao 1 e o token VoIP quando há', () async {
+  test('registro manda interfone_versao 2 e o token VoIP quando há', () async {
     FirebaseService.instance.obterTokenVoip = () async => 'A1B2C3D4E5F60718293A4B5C6D7E8F90';
     await FirebaseService.instance.registrarNoServidor('fcm-1');
-    expect(corpos.single['interfone_versao'], 1);
+    expect(corpos.single['interfone_versao'], 2);
     expect(corpos.single['voip_token'], 'a1b2c3d4e5f60718293a4b5c6d7e8f90');
     expect(corpos.single['fcm_token'], 'fcm-1');
     expect(corpos.single['card_versao'], 2);
@@ -77,23 +77,23 @@ void main() {
   test('sem token VoIP (Android) manda só a versão', () async {
     FirebaseService.instance.obterTokenVoip = () async => null;
     await FirebaseService.instance.registrarNoServidor('fcm-1');
-    expect(corpos.single['interfone_versao'], 1);
+    expect(corpos.single['interfone_versao'], 2);
     expect(corpos.single.containsKey('voip_token'), isFalse);
   });
 
   test('falha ao ler o token VoIP não impede o registro', () async {
     FirebaseService.instance.obterTokenVoip = () async => throw Exception('canal');
     await FirebaseService.instance.registrarNoServidor('fcm-1');
-    expect(corpos.single['interfone_versao'], 1);
+    expect(corpos.single['interfone_versao'], 2);
     expect(corpos.single.containsKey('voip_token'), isFalse);
   });
 
-  test('iPhone sem token VoIP também manda interfone_versao 1', () async {
+  test('iPhone sem token VoIP também manda interfone_versao 2', () async {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
     addTearDown(() => debugDefaultTargetPlatformOverride = null);
     FirebaseService.instance.obterTokenVoip = () async => null;
     await FirebaseService.instance.registrarNoServidor('fcm-1');
-    expect(corpos.last['interfone_versao'], 1);
+    expect(corpos.last['interfone_versao'], 2);
     expect(corpos.last.containsKey('voip_token'), isFalse);
   });
 

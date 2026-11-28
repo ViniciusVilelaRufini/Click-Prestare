@@ -127,6 +127,99 @@ class ItemHistoricoInterfone {
       );
 }
 
+/// Pedido de abertura do portão da portaria autônoma, como o morador o vê.
+class PedidoPortao {
+  final int id;
+
+  /// `pendente`, `autorizado`, `negado` ou `expirado`.
+  final String estado;
+  final String? nome;
+  final String? motivo;
+
+  /// `visita`, `entrega`, `servico` ou `outro`.
+  final String? tipo;
+  final String? mensagem;
+  final String? respondidoPorNome;
+  final DateTime? respondidoEm;
+  final bool portaoAberto;
+
+  // Só vêm no push (a API do pedido não repete).
+  final String? unidade;
+  final String? condominio;
+  final String? portao;
+  final String? fotoUrl;
+
+  const PedidoPortao({
+    required this.id,
+    this.estado = 'pendente',
+    this.nome,
+    this.motivo,
+    this.tipo,
+    this.mensagem,
+    this.respondidoPorNome,
+    this.respondidoEm,
+    this.portaoAberto = false,
+    this.unidade,
+    this.condominio,
+    this.portao,
+    this.fotoUrl,
+  });
+
+  bool get pendente => estado == 'pendente';
+
+  /// Dados do push `interfone_pedido`.
+  factory PedidoPortao.doPush(Map<String, dynamic> d) => PedidoPortao(
+        id: _int(d['id']) ?? 0,
+        nome: _textoOuNull(d['nome']),
+        motivo: _textoOuNull(d['motivo']),
+        tipo: _textoOuNull(d['tipo']),
+        unidade: _textoOuNull(d['unidade']),
+        condominio: _textoOuNull(d['condominio']),
+        portao: _textoOuNull(d['portao']),
+        fotoUrl: _textoOuNull(d['foto_url']),
+      );
+
+  factory PedidoPortao.fromJson(Map<String, dynamic> j) => PedidoPortao(
+        id: _int(j['id']) ?? 0,
+        estado: '${j['estado'] ?? 'pendente'}',
+        nome: _textoOuNull(j['nome_falado']),
+        motivo: _textoOuNull(j['motivo']),
+        tipo: _textoOuNull(j['tipo']),
+        mensagem: _textoOuNull(j['mensagem']),
+        respondidoPorNome: _textoOuNull(j['respondido_por_nome']),
+        respondidoEm: DateTime.tryParse('${j['respondido_em'] ?? ''}'),
+        portaoAberto: j['portao_aberto'] == true,
+      );
+
+  /// Estado novo da API sobre o que o push já trouxe (foto, portão...).
+  PedidoPortao mesclar(PedidoPortao novo) => PedidoPortao(
+        id: id,
+        estado: novo.estado,
+        nome: novo.nome ?? nome,
+        motivo: novo.motivo ?? motivo,
+        tipo: novo.tipo ?? tipo,
+        mensagem: novo.mensagem,
+        respondidoPorNome: novo.respondidoPorNome,
+        respondidoEm: novo.respondidoEm,
+        portaoAberto: novo.portaoAberto,
+        unidade: unidade,
+        condominio: condominio,
+        portao: portao,
+        fotoUrl: fotoUrl,
+      );
+}
+
+/// Recusa da API ao responder o pedido: `motivo` é `pedido_respondido`,
+/// `pedido_expirado` ou null (403, sem rede, erro).
+class PedidoPortaoErro implements Exception {
+  final int? status;
+  final String? motivo;
+  const PedidoPortaoErro({this.status, this.motivo});
+
+  @override
+  String toString() => 'PedidoPortaoErro($status, $motivo)';
+}
+
 /// Resultado de "atender"/"ligar": os dados de entrada ou, na recusa (409),
 /// o motivo da API (`ja_atendida`, `encerrada`, `portaria_indisponivel`).
 typedef ResultadoEntrada = ({DadosEntrada? dados, String? motivo});
@@ -154,6 +247,48 @@ class InterfoneApi {
 
   static Future<ResultadoEntrada> atenderComMotivo(int id) =>
       _entrada('/interfone/chamadas/$id/atender', null);
+
+  /// Estado atual do pedido do portão. Lança [PedidoPortaoErro] se falhar.
+  static Future<PedidoPortao> pedido(int id) async {
+    try {
+      final r = await ApiClient.get(ApiConfig.buildUri('/interfone/pedidos/$id'));
+      final j = _decodificar(r.body);
+      if (r.statusCode >= 200 && r.statusCode < 300 && j is Map) {
+        return PedidoPortao.fromJson(Map<String, dynamic>.from(j));
+      }
+      throw PedidoPortaoErro(status: r.statusCode, motivo: _motivo(j));
+    } on PedidoPortaoErro {
+      rethrow;
+    } catch (e) {
+      logDebug('[Interfone] pedido: ${e.runtimeType}');
+      throw const PedidoPortaoErro();
+    }
+  }
+
+  /// Responde o pedido: [decisao] `autorizar` ou `negar`; [mensagem] (até 120)
+  /// vai ao visitante. Lança [PedidoPortaoErro] (409 traz o motivo).
+  static Future<PedidoPortao> responderPedido(int id, String decisao, {String? mensagem}) async {
+    try {
+      final texto = mensagem?.trim();
+      final r = await ApiClient.post(
+        ApiConfig.buildUri('/interfone/pedidos/$id/responder'),
+        body: jsonEncode({
+          'decisao': decisao,
+          if (texto != null && texto.isNotEmpty) 'mensagem': texto,
+        }),
+      );
+      final j = _decodificar(r.body);
+      if (r.statusCode >= 200 && r.statusCode < 300 && j is Map) {
+        return PedidoPortao.fromJson(Map<String, dynamic>.from(j));
+      }
+      throw PedidoPortaoErro(status: r.statusCode, motivo: _motivo(j));
+    } on PedidoPortaoErro {
+      rethrow;
+    } catch (e) {
+      logDebug('[Interfone] responder pedido: ${e.runtimeType}');
+      throw const PedidoPortaoErro();
+    }
+  }
 
   static Future<bool> recusar(int id) async {
     try {
