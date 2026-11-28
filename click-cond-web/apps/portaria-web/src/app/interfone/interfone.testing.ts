@@ -29,6 +29,16 @@ export const CHAMADA_MORADOR: EventoChamada = {
   foto_url: null,
 };
 
+/** Visitante discou a portaria no facial (portaria autônoma): sem unidade, com portão e vídeo. */
+export const CHAMADA_PORTARIA: EventoChamada = {
+  id: 43,
+  tipo: 'facial_portaria',
+  unidade: '',
+  motivo: 'portaria',
+  morador_nome: null,
+  foto_url: 'https://s3/foto-portaria.jpg',
+};
+
 export const HOJE: ChamadaHoje[] = [
   {
     id: 30, tipo: 'facial_unidade', inicio: '2026-11-27T13:00:00.000Z', resultado: 'atendida_morador',

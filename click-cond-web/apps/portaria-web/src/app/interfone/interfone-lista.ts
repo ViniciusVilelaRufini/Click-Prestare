@@ -2,9 +2,15 @@ import type { ChamadaHoje, ResultadoChamada, TipoChamada } from './interfone.api
 
 const TIPO: Record<TipoChamada, string> = {
   facial_unidade: 'Portão → unidade',
+  facial_portaria: 'Portão → portaria',
   portaria_unidade: 'Portaria → unidade',
   unidade_portaria: 'Unidade → portaria',
 };
+
+/** Nome da unidade da chamada; a do visitante que discou a portaria não tem unidade. */
+export function rotuloUnidade(c: Pick<ChamadaHoje, 'unidade'>): string {
+  return c.unidade?.trim() ? c.unidade : 'Portaria';
+}
 
 const RESULTADO: Record<ResultadoChamada, string> = {
   atendida_morador: 'Atendida pelo morador',

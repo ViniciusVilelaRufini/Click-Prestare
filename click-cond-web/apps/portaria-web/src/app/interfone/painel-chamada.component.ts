@@ -1,9 +1,12 @@
 import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, computed, inject, signal, viewChild } from '@angular/core';
+import { temPortao } from './interfone.api';
+import { rotuloUnidade } from './interfone-lista';
 import { ChamadaConsole, InterfoneStore } from './interfone.store';
 
 /** Texto do motivo da chamada que chegou à portaria. */
 export function motivoDaChamada(c: Pick<ChamadaConsole, 'tipo' | 'motivo'>): string {
   if (c.tipo === 'unidade_portaria') return 'Morador ligando';
+  if (c.tipo === 'facial_portaria') return 'Visitante chamou a portaria';
   switch (c.motivo) {
     case 'nao_atendeu':
       return 'Morador não atendeu';
@@ -48,14 +51,14 @@ const MAX_CONVERSA_S = 180;
           }
 
           @for (c of store.tocando(); track c.id) {
-            <section class="ps-panel pointer-events-auto" [attr.aria-label]="'Chamada do interfone: ' + c.unidade">
+            <section class="ps-panel pointer-events-auto" [attr.aria-label]="'Chamada do interfone: ' + unidadeDe(c)">
               <div class="flex items-start gap-3 px-4 pt-4 pb-3">
                 @if (c.foto_url) {
                   <img [src]="c.foto_url" alt="Foto do visitante" class="w-16 h-16 object-cover border border-[var(--line-200)] shrink-0" />
                 }
                 <div class="min-w-0 flex-1">
                   <p class="ps-label flex items-center gap-2"><span class="ps-dot ps-dot-warn ps-dot-pulse"></span>{{ c.tipo === 'unidade_portaria' ? 'Interfone · Morador' : 'Interfone · Portão' }}</p>
-                  <h2 class="ps-h2 mt-1.5 truncate">{{ c.unidade }}</h2>
+                  <h2 class="ps-h2 mt-1.5 truncate">{{ unidadeDe(c) }}</h2>
                   <p class="ps-cap mt-1">{{ motivoDe(c) }}</p>
                   @if (c.morador_nome) {
                     <p class="text-sm mt-0.5 truncate">{{ c.morador_nome }}</p>
@@ -82,7 +85,7 @@ const MAX_CONVERSA_S = 180;
               <span class="ps-dot" [class.ps-dot-ok]="store.estado() === 'em_chamada'" [class.ps-dot-warn]="store.estado() !== 'em_chamada'"></span>
               {{ tituloEmChamada(c) }}
             </p>
-            <h2 class="ps-h2 mt-1.5 truncate">{{ c.unidade }}</h2>
+            <h2 class="ps-h2 mt-1.5 truncate">{{ unidadeDe(c) }}</h2>
             @if (c.morador_nome) {
               <p class="text-sm mt-0.5 truncate">{{ c.morador_nome }}</p>
             }
@@ -97,7 +100,7 @@ const MAX_CONVERSA_S = 180;
         </div>
         @if (store.emChamada(); as c) {
           <div class="flex flex-wrap gap-2 px-4 py-4">
-            @if (c.tipo === 'facial_unidade' && store.estado() === 'em_chamada') {
+            @if (comPortao(c) && store.estado() === 'em_chamada') {
               <button type="button" class="ps-btn flex-1 disabled:opacity-40" [disabled]="!store.podeAbrir()" (click)="store.abrir()">
                 {{ store.abrindo() ? 'Abrindo…' : 'Abrir portão' }}
               </button>
@@ -145,7 +148,7 @@ export class PainelChamadaComponent implements OnInit, AfterViewInit, OnDestroy 
         !!this.store.erro()),
   );
 
-  readonly mostraVideo = computed(() => this.store.emChamada()?.tipo === 'facial_unidade');
+  readonly mostraVideo = computed(() => temPortao(this.store.emChamada()?.tipo));
 
   /** A foto do visitante cobre o vídeo até a conversa começar. */
   readonly fotoEnquantoConecta = computed(() => {
@@ -169,6 +172,15 @@ export class PainelChamadaComponent implements OnInit, AfterViewInit, OnDestroy 
 
   motivoDe(c: ChamadaConsole): string {
     return motivoDaChamada(c);
+  }
+
+  unidadeDe(c: ChamadaConsole): string {
+    return rotuloUnidade(c);
+  }
+
+  /** Chamada de facial (unidade ou portaria): tem portão para abrir. */
+  comPortao(c: ChamadaConsole): boolean {
+    return temPortao(c.tipo);
   }
 
   tituloEmChamada(c: ChamadaConsole): string {

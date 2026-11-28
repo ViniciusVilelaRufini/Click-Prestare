@@ -4,7 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import { ehLoginDePortaria, ehPorteiro } from '../auth/papel';
 import { RealtimeService } from '../shared/realtime.service';
-import { ChamadaHoje, DadosEntrada, EventoChamada, InterfoneApi, TipoChamada } from './interfone.api';
+import { ChamadaHoje, DadosEntrada, EventoChamada, InterfoneApi, TipoChamada, temPortao } from './interfone.api';
 import { CAUSA_MICROFONE, EstadoSessao, FimSessao, SessaoVoz, SipVoz } from './sip-voz';
 import { ToqueInterfone } from './toque';
 
@@ -13,7 +13,7 @@ export interface ChamadaConsole extends EventoChamada {
   saindo?: boolean;
 }
 
-const TIPOS: TipoChamada[] = ['facial_unidade', 'portaria_unidade', 'unidade_portaria'];
+const TIPOS: TipoChamada[] = ['facial_unidade', 'facial_portaria', 'portaria_unidade', 'unidade_portaria'];
 /** Depois de iniciar, quanto esperar o socket conectar antes de avisar que caiu (evita o aviso piscar ao abrir). */
 const CARENCIA_CONEXAO_MS = 5_000;
 const AVISO_MS = 6_000;
@@ -98,7 +98,7 @@ export class InterfoneStore {
 
   readonly podeAbrir = computed(() => {
     const c = this.emChamada();
-    return !!c && c.tipo === 'facial_unidade' && this.estado() === 'em_chamada' && !this.abrindo();
+    return !!c && temPortao(c.tipo) && this.estado() === 'em_chamada' && !this.abrindo();
   });
 
   /** Por que este console não vai tocar agora (null = tudo certo). */

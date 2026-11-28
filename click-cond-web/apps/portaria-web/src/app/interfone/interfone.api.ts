@@ -8,8 +8,16 @@ import { API_BASE } from '../shared/api.config';
  * docs/superpowers/plans/2026-11-27-interfone-pelo-app.md ("Contrato da API").
  */
 
-export type TipoChamada = 'facial_unidade' | 'portaria_unidade' | 'unidade_portaria';
-export type MotivoPortaria = 'nao_atendeu' | 'recusou' | 'sem_app' | null;
+/** `facial_portaria`: o visitante discou a portaria no facial (portaria autônoma) — tem portão e vídeo, sem unidade. */
+export type TipoChamada = 'facial_unidade' | 'facial_portaria' | 'portaria_unidade' | 'unidade_portaria';
+/** `portaria`: a chamada nasceu na portaria (facial_portaria), não veio da unidade. */
+export type MotivoPortaria = 'nao_atendeu' | 'recusou' | 'sem_app' | 'portaria' | null;
+
+/** Chamadas de facial: têm portão para abrir e vídeo do visitante. */
+export const TIPOS_COM_PORTAO: readonly TipoChamada[] = ['facial_unidade', 'facial_portaria'];
+export function temPortao(tipo: TipoChamada | null | undefined): boolean {
+  return !!tipo && TIPOS_COM_PORTAO.includes(tipo);
+}
 export type ResultadoChamada =
   | 'atendida_morador'
   | 'atendida_portaria'

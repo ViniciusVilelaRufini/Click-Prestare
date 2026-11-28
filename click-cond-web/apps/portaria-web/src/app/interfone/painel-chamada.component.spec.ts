@@ -12,6 +12,7 @@ import { ToqueInterfone } from './toque';
 import {
   CHAMADA_FACIAL,
   CHAMADA_MORADOR,
+  CHAMADA_PORTARIA,
   InterfoneApiStub,
   RealtimeStub,
   SipVozFalso,
@@ -124,6 +125,25 @@ describe('PainelChamadaComponent', () => {
     const [, video, audio] = sip.entrar.mock.calls[0] as unknown as [unknown, HTMLVideoElement, HTMLAudioElement];
     expect(video).toBe(el.querySelector('video'));
     expect(audio).toBe(el.querySelector('audio'));
+  });
+
+  it('facial_portaria: toca como portão, mostra o vídeo, ABRIR PORTÃO e abre', async () => {
+    const { fixture, el, botao } = render();
+    rt.emitir('interfone:chamada', CHAMADA_PORTARIA);
+    await fixture.whenStable();
+    expect(el.textContent).toContain('Interfone · Portão');
+    expect(el.textContent).toContain('Visitante chamou a portaria');
+    expect(el.textContent).toContain('Portaria');
+    botao('ATENDER')!.click();
+    await fixture.whenStable();
+    expect(api.atender).toHaveBeenCalledWith(43);
+    const video = el.querySelector('video')!;
+    expect(video.parentElement!.classList.contains('hidden')).toBe(false);
+    sip.ultima!.atender();
+    await fixture.whenStable();
+    expect(botao('ABRIR PORTÃO')).not.toBeNull();
+    botao('ABRIR PORTÃO')!.click();
+    expect(api.abrir).toHaveBeenCalledWith(43);
   });
 
   it('chamada unidade_portaria não mostra ABRIR PORTÃO', async () => {

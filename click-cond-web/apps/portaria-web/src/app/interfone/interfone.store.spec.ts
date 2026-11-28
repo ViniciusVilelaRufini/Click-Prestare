@@ -11,6 +11,7 @@ import { ToqueInterfone } from './toque';
 import {
   CHAMADA_FACIAL,
   CHAMADA_MORADOR,
+  CHAMADA_PORTARIA,
   DADOS_ENTRADA,
   HOJE,
   InterfoneApiStub,
@@ -141,6 +142,13 @@ describe('InterfoneStore', () => {
       rt.emitir('interfone:chamada', { tipo: 'facial_unidade' });
       rt.emitir('interfone:chamada', null);
       expect(store.tocando()).toEqual([]);
+    });
+
+    it('facial_portaria (visitante discou a portaria) toca no console do porteiro', () => {
+      rt.emitir('interfone:chamada', CHAMADA_PORTARIA);
+      expect(store.tocando()).toHaveLength(1);
+      expect(store.tocando()[0]).toMatchObject({ id: 43, tipo: 'facial_portaria', foto_url: 'https://s3/foto-portaria.jpg' });
+      expect(toque.tocando).toBe(true);
     });
 
     it('tipo desconhecido é ignorado (não vira chamada de facial)', () => {
@@ -476,6 +484,18 @@ describe('InterfoneStore', () => {
       store.abrir();
       await tique();
       expect(store.aviso()).toBe('Não foi possível abrir o portão.');
+    });
+
+    it('chamada facial_portaria atendida também abre o portão', async () => {
+      rt.emitir('interfone:chamada', CHAMADA_PORTARIA);
+      await store.atender(43);
+      expect(api.atender).toHaveBeenCalledWith(43);
+      sip.ultima!.atender();
+      expect(store.podeAbrir()).toBe(true);
+      store.abrir();
+      await tique();
+      expect(api.abrir).toHaveBeenCalledWith(43);
+      expect(store.aviso()).toBe('Portão aberto.');
     });
 
     it('antes de a conversa começar não abre', async () => {

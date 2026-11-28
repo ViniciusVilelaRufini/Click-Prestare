@@ -5,7 +5,7 @@ import { Subject, catchError, of, switchMap } from 'rxjs';
 import { ChamadaHoje, InterfoneApi } from './interfone.api';
 import { InterfoneStore } from './interfone.store';
 import { FotoChamadaComponent } from './foto-chamada.component';
-import { FiltroChamadas, GrupoResultado, contar, filtrar, grupo, limitesData, rotuloCurto, rotuloTipo } from './interfone-lista';
+import { FiltroChamadas, GrupoResultado, contar, filtrar, grupo, limitesData, rotuloCurto, rotuloTipo, rotuloUnidade } from './interfone-lista';
 
 export { rotuloResultado } from './interfone-lista';
 
@@ -77,7 +77,7 @@ const PONTO: Record<GrupoResultado, string> = {
           <span class="w-10 shrink-0 text-sm tabular-nums text-[var(--ink-muted)]">{{ c.inicio | date: 'HH:mm' }}</span>
           @if (c.foto_url) {
             <button type="button" class="shrink-0 block w-10 h-10 border border-[var(--line-200)] hover:border-[var(--ink)] transition-colors"
-              [attr.aria-label]="'Ampliar a foto do visitante de ' + c.unidade" (click)="foto.set(c)" data-teste="abrir-foto">
+              [attr.aria-label]="'Ampliar a foto do visitante de ' + unidade(c)" (click)="foto.set(c)" data-teste="abrir-foto">
               <img [src]="c.foto_url" alt="" class="w-full h-full object-cover" loading="lazy" />
             </button>
           } @else {
@@ -89,6 +89,9 @@ const PONTO: Record<GrupoResultado, string> = {
                 @case ('facial_unidade') {
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z"/></svg>
                 }
+                @case ('facial_portaria') {
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z"/></svg>
+                }
                 @default {
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106a1.125 1.125 0 00-1.173.417l-.97 1.293a12.035 12.035 0 01-7.143-7.143l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/></svg>
                 }
@@ -96,7 +99,7 @@ const PONTO: Record<GrupoResultado, string> = {
             </span>
           }
           <div class="min-w-0 flex-1">
-            <p class="text-sm font-medium truncate">{{ c.unidade }}</p>
+            <p class="text-sm font-medium truncate">{{ unidade(c) }}</p>
             <p class="ps-cap truncate">{{ tipo(c) }}@if (c.atendida_por_nome) { · atendida por {{ c.atendida_por_nome }}}</p>
             @if (c.porta_aberta) {
               <p class="ps-cap flex items-center gap-1.5 truncate"><span class="ps-dot ps-dot-ok"></span>Portão aberto@if (c.porta_aberta_por_nome) { por {{ c.porta_aberta_por_nome }}}</p>
@@ -211,6 +214,10 @@ export class ChamadasHojeComponent {
 
   tipo(c: ChamadaHoje): string {
     return rotuloTipo(c);
+  }
+
+  unidade(c: ChamadaHoje): string {
+    return rotuloUnidade(c);
   }
 
   etiqueta(c: ChamadaHoje): string {

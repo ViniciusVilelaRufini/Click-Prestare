@@ -92,6 +92,17 @@ describe('ChamadasHojeComponent', () => {
     expect(linhas()[1].querySelector('[data-teste="resultado"] .ps-dot-warn')).not.toBeNull();
   });
 
+  it('facial_portaria: "Portão → portaria", sem unidade mostra "Portaria" e o ícone do portão (câmera)', () => {
+    const { f, linhas, store } = montar();
+    store.hoje.set([ch(5, 'atendida_portaria', { tipo: 'facial_portaria', unidade: '', id_apartamento: null })]);
+    f.detectChanges();
+    const linha = linhas()[0];
+    expect(linha.textContent).toContain('Portão → portaria');
+    expect(linha.querySelector('p.text-sm')?.textContent?.trim()).toBe('Portaria');
+    const d = linha.querySelector('.ps-avatar svg path')?.getAttribute('d') ?? '';
+    expect(d.startsWith('M15.75 10.5')).toBe(true);
+  });
+
   it('cartão filtra; clicar de novo volta para todas; filtro vazio tem mensagem própria', () => {
     const { f, el, cartao, linhas, store } = montar();
     cartao('falhas').click();
