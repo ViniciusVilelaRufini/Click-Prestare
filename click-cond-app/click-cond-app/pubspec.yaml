@@ -38,7 +38,7 @@ dependencies:
   package_info_plus: ^9.0.1
   easy_localization: ^3.0.8
   google_fonts: ^8.1.0
-  phosphor_flutter: ^1.4.0
+  phosphor_flutter: ^2.1.0
   # Ditado no campo do assistente. O reconhecimento roda no aparelho: nenhum
   # áudio sai do dispositivo, o texto é revisado antes de virar pergunta.
   speech_to_text: ^7.4.0
