@@ -98,6 +98,8 @@ model Users {
   notif_encomendas    Int                          @default(1) @db.TinyInt
   notif_ocorrencias   Int                          @default(1) @db.TinyInt
   notif_visitantes    Int                          @default(1) @db.TinyInt
+  /// Interfone: 0 = o morador desligou o toque no celular (não recebe chamadas).
+  interfone_receber   Int                          @default(1) @db.TinyInt
   agenda              Agenda[]                     @relation("AgendaUser")
   apartamentosUsers   Apartamentos_Users[]
   agendamentosArea    Areas_Sociais_Agendamentos[]
@@ -131,6 +133,8 @@ model Users {
   mfaChallenges       Mfa_Challenges[]
   trustedDevices      User_Trusted_Devices[]
   deliveryAtendimentosCriados DeliveryAtendimentos[] @relation("DeliveryMorador")
+  /// Interfone: chamadas que este usuário originou (ligar para a portaria).
+  interfoneChamadasOrigem Interfone_Chamadas[] @relation("InterfoneChamadaOrigem")
 
   @@index([address], map: "fk_users_address")
 }
@@ -161,11 +165,19 @@ model Users_Devices {
   /// (1.2.42–1.2.45); 2 = também o de delivery. O card de delivery só vai
   /// para aparelho com 2 ou mais.
   card_versao       Int      @default(1)
+  /// iPhone: token PushKit (VoIP) para o toque do interfone virar ligação
+  /// CallKit. Null = o aparelho não recebe VoIP push.
+  voip_token        String?  @db.VarChar(200)
+  /// Versão do interfone que o app sabe atender: 0 = app sem interfone (recebe
+  /// o push comum "atualize o app"); 1 = atende pelo celular.
+  interfone_versao  Int      @default(0)
   created_at DateTime @default(now()) @db.DateTime(0)
   updated_at DateTime @default(now()) @updatedAt @db.DateTime(0)
   user       Users    @relation(fields: [id_user], references: [id], onDelete: Cascade, map: "fk_users_devices_user")
 
   @@index([id_user], map: "idx_users_devices_user")
+  /// Interfone: registro do aparelho e token VoIP morto buscam pelo token.
+  @@index([voip_token], map: "idx_ud_voip_token")
 }
 
 /// Card ao vivo da portaria remota: um por pedido de autorização por aparelho.
@@ -313,6 +325,21 @@ model Condominios {
   // administradora, então é ligado condomínio a condomínio, no CRM.
   superlogica_escrita Int @default(0) @db.TinyInt
 
+  /// Interfone pelo app: módulo contratado (ligado pelo CRM). 0 = o síndico não
+  /// vê a configuração e nenhum facial chama.
+  interfone_contratado       Int @default(0) @db.TinyInt
+  /// Interfone ligado pelo síndico (só vale com interfone_contratado = 1).
+  interfone_ativo            Int @default(0) @db.TinyInt
+  /// Segundos tocando no celular dos moradores (15–60) antes de transferir/encerrar.
+  interfone_toque_apto_s     Int @default(30)
+  /// 1 = sem resposta da unidade, a chamada vai para o console da portaria.
+  interfone_transferir       Int @default(1) @db.TinyInt
+  /// Segundos tocando no console da portaria (15–120) antes de encerrar.
+  interfone_toque_portaria_s Int @default(45)
+  /// Interfone: monitores IP e chamadas do condomínio.
+  interfoneMonitores         Interfone_Monitores[]
+  interfoneChamadas          Interfone_Chamadas[]
+
   @@index([endereco], map: "fk_cond_endereco")
 }
 
@@ -327,6 +354,9 @@ model Apartamentos {
   // Integração Superlógica: id_unidade_uni no ERP. Gravado quando o apartamento
   // é criado pela importação — o vínculo é por ID, nunca casado por texto.
   id_superlogica_uni  Int?
+  /// Número que o visitante digita no facial para chamar esta unidade (só
+  /// dígitos, 1–10). Único por condomínio (un_apto_ramal); null = sem interfone.
+  interfone_ramal     String?                      @db.VarChar(10)
   created_at          DateTime                     @default(now()) @db.DateTime(0)
   updated_at          DateTime                     @default(now()) @updatedAt @db.DateTime(0)
   condominio          Condominios                  @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_apto_cond")
@@ -342,8 +372,13 @@ model Apartamentos {
   votos               Votacoes_Usuarios[]
   // Dispositivos do Módulo Guarita casados com esta unidade (Tags.id_apto).
   tagsGuarita         Tags[]
+  /// Interfone: monitores IP da unidade e chamadas de/para ela.
+  interfoneMonitores  Interfone_Monitores[]
+  interfoneChamadas   Interfone_Chamadas[]
 
   @@unique([id_condominio, bloco, apto], map: "un_apto_cond")
+  // Um ramal de interfone por condomínio. NULL não colide (MySQL).
+  @@unique([id_condominio, interfone_ramal], map: "un_apto_ramal")
   // Impede dois apartamentos do mesmo condomínio carregarem o mesmo
   // id_superlogica_uni: se acontecesse, o Map de superlogica-sync.service.ts
   // guardaria só o último e as cobranças da unidade cairiam no apartamento
@@ -1587,6 +1622,19 @@ model Facial_Devices {
   // QR de entregas do portão (autoatendimento do entregador): token público,
   // impresso no portão. Nulo = o aparelho não aceita o autoatendimento.
   token_entrega      String?               @unique(map: "un_facdev_token_entrega") @db.VarChar(64)
+  /// Interfone: 1 = este facial chama as unidades pela central de voz.
+  interfone_habilitado    Int       @default(0) @db.TinyInt
+  /// Senha da conta SIP fac-<id> (gerada ao habilitar; "nova senha" troca).
+  interfone_senha         String?   @db.VarChar(64)
+  /// Blocos que este facial chama (JSON array de nomes). null = todos.
+  interfone_blocos        String?   @db.Text
+  /// Dígitos DTMF que abrem a porta pelo próprio facial (reserva quando o
+  /// agente local não responde). null = sem reserva.
+  interfone_dtmf          String?   @db.VarChar(20)
+  /// 1 = a conta SIP está registrada na central agora (informado pelo serviço de voz).
+  interfone_registrado    Int       @default(0) @db.TinyInt
+  /// Quando o registro passou a 1 pela última vez.
+  interfone_registrado_em DateTime? @db.DateTime(0)
   created_at         DateTime              @default(now()) @db.DateTime(0)
   updated_at         DateTime              @default(now()) @updatedAt @db.DateTime(0)
   condominio         Condominios           @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_facdev_cond")
@@ -1605,6 +1653,8 @@ model Facial_Devices {
   guaritaBackups     Guarita_Backups[]
   guaritaPortoes     Guarita_Portoes[]
   guaritaAlertas     Guarita_Alertas[]
+  /// Interfone: chamadas feitas por este facial.
+  interfoneChamadas  Interfone_Chamadas[]
 
   @@index([id_condominio], map: "idx_facdev_cond")
   @@index([id_area_social], map: "idx_facdev_area")
@@ -2262,4 +2312,85 @@ model Guarita_Importacoes {
   operacao    Guarita_Operacoes @relation(fields: [id_operacao], references: [id], onDelete: Cascade, map: "fk_gim_operacao")
 
   @@unique([id_operacao, parte], map: "un_gim_operacao_parte")
+}
+
+/// Interfone: monitor IP de uma unidade (conta SIP mon-<id> registrada na
+/// central de voz). Toca junto com o celular dos moradores.
+/// SQL: prisma/sql/2026-11-27-interfone.sql
+model Interfone_Monitores {
+  /// Conta SIP = "mon-" + id.
+  id             Int          @id @default(autoincrement())
+  id_condominio  Int
+  id_apartamento Int
+  /// Nome livre (ex.: "Monitor da sala").
+  nome           String       @db.VarChar(80)
+  /// Senha da conta SIP.
+  senha          String       @db.VarChar(64)
+  /// 0 = desligado (não entra na lista de contas do serviço de voz).
+  ativo          Int          @default(1) @db.TinyInt
+  created_at     DateTime     @default(now()) @db.DateTime(0)
+  condominio     Condominios  @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_ifm_cond")
+  apartamento    Apartamentos @relation(fields: [id_apartamento], references: [id], onDelete: Cascade, map: "fk_ifm_apto")
+
+  @@index([id_condominio], map: "idx_ifm_cond")
+  @@index([id_apartamento], map: "idx_ifm_apto")
+}
+
+/// Interfone: registro de cada chamada (facial -> unidade, portaria -> unidade,
+/// unidade -> portaria). Fonte do histórico do app e do console.
+/// SQL: prisma/sql/2026-11-27-interfone.sql
+model Interfone_Chamadas {
+  id                    Int             @id @default(autoincrement())
+  id_condominio         Int
+  /// 'facial_unidade' | 'portaria_unidade' | 'unidade_portaria'
+  tipo                  String          @db.VarChar(20)
+  /// 'chamando' | 'portaria' | 'atendida' | 'encerrada'
+  estado                String          @db.VarChar(12)
+  /// 'atendida_morador' | 'atendida_portaria' | 'nao_atendida' | 'recusada' |
+  /// 'falha' | 'cancelada'. Null enquanto a chamada não acabou.
+  resultado             String?         @db.VarChar(20)
+  /// Facial que originou (tipo facial_unidade). SetNull: apagar o facial não
+  /// apaga o histórico.
+  id_facial             Int?
+  /// Unidade chamada (ou que chamou a portaria).
+  id_apartamento        Int?
+  /// Número digitado no facial.
+  numero_discado        String?         @db.VarChar(10)
+  /// Morador que ligou para a portaria (tipo unidade_portaria).
+  id_user_origem        Int?
+  /// Funcionarios_Portaria.id que ligou para a unidade (tipo portaria_unidade).
+  id_porteiro_origem    Int?
+  /// Por que foi para a portaria: 'nao_atendeu' | 'recusou' | 'sem_app'.
+  motivo_portaria       String?         @db.VarChar(12)
+  atendida_em           DateTime?       @db.DateTime(0)
+  /// 'morador' | 'portaria'
+  atendida_por_tipo     String?         @db.VarChar(10)
+  /// Users.id (morador) ou Funcionarios_Portaria.id (portaria).
+  atendida_por_id       Int?
+  atendida_por_nome     String?         @db.VarChar(120)
+  encerrada_em          DateTime?       @db.DateTime(0)
+  duracao_s             Int?
+  /// Foto do visitante tirada pelo facial (apagada em 90 dias).
+  foto                  String?         @db.VarChar(500)
+  porta_aberta_em       DateTime?       @db.DateTime(0)
+  porta_aberta_por_nome String?         @db.VarChar(120)
+  /// 'agente' (relé pelo agente local) | 'dtmf' (pelo próprio facial).
+  porta_aberta_como     String?         @db.VarChar(10)
+  /// JSON array de Users.id que tocaram em Recusar.
+  recusas               String?         @db.Text
+  /// JSON array de Users.id em que o toque saiu (VoIP/dados): "todos
+  /// recusaram" compara com estes, não com todos os moradores.
+  tocou_ids             String?         @db.Text
+  created_at            DateTime        @default(now()) @db.DateTime(0)
+  condominio            Condominios     @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_ifc_cond")
+  facial                Facial_Devices? @relation(fields: [id_facial], references: [id], onDelete: SetNull, map: "fk_ifc_facial")
+  apartamento           Apartamentos?   @relation(fields: [id_apartamento], references: [id], onDelete: SetNull, map: "fk_ifc_apto")
+  userOrigem            Users?          @relation("InterfoneChamadaOrigem", fields: [id_user_origem], references: [id], onDelete: SetNull, map: "fk_ifc_user_origem")
+
+  @@index([id_condominio, created_at], map: "idx_ifc_cond_created")
+  @@index([id_apartamento, created_at], map: "idx_ifc_apto_created")
+  @@index([id_facial, created_at], map: "idx_ifc_facial_created")
+  @@index([id_user_origem], map: "idx_ifc_user_origem")
+  /// Rotina de chamadas órfãs (estado não terminal além do prazo).
+  @@index([estado, created_at], map: "idx_ifc_estado_created")
 }

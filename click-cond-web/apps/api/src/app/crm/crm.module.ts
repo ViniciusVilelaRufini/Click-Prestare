@@ -15,6 +15,8 @@ import { FacialModule } from '../facial/facial.module';
 import { SuperlogicaModule } from '../superlogica/superlogica.module';
 import { CrmSuperlogicaController } from './crm-superlogica.controller';
 import { CrmSuperlogicaService } from './crm-superlogica.service';
+import { CrmInterfoneController } from './crm-interfone.controller';
+import { InterfoneModule } from '../interfone/interfone.module';
 
 @Module({
   imports: [
@@ -35,8 +37,10 @@ import { CrmSuperlogicaService } from './crm-superlogica.service';
     // Leitura do ERP Superlógica para a tela de ativação comercial.
     // (AuditoriaService vem do AuditoriaModule, que é @Global.)
     SuperlogicaModule,
+    // Interfone pelo app: o CRM liga o módulo (contratado) por condomínio.
+    InterfoneModule,
   ],
-  controllers: [CrmController, CrmAuthController, CrmSuperlogicaController],
+  controllers: [CrmController, CrmAuthController, CrmSuperlogicaController, CrmInterfoneController],
   providers: [
     CrmService,
     CrmCondominiosService,

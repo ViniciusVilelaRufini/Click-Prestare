@@ -44,6 +44,41 @@ describe('RealtimeGateway — revogação da sessão', () => {
     expect(s.disconnect).not.toHaveBeenCalled();
   });
 
+  it('porteiro entra também na sala da portaria (interfone); síndico no console não', async () => {
+    const { gw } = build({ atual: false });
+    const s = socket();
+    await gw.handleConnection(s);
+    expect(s.join).toHaveBeenCalledWith('portaria:7');
+
+    const tokenSindico = jwt.sign({ sub: 9, nome: 'S', id_condominio: 7, typeAccess: 'Sindico' });
+    const s2 = { ...socket(), handshake: { auth: { token: tokenSindico }, query: {} }, join: jest.fn() } as any;
+    await gw.handleConnection(s2);
+    expect(s2.join).toHaveBeenCalledWith('condominio:7');
+    expect(s2.join).not.toHaveBeenCalledWith('portaria:7');
+  });
+
+  it('porteirosOnline consulta a sala da portaria e emitirPortaria emite nela', async () => {
+    const { gw } = build({ atual: false });
+    const emit = jest.fn();
+    const fetchSockets = jest.fn(async () => [{ id: 'a' }]);
+    (gw as any).server = { in: jest.fn(() => ({ fetchSockets })), to: jest.fn(() => ({ emit })) };
+    await expect(gw.porteirosOnline(7)).resolves.toBe(true);
+    expect((gw as any).server.in).toHaveBeenCalledWith('portaria:7');
+    fetchSockets.mockResolvedValueOnce([]);
+    await expect(gw.porteirosOnline(7)).resolves.toBe(false);
+    fetchSockets.mockRejectedValueOnce(new Error('x'));
+    await expect(gw.porteirosOnline(7)).resolves.toBe(false);
+
+    gw.emitirPortaria(7, 'interfone:fim', { id: 1 });
+    expect((gw as any).server.to).toHaveBeenCalledWith('portaria:7');
+    expect(emit).toHaveBeenCalledWith('interfone:fim', { id: 1 });
+  });
+
+  it('sem servidor, porteirosOnline é false', async () => {
+    const { gw } = build({ atual: false });
+    await expect(gw.porteirosOnline(7)).resolves.toBe(false);
+  });
+
   it('conexão já aberta cai na reconferência quando a sessão é revogada depois', async () => {
     const estado = { atual: false };
     const { gw } = build(estado);

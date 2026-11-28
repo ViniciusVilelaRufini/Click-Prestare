@@ -115,6 +115,26 @@ describe('FacialService.abrirDispositivoInterno', () => {
     );
   });
 
+  it('interfone: aciona o facial da chamada e registra a origem interfone', async () => {
+    const { svc, acessos } = build(aparelho('facial'));
+
+    await expect(
+      svc.abrirDispositivoInterno(20, { origem: 'interfone', tipoPessoa: 'visitante', nomePessoa: 'Interfone Bloco A · Apto 106' }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(acessos[0]).toEqual(
+      expect.objectContaining({ face_id: 'interfone', tipo_pessoa: 'visitante', evento: 'acionado_auto' }),
+    );
+  });
+
+  it('abertura confirmada por outro caminho (DTMF do interfone) entra como acionado_auto com a nota', async () => {
+    const { svc, acessos } = build(aparelho('facial'));
+    await svc.registrarAberturaExterna(20, { origem: 'interfone', tipoPessoa: 'visitante', nomePessoa: 'Interfone Apto 1', nota: 'DTMF' });
+    expect(acessos[0]).toEqual(
+      expect.objectContaining({ face_id: 'interfone', tipo_pessoa: 'visitante', nome_pessoa: 'Interfone Apto 1 (DTMF)', evento: 'acionado_auto' }),
+    );
+  });
+
   it('acionamento que devolve ok:false grava falha_acionamento e devolve { ok:false, erro }', async () => {
     const comErro = build(aparelho('botoeira'), async () => ({ ok: false, error: 'Agente offline' }));
     expect(await comErro.svc.abrirDispositivoInterno(20, ctx)).toEqual({ ok: false, erro: 'Agente offline' });

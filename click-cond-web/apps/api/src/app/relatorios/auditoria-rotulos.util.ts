@@ -36,6 +36,8 @@ export const ROTULOS_ACAO_AUDITORIA: Readonly<Record<string, string>> = {
   DISPOSITIVO_MAC_ATUALIZADO: 'Aparelho trocado (MAC novo)',
   DEACTIVATE: 'Condomínio desativado',
   REACTIVATE: 'Condomínio reativado',
+  INTERFONE_ABRIR: 'Portão aberto pelo interfone',
+  INTERFONE_CONFIG: 'Configuração do interfone',
 };
 
 /** `audit_logs.modulo` → rótulo exibido. Módulo fora do mapa sai como veio. */
@@ -70,6 +72,7 @@ export const ROTULOS_MODULO_AUDITORIA: Readonly<Record<string, string>> = {
   credenciais: 'Credenciais',
   wallet: 'Credenciais',
   'portaria-remota': 'Portaria remota',
+  interfone: 'Interfone',
   guarita: 'Guarita',
   'portaria-equipe': 'Equipe da portaria',
   funcionarios: 'Funcionários',

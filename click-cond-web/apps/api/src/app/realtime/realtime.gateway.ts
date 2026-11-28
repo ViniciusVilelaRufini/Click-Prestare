@@ -12,6 +12,9 @@ import type { Server, Socket } from 'socket.io';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { JwtStrategy } from '../auth/jwt.strategy';
 
+/** Sala dos porteiros do condomínio (só tokens `tipo_sub === 'funcionario_portaria'`). */
+export const salaPortaria = (idCondominio: number) => `portaria:${idCondominio}`;
+
 /** De quanto em quanto tempo as conexões abertas são reconferidas contra a revogação da sessão. */
 const RECONFERIR_MS = 60_000;
 
@@ -101,6 +104,9 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       client.data = { ...(client.data ?? {}), token };
       client.join(`condominio:${idCondominio}`);
+      // Interfone: sala só dos porteiros (o síndico no console não atende o
+      // interfone). É ela que diz se há "porteiro online" para transferir.
+      if (payload?.tipo_sub === 'funcionario_portaria') client.join(salaPortaria(Number(idCondominio)));
     } catch (err: any) {
       this.logger.warn(`Conexão WS recusada: ${err?.message ?? err}`);
       client.disconnect(true);
@@ -129,5 +135,21 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   emitToCondominio(idCondominio: number, event: string, payload: unknown) {
     this.server?.to(`condominio:${idCondominio}`).emit(event, payload);
+  }
+
+  /** Evento só para os porteiros conectados no console do condomínio (interfone). */
+  emitirPortaria(idCondominio: number, evento: string, dados: unknown) {
+    this.server?.to(salaPortaria(idCondominio)).emit(evento, dados);
+  }
+
+  /** Há ao menos um porteiro com o console aberto neste condomínio (nesta réplica)? Nunca lança. */
+  async porteirosOnline(idCondominio: number): Promise<boolean> {
+    try {
+      if (!this.server) return false;
+      const sockets = await this.server.in(salaPortaria(idCondominio)).fetchSockets();
+      return sockets.length > 0;
+    } catch {
+      return false;
+    }
   }
 }

@@ -2483,7 +2483,7 @@ export class FacialService {
   async abrirDispositivoInterno(
     idDevice: number,
     ctx: {
-      origem: 'credencial_qr' | 'delivery_portao';
+      origem: 'credencial_qr' | 'delivery_portao' | 'interfone';
       tipoPessoa: string;
       idPessoa?: number | null;
       nomePessoa: string;
@@ -2528,6 +2528,30 @@ export class FacialService {
       return { ok: false, erro };
     }
     return { ok: true };
+  }
+
+  /**
+   * Registra uma abertura que deu certo por outro caminho (ex.: DTMF pela
+   * chamada do interfone, depois de o agente falhar): evento `acionado_auto`
+   * com a nota no nome. Nunca lança.
+   */
+  async registrarAberturaExterna(
+    idDevice: number,
+    ctx: { origem: 'interfone'; tipoPessoa: string; nomePessoa: string; nota: string },
+  ): Promise<void> {
+    try {
+      const device = await this.prisma.facial_Devices.findFirst({ where: { id: idDevice } });
+      if (!device) return;
+      await this.registrarEvento(device, {
+        face_id: ctx.origem,
+        tipo_pessoa: ctx.tipoPessoa,
+        id_pessoa: null,
+        nome_pessoa: `${ctx.nomePessoa} (${ctx.nota})`,
+        evento: 'acionado_auto',
+      });
+    } catch (err: any) {
+      this.logger.warn(`Abertura externa: evento do dispositivo ${idDevice} não gravado: ${err?.message ?? err}`);
+    }
   }
 
   /**

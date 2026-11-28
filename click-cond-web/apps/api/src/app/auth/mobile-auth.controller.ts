@@ -919,7 +919,18 @@ export class UsersMobileController {
   @HttpCode(200)
   updateFcmToken(
     @ReqUser() payload: JwtPayload,
-    @Body() body: { fcm_token?: string; plataforma?: string; card_token_inicio?: string; card_android?: boolean; card_tema?: string; card_versao?: number },
+    @Body()
+    body: {
+      fcm_token?: string;
+      plataforma?: string;
+      card_token_inicio?: string;
+      card_android?: boolean;
+      card_tema?: string;
+      card_versao?: number;
+      // Interfone: token PushKit do iPhone (hex 16–200) e versão do interfone no app (0–99).
+      voip_token?: string;
+      interfone_versao?: number;
+    },
   ) {
     const idUser = payload.user?.id ?? payload.sub;
     return this.service.updateFcmToken(
@@ -930,6 +941,8 @@ export class UsersMobileController {
       body?.card_android === true,
       body?.card_tema,
       body?.card_versao,
+      body?.voip_token,
+      body?.interfone_versao,
     );
   }
 

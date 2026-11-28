@@ -55,6 +55,24 @@ describe('carregarSegredosSsm', () => {
     expect(sair).not.toHaveBeenCalled();
   });
 
+  it('na AWS, sem os segredos opcionais do interfone (VOZ_*) não encerra', async () => {
+    const env = { ...ativo(), JWT_SECRET: 'j', DATABASE_URL: 'd', INTERNAL_SYNC_TOKEN: 't' } as NodeJS.ProcessEnv;
+    const send = jest.fn().mockResolvedValue({ Parameters: [] });
+    const sair = jest.fn();
+    await carregarSegredosSsm({ cliente: { send } as any, env, sair });
+    expect(sair).not.toHaveBeenCalled();
+    expect(env['VOZ_TOKEN_SECRET']).toBeUndefined();
+  });
+
+  it('carrega os segredos VOZ_* do SSM quando existem', async () => {
+    const env = { ...ativo(), JWT_SECRET: 'j', DATABASE_URL: 'd', INTERNAL_SYNC_TOKEN: 't' } as NodeJS.ProcessEnv;
+    const send = jest.fn().mockResolvedValue({
+      Parameters: [param('VOZ_TOKEN_SECRET', 'a'), param('VOZ_INTERNAL_TOKEN', 'b'), param('VOZ_TURN_SECRET', 'c')],
+    });
+    await carregarSegredosSsm({ cliente: { send } as any, env, sair: jest.fn() });
+    expect([env['VOZ_TOKEN_SECRET'], env['VOZ_INTERNAL_TOKEN'], env['VOZ_TURN_SECRET']]).toEqual(['a', 'b', 'c']);
+  });
+
   it('inativo nunca encerra, mesmo sem obrigatórias', async () => {
     const sair = jest.fn();
     await carregarSegredosSsm({ cliente: { send: jest.fn() } as any, env: {} as NodeJS.ProcessEnv, sair });
