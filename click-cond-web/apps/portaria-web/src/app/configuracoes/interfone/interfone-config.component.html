@@ -179,12 +179,12 @@
           </thead>
           <tbody>
             @for (r of ramais(); track r.id_apartamento) {
-              <tr class="border-t border-[var(--line-100)]" [attr.data-conflito]="problemaDe(r) ? '' : null">
+              <tr class="border-t border-[var(--line-100)]" [attr.data-conflito]="problemaDe(r) && problemaDe(r) !== 'sem_numero' ? '' : null">
                 <td class="px-5 py-2 truncate" [attr.title]="r.unidade">{{ r.unidade }}</td>
                 <td class="px-3 py-2 ps-cap tabular-nums truncate">{{ r.sugestao ?? '—' }}</td>
                 <td class="px-3 py-2">
                   <span class="ps-field h-8 w-full max-w-28"
-                    [style.border-color]="problemaDe(r) ? (bloqueia(problemaDe(r)) ? 'var(--signal-danger)' : 'var(--signal-warn)') : null">
+                    [style.border-color]="problemaDe(r) && problemaDe(r) !== 'sem_numero' ? (bloqueia(problemaDe(r)) ? 'var(--signal-danger)' : 'var(--signal-warn)') : null">
                     <input type="text" inputmode="numeric" maxlength="10" class="min-w-0 w-full" [attr.data-ramal]="r.id_apartamento"
                       [attr.aria-label]="'Ramal de ' + r.unidade" [attr.aria-invalid]="bloqueia(problemaDe(r)) ? 'true' : null"
                       [placeholder]="r.sugestao ?? ''" [value]="valorRamal(r)" (input)="editarRamal(r.id_apartamento, $any($event.target).value)" />
@@ -193,7 +193,7 @@
                 <td class="px-3 py-2 overflow-hidden">
                   @if (problemaDe(r); as p) {
                     <span class="ps-tag max-w-full" data-situacao [attr.title]="textoProblema(p)">
-                      <span class="ps-dot" [class.ps-dot-danger]="bloqueia(p)" [class.ps-dot-warn]="!bloqueia(p)"></span>
+                      <span class="ps-dot" [class.ps-dot-danger]="bloqueia(p)" [class.ps-dot-warn]="!bloqueia(p) && p !== 'sem_numero'"></span>
                       <span class="truncate min-w-0">{{ textoProblema(p) }}</span>
                     </span>
                   }

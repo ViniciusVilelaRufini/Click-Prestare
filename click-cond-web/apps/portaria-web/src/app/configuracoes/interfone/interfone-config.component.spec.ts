@@ -112,6 +112,14 @@ describe('analisarRamais', () => {
     expect([...r3.values()].every((v) => v === null)).toBe(true);
   });
 
+  it('unidade sem dígitos (sem ramal, sem sugestão, sem conflito) é "sem_numero", informativo e sem bloquear', () => {
+    const itens: RamalUnidade[] = [{ id_apartamento: 9, unidade: 'Cobertura', ramal: null, sugestao: null, conflito: false }];
+    const r = analisarRamais(itens, {});
+    expect(r.get(9)).toBe('sem_numero');
+    expect(bloqueiaSalvar('sem_numero')).toBe(false);
+    expect(analisarRamais(itens, { 9: '900' }).get(9)).toBeNull();
+  });
+
   it('vazio com sugestão não é problema; só duplicado e inválido bloqueiam salvar', () => {
     const r = analisarRamais(RAMAIS, {});
     expect(r.get(3)).toBeNull();

@@ -11,13 +11,13 @@ import {
 import { ConfirmService } from '../../shared/confirm.service';
 import { ToastService } from '../../shared/toast.service';
 
-export type ProblemaRamal = 'duplicado' | 'invalido' | 'pendente' | null;
+export type ProblemaRamal = 'duplicado' | 'invalido' | 'pendente' | 'sem_numero' | null;
 
 const RAMAL_VALIDO = /^\d{1,10}$/;
 
 /**
  * Situação de cada ramal com as edições da tela. `duplicado` = o mesmo número em duas unidades; `invalido` = não é
- * só dígitos (1–10); `pendente` = unidade sem ramal e sem sugestão (o número colide e o síndico precisa escolher).
+ * só dígitos (1–10); `pendente` = unidade sem ramal e sem sugestão (o número colide e o síndico precisa escolher); `sem_numero` = unidade sem dígitos (ex.: "Cobertura"), só informativo.
  * Só `duplicado` e `invalido` bloqueiam o salvar (ver bloqueiaSalvar): ramal vazio grava vazio e a unidade só não
  * recebe chamadas até ter um número.
  */
@@ -34,7 +34,7 @@ export function analisarRamais(itens: RamalUnidade[], edicoes: Record<number, st
     let p: ProblemaRamal = null;
     if (v && !RAMAL_VALIDO.test(v)) p = 'invalido';
     else if (v && (contagem.get(v) ?? 0) > 1) p = 'duplicado';
-    else if (!v && !i.sugestao) p = 'pendente';
+    else if (!v && !i.sugestao) p = i.conflito ? 'pendente' : 'sem_numero';
     res.set(i.id_apartamento, p);
   }
   return res;
@@ -55,6 +55,7 @@ const MSG_PROBLEMA: Record<Exclude<ProblemaRamal, null>, string> = {
   duplicado: 'Conflito: número repetido',
   invalido: 'Só números (até 10)',
   pendente: 'Conflito: defina o ramal',
+  sem_numero: 'Sem número: defina o ramal',
 };
 
 /**
