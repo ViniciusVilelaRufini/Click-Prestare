@@ -342,11 +342,11 @@ describe('ligar', () => {
     await expect(m.acoes.atender(d.id, PORTEIRO)).resolves.toMatchObject({ id: d.id });
   });
 
-  it('ligarPortaria sem vínculo → 403; módulo desligado → 409', async () => {
+  it('ligarPortaria sem vínculo → 403; módulo desligado → 403', async () => {
     const m = montar();
     await expect(m.acoes.ligarPortaria(CARLA, 100)).rejects.toMatchObject({ status: 403 });
     const m2 = montar({ cond: { interfone_ativo: 0 } });
-    await expect(m2.acoes.ligarPortaria(ANA, 100)).rejects.toMatchObject({ status: 409 });
+    await expect(m2.acoes.ligarPortaria(ANA, 100)).rejects.toMatchObject({ status: 403, response: { motivo: 'modulo_desligado' } });
   });
 
   it('ligarUnidade toca os moradores com portão "Portaria" e o morador atende', async () => {
@@ -667,5 +667,70 @@ describe('correções da revisão 2', () => {
     m.push.podemTocar.mockResolvedValueOnce([]);
     await expect(m.acoes.ligarUnidade(PORTEIRO, 200)).rejects.toMatchObject({ status: 409, response: { motivo: 'sem_app' } });
     expect(m.tabelas['interfone_Chamadas'][1]).toMatchObject({ estado: 'encerrada', resultado: 'falha' });
+  });
+});
+
+describe('C1: módulo desligado no condomínio → 403 em todas as rotas', () => {
+  const DESLIGADOS: [string, Record<string, number>][] = [
+    ['condomínio inativo', { ativo: 0 }],
+    ['módulo não contratado', { interfone_contratado: 0 }],
+    ['módulo desligado pelo síndico', { interfone_ativo: 0 }],
+  ];
+
+  /** Chamada criada com o módulo ligado; depois o condomínio 1 desliga. */
+  async function comChamadaEDesliga(flags: Record<string, number>) {
+    const m = montar();
+    const id = await chamadaFacial(m);
+    Object.assign(m.tabelas['condominios'][0], flags);
+    return { m, id };
+  }
+
+  const recusado = { status: 403, response: { motivo: 'modulo_desligado' } };
+
+  it.each(DESLIGADOS)('portaria (%s): hoje, atender, ligar, abrir e encerrar → 403', async (_, flags) => {
+    const { m, id } = await comChamadaEDesliga(flags);
+    await expect(m.acoes.hoje(1)).rejects.toMatchObject(recusado);
+    await expect(m.acoes.atender(id, PORTEIRO)).rejects.toMatchObject(recusado);
+    await expect(m.acoes.ligarUnidade(PORTEIRO, 100)).rejects.toMatchObject(recusado);
+    await expect(m.acoes.abrir(id, PORTEIRO)).rejects.toMatchObject(recusado);
+    await expect(m.acoes.abrir(9999, PORTEIRO)).rejects.toMatchObject(recusado);
+    await expect(m.acoes.encerrarPortaria(id, PORTEIRO)).rejects.toMatchObject(recusado);
+    expect(m.voz.encerrar).not.toHaveBeenCalled();
+    expect(m.tabelas['interfone_Chamadas']).toHaveLength(1);
+  });
+
+  it.each(DESLIGADOS)('app (%s): atender, ligar-portaria, abrir e histórico → 403', async (_, flags) => {
+    const { m, id } = await comChamadaEDesliga(flags);
+    await expect(m.acoes.atender(id, ANA)).rejects.toMatchObject(recusado);
+    await expect(m.acoes.ligarPortaria(ANA, 100)).rejects.toMatchObject(recusado);
+    await expect(m.acoes.abrir(id, ANA)).rejects.toMatchObject(recusado);
+    await expect(m.acoes.historico(7, 100)).rejects.toMatchObject(recusado);
+    await expect(m.acoes.disponivel(7)).resolves.toEqual({ ativo: false });
+    expect(m.facial.abrirDispositivoInterno).not.toHaveBeenCalled();
+  });
+
+  it('módulo ligado: as mesmas rotas respondem (200)', async () => {
+    const m = montar();
+    const id = await chamadaFacial(m);
+    await expect(m.acoes.hoje(1)).resolves.toHaveLength(1);
+    await expect(m.acoes.historico(7, 100)).resolves.toHaveLength(1);
+    await expect(m.acoes.atender(id, ANA)).resolves.toMatchObject({ id });
+    await m.nucleo.evento(id, { evento: 'atendida', papel: 'morador', uid: 7 });
+    await expect(m.acoes.abrir(id, ANA)).resolves.toEqual({ ok: true });
+
+    const id2 = await chamadaFacial(m);
+    await m.nucleo.evento(id2, { evento: 'toque_esgotado' });
+    await expect(m.acoes.atender(id2, PORTEIRO)).resolves.toMatchObject({ id: id2 });
+    await m.nucleo.evento(id2, { evento: 'atendida', papel: 'portaria', uid: 3 });
+    await expect(m.acoes.abrir(id2, PORTEIRO)).resolves.toEqual({ ok: true });
+    await expect(m.acoes.encerrarPortaria(id2, PORTEIRO)).resolves.toEqual({ ok: true });
+    await expect(m.acoes.ligarUnidade(PORTEIRO, 100)).resolves.toMatchObject({ id: expect.any(Number) });
+    await expect(m.acoes.ligarPortaria(ANA, 100)).resolves.toMatchObject({ id: expect.any(Number) });
+  });
+
+  it('condomínio de outro porteiro com o módulo ligado não libera quem está desligado', async () => {
+    const m = montar({ cond: { interfone_ativo: 0 } });
+    await expect(m.acoes.hoje(1)).rejects.toMatchObject(recusado);
+    await expect(m.acoes.hoje(2)).resolves.toEqual([]);
   });
 });

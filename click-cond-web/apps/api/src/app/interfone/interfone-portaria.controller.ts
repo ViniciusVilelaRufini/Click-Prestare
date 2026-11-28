@@ -12,7 +12,9 @@ import { idDoCorpo } from './interfone-app.controller';
  * Interfone no console da portaria. Só o porteiro (`tipo_sub ===
  * 'funcionario_portaria'`, carimbado no login): o síndico no console não
  * atende o interfone. O condomínio da chamada é conferido contra o do token
- * no serviço (mesmo efeito de assertTenantStrict).
+ * no serviço (mesmo efeito de assertTenantStrict). Condomínio sem o módulo
+ * (ativo, contratado e ligado) → 403 `modulo_desligado` em toda rota
+ * (InterfoneAcoesService.assertModulo): o console só mostra o interfone com 200.
  */
 @Controller('interfone/portaria')
 export class InterfonePortariaController {

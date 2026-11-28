@@ -62,6 +62,15 @@ function conflito(motivo: string, message: string): ConflictException {
   return new ConflictException({ statusCode: 409, motivo, message });
 }
 
+/** 403 do módulo desligado: o console e o app tratam como "interfone não existe aqui". */
+function moduloDesligado(): ForbiddenException {
+  return new ForbiddenException({
+    statusCode: 403,
+    motivo: 'modulo_desligado',
+    message: 'O interfone não está ligado neste condomínio.',
+  });
+}
+
 /**
  * Ações do app e do console no interfone: atender, recusar, abrir, ligar,
  * histórico e preferências. O núcleo (InterfoneService) cuida do estado que
@@ -94,9 +103,11 @@ export class InterfoneAcoesService {
   // ─────────────────────────────────────────── atender / recusar / abrir
 
   async atender(id: number, quem: Quem): Promise<DadosEntrada> {
+    if (quem.papel === 'portaria') await this.assertModulo(quem.idCondominio);
     const c = await this.nucleo.carregar(id);
     if (!c) throw new NotFoundException('Chamada não encontrada.');
     await this.assertPodeVer(c, quem);
+    if (quem.papel === 'morador') await this.assertModulo(c.id_condominio);
     if (c.estado === 'encerrada') throw conflito('encerrada', 'A chamada já terminou.');
     if (c.estado === 'atendida') throw conflito('ja_atendida', 'A chamada já foi atendida.');
 
@@ -154,9 +165,11 @@ export class InterfoneAcoesService {
   }
 
   async abrir(id: number, quem: Quem): Promise<{ ok: boolean; motivo?: string }> {
+    if (quem.papel === 'portaria') await this.assertModulo(quem.idCondominio);
     const c = await this.nucleo.carregar(id);
     if (!c) return { ok: false, motivo: 'chamada_nao_encontrada' };
     await this.assertPodeVer(c, quem);
+    if (quem.papel === 'morador') await this.assertModulo(c.id_condominio);
     if (c.estado !== 'atendida') return { ok: false, motivo: 'chamada_nao_atendida' };
     if (c.atendida_por_tipo !== quem.papel || c.atendida_por_id !== quem.uid) {
       return { ok: false, motivo: 'atendida_por_outro' };
@@ -210,6 +223,7 @@ export class InterfoneAcoesService {
    * do morador nem a chamada que ainda toca no apartamento).
    */
   async encerrarPortaria(id: number, porteiro: QuemPortaria): Promise<{ ok: boolean }> {
+    await this.assertModulo(porteiro.idCondominio);
     const c = await this.nucleo.carregar(id);
     if (!c) throw new NotFoundException('Chamada não encontrada.');
     this.assertMesmoCondominio(c.id_condominio, porteiro);
@@ -232,7 +246,7 @@ export class InterfoneAcoesService {
   private async ligarPortariaSemTrava(quem: QuemMorador, idApartamento: number): Promise<DadosEntrada> {
     await this.assertVinculo(quem.uid, idApartamento);
     const apto = await this.aptoComModulo(idApartamento);
-    if (!apto) throw conflito('portaria_indisponivel', 'O interfone não está ligado neste condomínio.');
+    if (!apto) throw moduloDesligado();
     const segredos = this.segredos();
     if (!(await this.nucleo.porteirosOnline(apto.id_condominio))) {
       throw conflito('portaria_indisponivel', 'Não há porteiro no console agora.');
@@ -275,11 +289,12 @@ export class InterfoneAcoesService {
   }
 
   private async ligarUnidadeSemTrava(porteiro: QuemPortaria, idApartamento: number): Promise<DadosEntrada> {
+    await this.assertModulo(porteiro.idCondominio);
     const existe = await this.prisma.apartamentos.findFirst({ where: { id: idApartamento }, select: { id_condominio: true } });
     if (!existe) throw new NotFoundException('Unidade não encontrada.');
     this.assertMesmoCondominio(existe.id_condominio, porteiro);
     const apto = await this.aptoComModulo(idApartamento);
-    if (!apto) throw conflito('indisponivel', 'O interfone não está ligado neste condomínio.');
+    if (!apto) throw moduloDesligado();
     const segredos = this.segredos();
     const agora = this.agora();
 
@@ -341,6 +356,7 @@ export class InterfoneAcoesService {
 
   async historico(idUser: number, idApartamento: number): Promise<ItemHistorico[]> {
     const vinculo = await this.assertVinculo(idUser, idApartamento);
+    if (!(await this.aptoComModulo(idApartamento))) throw moduloDesligado();
     // 30 dias, mas nunca de antes de o morador entrar na unidade.
     let desde = this.agora() - HISTORICO_DIAS * DIA_MS;
     if (vinculo.created_at instanceof Date) desde = Math.max(desde, vinculo.created_at.getTime());
@@ -354,6 +370,7 @@ export class InterfoneAcoesService {
 
   /** Console: chamadas de hoje (Brasília) do condomínio. */
   async hoje(idCondominio: number): Promise<(ItemHistorico & { unidade: string; estado: string })[]> {
+    await this.assertModulo(idCondominio);
     const { inicio, fim } = intervaloHojeBrasilia(new Date(this.agora()));
     const lista = await this.prisma.interfone_Chamadas.findMany({
       where: { id_condominio: idCondominio, created_at: { gte: inicio, lte: fim } },
@@ -485,6 +502,20 @@ export class InterfoneAcoesService {
     return v;
   }
 
+  /**
+   * 403 `modulo_desligado` se o condomínio não está ativo com o interfone
+   * contratado e ligado. Toda rota da portaria e do app (menos `disponivel`,
+   * que responde `ativo: false`) passa por aqui.
+   */
+  async assertModulo(idCondominio: number | null | undefined): Promise<void> {
+    if (!idCondominio || !Number.isInteger(idCondominio)) throw moduloDesligado();
+    const cond = await this.prisma.condominios.findUnique({
+      where: { id: idCondominio },
+      select: { ativo: true, interfone_contratado: true, interfone_ativo: true },
+    });
+    if (!moduloLigado(cond)) throw moduloDesligado();
+  }
+
   /** Unidade com o condomínio, se o módulo está contratado, ligado e o condomínio ativo. */
   private async aptoComModulo(idApartamento: number) {
     const apto = await this.prisma.apartamentos.findFirst({
@@ -498,7 +529,7 @@ export class InterfoneAcoesService {
       },
     });
     const cond = apto?.condominio;
-    if (!apto || !cond || cond.ativo !== 1 || cond.interfone_contratado !== 1 || cond.interfone_ativo !== 1) return null;
+    if (!apto || !cond || !moduloLigado(cond)) return null;
     return { ...apto, condominio: cond };
   }
 
@@ -511,4 +542,10 @@ export class InterfoneAcoesService {
       return [];
     }
   }
+}
+
+function moduloLigado(
+  c: { ativo: number | null; interfone_contratado: number | null; interfone_ativo: number | null } | null | undefined,
+): boolean {
+  return !!c && c.ativo === 1 && c.interfone_contratado === 1 && c.interfone_ativo === 1;
 }
