@@ -25,6 +25,7 @@ import 'package:click/services/atualizacoes_app.dart';
 import 'package:click/services/card_ao_vivo/card_android.dart';
 import 'package:click/services/card_ao_vivo/card_ao_vivo_ios.dart';
 import 'package:click/services/destino_push.dart';
+import 'package:click/services/interfone/token_voip.dart';
 import 'package:click/theme/theme_controller.dart';
 import 'package:click/utils/api_client.dart';
 import 'package:click/utils/api_config.dart';
@@ -50,6 +51,11 @@ class FirebaseService {
 
   @visibleForTesting
   Future<void> Function() apagarTokenFcm = () => FirebaseMessaging.instance.deleteToken();
+
+  /// Token VoIP (PushKit) do iPhone para o interfone; null no Android (trocado
+  /// no teste).
+  @visibleForTesting
+  Future<String?> Function() obterTokenVoip = tokenVoipDoAparelho;
 
   /// Entrega a sessão ao Swift do card do iPhone (trocado no teste).
   @visibleForTesting
@@ -379,6 +385,12 @@ class FirebaseService {
     await atualizarSessaoDoCard(jwt);
     final cardTokenInicio = await CardAoVivoIos.obterTokenInicio();
     final tema = temaDoApp(ThemeController.instance.mode);
+    String? voipToken;
+    try {
+      voipToken = tokenVoipValido(await obterTokenVoip().timeout(limiteFcm));
+    } catch (e) {
+      logDebug('Interfone: sem token VoIP: ${e.runtimeType}');
+    }
 
     try {
       await ApiClient.post(
@@ -395,6 +407,11 @@ class FirebaseService {
           // Versão do card que este app desenha: 2 = também o do delivery
           // (o servidor só manda card de delivery a partir dela).
           'card_versao': 2,
+          // Interfone pelo app: o iPhone toca pelo push VoIP (PushKit); o
+          // Android pelo push de dados. Versão 1 = este app atende a chamada
+          // (o servidor manda push comum "atualize o app" para quem tem 0).
+          if (voipToken != null) 'voip_token': voipToken,
+          'interfone_versao': 1,
         }),
       );
       _temaEnviado = tema;

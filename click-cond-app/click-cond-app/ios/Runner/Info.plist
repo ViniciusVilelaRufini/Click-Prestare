@@ -80,7 +80,15 @@
 	  áudio, e permissão declarada sem uso levanta pergunta na revisão.
 	-->
 		<key>NSMicrophoneUsageDescription</key>
-		<string>O Prestare usa o microfone para você ditar a pergunta ao assistente PRESTARE IA em vez de digitar. O áudio é convertido em texto no próprio aparelho e não é gravado nem enviado.</string>
+		<string>O Prestare usa o microfone para você conversar com quem chama no interfone e no assistente por voz.</string>
+		<!-- Interfone pelo app: o push VoIP acorda o app e vira ligação no CallKit
+		     (voip); a conversa segue com a tela bloqueada (audio). -->
+		<key>UIBackgroundModes</key>
+		<array>
+			<string>voip</string>
+			<string>audio</string>
+			<string>remote-notification</string>
+		</array>
 		<key>NSSpeechRecognitionUsageDescription</key>
 		<string>O reconhecimento de fala converte o que você dita em texto no campo de perguntas do assistente PRESTARE IA, no próprio aparelho.</string>
 		<key>NSCameraUsageDescription</key>
