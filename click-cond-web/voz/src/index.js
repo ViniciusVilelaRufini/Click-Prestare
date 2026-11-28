@@ -39,7 +39,8 @@ client.on('WebSocketConnected', async () => {
   log.info('[ari] conectada');
   // Na queda os StasisEnd se perdem: encerra como falha o que morreu no meio.
   try {
-    const n = servico.conferirCanais(await ari.canaisExistentes());
+    const marco = servico.marco(); // chamadas criadas durante a consulta não entram
+    const n = servico.conferirCanais(await ari.canaisExistentes(), marco);
     if (n) log.warn(`[ari] ${n} chamada(s) encerrada(s) como falha depois da reconexão`);
   } catch (e) {
     log.warn(`[ari] não conferi os canais depois da reconexão: ${e.message}`);

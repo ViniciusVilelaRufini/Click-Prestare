@@ -31,6 +31,9 @@ O HTTP do Asterisk (ARI e `/ws`) escuta **só em 127.0.0.1:8088**, sem TLS. Para
 fora, o nginx termina o TLS na 8089 e repassa só `location = /ws` (WebSocket)
 ao Asterisk; `/ari` e qualquer outro caminho dão 404. O `instalar.sh` confere
 isso no fim (`/ari` pela 8089 tem de responder 404).
+Limitação: atrás do nginx, o Asterisk vê toda conexão WSS vindo de 127.0.0.1, então
+o fail2ban (jail `asterisk`) não vê o IP real de quem usa o WebRTC e não o
+bloqueia; ele só protege o SIP direto (5060). No WSS a proteção é o token de voz.
 
 Quem atende pode chegar antes da chamada existir no serviço (o INVITE da origem
 ainda juntando ICE, ou a API ainda respondendo ao facial): o canal espera até

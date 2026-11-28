@@ -46,6 +46,8 @@ export function criarServico({
   const mortos = new Set(); // canais que caíram enquanto esperavam
   const portariaPendente = new Set(); // /portaria chegou antes de sabermos o id
   const esperandoChamada = new Map(); // canal -> { cid, claims, handle }: entrou antes da origem
+  const encerradas = new Set(); // últimos ids encerrados (no máximo 500)
+  let seqChamadas = 0;
   let criandoFacial = 0;
   const emAndamento = new Set();
 
@@ -85,6 +87,7 @@ export function criarServico({
       atendidos: new Set(),
       fila: Promise.resolve(),
       eventos: Promise.resolve(), // eventos à API em ordem, com novas tentativas
+      seq: ++seqChamadas, // ordem de criação (conferirCanais ignora as mais novas que a consulta)
     };
     chamadas.set(c.id, c);
     porCanal.set(c.origem, { id: c.id, papel: 'origem' });
@@ -97,7 +100,16 @@ export function criarServico({
     c.timers.clear();
     for (const [canal, ref] of porCanal) if (ref.id === c.id) porCanal.delete(canal);
     if (chamadas.get(c.id) === c) chamadas.delete(c.id);
+    lembrarEncerrada(c.id);
+    derrubarEsperando(c.id);
     log.info(`[chamada ${c.id}] encerrada`);
+  }
+
+  // Ids encerrados há pouco: quem chega para eles é desligado na hora, sem esperar.
+  function lembrarEncerrada(id) {
+    encerradas.delete(id);
+    encerradas.add(id);
+    if (encerradas.size > 500) encerradas.delete(encerradas.values().next().value);
   }
 
   function processar(c, acoes) {
@@ -258,6 +270,11 @@ export function criarServico({
         await api.evento(id, ev);
         return;
       } catch (e) {
+        // 4xx é resposta da API (recusou o evento): repetir não muda nada.
+        if (e?.status >= 400 && e.status < 500) {
+          log.warn(`[chamada ${id}] API recusou o evento ${ev.evento} (${e.status}); sem nova tentativa`);
+          return;
+        }
         if (i >= esperas.length) {
           log.error(`[chamada ${id}] evento ${ev.evento} não chegou à API depois de ${i + 1} tentativas: ${e.message}`);
           return;
@@ -400,7 +417,7 @@ export function criarServico({
     }
 
     const c = chamadas.get(claims.cid);
-    if (!c) return esperarChamada(canal, claims);
+    if (!c) return encerradas.has(claims.cid) ? desligar(canal) : esperarChamada(canal, claims);
     juntar(c, canal, claims);
     return undefined;
   }
@@ -514,9 +531,13 @@ export function criarServico({
      * Depois de a ARI reconectar: encerra como falha as chamadas cujos canais
      * (origem, ou o participante numa conversa) não existem mais no Asterisk.
      */
-    conferirCanais(existentes) {
+    /** Marco de criação: pegue antes de pedir a lista de canais ao Asterisk. */
+    marco: () => seqChamadas,
+
+    conferirCanais(existentes, marco = Infinity) {
       let n = 0;
       for (const c of [...chamadas.values()]) {
+        if (c.seq > marco) continue; // criada depois de a lista de canais ser pedida
         const participante = c.maquina.estado === 'atendida' ? c.maquina.canalAtendido : null;
         if (!existentes.has(c.origem) || (participante && !existentes.has(participante))) {
           log.warn(`[chamada ${c.id}] canais sumiram durante a queda da ARI: encerrando como falha`);

@@ -152,5 +152,5 @@ test('criarApi chama as rotas internas com x-voz-token', async () => {
 test('criarApi lança em resposta de erro', async () => {
   const api = criarApi({ apiBase: 'https://x/api', vozToken: 'tk',
     fetch: async () => ({ ok: false, status: 503, json: async () => ({}) }) });
-  await assert.rejects(api.contas(), /503/);
+  await assert.rejects(api.contas(), (e) => /503/.test(e.message) && e.status === 503);
 });

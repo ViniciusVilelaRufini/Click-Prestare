@@ -319,3 +319,79 @@ test('dtmf só para facial já atendido', async () => {
   assert.equal(await m.servico.dtmf(90, '1'), false, 'portaria_unidade não tem facial');
   assert.equal(m.ari.de('enviarDtmf').length, 0);
 });
+
+// ------------------------------------------------- re-revisão
+
+const erroHttp = (status) => Object.assign(new Error(`API respondeu ${status}`), { status });
+
+test('evento com 4xx da API não é repetido', async () => {
+  const api = apiFalsa({ async evento(id, ev) { api.chamadas.push(['evento', id, ev]); throw erroHttp(409); } });
+  const { ari, servico, temporizador } = montar({ api });
+  ari.iniciar('fac1', ['facial', 'fac-12', '106']);
+  await servico.ocioso();
+  ari.fim('fac1');
+  await servico.ocioso();
+  assert.equal(eventos(api).length, 1);
+  assert.ok(!temporizador.tem(500), 'sem nova tentativa');
+});
+
+test('evento com 5xx ou erro de rede é repetido', async () => {
+  let n = 0;
+  const api = apiFalsa({
+    async evento(id, ev) {
+      api.chamadas.push(['evento', id, ev]);
+      n += 1;
+      if (n === 1) throw erroHttp(503);
+      if (n === 2) throw new Error('fetch failed');
+      return {};
+    },
+  });
+  const { ari, servico, temporizador } = montar({ api });
+  ari.iniciar('fac1', ['facial', 'fac-12', '106']);
+  await servico.ocioso();
+  ari.fim('fac1');
+  await tick(); await tick();
+  temporizador.disparar(500);
+  await tick(); await tick();
+  temporizador.disparar(1000);
+  await servico.ocioso();
+  assert.equal(eventos(api).length, 3);
+});
+
+test('quem entra numa chamada que acabou de encerrar é desligado na hora', async () => {
+  const { ari, servico, temporizador } = montar();
+  ari.iniciar('fac1', ['facial', 'fac-12', '106']);
+  await servico.ocioso();
+  ari.fim('fac1');
+  await servico.ocioso();
+  assert.equal(servico.ativas(), 0);
+  ari.iniciar('app1', ['entrar', token({ cid: 77, papel: 'morador', uid: 42 })]);
+  await servico.ocioso();
+  assert.deepEqual(ari.de('hangup').at(-1), ['hangup', 'app1', 'normal']);
+  assert.ok(!temporizador.tem(10_000), 'não esperou');
+});
+
+test('quem espera é derrubado na hora quando a origem daquele id não consegue ser criada', async () => {
+  const api = apiFalsa({ async chamada() { throw new Error('API fora'); } });
+  const { ari, servico, temporizador } = montar({ api });
+  ari.iniciar('app1', ['entrar', token({ cid: 90, papel: 'morador', uid: 42 })]);
+  await servico.ocioso();
+  ari.iniciar('web1', ['entrar', token({ cid: 90, papel: 'origem', uid: 3 })]);
+  await servico.ocioso();
+  assert.deepEqual(ari.de('hangup').map((h) => h[1]).sort(), ['app1', 'web1']);
+  assert.ok(!temporizador.tem(10_000));
+});
+
+test('conferirCanais ignora chamadas criadas depois do início da consulta', async () => {
+  const { ari, api, servico } = montar();
+  ari.iniciar('fac1', ['facial', 'fac-12', '106']);
+  await servico.ocioso();
+  const marco = servico.marco();
+  ari.iniciar('fac2', ['facial', 'fac-13', '107']);
+  await servico.ocioso();
+  // a lista veio antes de fac2 existir: só fac1 é conhecido e está vivo
+  assert.equal(servico.conferirCanais(new Set(['fac1']), marco), 0);
+  await servico.ocioso();
+  assert.equal(eventos(api).length, 0);
+  assert.equal(servico.ativas(), 2);
+});

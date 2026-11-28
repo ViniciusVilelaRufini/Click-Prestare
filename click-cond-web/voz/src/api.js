@@ -15,7 +15,9 @@ export function criarApi({ apiBase, vozToken, fetch = globalThis.fetch, timeoutM
       op.body = JSON.stringify(corpo);
     }
     const r = await fetch(`${base}${caminho}`, op);
-    if (!r.ok) throw new Error(`API ${metodo} ${caminho} respondeu ${r.status}`);
+    if (!r.ok) {
+      throw Object.assign(new Error(`API ${metodo} ${caminho} respondeu ${r.status}`), { status: r.status });
+    }
     return r.json();
   }
 
