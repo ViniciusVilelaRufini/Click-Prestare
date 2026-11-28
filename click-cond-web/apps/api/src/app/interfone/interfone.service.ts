@@ -365,9 +365,12 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     if (doFacial + this.errosRecentes(facial.id, agora) >= LIMITE_POR_FACIAL_MIN) return { ok: false, motivo: 'limite' };
 
     const num = String(numero ?? '').trim();
-    // "0 = portaria": antes do ramal (o número da portaria não é de unidade).
+    // "0 = portaria": só com central contratada (sem ela, o número segue o
+    // caminho do ramal exatamente como antes). Vem antes do ramal.
     const numPortaria = String(cond.interfone_numero_portaria ?? '').trim();
-    if (numPortaria && num === numPortaria) return this.chamadaParaPortaria(facial, cond, num, agora);
+    if (cond.central_contratada === 1 && numPortaria && num === numPortaria) {
+      return this.chamadaParaPortaria(facial, cond, num, agora);
+    }
     if (!ramalValido(num)) return this.naoEncontrado(facial.id, agora);
 
     const apto = await this.prisma.apartamentos.findFirst({
@@ -435,7 +438,8 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * O visitante discou o número da portaria: a chamada nasce em `portaria`,
+   * O visitante discou o número da portaria (só em condomínio com central
+   * contratada): a chamada nasce em `portaria`,
    * sem unidade e sem tocar morador. Destino `local` exige porteiro no
    * console; `central`, porteiro ou operador conectado. Ninguém → indisponível
    * (o facial ouve a mensagem e desliga).

@@ -929,7 +929,9 @@ describe('InterfoneService — destino da portaria (local ou central)', () => {
   });
 
   it('discar o número da portaria cria facial_portaria em estado portaria sem apartamento', async () => {
-    const { svc, push, realtime, chamadas } = montar(bancoFalso({ cond: { interfone_numero_portaria: '0' } }), true);
+    // Central contratada, horário local e porteiro no console: toca só no prédio.
+    const faixaLocal = { ...FAIXA_CENTRAL, destino: 'local' };
+    const { svc, push, realtime, chamadas } = montar(comCentral({}, [faixaLocal]), true, { central: true });
     await expect(svc.novaChamadaFacial('fac-12', '0')).resolves.toEqual({
       ok: true,
       id: 1,
@@ -979,12 +981,28 @@ describe('InterfoneService — destino da portaria (local ou central)', () => {
     expect(chamadasNaPortaria(realtime)).toHaveLength(0);
   });
 
-  it('número da portaria sem ninguém online responde indisponivel', async () => {
-    const local = montar(bancoFalso({ cond: { interfone_numero_portaria: '0' } }), false, { central: true });
-    await expect(local.svc.novaChamadaFacial('fac-12', '0')).resolves.toEqual({ ok: false, motivo: 'indisponivel' });
-    expect(local.chamadas).toHaveLength(0);
-    expect(local.realtime.centralOnline).not.toHaveBeenCalled();
+  it('sem central contratada, discar o número da portaria segue o caminho do ramal como antes', async () => {
+    // Sem unidade com esse ramal: nao_encontrado, mesmo com porteiro no console.
+    const { svc, push, realtime, chamadas, prisma } = montar(bancoFalso({ cond: { interfone_numero_portaria: '0' } }), true, { central: true });
+    await expect(svc.novaChamadaFacial('fac-12', '0')).resolves.toEqual({ ok: false, motivo: 'nao_encontrado' });
+    expect(chamadas).toHaveLength(0);
+    expect(push.tocar).not.toHaveBeenCalled();
+    expect(realtime.emitirPortaria).not.toHaveBeenCalled();
+    expect(realtime.emitirCentral).not.toHaveBeenCalled();
+    expect(realtime.centralOnline).not.toHaveBeenCalled();
+    expect(prisma.portaria_Agenda.findMany).not.toHaveBeenCalled();
 
+    // Unidade com ramal igual ao número da portaria continua sendo chamada.
+    const banco = bancoFalso({
+      cond: { interfone_numero_portaria: '0' },
+      aptos: [{ id: 100, id_condominio: 1, apto: '0', bloco: 'A', interfone_ramal: '0' }],
+    });
+    const comRamal = montar(banco, true, { central: true });
+    await expect(comRamal.svc.novaChamadaFacial('fac-12', '0')).resolves.toMatchObject({ ok: true, tipo: 'facial_unidade', estado: 'chamando' });
+    expect(comRamal.chamadas[0]).toMatchObject({ tipo: 'facial_unidade', id_apartamento: 100 });
+  });
+
+  it('número da portaria sem ninguém online responde indisponivel', async () => {
     const central = montar(comCentral(), false, { central: false });
     await expect(central.svc.novaChamadaFacial('fac-12', '0')).resolves.toEqual({ ok: false, motivo: 'indisponivel' });
     expect(central.chamadas).toHaveLength(0);
