@@ -44,6 +44,19 @@ post_install do |installer|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.0'
+      # permission_handler (iOS): cada permissão só é compilada com a macro
+      # ligada; sem ela o pedido devolve "negado" sem mostrar o alerta. O app
+      # pede por ele o microfone (interfone) e as notificações (perfil_choice).
+      # Câmera e fotos vêm do image_picker e do mobile_scanner, que pedem
+      # sozinhos; o ditado do assistente pede o microfone pelo speech_to_text.
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+      # Pode vir como texto ("$(inherited) DEBUG=1"): vira lista antes de somar.
+      definicoes = config.build_settings['GCC_PREPROCESSOR_DEFINITIONS']
+      definicoes = definicoes.split(' ') if definicoes.is_a?(String)
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] = definicoes | [
+        'PERMISSION_MICROPHONE=1',
+        'PERMISSION_NOTIFICATIONS=1',
+      ]
     end
   end
 end

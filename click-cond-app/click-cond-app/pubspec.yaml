@@ -59,6 +59,9 @@ dependencies:
   flutter_local_notifications: ^22.3.3
   crypto: ^3.0.8
   screen_brightness: ^2.1.11
+  flutter_callkit_incoming: ^3.1.6
+  sip_ua: ^1.1.0
+  flutter_webrtc: ^1.7.0
 dev_dependencies:
   flutter_lints: ^6.0.0
   flutter_native_splash: ^2.4.0

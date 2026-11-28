@@ -1,0 +1,443 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:click/pages/shared/interfone/tela_chamada.dart';
+import 'package:click/services/interfone/interfone_api.dart';
+import 'package:click/services/interfone/interfone_chamadas.dart';
+import 'package:click/services/interfone/sip_voz.dart';
+import 'package:click/utils/api_client.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_callkit_incoming/entities/entities.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+
+class _SessaoFalsa implements SessaoVoz {
+  final StreamController<String> _c = StreamController<String>.broadcast();
+  String _estado = 'conectando';
+  bool encerrada = false;
+  bool? mudoLigado;
+
+  void mudar(String e) {
+    _estado = e;
+    _c.add(e);
+  }
+
+  @override
+  Stream<String> get estado => _c.stream;
+
+  @override
+  String get estadoAtual => _estado;
+
+  @override
+  final ValueNotifier<bool> temVideo = ValueNotifier<bool>(false);
+
+  @override
+  void encerrar() {
+    if (encerrada) return;
+    encerrada = true;
+    mudar('encerrada');
+  }
+
+  @override
+  void mudo(bool ligado) => mudoLigado = ligado;
+
+  @override
+  Future<void> altoFalante(bool ligado) async => altoFalantes.add(ligado);
+
+  final List<bool> altoFalantes = [];
+}
+
+const _entrada = {
+  'id': 41,
+  'token': 't',
+  'wss': 'wss://voz.prestarecondominios.com.br:8089/ws',
+  'sip_uri': 'sip:entrar@voz.prestarecondominios.com.br',
+  'ice': [],
+};
+
+Map<String, dynamic> _estado(String tipo) => {
+      'id': 41,
+      'tipo': tipo,
+      'estado': 'chamando',
+      'resultado': null,
+      'unidade': 'Bloco A · Apto 106',
+      'portao': 'Portão social',
+      'foto_url': null,
+      'atendida_por_mim': false,
+    };
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  late _SessaoFalsa sessao;
+  late List<String> rotas;
+  late List<String> encerradasNativas;
+  late bool atenderConflito;
+  late String tipo;
+  late Map<String, dynamic> respostaAbrir;
+  late List<bool> mudosNoSistema;
+
+  setUp(() {
+    sessao = _SessaoFalsa();
+    rotas = [];
+    encerradasNativas = [];
+    atenderConflito = false;
+    tipo = 'facial_unidade';
+    respostaAbrir = {'ok': true};
+    mudosNoSistema = [];
+    ApiClient.tokenProvider = () => 'sessao';
+    ApiClient.client = MockClient((r) async {
+      rotas.add('${r.method} ${r.url.path}');
+      if (r.url.path.endsWith('/atender')) {
+        return atenderConflito
+            ? http.Response(jsonEncode({'motivo': 'ja_atendida'}), 409)
+            : http.Response(jsonEncode(_entrada), 201);
+      }
+      if (r.url.path.endsWith('/abrir')) return http.Response(jsonEncode(respostaAbrir), 201);
+      return http.Response(jsonEncode(_estado(tipo)), 200);
+    });
+    InterfoneChamadas.redefinirParaTeste();
+  });
+
+  tearDown(ApiClient.restaurarPadroes);
+
+  Future<void> abrir(WidgetTester tester, {DadosEntrada? jaConectado, bool microfone = true}) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) => TelaChamada(
+                id: 41,
+                jaConectado: jaConectado,
+                tipoInicial: jaConectado == null ? null : 'unidade_portaria',
+                conectar: (DadosEntrada d, RTCVideoRenderer? v) async => sessao,
+                pedirMicrofone: () async => microfone,
+                criarVideo: () async => null,
+                encerrarTelaNativa: (uuid) async => encerradasNativas.add(uuid),
+                marcarConectada: (_) async {},
+                sincronizarMudo: (uuid, m) async => mudosNoSistema.add(m),
+                prepararSessao: () async {},
+                esperaAoFechar: const Duration(seconds: 3),
+              ),
+            )),
+            child: const Text('abrir'),
+          ),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('abrir'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+
+  testWidgets('chamada do facial mostra ABRIR PORTÃO e abre', (tester) async {
+    await abrir(tester);
+    expect(rotas, contains('POST /api/interfone/chamadas/41/atender'));
+    expect(find.text('PORTÃO SOCIAL'), findsOneWidget);
+    expect(find.text('Bloco A · Apto 106'), findsOneWidget);
+    expect(find.text('ABRIR PORTÃO'), findsOneWidget);
+
+    sessao.mudar('em_chamada');
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.text('ABRIR PORTÃO'));
+    await tester.pumpAndSettle();
+    expect(rotas, contains('POST /api/interfone/chamadas/41/abrir'));
+    expect(find.text('Portão aberto'), findsOneWidget);
+
+    await tester.tap(find.text('ENCERRAR'));
+    await tester.pumpAndSettle();
+    expect(sessao.encerrada, isTrue);
+    expect(find.byType(TelaChamada), findsNothing);
+    expect(encerradasNativas, [uuidDaChamada(41)]);
+  });
+
+  testWidgets('abrir recusado mostra o motivo', (tester) async {
+    respostaAbrir = {'ok': false, 'motivo': 'agente offline'};
+    await abrir(tester);
+    sessao.mudar('em_chamada');
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.text('ABRIR PORTÃO'));
+    await tester.pumpAndSettle();
+    expect(find.text('Não foi possível abrir: agente offline'), findsOneWidget);
+    await tester.tap(find.text('ENCERRAR'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('chamada da portaria para a unidade não mostra ABRIR PORTÃO', (tester) async {
+    tipo = 'portaria_unidade';
+    await abrir(tester);
+    expect(find.text('ABRIR PORTÃO'), findsNothing);
+    expect(find.text('PORTARIA'), findsOneWidget);
+    await tester.tap(find.text('ENCERRAR'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('409 mostra "Já atendida em outro aparelho" e fecha', (tester) async {
+    atenderConflito = true;
+    await abrir(tester);
+    expect(find.text('Já atendida em outro aparelho'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+    expect(find.byType(TelaChamada), findsNothing);
+  });
+
+  testWidgets('sem microfone não atende', (tester) async {
+    await abrir(tester, microfone: false);
+    expect(rotas.where((r) => r.endsWith('/atender')), isEmpty);
+    expect(find.textContaining('Sem acesso ao microfone'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('ligando para a portaria: entra direto e avisa quando ninguém atende', (tester) async {
+    tipo = 'unidade_portaria';
+    await abrir(tester, jaConectado: DadosEntrada.fromJson(_entrada));
+    expect(rotas.where((r) => r.endsWith('/atender')), isEmpty);
+    expect(find.text('ABRIR PORTÃO'), findsNothing);
+    expect(find.text('CHAMANDO A PORTARIA…'), findsOneWidget);
+    sessao.mudar('encerrada');
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('A portaria não atendeu'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+    expect(find.byType(TelaChamada), findsNothing);
+  });
+
+  testWidgets('Encerrar no sistema (CallKit) desliga a conversa', (tester) async {
+    await abrir(tester);
+    sessao.mudar('em_chamada');
+    await tester.pump();
+    await tester.pump();
+    InterfoneChamadas.registrarTela(99, () {}); // outra chamada não interfere
+    await InterfoneChamadas.tratarEvento(CallEventActionCallEnded(CallKitParams(id: uuidDaChamada(41))));
+    await tester.pumpAndSettle();
+    expect(sessao.encerrada, isTrue);
+    expect(find.byType(TelaChamada), findsNothing);
+  });
+
+  testWidgets('Mudo do app avisa o CallKit; Mudo do CallKit muda a conversa', (tester) async {
+    await abrir(tester);
+    sessao.mudar('em_chamada');
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.text('MUDO'));
+    await tester.pump();
+    expect(sessao.mudoLigado, isTrue);
+    expect(mudosNoSistema, [true]);
+    expect(find.text('MUDO LIGADO'), findsOneWidget);
+
+    await InterfoneChamadas.tratarEvento(CallEventActionCallToggleMute(uuidDaChamada(41), false));
+    await tester.pump();
+    expect(sessao.mudoLigado, isFalse);
+    expect(find.text('MUDO'), findsOneWidget);
+    // O Mudo que veio do sistema não volta para ele.
+    expect(mudosNoSistema, [true]);
+    await tester.tap(find.text('ENCERRAR'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('Mudo do CallKit antes de a tela existir vale quando a sessão chega', (tester) async {
+    // O Mudo chega enquanto o app abre, antes do registrarTela.
+    await InterfoneChamadas.tratarEvento(CallEventActionCallToggleMute(uuidDaChamada(41), true));
+    await abrir(tester);
+    expect(find.text('MUDO LIGADO'), findsOneWidget);
+    expect(sessao.mudoLigado, isTrue);
+    await tester.tap(find.text('ENCERRAR'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('Mudo do app antes de conectar vale quando a sessão chega', (tester) async {
+    final chegou = Completer<SessaoVoz>();
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MaterialApp(
+      home: TelaChamada(
+        id: 41,
+        conectar: (DadosEntrada d, RTCVideoRenderer? v) => chegou.future,
+        pedirMicrofone: () async => true,
+        criarVideo: () async => null,
+        encerrarTelaNativa: (_) async {},
+        marcarConectada: (_) async {},
+        sincronizarMudo: (_, __) async {},
+        prepararSessao: () async {},
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('MUDO'));
+    await tester.pump();
+    expect(sessao.mudoLigado, isNull);
+    chegou.complete(sessao);
+    await tester.pumpAndSettle();
+    expect(sessao.mudoLigado, isTrue);
+  });
+
+  testWidgets('chamada do facial liga o alto-falante ao conectar', (tester) async {
+    await abrir(tester);
+    sessao.mudar('em_chamada');
+    await tester.pump();
+    await tester.pump();
+    expect(sessao.altoFalantes, [true]);
+    await tester.tap(find.text('ENCERRAR'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('chamada da portaria não liga o alto-falante sozinha', (tester) async {
+    tipo = 'portaria_unidade';
+    await abrir(tester);
+    sessao.mudar('em_chamada');
+    await tester.pump();
+    await tester.pump();
+    expect(sessao.altoFalantes, isEmpty);
+    await tester.tap(find.text('ENCERRAR'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('Encerrar em "Conectando…" devolve a chamada (recusar)', (tester) async {
+    await abrir(tester);
+    expect(find.text('CONECTANDO…'), findsOneWidget);
+    await tester.tap(find.text('ENCERRAR'));
+    await tester.pumpAndSettle();
+    expect(rotas, contains('POST /api/interfone/chamadas/41/recusar'));
+    expect(find.byType(TelaChamada), findsNothing);
+    expect(encerradasNativas, [uuidDaChamada(41)]);
+  });
+
+  testWidgets('Encerrar depois de conversar não recusa', (tester) async {
+    await abrir(tester);
+    sessao.mudar('em_chamada');
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.text('ENCERRAR'));
+    await tester.pumpAndSettle();
+    expect(rotas.where((r) => r.endsWith('/recusar')), isEmpty);
+  });
+
+  testWidgets('sem microfone recusa a chamada', (tester) async {
+    await abrir(tester, microfone: false);
+    expect(rotas, contains('POST /api/interfone/chamadas/41/recusar'));
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('409 não recusa (a chamada não é deste aparelho)', (tester) async {
+    atenderConflito = true;
+    await abrir(tester);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+    expect(rotas.where((r) => r.endsWith('/recusar')), isEmpty);
+  });
+
+  group('ligarParaPortaria', () {
+    late Completer<http.Response> resposta;
+    late int pedidos;
+
+    setUp(() {
+      resposta = Completer<http.Response>();
+      pedidos = 0;
+      ChamadaNaTela.redefinirParaTeste();
+      ApiClient.client = MockClient((r) async {
+        if (r.url.path.endsWith('/ligar-portaria')) {
+          pedidos++;
+          return resposta.future;
+        }
+        return http.Response('{}', 500);
+      });
+    });
+
+    tearDown(ChamadaNaTela.redefinirParaTeste);
+
+    Future<BuildContext> montar(WidgetTester tester) async {
+      late BuildContext ctx;
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: Builder(builder: (c) {
+        ctx = c;
+        return const SizedBox();
+      }))));
+      return ctx;
+    }
+
+    testWidgets('toque duplo faz um pedido só', (tester) async {
+      final ctx = await montar(tester);
+      await tester.runAsync(() async {
+        final a = ligarParaPortaria(ctx, 7, pedirMicrofone: () async => true);
+        final b = ligarParaPortaria(ctx, 7, pedirMicrofone: () async => true);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        resposta.complete(http.Response(jsonEncode({'motivo': 'em_andamento'}), 409));
+        await a;
+        await b;
+      });
+      await tester.pump();
+      expect(pedidos, 1);
+      expect(find.text('Você já tem uma ligação em andamento.'), findsOneWidget);
+    });
+
+    testWidgets('dá certo: a chamada vai para a tela', (tester) async {
+      final ctx = await montar(tester);
+      resposta.complete(http.Response(jsonEncode(_entrada), 201));
+      await tester.runAsync(
+          () => ligarParaPortaria(ctx, 7, unidade: 'Bloco A · Apto 106', pedirMicrofone: () async => true));
+      expect(ChamadaNaTela.atual.value?.id, 41);
+      expect(ChamadaNaTela.atual.value?.tipo, 'unidade_portaria');
+      // Com a chamada na tela, outro toque não liga de novo.
+      await tester.runAsync(() => ligarParaPortaria(ctx, 7, pedirMicrofone: () async => true));
+      expect(pedidos, 1);
+    });
+  });
+
+  testWidgets('tela baixa: rola e o ENCERRAR continua alcançável', (tester) async {
+    tester.view.physicalSize = const Size(320 * 3, 480 * 3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MaterialApp(
+      home: TelaChamada(
+        id: 41,
+        tipoInicial: 'facial_unidade',
+        conectar: (DadosEntrada d, RTCVideoRenderer? v) async => sessao,
+        pedirMicrofone: () async => true,
+        criarVideo: () async => null,
+        encerrarTelaNativa: (_) async {},
+        marcarConectada: (_) async {},
+        sincronizarMudo: (_, __) async {},
+        prepararSessao: () async {},
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.ensureVisible(find.text('ENCERRAR'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ENCERRAR'));
+    await tester.pump();
+    expect(sessao.encerrada, isTrue);
+  });
+
+  test('mensagens das recusas', () {
+    expect(mensagemDaRecusa('ja_atendida'), 'Já atendida em outro aparelho');
+    expect(mensagemDaRecusa('encerrada'), 'A chamada já terminou');
+    expect(mensagemDaRecusa('portaria_indisponivel'), 'Portaria indisponível agora');
+    expect(mensagemDaRecusa(null), 'Não foi possível entrar na chamada');
+    expect(mensagemDaRecusa('em_andamento'), 'Você já tem uma ligação em andamento.');
+    expect(mensagemDaRecusa('indisponivel'), 'Interfone indisponível no momento.');
+  });
+
+  test('ICE do contrato vira um servidor por URL no sip_ua', () {
+    final ice = SipVoz.iceDoSipUa(const [
+      ServidorIce(urls: ['stun:a:3478']),
+      ServidorIce(urls: ['turn:a:3478?transport=udp', 'turn:a:3478?transport=tcp'], username: 'u', credential: 'c'),
+    ]);
+    expect(ice, [
+      {'urls': 'stun:a:3478'},
+      {'urls': 'turn:a:3478?transport=udp', 'username': 'u', 'credential': 'c'},
+      {'urls': 'turn:a:3478?transport=tcp', 'username': 'u', 'credential': 'c'},
+    ]);
+  });
+
+}

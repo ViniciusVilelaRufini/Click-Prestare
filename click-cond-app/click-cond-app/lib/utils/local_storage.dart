@@ -321,3 +321,17 @@ Map<String, dynamic>? getCondCachePersistent(int id) {
   } catch (_) {}
   return null;
 }
+
+/// Interfone: o pedido de "notificações em tela cheia" (Android 14+) já foi
+/// feito neste login. Sai com o logout, como o resto do user_data.
+bool interfoneTelaCheiaPedida() => _storage.getItem('interfone_tela_cheia_pedida') == true;
+
+void marcarInterfoneTelaCheiaPedida() => _guardar('interfone_tela_cheia_pedida', true);
+
+/// Interfone: o morador respondeu "Agora não" ao pedido de permissões; a home
+/// só pergunta de novo depois desta data.
+DateTime? interfonePermissoesAdiadasAte() =>
+    DateTime.tryParse('${_storage.getItem('interfone_permissoes_adiadas_ate') ?? ''}');
+
+void adiarInterfonePermissoes(DateTime ate) =>
+    _guardar('interfone_permissoes_adiadas_ate', ate.toUtc().toIso8601String());

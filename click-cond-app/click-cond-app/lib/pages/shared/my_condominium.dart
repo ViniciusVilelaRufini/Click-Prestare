@@ -41,6 +41,12 @@ import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/cond_cache.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
+import 'package:click/utils/rotulo_bloco.dart';
+import 'package:click/widgets/app/app_button.dart';
+import 'package:click/pages/shared/interfone/historico_interfone.dart';
+import 'package:click/pages/shared/interfone/tela_chamada.dart';
+import 'package:click/services/interfone/interfone_api.dart';
+import 'package:click/services/interfone/permissoes_interfone.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -94,6 +100,45 @@ class _MyCondominiumState extends State<MyCondominium> {
   /// Síndico que também é morador deste condomínio (vinculado a um apto).
   bool get _sindicoEhMorador => getUserType() == 'sindico' && _temApto;
 
+  /// Interfone pelo app ligado no condomínio (GET /interfone/disponivel):
+  /// mostra "Ligar para a portaria" e o item "Interfone" do menu.
+  bool _interfoneAtivo = false;
+
+  bool get _mostraInterfone => _interfoneAtivo && _temApto && (getUserType() == 'morador' || _sindicoEhMorador);
+
+  String get _unidadeAtual => rotuloUnidadeCard(Singleton.instance.bloco, Singleton.instance.apartamento);
+
+  Future<void> _verificarInterfone() async {
+    if (!_temApto || !(getUserType() == 'morador' || _sindicoEhMorador) || !temSessao()) return;
+    final ativo = await InterfoneApi.disponivel();
+    if (!mounted || ativo == _interfoneAtivo) return;
+    setState(() {
+      _interfoneAtivo = ativo;
+      _menu = _buildMenu();
+    });
+    // Microfone (e tela cheia no Android 14+) antes da primeira chamada: na
+    // tela bloqueada não dá para pedir.
+    if (ativo) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) PermissoesInterfone.preparar(context);
+      });
+    }
+  }
+
+  /// Pedido de ligação em curso: trava o botão contra toque duplo.
+  bool _ligando = false;
+
+  Future<void> _ligarParaPortaria() async {
+    final id = Singleton.instance.id_apartamento;
+    if (_ligando || id is! int || id <= 0) return;
+    setState(() => _ligando = true);
+    try {
+      await ligarParaPortaria(context, id, unidade: _unidadeAtual);
+    } finally {
+      if (mounted) setState(() => _ligando = false);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -137,6 +182,7 @@ class _MyCondominiumState extends State<MyCondominium> {
       },
     );
     _loadCond();
+    _verificarInterfone();
   }
 
   /// Contadores do painel (visitas no local, encomendas, pendentes,
@@ -213,6 +259,11 @@ class _MyCondominiumState extends State<MyCondominium> {
     ];
     if (getUserType() == 'morador' || _sindicoEhMorador) {
       all.add(_MenuItem('Delivery', PhosphorIcons.package, const ListDelivery(), asset: 'assets/images/modulos/delivery.png'));
+    }
+    // Interfone pelo app: histórico da unidade e "Ligar para a portaria".
+    if (_mostraInterfone) {
+      final id = Singleton.instance.id_apartamento as int;
+      all.add(_MenuItem('Interfone', PhosphorIcons.phoneCall, HistoricoInterfonePage(idApartamento: id, unidade: _unidadeAtual)));
     }
     if (getUserType() == 'sindico') {
       all.add(_MenuItem('Moradores', PhosphorIcons.usersThree, const ListMoradoresGeral(), asset: 'assets/images/modulos/moradores.png'));
@@ -1137,6 +1188,17 @@ class _MyCondominiumState extends State<MyCondominium> {
                       }
                     },
                   ),
+                  if (_mostraInterfone) ...[
+                    AppSpacing.gapMd,
+                    AppButton(
+                      label: 'Ligar para a portaria',
+                      icon: PhosphorIcons.phoneOutgoing,
+                      variant: AppButtonVariant.secondary,
+                      fullWidth: true,
+                      loading: _ligando,
+                      onPressed: _ligarParaPortaria,
+                    ),
+                  ],
                 ],
               ],
             ),

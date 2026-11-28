@@ -25,6 +25,8 @@ import 'package:click/services/atualizacoes_app.dart';
 import 'package:click/services/card_ao_vivo/card_android.dart';
 import 'package:click/services/card_ao_vivo/card_ao_vivo_ios.dart';
 import 'package:click/services/destino_push.dart';
+import 'package:click/services/interfone/interfone_chamadas.dart';
+import 'package:click/services/interfone/token_voip.dart';
 import 'package:click/theme/theme_controller.dart';
 import 'package:click/utils/api_client.dart';
 import 'package:click/utils/api_config.dart';
@@ -50,6 +52,11 @@ class FirebaseService {
 
   @visibleForTesting
   Future<void> Function() apagarTokenFcm = () => FirebaseMessaging.instance.deleteToken();
+
+  /// Token VoIP (PushKit) do iPhone para o interfone; null no Android (trocado
+  /// no teste).
+  @visibleForTesting
+  Future<String?> Function() obterTokenVoip = tokenVoipDoAparelho;
 
   /// Entrega a sessão ao Swift do card do iPhone (trocado no teste).
   @visibleForTesting
@@ -161,6 +168,11 @@ class FirebaseService {
       if (dominio != null) AtualizacoesApp.avisar(dominio);
 
       final type = message.data['type']?.toString();
+      final interfone = tratarPushDoInterfone(message.data);
+      if (interfone != null) {
+        unawaited(interfone);
+        return;
+      }
       if (type == 'card_portaria') {
         // Nunca lança; pushes do mesmo card em fila (A8).
         unawaited(CardAndroid.exibir(message.data));
@@ -269,6 +281,12 @@ class FirebaseService {
   /// Navega diretamente para a tela apropriada ao tocar na notificação push.
   void handleNotificationNavigation(RemoteMessage? message) {
     if (message == null) return;
+    // Interfone (iPhone sem token VoIP recebe alerta comum): o toque abre a
+    // tela da chamada se ela ainda estiver tocando.
+    if (message.data['type'] == 'interfone_chamada') {
+      unawaited(InterfoneChamadas.abrirPeloAviso(message.data));
+      return;
+    }
     // Push comum do delivery vem sem `type` (só id_delivery/status): F9.
     final type = tipoDoPush(message.data);
     if (type == null) return;
@@ -379,6 +397,12 @@ class FirebaseService {
     await atualizarSessaoDoCard(jwt);
     final cardTokenInicio = await CardAoVivoIos.obterTokenInicio();
     final tema = temaDoApp(ThemeController.instance.mode);
+    String? voipToken;
+    try {
+      voipToken = tokenVoipValido(await obterTokenVoip().timeout(limiteFcm));
+    } catch (e) {
+      logDebug('Interfone: sem token VoIP: ${e.runtimeType}');
+    }
 
     try {
       await ApiClient.post(
@@ -395,6 +419,13 @@ class FirebaseService {
           // Versão do card que este app desenha: 2 = também o do delivery
           // (o servidor só manda card de delivery a partir dela).
           'card_versao': 2,
+          // Interfone pelo app: o iPhone toca pelo push VoIP (PushKit); o
+          // Android pelo push de dados. Versão 1 = este app atende a chamada
+          // (o servidor manda push comum "atualize o app" para quem tem 0).
+          if (voipToken != null) 'voip_token': voipToken,
+          // Também no iPhone sem token VoIP: aí o servidor manda um push de
+          // alerta com type interfone_chamada, e o toque nele abre a chamada.
+          'interfone_versao': 1,
         }),
       );
       _temaEnviado = tema;
@@ -481,6 +512,27 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // Card ao vivo no Android: o push só de dados vira a notificação fixa.
   if (message.data['type'] == 'card_portaria') {
     await CardAndroid.exibir(message.data);
+  }
+  // Interfone: o push de dados vira a tela de ligação (também com o app
+  // fechado e a tela bloqueada).
+  await tratarPushDoInterfone(message.data);
+}
+
+/// Pushes de dados do interfone pelo app (Android; o iPhone toca pelo VoIP).
+/// Null quando o push não é do interfone. O Future termina quando a tela de
+/// ligação já foi mostrada ou fechada; a vigia do estado segue sozinha, sem
+/// segurar o handler de segundo plano do FCM (ele atende um push por vez, e o
+/// `interfone_fim` não pode ficar na fila atrás dela).
+Future<void>? tratarPushDoInterfone(Map<String, dynamic> data) {
+  switch (data['type']?.toString()) {
+    case 'interfone_chamada':
+      return InterfoneChamadas.mostrarEntrando(data);
+    case 'interfone_fim':
+      final id = int.tryParse('${data['id'] ?? ''}');
+      return id == null ? Future.value() : InterfoneChamadas.encerrarTela(id);
+    default:
+      // `interfone_perdida` é push comum: a notificação do sistema já aparece.
+      return null;
   }
 }
 

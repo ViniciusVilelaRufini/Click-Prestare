@@ -22,6 +22,19 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove"/>
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" tools:node="remove"/>
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" tools:node="remove"/>
+    <!-- Interfone pelo app: chamada do portão em tela cheia (também com a tela
+         bloqueada), serviço de chamada em primeiro plano e áudio da conversa.
+         O vídeo do facial é só de recebimento: o app nunca liga a câmera numa
+         chamada, então o tipo "camera" do serviço do plugin sai do manifesto. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" tools:node="remove"/>
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
 
    <application
         android:label="Prestare"
@@ -77,6 +90,12 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Serviço da chamada do flutter_callkit_incoming sem o tipo "camera"
+             (ver permissões acima). -->
+        <service
+            android:name="com.hiennv.flutter_callkit_incoming.CallkitNotificationService"
+            android:foregroundServiceType="phoneCall|microphone"
+            tools:replace="android:foregroundServiceType"/>
     </application>
     <queries>
         <!-- to opens https URLs -->
