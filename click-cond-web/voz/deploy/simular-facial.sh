@@ -29,7 +29,11 @@ set -a; . /etc/prestare-voz.env; set +a
 asterisk -rx "dialplan set global PRESTARE_CONTA_TESTE $CONTA" >/dev/null
 
 echo "Chamando o ramal $RAMAL como $CONTA (toca até ${SEGUNDOS}s)..."
-curl -fsS -G -u "${VOZ_ARI_USUARIO:-prestare}:${VOZ_ARI_SENHA}" -X POST \
+# A credencial vai ao curl pela entrada padrão (--config -), nunca no argv
+# (que apareceria no ps). printf é embutido do bash: também não vira processo.
+# Os segredos não têm aspas nem barra invertida (o preencher.mjs recusa).
+printf 'user = "%s:%s"\n' "${VOZ_ARI_USUARIO:-prestare}" "${VOZ_ARI_SENHA}" | \
+curl --config - -fsS -G -X POST \
   "${VOZ_ARI_URL:-http://127.0.0.1:8088}/ari/channels" \
   --data-urlencode "endpoint=Local/${RAMAL}@prestare-facial-teste/n" \
   --data-urlencode "context=prestare-visitante-teste" \

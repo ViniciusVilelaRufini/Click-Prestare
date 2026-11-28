@@ -33,9 +33,10 @@ test('pjsip.conf: transportes udp/tcp/wss com IP público, anonymous WebRTC no c
   }
   assert.ok(s['transport-wss'].includes('protocol=wss'));
   const anon = s.anonymous;
-  for (const l of ['type=endpoint', 'context=prestare-entrar', 'webrtc=yes', 'allow=ulaw,alaw,opus,h264', 'max_video_streams=1']) {
+  for (const l of ['type=endpoint', 'context=prestare-entrar', 'webrtc=yes', 'allow=ulaw,alaw,h264', 'max_video_streams=1']) {
     assert.ok(anon.includes(l), l);
   }
+  assert.ok(!/opus/.test(ler('asterisk/pjsip.conf')), 'sem opus: o Ubuntu não traz codec_opus');
   assert.match(ler('asterisk/pjsip.conf'), /^#include pjsip_prestare\.conf$/m);
   assert.ok(!/max_contacts/.test(ler('asterisk/pjsip.conf')), 'max_contacts vem só do render das contas');
   assert.ok(!/password=/.test(ler('asterisk/pjsip.conf')), 'nenhuma senha fixa');
@@ -44,22 +45,59 @@ test('pjsip.conf: transportes udp/tcp/wss com IP público, anonymous WebRTC no c
 test('extensions.conf: facial e entrar vão ao Stasis prestare; nada disca para fora', () => {
   const txt = ler('asterisk/extensions.conf');
   const s = secoes(txt);
-  assert.ok(s['prestare-facial'].includes('exten => _X.,1,Stasis(prestare,facial,${CHANNEL(endpoint)},${EXTEN})'));
+  // _X! aceita ramal de 1 dígito (casas 1–9); _X. exigiria 2 ou mais.
+  assert.ok(s['prestare-facial'].includes('exten => _X!,1,Stasis(prestare,facial,${CHANNEL(endpoint)},${EXTEN})'));
   assert.ok(s['prestare-entrar'].includes('exten => entrar,1,Stasis(prestare,entrar,${PJSIP_HEADER(read,X-Prestare-Token)})'));
-  assert.ok(s['prestare-monitor'].includes('exten => _X.,1,Hangup()'));
+  assert.ok(s['prestare-monitor'].includes('exten => _X!,1,Hangup()'));
+  assert.ok(s['prestare-facial-teste'].some((l) => l.startsWith('exten => _X!,1,')));
+  assert.ok(!/_X\./.test(txt), 'nenhum padrão _X. sobrando');
   assert.ok(s['prestare-facial-teste'].some((l) => l.includes('Stasis(prestare,facial,${GLOBAL(PRESTARE_CONTA_TESTE)},${EXTEN})')));
   assert.ok(!/\bDial\(/.test(txt), 'sem Dial');
   assert.ok(!/\binclude\s*=>/.test(txt), 'sem include entre contextos');
 });
 
-test('http.conf: ARI em texto só no loopback, TLS 8089 com o certificado do hook', () => {
+test('http.conf: Asterisk só em 127.0.0.1:8088, sem TLS e sem /httpstatus', () => {
   const g = secoes(ler('asterisk/http.conf')).general;
   assert.ok(g.includes('bindaddr=127.0.0.1'));
   assert.ok(g.includes('bindport=8088'));
-  assert.ok(g.includes('tlsenable=yes'));
-  assert.ok(g.includes('tlsbindaddr=0.0.0.0:8089'));
-  assert.ok(g.includes('tlscertfile=/etc/asterisk/keys/voz.crt'));
-  assert.ok(g.includes('tlsprivatekey=/etc/asterisk/keys/voz.key'));
+  assert.ok(g.includes('tlsenable=no'));
+  assert.ok(g.includes('enable_status=no'));
+  assert.ok(!g.some((l) => l.startsWith('tlsbindaddr')), 'nada escutando fora do loopback');
+});
+
+test('nginx: TLS na 8089 repassando só /ws ao Asterisk; o resto é 404', () => {
+  const n = ler('nginx/prestare-voz.conf');
+  assert.match(n, /listen 8089 ssl;/);
+  assert.match(n, /ssl_certificate \/etc\/prestare-voz\/tls\/fullchain\.pem;/);
+  assert.match(n, /ssl_certificate_key \/etc\/prestare-voz\/tls\/privkey\.pem;/);
+  assert.match(n, /location = \/ws \{[^}]*proxy_pass http:\/\/127\.0\.0\.1:8088\/ws;/);
+  assert.match(n, /proxy_set_header Upgrade \$http_upgrade;/);
+  assert.match(n, /proxy_set_header Connection "upgrade";/);
+  assert.match(n, /proxy_read_timeout 3600s;/);
+  assert.match(n, /location \/ \{\s*return 404;\s*\}/);
+  assert.equal((n.match(/proxy_pass/g) ?? []).length, 1, 'um único proxy_pass');
+  assert.ok(!/\/ari/.test(n), 'ARI nunca é repassada');
+});
+
+test('hook de renovação copia os certificados e recarrega nginx, asterisk, prestare-voz e coturn', () => {
+  const h = ler('deploy/hook-renovacao.sh');
+  assert.match(h, /\/etc\/asterisk\/keys\/voz\.crt/);
+  assert.match(h, /\/etc\/asterisk\/keys\/voz\.key/);
+  assert.match(h, /\/etc\/prestare-voz\/tls\/fullchain\.pem/);
+  assert.match(h, /-g turnserver -m 640 .*\/etc\/prestare-voz\/tls\/privkey\.pem/);
+  assert.match(h, /systemctl reload nginx/);
+  assert.match(h, /systemctl restart prestare-voz coturn/);
+  const i = ler('deploy/instalar.sh');
+  assert.match(i, /\/etc\/letsencrypt\/renewal-hooks\/deploy\/prestare\.sh/);
+  assert.match(i, /rm -f \/etc\/nginx\/sites-enabled\/default/, 'site padrão ocuparia a porta 80 do certbot');
+  assert.match(i, /nginx -t/);
+  assert.match(i, /systemctl reload nginx/);
+});
+
+test('simular-facial.sh não põe a senha da ARI no argv do curl', () => {
+  const s = ler('deploy/simular-facial.sh');
+  assert.ok(!/curl[^\n]*-u /.test(s), 'sem -u na linha do curl');
+  assert.match(s, /--config -/);
 });
 
 test('ari.conf: usuário prestare com senha do SSM', () => {
