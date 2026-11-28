@@ -1,10 +1,13 @@
 import 'package:click/services/interfone/interfone_api.dart';
+import 'package:click/services/interfone/sdp_central.dart';
 import 'package:click/services/interfone/sip_voz.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:sip_ua/sip_ua.dart';
 // ignore: implementation_imports
 import 'package:sip_ua/src/rtc_session.dart';
+
+import 'sdp_central_fixture.dart';
 
 class _Faixa extends Fake implements MediaStreamTrack {
   _Faixa(this.kind);
@@ -176,6 +179,20 @@ void main() {
     expect(microfone.audio.parada, isTrue);
     expect(microfone.descartado, isTrue);
     expect(estados, ['em_chamada', 'encerrada']);
+  });
+
+  test('a oferta local passa pelo filtro da central antes do setLocalDescription (offerModifiers do sip_ua)', () async {
+    final opcoes = SipVoz.opcoesDaChamada();
+    final restricoes = opcoes['rtcOfferConstraints'] as Map<String, dynamic>;
+    // O sip_ua 1.1.0 lê a lista com tipo exato: List<dynamic> quebraria em tempo de execução.
+    final modificadores = restricoes['offerModifiers'];
+    expect(modificadores, isA<List<Future<RTCSessionDescription> Function(RTCSessionDescription)>>());
+    final lista = modificadores as List<Future<RTCSessionDescription> Function(RTCSessionDescription)>;
+    expect(lista, hasLength(1));
+    final saida = await lista.single(RTCSessionDescription(ofertaChrome, 'offer'));
+    expect(saida.type, 'offer');
+    expect(saida.sdp, filtrarSdpParaCentral(ofertaChrome));
+    expect(saida.sdp, isNot(contains('VP8')));
   });
 
   test('socket cai antes de ligar: encerra', () async {

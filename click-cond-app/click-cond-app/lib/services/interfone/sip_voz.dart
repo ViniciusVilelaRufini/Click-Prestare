@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:click/services/interfone/interfone_api.dart';
+import 'package:click/services/interfone/sdp_central.dart';
 import 'package:click/utils/log.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -62,6 +63,18 @@ class SipVoz {
 
   /// Opções da chamada: microfone sim, câmera não, e oferta pedindo para
   /// receber o vídeo do facial.
+  ///
+  /// A oferta passa por [filtrarSdpParaCentral] (o Asterisk da central recusa
+  /// com 400 a oferta cheia do libwebrtc). No sip_ua 1.1.0 o evento `EventSdp`
+  /// local é só aviso: o INVITE leva o `getLocalDescription()` lido depois do
+  /// ICE, e mudar o evento não muda nada. O ponto que altera o que sai é
+  /// `rtcOfferConstraints['offerModifiers']`, que o `_createLocalDescription`
+  /// aplica entre o `createOffer` e o `setLocalDescription` (vale só para a
+  /// oferta inicial: ele zera a lista depois). A oferta enxuta vira a
+  /// descrição local de fato, então o libwebrtc também negocia só esses
+  /// codecs. `setCodecPreferences` ficou de fora: o transceiver de vídeo só
+  /// de recebimento nasce dentro do `createOffer` (OfferToReceiveVideo), sem
+  /// ponto para preferir codecs antes da oferta.
   @visibleForTesting
   static Map<String, dynamic> opcoesDaChamada() => <String, dynamic>{
         'mediaConstraints': <String, dynamic>{'audio': true, 'video': false},
@@ -71,8 +84,13 @@ class SipVoz {
             'OfferToReceiveVideo': true,
           },
           'optional': <dynamic>[],
+          // Tipo exato: o sip_ua atribui a uma lista tipada (List<dynamic> quebra).
+          'offerModifiers': <Future<RTCSessionDescription> Function(RTCSessionDescription)>[_ofertaParaCentral],
         },
       };
+
+  static Future<RTCSessionDescription> _ofertaParaCentral(RTCSessionDescription d) async =>
+      RTCSessionDescription(filtrarSdpParaCentral(d.sdp ?? ''), d.type);
 }
 
 class _SessaoSip implements SipUaHelperListener, SessaoVoz {
