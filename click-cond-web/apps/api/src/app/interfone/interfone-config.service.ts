@@ -44,9 +44,14 @@ export function gerarSenhaSip(tamanho = 24): string {
   return s;
 }
 
-/** Célula do CSV com `;`: aspas quando precisa. */
+/**
+ * Célula do CSV com `;`: aspas quando precisa. Texto que começa com = + - @
+ * ganha um apóstrofo na frente, para o Excel do instalador não tratar como
+ * fórmula (dado vem do síndico).
+ */
 function celula(v: string | number | null | undefined): string {
-  const s = v === null || v === undefined ? '' : String(v);
+  let s = v === null || v === undefined ? '' : String(v);
+  if (typeof v === 'string' && /^[=+\-@]/.test(s)) s = `'${s}`;
   return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
@@ -163,12 +168,24 @@ export class InterfoneConfigService {
     if (mudam.length) {
       // Primeiro limpa, depois grava: a chave única (un_apto_ramal) não
       // impede trocar dois ramais entre si.
-      await this.prisma.$transaction([
-        this.prisma.apartamentos.updateMany({ where: { id: { in: mudam.map(([id]) => id) }, id_condominio: idCondominio }, data: { interfone_ramal: null } }),
-        ...mudam
-          .filter(([, r]) => r !== null)
-          .map(([id, r]) => this.prisma.apartamentos.update({ where: { id }, data: { interfone_ramal: r } })),
-      ]);
+      try {
+        await this.prisma.$transaction([
+          this.prisma.apartamentos.updateMany({ where: { id: { in: mudam.map(([id]) => id) }, id_condominio: idCondominio }, data: { interfone_ramal: null } }),
+          ...mudam
+            .filter(([, r]) => r !== null)
+            .map(([id, r]) => this.prisma.apartamentos.update({ where: { id }, data: { interfone_ramal: r } })),
+        ]);
+      } catch (e: any) {
+        // Outro save gravou o mesmo número entre a validação e a gravação.
+        if (e?.code === 'P2002') {
+          throw new BadRequestException({
+            statusCode: 400,
+            message: 'Ramal já usado por outra unidade. Recarregue e tente de novo.',
+            erros: mudam.map(([id, r]) => ({ id_apartamento: id, ramal: r, motivo: 'ramal_repetido' })),
+          });
+        }
+        throw e;
+      }
       await this.auditar(idCondominio, ator, `Ramais do interfone alterados (${mudam.length})`, {
         ramais: mudam.map(([id, r]) => ({ id_apartamento: id, ramal: r })),
       });

@@ -138,7 +138,7 @@ function bancoFalso(opts: { cond?: Partial<Linha>; facial?: Partial<Linha>; apto
 
 function montar(banco = bancoFalso(), online = true, opcoes: { esperarSegundoPlano?: boolean } = {}) {
   const push = {
-    tocar: jest.fn(async () => ({ tocou: 1, semApp: 0 })),
+    tocar: jest.fn(async () => ({ tocou: 1, semApp: 0, ids: [7] })),
     fim: jest.fn(async () => undefined),
     perdida: jest.fn(async () => undefined),
   };
@@ -573,7 +573,7 @@ describe('InterfoneService.fecharOrfas (serviço de voz reiniciou e perdeu o enc
     push.fim.mockClear();
     realtime.emitirPortaria.mockClear();
 
-    svc.agora = () => AGORA + 6 * 60_000 + 1;
+    svc.agora = () => AGORA + 7 * 60_000 + 1;
     await expect(svc.fecharOrfas()).resolves.toBe(2);
     expect(chamadas[0]).toMatchObject({ estado: 'encerrada', resultado: 'falha' });
     expect(chamadas[1]).toMatchObject({ estado: 'encerrada', resultado: 'falha' });
@@ -584,7 +584,7 @@ describe('InterfoneService.fecharOrfas (serviço de voz reiniciou e perdeu o enc
     expect(push.perdida).not.toHaveBeenCalled();
   });
 
-  it('prazo por estado: chamando > 2 min, portaria > 3 min, atendida > 6 min', async () => {
+  it('prazo por estado (pior caso + 60 s): chamando > 3 min, portaria > 4 min, atendida > 7 min', async () => {
     const { svc, chamadas } = montar();
     await svc.novaChamadaFacial('fac-12', '106'); // 1 chamando
     await svc.novaChamadaFacial('fac-12', '106'); // 2 portaria
@@ -592,16 +592,61 @@ describe('InterfoneService.fecharOrfas (serviço de voz reiniciou e perdeu o enc
     await svc.novaChamadaFacial('fac-12', '106'); // 3 atendida
     await svc.evento(3, { evento: 'atendida', papel: 'morador', uid: 7 });
 
-    svc.agora = () => AGORA + 2 * 60_000;
+    svc.agora = () => AGORA + 3 * 60_000;
     await expect(svc.fecharOrfas()).resolves.toBe(0);
-    svc.agora = () => AGORA + 2 * 60_000 + 1;
-    await expect(svc.fecharOrfas()).resolves.toBe(1);
-    expect(chamadas.map((c) => c.estado)).toEqual(['encerrada', 'portaria', 'atendida']);
     svc.agora = () => AGORA + 3 * 60_000 + 1;
     await expect(svc.fecharOrfas()).resolves.toBe(1);
+    expect(chamadas.map((c) => c.estado)).toEqual(['encerrada', 'portaria', 'atendida']);
+    svc.agora = () => AGORA + 4 * 60_000 + 1;
+    await expect(svc.fecharOrfas()).resolves.toBe(1);
     expect(chamadas[2].estado).toBe('atendida');
-    svc.agora = () => AGORA + 6 * 60_000 + 1;
+    svc.agora = () => AGORA + 7 * 60_000 + 1;
     await expect(svc.fecharOrfas()).resolves.toBe(1);
     expect(chamadas.every((c) => c.resultado === 'falha')).toBe(true);
+  });
+
+  it('ligação originada não atendida: falha em toque + 15 s (unidade: toque_apto; portaria: toque_portaria)', async () => {
+    const { svc, push, realtime, chamadas } = montar();
+    chamadas.push(
+      { id: 1, id_condominio: 1, tipo: 'portaria_unidade', estado: 'chamando', id_apartamento: 100, created_at: new Date(AGORA) },
+      { id: 2, id_condominio: 1, tipo: 'unidade_portaria', estado: 'portaria', id_apartamento: 100, created_at: new Date(AGORA) },
+      { id: 3, id_condominio: 1, tipo: 'unidade_portaria', estado: 'atendida', id_apartamento: 100, created_at: new Date(AGORA) },
+    );
+    svc.agora = () => AGORA + 45_000;
+    await expect(svc.fecharOrfas()).resolves.toBe(0);
+    svc.agora = () => AGORA + 45_001; // 30 + 15
+    await expect(svc.fecharOrfas()).resolves.toBe(1);
+    expect(chamadas[0]).toMatchObject({ estado: 'encerrada', resultado: 'falha' });
+    expect(push.fim).toHaveBeenCalledWith(1, [7]);
+    expect(realtime.emitirPortaria).toHaveBeenCalledWith(1, 'interfone:fim', { id: 1 });
+    svc.agora = () => AGORA + 60_001; // 45 + 15
+    await expect(svc.fecharOrfas()).resolves.toBe(1);
+    expect(chamadas[1]).toMatchObject({ estado: 'encerrada', resultado: 'falha' });
+    expect(chamadas[2].estado).toBe('atendida');
+  });
+
+  it('toque_esgotado com a chamada do facial já na portaria responde portaria', async () => {
+    const { svc, chamadas } = montar();
+    await svc.novaChamadaFacial('fac-12', '106');
+    chamadas[0].estado = 'portaria';
+    await expect(svc.evento(1, { evento: 'toque_esgotado' })).resolves.toEqual({ proximo: 'portaria' });
+  });
+
+  it('reserva vale só no estado em que foi feita e é liberada ao transferir', async () => {
+    const { svc } = montar();
+    expect(svc.reservar(1, 'morador:7', 'chamando', AGORA)).toBe(true);
+    expect(svc.reservar(1, 'morador:8', 'chamando', AGORA)).toBe(false);
+    expect(svc.reservar(1, 'portaria:3', 'portaria', AGORA)).toBe(true);
+    svc.liberarReserva(1, 'morador:7'); // não é dele: nada
+    expect(svc.reservar(1, 'portaria:4', 'portaria', AGORA)).toBe(false);
+    svc.liberarReserva(1);
+    expect(svc.reservar(1, 'portaria:4', 'portaria', AGORA)).toBe(true);
+  });
+
+  it('grava em tocou_ids os usuários em que o toque saiu', async () => {
+    const { svc, push, chamadas } = montar();
+    push.tocar.mockResolvedValueOnce({ tocou: 1, semApp: 1, ids: [7] } as any);
+    await svc.novaChamadaFacial('fac-12', '106');
+    expect(JSON.parse(chamadas[0].tocou_ids)).toEqual([7]);
   });
 });

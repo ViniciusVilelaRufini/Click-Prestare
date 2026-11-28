@@ -29,7 +29,8 @@
 --      Condominios com CASCADE; facial, apartamento e usuário de origem com
 --      SET NULL (apagar um facial/unidade/conta não apaga o histórico).
 --      Índice (estado, created_at) para a rotina de chamadas órfãs (a cada
---      minuto); criado também em separado para quem já tinha a tabela.
+--      minuto) e coluna tocou_ids (JSON dos Users.id em que o toque saiu);
+--      os dois criados também em separado para quem já tinha a tabela.
 --
 -- Idempotente: cada passo confere o information_schema e vira no-op se já foi
 -- aplicado. Rodar numa única sessão (usa @sql). MySQL 8.4.
@@ -241,6 +242,7 @@ CREATE TABLE IF NOT EXISTS `Interfone_Chamadas` (
   `porta_aberta_por_nome` VARCHAR(120) NULL,
   `porta_aberta_como` VARCHAR(10) NULL,
   `recusas` TEXT NULL,
+  `tocou_ids` TEXT NULL,
   `created_at` DATETIME(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   INDEX `idx_ifc_cond_created` (`id_condominio`, `created_at`),
@@ -259,6 +261,15 @@ SET @sql = IF(
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Chamadas' AND INDEX_NAME = 'idx_ifc_estado_created') = 0,
   'ALTER TABLE `Interfone_Chamadas` ADD INDEX `idx_ifc_estado_created` (`estado`, `created_at`)',
   'SELECT ''idx_ifc_estado_created: ja existe'' AS passo_7b');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Chamadas' AND COLUMN_NAME = 'tocou_ids') = 0,
+  'ALTER TABLE `Interfone_Chamadas` ADD COLUMN `tocou_ids` TEXT NULL AFTER `recusas`',
+  'SELECT ''Interfone_Chamadas.tocou_ids: ja existe'' AS passo_7c');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;

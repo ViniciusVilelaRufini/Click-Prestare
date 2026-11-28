@@ -10,6 +10,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { StorageService } from '../common/storage/storage.service';
 import { hojeBrasilia, intervaloHojeBrasilia } from '../common/hora-brasilia.util';
 import { rotuloAptoBloco } from '../visitantes/rotulo-apto-bloco.util';
 import { InterfoneService, unidadeDaChamada } from './interfone.service';
@@ -17,8 +18,13 @@ import { InterfonePushService } from './interfone-push.service';
 import { VozControleClient } from './voz-controle.client';
 import { DadosEntrada, PapelVoz, assinarTokenVoz, credencialTurn, montarDadosEntrada } from './token-voz';
 
-/** Quem pediu "atender" fica com a chamada por este tempo; outro pedido recebe 409. */
-export const RESERVA_ATENDER_MS = 15_000;
+export { RESERVA_ATENDER_MS } from './interfone.service';
+/** Abrir só logo depois de atendida (toque + conversa máxima + folga): chamada órfã não abre. */
+export const ABRIR_JANELA_MS = 210_000;
+export const ABRIR_MAX_POR_CHAMADA = 3;
+export const ABRIR_INTERVALO_MS = 5_000;
+/** Trava contra toque duplo em "ligar" (por usuário/porteiro). */
+const LIGAR_TRAVA_MS = 5_000;
 const DIA_MS = 86_400_000;
 const HISTORICO_DIAS = 30;
 const HISTORICO_MAX = 50;
@@ -70,8 +76,10 @@ export class InterfoneAcoesService {
   private readonly logger = new Logger(InterfoneAcoesService.name);
   /** Público para os testes; em produção é Date.now. */
   agora: () => number = () => Date.now();
-  /** Reserva do "atender" (uma réplica da API; ver RealtimeGateway). */
-  private readonly reservas = new Map<number, { chave: string; ate: number }>();
+  /** Aberturas por chamada (memória desta réplica): limite e intervalo. */
+  private readonly aberturas = new Map<number, { n: number; ultima: number }>();
+  /** "Ligar" em andamento por quem liga (memória desta réplica). */
+  private readonly ligando = new Map<string, number>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -80,6 +88,7 @@ export class InterfoneAcoesService {
     private readonly voz: VozControleClient,
     @Optional() private readonly facial?: FacialService,
     @Optional() private readonly auditoria?: AuditoriaService,
+    @Optional() private readonly storage?: StorageService,
   ) {}
 
   // ─────────────────────────────────────────── atender / recusar / abrir
@@ -99,11 +108,11 @@ export class InterfoneAcoesService {
 
     const segredos = this.segredos();
     const agora = this.agora();
-    const chave = `${quem.papel}:${quem.uid}`;
-    const r = this.reservas.get(c.id);
-    if (r && r.ate > agora && r.chave !== chave) throw conflito('ja_atendida', 'Já atendida em outro aparelho.');
-    this.reservas.set(c.id, { chave, ate: agora + RESERVA_ATENDER_MS });
-    this.limparReservas(agora);
+    // Reserva vale só no estado atual: se a chamada for para a portaria, o
+    // pedido do morador não segura o porteiro.
+    if (!this.nucleo.reservar(c.id, `${quem.papel}:${quem.uid}`, c.estado, agora)) {
+      throw conflito('ja_atendida', 'Já atendida em outro aparelho.');
+    }
 
     return this.dadosEntrada(c.id, quem.papel, quem.uid, quem.nome, segredos, agora);
   }
@@ -112,27 +121,27 @@ export class InterfoneAcoesService {
     const c = await this.nucleo.carregar(id);
     if (!c) throw new NotFoundException('Chamada não encontrada.');
     await this.assertVinculo(idUser, c.id_apartamento);
+    // Quem reservou e desistiu (ex.: "Conectando…" e recusou) libera a chamada.
+    this.nucleo.liberarReserva(c.id, `morador:${idUser}`);
     if (c.estado !== 'chamando' || (c.tipo !== 'facial_unidade' && c.tipo !== 'portaria_unidade')) return { ok: true };
 
-    const recusas = new Set<number>(this.lerRecusas(c.recusas));
-    recusas.add(idUser);
-    await this.prisma.interfone_Chamadas.update({ where: { id: c.id }, data: { recusas: JSON.stringify([...recusas]) } });
+    const recusas = await this.acrescentarRecusa(c.id, idUser);
+    if (!recusas) return { ok: true };
 
-    // Todos que podiam tocar recusaram? (moradores vigentes que não desligaram o interfone)
-    const tocados = await this.prisma.users.findMany({
-      where: {
-        id: { in: await this.nucleo.moradoresDaUnidade(c.id_apartamento as number) },
-        interfone_receber: 1,
-      },
-      select: { id: true },
-    });
-    if (!tocados.length || !tocados.every((u) => recusas.has(u.id))) return { ok: true };
+    // Todos em que o toque SAIU recusaram? (morador sem app não conta)
+    const atual = await this.nucleo.carregar(c.id);
+    if (!atual || atual.estado !== 'chamando') return { ok: true };
+    const tocaram = this.nucleo.tocouDaChamada(atual) ?? [];
+    if (!tocaram.length || !tocaram.every((u) => recusas.has(u))) return { ok: true };
 
     const transfere =
       c.tipo === 'facial_unidade' &&
       c.condominio?.interfone_transferir === 1 &&
       (await this.nucleo.porteirosOnline(c.id_condominio));
     if (!transfere) {
+      // Grava `recusada` ANTES de pedir ao serviço: o `encerrada nao_atendida`
+      // que ele manda depois é descartado (sem "Chamada perdida" para quem recusou).
+      await this.nucleo.encerrarComo(atual, 'recusada');
       await this.voz.encerrar(c.id);
       return { ok: true };
     }
@@ -141,9 +150,31 @@ export class InterfoneAcoesService {
       data: { estado: 'portaria', motivo_portaria: 'recusou' },
     });
     if (r.count === 0) return { ok: true };
+    this.nucleo.liberarReserva(c.id);
     await this.nucleo.emitirChamadaPortaria(c, 'recusou');
     await this.voz.portaria(c.id);
     return { ok: true };
+  }
+
+  /**
+   * Acrescenta a recusa sem perder outra que chegue junto: grava só se
+   * `recusas` ainda é o que foi lido (tenta de novo se mudou).
+   */
+  private async acrescentarRecusa(id: number, idUser: number): Promise<Set<number> | null> {
+    for (let i = 0; i < 8; i++) {
+      const linha = await this.prisma.interfone_Chamadas.findUnique({ where: { id }, select: { recusas: true } });
+      if (!linha) return null;
+      const lista = new Set<number>(this.lerRecusas(linha.recusas));
+      if (lista.has(idUser)) return lista;
+      lista.add(idUser);
+      const r = await this.prisma.interfone_Chamadas.updateMany({
+        where: { id, recusas: linha.recusas ?? null },
+        data: { recusas: JSON.stringify([...lista]) },
+      });
+      if (r.count === 1) return lista;
+    }
+    this.logger.warn(`Interfone: recusa do usuário ${idUser} na chamada ${id} não gravou (concorrência).`);
+    return null;
   }
 
   async abrir(id: number, quem: Quem): Promise<{ ok: boolean; motivo?: string }> {
@@ -156,16 +187,26 @@ export class InterfoneAcoesService {
     }
     if (c.tipo !== 'facial_unidade' || !c.id_facial || !c.facial) return { ok: false, motivo: 'sem_portao' };
     if (!this.facial) return { ok: false, motivo: 'indisponivel' };
+    const agoraMs = this.agora();
+    // Chamada que ficou "atendida" porque o serviço perdeu o encerrada não abre.
+    if (!c.atendida_em || agoraMs - c.atendida_em.getTime() > ABRIR_JANELA_MS) return { ok: false, motivo: 'chamada_expirada' };
+    const ab = this.aberturas.get(c.id);
+    if (ab && (ab.n >= ABRIR_MAX_POR_CHAMADA || agoraMs - ab.ultima < ABRIR_INTERVALO_MS)) return { ok: false, motivo: 'aguarde' };
+    this.aberturas.set(c.id, { n: (ab?.n ?? 0) + 1, ultima: agoraMs });
+    if (this.aberturas.size > 1000) {
+      for (const [k, v] of this.aberturas) if (agoraMs - v.ultima > ABRIR_JANELA_MS) this.aberturas.delete(k);
+    }
 
     const unidade = unidadeDaChamada(c);
+    const ctx = { origem: 'interfone' as const, tipoPessoa: 'visitante', nomePessoa: `Interfone ${unidade}`.trim() };
     let como: 'agente' | 'dtmf' | null = null;
-    const r = await this.facial.abrirDispositivoInterno(c.id_facial, {
-      origem: 'interfone',
-      tipoPessoa: 'visitante',
-      nomePessoa: `Interfone ${unidade}`.trim(),
-    });
+    const r = await this.facial.abrirDispositivoInterno(c.id_facial, ctx);
     if (r.ok) como = 'agente';
-    else if (c.facial.interfone_dtmf && (await this.voz.dtmf(c.id, c.facial.interfone_dtmf))) como = 'dtmf';
+    else if (c.facial.interfone_dtmf && (await this.voz.dtmf(c.id, c.facial.interfone_dtmf))) {
+      como = 'dtmf';
+      // O histórico de acessos já tem a falha do agente; registra a abertura que deu certo.
+      await this.facial.registrarAberturaExterna(c.id_facial, { ...ctx, nota: 'DTMF' });
+    }
     if (!como) return { ok: false, motivo: 'falha_ao_abrir' };
 
     const agora = new Date(this.agora());
@@ -187,12 +228,21 @@ export class InterfoneAcoesService {
     return { ok: true };
   }
 
-  /** Console: o porteiro encerra a chamada do seu condomínio. */
+  /**
+   * Console: o porteiro encerra a chamada do seu condomínio — só a que está na
+   * portaria, a que ele atendeu ou a que ele originou (não derruba a conversa
+   * do morador nem a chamada que ainda toca no apartamento).
+   */
   async encerrarPortaria(id: number, porteiro: QuemPortaria): Promise<{ ok: boolean }> {
     const c = await this.nucleo.carregar(id);
     if (!c) throw new NotFoundException('Chamada não encontrada.');
     this.assertMesmoCondominio(c.id_condominio, porteiro);
     if (c.estado === 'encerrada') return { ok: true };
+    const dele =
+      c.estado === 'portaria' ||
+      (c.atendida_por_tipo === 'portaria' && c.atendida_por_id === porteiro.uid) ||
+      c.id_porteiro_origem === porteiro.uid;
+    if (!dele) throw new ForbiddenException('Esta chamada não está com a portaria.');
     return { ok: await this.voz.encerrar(c.id) };
   }
 
@@ -200,6 +250,10 @@ export class InterfoneAcoesService {
 
   /** App: o morador liga para a portaria do condomínio da unidade. */
   async ligarPortaria(quem: QuemMorador, idApartamento: number): Promise<DadosEntrada> {
+    return this.comTrava(`morador:${quem.uid}`, () => this.ligarPortariaSemTrava(quem, idApartamento));
+  }
+
+  private async ligarPortariaSemTrava(quem: QuemMorador, idApartamento: number): Promise<DadosEntrada> {
     await this.assertVinculo(quem.uid, idApartamento);
     const apto = await this.aptoComModulo(idApartamento);
     if (!apto) throw conflito('portaria_indisponivel', 'O interfone não está ligado neste condomínio.');
@@ -241,6 +295,10 @@ export class InterfoneAcoesService {
 
   /** Console: o porteiro liga para uma unidade do seu condomínio. */
   async ligarUnidade(porteiro: QuemPortaria, idApartamento: number): Promise<DadosEntrada> {
+    return this.comTrava(`portaria:${porteiro.uid}`, () => this.ligarUnidadeSemTrava(porteiro, idApartamento));
+  }
+
+  private async ligarUnidadeSemTrava(porteiro: QuemPortaria, idApartamento: number): Promise<DadosEntrada> {
     const existe = await this.prisma.apartamentos.findFirst({ where: { id: idApartamento }, select: { id_condominio: true } });
     if (!existe) throw new NotFoundException('Unidade não encontrada.');
     this.assertMesmoCondominio(existe.id_condominio, porteiro);
@@ -260,35 +318,56 @@ export class InterfoneAcoesService {
       },
     });
     const moradores = await this.nucleo.moradoresDaUnidade(apto.id);
-    const [r, monitores] = await Promise.all([
-      this.push.tocar(c.id, moradores, {
-        tipo: 'portaria_unidade',
-        unidade: rotuloAptoBloco(apto.apto, apto.bloco),
-        portao: 'Portaria',
-        condominio: apto.condominio.nome,
-      }),
+    // "Sem app" pelos aparelhos (não pelo APNs, que pode levar segundos).
+    const [alcancaveis, monitores] = await Promise.all([
+      this.push.podemTocar(moradores),
       this.prisma.interfone_Monitores.count({ where: { id_apartamento: apto.id, ativo: 1 } }),
     ]);
-    if (r.tocou === 0 && monitores === 0) {
+    if (alcancaveis.length === 0 && monitores === 0) {
       await this.prisma.interfone_Chamadas.update({
         where: { id: c.id },
         data: { estado: 'encerrada', resultado: 'falha', encerrada_em: new Date(agora), duracao_s: 0 },
       });
       throw conflito('sem_app', 'Nenhum morador da unidade atende pelo app.');
     }
+    this.nucleo.emSegundoPlano(`toque da ligação ${c.id}`, async () => {
+      const r = await this.push.tocar(c.id, moradores, {
+        tipo: 'portaria_unidade',
+        unidade: rotuloAptoBloco(apto.apto, apto.bloco),
+        portao: 'Portaria',
+        condominio: apto.condominio.nome,
+      });
+      await this.nucleo.gravarTocou(c.id, r.ids);
+    });
     return this.dadosEntrada(c.id, 'origem', porteiro.uid, porteiro.nome, segredos, agora);
+  }
+
+  /** Um "ligar" por vez por quem liga (toque duplo não cria duas chamadas). */
+  private async comTrava<T>(chave: string, fn: () => Promise<T>): Promise<T> {
+    const agora = this.agora();
+    const t = this.ligando.get(chave);
+    if (t && agora - t < LIGAR_TRAVA_MS) throw conflito('em_andamento', 'Já existe uma ligação em andamento.');
+    this.ligando.set(chave, agora);
+    try {
+      return await fn();
+    } finally {
+      this.ligando.delete(chave);
+    }
   }
 
   // ─────────────────────────────────────────── consultas
 
   async historico(idUser: number, idApartamento: number): Promise<ItemHistorico[]> {
-    await this.assertVinculo(idUser, idApartamento);
+    const vinculo = await this.assertVinculo(idUser, idApartamento);
+    // 30 dias, mas nunca de antes de o morador entrar na unidade.
+    let desde = this.agora() - HISTORICO_DIAS * DIA_MS;
+    if (vinculo.created_at instanceof Date) desde = Math.max(desde, vinculo.created_at.getTime());
     const lista = await this.prisma.interfone_Chamadas.findMany({
-      where: { id_apartamento: idApartamento, created_at: { gte: new Date(this.agora() - HISTORICO_DIAS * DIA_MS) } },
+      where: { id_apartamento: idApartamento, created_at: { gte: new Date(desde) } },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: HISTORICO_MAX,
     });
-    return lista.map((c) => this.item(c));
+    return Promise.all(lista.map((c) => this.item(c)));
   }
 
   /** Console: chamadas de hoje (Brasília) do condomínio. */
@@ -300,7 +379,7 @@ export class InterfoneAcoesService {
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: HOJE_MAX,
     });
-    return lista.map((c) => ({ ...this.item(c), estado: c.estado, unidade: unidadeDaChamada(c) }));
+    return Promise.all(lista.map(async (c) => ({ ...(await this.item(c)), estado: c.estado, unidade: unidadeDaChamada(c) })));
   }
 
   async estadoParaApp(id: number, idUser: number) {
@@ -314,7 +393,7 @@ export class InterfoneAcoesService {
       resultado: c.resultado ?? null,
       unidade: unidadeDaChamada(c),
       portao: c.facial?.nome ?? 'Portaria',
-      foto_url: c.foto ?? null,
+      foto_url: await this.assinar(c.foto),
       atendida_por_mim: c.atendida_por_tipo === 'morador' && c.atendida_por_id === idUser,
     };
   }
@@ -345,7 +424,7 @@ export class InterfoneAcoesService {
 
   // ─────────────────────────────────────────── apoio
 
-  private item(c: {
+  private async item(c: {
     id: number;
     tipo: string;
     created_at: Date;
@@ -353,16 +432,26 @@ export class InterfoneAcoesService {
     atendida_por_nome: string | null;
     foto: string | null;
     porta_aberta_em: Date | null;
-  }): ItemHistorico {
+  }): Promise<ItemHistorico> {
     return {
       id: c.id,
       tipo: c.tipo,
       inicio: c.created_at,
       resultado: c.resultado ?? null,
       atendida_por_nome: c.atendida_por_nome ?? null,
-      foto_url: c.foto ?? null,
+      foto_url: await this.assinar(c.foto),
       porta_aberta: !!c.porta_aberta_em,
     };
+  }
+
+  /** Link assinado da foto (bucket privado); null sem foto ou se assinar falhar. */
+  private async assinar(foto: string | null | undefined): Promise<string | null> {
+    if (!foto) return null;
+    try {
+      return this.storage ? await this.storage.assinarUrl(foto) : foto;
+    } catch {
+      return null;
+    }
   }
 
   private segredos(): { token: string; turn: string } {
@@ -400,7 +489,7 @@ export class InterfoneAcoesService {
     }
   }
 
-  private async assertVinculo(idUser: number, idApartamento: number | null | undefined) {
+  private async assertVinculo(idUser: number, idApartamento: number | null | undefined): Promise<{ id: number; created_at: Date | null }> {
     if (!idApartamento || !Number.isInteger(idUser) || idUser <= 0) throw new ForbiddenException('Acesso negado à unidade.');
     const v = await this.prisma.apartamentos_Users.findFirst({
       where: {
@@ -408,9 +497,10 @@ export class InterfoneAcoesService {
         id_user: idUser,
         OR: [{ vencimento: null }, { vencimento: { gte: hojeBrasilia(new Date(this.agora())) } }],
       },
-      select: { id: true },
+      select: { id: true, created_at: true },
     });
     if (!v) throw new ForbiddenException('Acesso negado à unidade.');
+    return v;
   }
 
   /** Unidade com o condomínio, se o módulo está contratado, ligado e o condomínio ativo. */
@@ -438,10 +528,5 @@ export class InterfoneAcoesService {
     } catch {
       return [];
     }
-  }
-
-  private limparReservas(agora: number) {
-    if (this.reservas.size < 200) return;
-    for (const [k, r] of this.reservas) if (r.ate <= agora) this.reservas.delete(k);
   }
 }

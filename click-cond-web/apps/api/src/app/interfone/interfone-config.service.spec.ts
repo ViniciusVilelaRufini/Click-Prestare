@@ -214,6 +214,26 @@ describe('lista telefônica Intelbras', () => {
   });
 });
 
+describe('revisão 2: CSV e corrida no PUT /ramais', () => {
+  it('célula que começa com = + - @ ganha apóstrofo (sem fórmula no Excel)', async () => {
+    const m = montar();
+    m.tabelas['apartamentos'].push({ id: 104, id_condominio: 1, apto: '301', bloco: '=HYPERLINK("x")', interfone_ramal: '301' });
+    const csv = await m.svc.listaTelefonica(1, 12);
+    const linha = csv.split(/\r?\n/).find((l) => l.includes('301;1;85'))!;
+    expect(linha.split(';')[0]).not.toMatch(/^=/);
+    expect(linha).toContain(`"'=HYPERLINK(""x"")"`);
+  });
+
+  it('chave única violada por save concorrente (P2002) → 400 ramal_repetido', async () => {
+    const m = montar();
+    m.prisma.$transaction.mockRejectedValueOnce(Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }));
+    await expect(m.svc.salvarRamais(1, [{ id_apartamento: 102, ramal: '2106' }], ATOR)).rejects.toMatchObject({
+      status: 400,
+      response: { erros: [expect.objectContaining({ motivo: 'ramal_repetido' })] },
+    });
+  });
+});
+
 describe('monitores', () => {
   it('cadastra, lista (com dados de registro) e remove; audita', async () => {
     const m = montar();

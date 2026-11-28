@@ -2378,6 +2378,9 @@ model Interfone_Chamadas {
   porta_aberta_como     String?         @db.VarChar(10)
   /// JSON array de Users.id que tocaram em Recusar.
   recusas               String?         @db.Text
+  /// JSON array de Users.id em que o toque saiu (VoIP/dados): "todos
+  /// recusaram" compara com estes, não com todos os moradores.
+  tocou_ids             String?         @db.Text
   created_at            DateTime        @default(now()) @db.DateTime(0)
   condominio            Condominios     @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_ifc_cond")
   facial                Facial_Devices? @relation(fields: [id_facial], references: [id], onDelete: SetNull, map: "fk_ifc_facial")

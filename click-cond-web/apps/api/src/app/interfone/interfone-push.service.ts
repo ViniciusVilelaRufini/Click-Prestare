@@ -58,9 +58,14 @@ export class InterfonePushService {
    * `tocou` = aparelhos em que o toque saiu (VoIP 200 / dados 'ok');
    * `semApp` = aparelhos com app sem interfone, que receberam o push comum.
    */
-  async tocar(idChamada: number, idsUsuarios: number[], dados: DadosToque): Promise<{ tocou: number; semApp: number }> {
+  async tocar(
+    idChamada: number,
+    idsUsuarios: number[],
+    dados: DadosToque,
+  ): Promise<{ tocou: number; semApp: number; ids: number[] }> {
     let tocou = 0;
     let semApp = 0;
+    const tocaram = new Set<number>();
     try {
       const alvos = await this.aparelhos(idsUsuarios, true);
       const id = String(idChamada);
@@ -80,6 +85,7 @@ export class InterfonePushService {
               });
               if (r.status === 200) {
                 tocou++;
+                tocaram.add(a.id_user);
               } else if (tokenMorto(r)) {
                 await this.prisma.users_Devices
                   .updateMany({ where: { voip_token: a.voip_token }, data: { voip_token: null } })
@@ -88,12 +94,15 @@ export class InterfonePushService {
                 this.logger.warn(`APNs recusou o VoIP da chamada ${idChamada}: ${r.status} ${r.motivo ?? ''}`);
               }
             } else if (plataforma === 'android' && versao >= INTERFONE_VERSAO_APP) {
-              if ((await this.notifications.enviarDados(a.fcm_token, conteudo)) === 'ok') tocou++;
+              if ((await this.notifications.enviarDados(a.fcm_token, conteudo)) === 'ok') {
+                tocou++;
+                tocaram.add(a.id_user);
+              }
             } else {
               semApp++;
               await this.notifications.enviarParaAparelho(
                 a.fcm_token,
-                'Visitante chamando no portão',
+                dados.tipo === 'portaria_unidade' ? 'A portaria está chamando' : 'Visitante chamando no portão',
                 'Atualize o app para atender pelo celular.',
                 { type: 'interfone_perdida', id },
               );
@@ -106,7 +115,27 @@ export class InterfonePushService {
     } catch (e: any) {
       this.logger.warn(`Interfone: toque da chamada ${idChamada} falhou: ${e?.message ?? e}`);
     }
-    return { tocou, semApp };
+    return { tocou, semApp, ids: [...tocaram].sort((x, y) => x - y) };
+  }
+
+  /**
+   * Usuários que o toque alcançaria (aparelho com o interfone novo: Android
+   * v1+, iPhone v1+ com token VoIP), sem mandar nada. Serve para decidir "sem
+   * app" sem esperar o APNs.
+   */
+  async podemTocar(idsUsuarios: number[]): Promise<number[]> {
+    try {
+      const alvos = await this.aparelhos(idsUsuarios, true);
+      const ok = new Set<number>();
+      for (const a of alvos) {
+        const plataforma = (a.plataforma ?? '').toLowerCase();
+        if ((a.interfone_versao ?? 0) < INTERFONE_VERSAO_APP) continue;
+        if (plataforma === 'android' || (plataforma === 'ios' && a.voip_token)) ok.add(a.id_user);
+      }
+      return [...ok].sort((x, y) => x - y);
+    } catch {
+      return [];
+    }
   }
 
   /**

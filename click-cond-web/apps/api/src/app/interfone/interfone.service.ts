@@ -18,11 +18,19 @@ const MIN_MS = 60_000;
 /**
  * Rede de segurança: chamada não terminal mais velha que isto (contado da
  * criação) é dada como `falha` — o serviço de voz reiniciou e perdeu o
- * `encerrada`. Por estado, com folga sobre o pior caso real: toque máximo de
- * 60 s; + 120 s na portaria; + 180 s de conversa.
+ * `encerrada`. Por estado: pior caso real (toque máximo de 60 s; + 120 s na
+ * portaria; + 180 s de conversa) + 60 s de folga.
  */
-export const ORFA_APOS_MS = { chamando: 2 * MIN_MS, portaria: 3 * MIN_MS, atendida: 6 * MIN_MS } as const;
-const ORFAS_VERIFICA_MS = MIN_MS;
+export const ORFA_APOS_MS = { chamando: 3 * MIN_MS, portaria: 4 * MIN_MS, atendida: 7 * MIN_MS } as const;
+/**
+ * Ligação originada (portaria → unidade, unidade → portaria) não atendida em
+ * toque + isto é dada como `falha`: a origem pode nunca conectar (microfone
+ * negado, app fechado, JsSIP falhou) e ninguém encerraria.
+ */
+export const ORIGINADA_FOLGA_MS = 15_000;
+const ORFAS_VERIFICA_MS = 15_000;
+/** Reserva do "atender": vale para o estado em que foi feita. */
+export const RESERVA_ATENDER_MS = 15_000;
 
 /** Tempos de toque: [mínimo, máximo, padrão] em segundos. */
 export const TOQUE_APTO_S = [15, 60, 30] as const;
@@ -101,6 +109,11 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
   esperasPortariaMs = [800, 1500, 3000];
   /** Trabalho disparado sem esperar (push, eventos do console, foto). */
   private readonly pendentes = new Set<Promise<unknown>>();
+  /**
+   * Reserva do "atender" (memória desta réplica): quem pediu primeiro fica com
+   * a chamada por RESERVA_ATENDER_MS, só enquanto ela estiver no mesmo estado.
+   */
+  private readonly reservas = new Map<number, { chave: string; estado: string; ate: number }>();
   /** Erros de número inexistente por facial (contam para o limite por minuto). */
   private readonly erros = new Map<number, number[]>();
   /** Foto do visitante (InterfoneFotoService; público para os testes trocarem). */
@@ -139,16 +152,36 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     let fechadas = 0;
     try {
       const agora = this.agora();
-      const orfas = await this.prisma.interfone_Chamadas.findMany({
+      const candidatas = await this.prisma.interfone_Chamadas.findMany({
         where: {
-          OR: (Object.keys(ORFA_APOS_MS) as (keyof typeof ORFA_APOS_MS)[]).map((estado) => ({
-            estado,
-            created_at: { lt: new Date(agora - ORFA_APOS_MS[estado]) },
-          })),
+          OR: [
+            ...(Object.keys(ORFA_APOS_MS) as (keyof typeof ORFA_APOS_MS)[]).map((estado) => ({
+              estado,
+              created_at: { lt: new Date(agora - ORFA_APOS_MS[estado]) },
+            })),
+            // Originadas ainda tocando: o prazo depende do toque do condomínio (filtro abaixo).
+            {
+              tipo: { in: ['portaria_unidade', 'unidade_portaria'] },
+              estado: { in: ['chamando', 'portaria'] },
+              created_at: { lt: new Date(agora - TOQUE_APTO_S[0] * 1000 - ORIGINADA_FOLGA_MS) },
+            },
+          ],
         },
         include: INCLUDE_CHAMADA,
         orderBy: { id: 'asc' },
         take: 200,
+      });
+      const orfas = candidatas.filter((c) => {
+        const idade = agora - c.created_at.getTime();
+        const geral = (ORFA_APOS_MS as Record<string, number>)[c.estado];
+        if (geral !== undefined && idade > geral) return true;
+        if (c.tipo === 'portaria_unidade' && c.estado === 'chamando') {
+          return idade > limitar(c.condominio?.interfone_toque_apto_s, TOQUE_APTO_S) * 1000 + ORIGINADA_FOLGA_MS;
+        }
+        if (c.tipo === 'unidade_portaria' && c.estado === 'portaria') {
+          return idade > limitar(c.condominio?.interfone_toque_portaria_s, TOQUE_PORTARIA_S) * 1000 + ORIGINADA_FOLGA_MS;
+        }
+        return false;
       });
       for (const c of orfas) {
         try {
@@ -168,7 +201,7 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
    * Roda `fn` em segundo plano: quem chamou (o serviço de voz desiste em 5 s)
    * não espera push nem evento do console. Erros só vão para o log.
    */
-  private emSegundoPlano(rotulo: string, fn: () => Promise<unknown>): void {
+  emSegundoPlano(rotulo: string, fn: () => Promise<unknown>): void {
     const p: Promise<unknown> = Promise.resolve()
       .then(fn)
       .catch((e: any) => this.logger.warn(`Interfone: ${rotulo} falhou: ${e?.message ?? e}`))
@@ -179,6 +212,26 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
   /** Para os testes: espera tudo o que foi disparado em segundo plano. */
   async ociosos(): Promise<void> {
     while (this.pendentes.size) await Promise.all([...this.pendentes]);
+  }
+
+  /**
+   * Reserva a chamada para `chave` (ex.: `morador:7`) no estado atual. Devolve
+   * false se outra pessoa já reservou neste mesmo estado e a reserva vale.
+   */
+  reservar(id: number, chave: string, estado: string, agora: number): boolean {
+    const r = this.reservas.get(id);
+    if (r && r.ate > agora && r.estado === estado && r.chave !== chave) return false;
+    this.reservas.set(id, { chave, estado, ate: agora + RESERVA_ATENDER_MS });
+    if (this.reservas.size > 500) {
+      for (const [k, v] of this.reservas) if (v.ate <= agora) this.reservas.delete(k);
+    }
+    return true;
+  }
+
+  /** Libera a reserva (de qualquer um, ou só se for de `chave`). */
+  liberarReserva(id: number, chave?: string): void {
+    const r = this.reservas.get(id);
+    if (r && (!chave || r.chave === chave)) this.reservas.delete(id);
   }
 
   private errosRecentes(idFacial: number, agora: number): number {
@@ -291,6 +344,7 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
         portao: facial.nome,
         condominio: cond.nome,
       });
+      await this.gravarTocou(chamada.id, r.ids);
       // Nenhum celular tocou (sem app novo, push falhou, ninguém com vínculo)
       // e não há monitor na unidade: vai direto para a portaria, se houver.
       if (r.tocou === 0 && monitores.length === 0) {
@@ -315,6 +369,7 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     if (!(await this.porteirosOnline(idCondominio))) return;
     const r = await this.prisma.interfone_Chamadas.updateMany({ where: { id, estado: 'chamando' }, data: { estado: 'portaria' } });
     if (r.count === 0) return;
+    this.liberarReserva(id);
     this.realtime?.emitirPortaria(idCondominio, 'interfone:chamada', {
       id,
       tipo: 'facial_unidade',
@@ -377,6 +432,9 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
   private async toqueEsgotado(c: ChamadaCarregada): Promise<{ proximo: 'portaria' | 'encerrar' }> {
     // Só o toque da unidade chamada pelo facial transfere (a portaria que liga
     // para a unidade não transfere para si mesma).
+    // Já levada à portaria (recusa de todos ou sem app) e o /portaria do
+    // controle se perdeu: segue na portaria.
+    if (c.estado === 'portaria' && c.tipo === 'facial_unidade') return { proximo: 'portaria' };
     if (c.estado !== 'chamando' || c.tipo !== 'facial_unidade') return { proximo: 'encerrar' };
     if (c.condominio?.interfone_transferir !== 1 || !(await this.porteirosOnline(c.id_condominio))) {
       return { proximo: 'encerrar' };
@@ -387,6 +445,7 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
       data: { estado: 'portaria', motivo_portaria: motivo },
     });
     if (r.count === 0) return { proximo: 'encerrar' };
+    this.liberarReserva(c.id);
     // Responde já ao serviço; os celulares param (na portaria o morador não
     // atende mais) e o console toca em segundo plano.
     this.emSegundoPlano(`transferência da chamada ${c.id}`, async () => {
@@ -426,12 +485,22 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Encerra (uma vez só) e para tudo: push `fim`, `interfone:fim` e, se não atendida, o aviso de perdida. */
+  /**
+   * Encerra (uma vez só) e para tudo. Público para as ações (ex.: todos
+   * recusaram sem portaria → `recusada` gravada antes de o serviço mandar o
+   * `encerrada`, que então é descartado pela idempotência).
+   */
+  async encerrarComo(c: ChamadaCarregada, resultado: ResultadoChamada, duracao: number | null = null): Promise<boolean> {
+    return this.fecharComo(c, resultado, duracao);
+  }
+
   private async fecharComo(c: ChamadaCarregada, resultado: ResultadoChamada, duracao: number | null): Promise<boolean> {
     const r = await this.prisma.interfone_Chamadas.updateMany({
       where: { id: c.id, estado: { not: 'encerrada' } },
       data: { estado: 'encerrada', resultado, duracao_s: duracao, encerrada_em: new Date(this.agora()) },
     });
     if (r.count === 0) return false;
+    this.liberarReserva(c.id);
     this.realtime?.emitirPortaria(c.id_condominio, 'interfone:fim', { id: c.id });
     this.emSegundoPlano(`fim da chamada ${c.id}`, async () => {
       const tocados = await this.tocadosDaChamada(c);
@@ -554,6 +623,22 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
       orderBy: { id: 'asc' },
     });
     return ms.map((m) => contaMonitor(m.id));
+  }
+
+  /** Grava em `tocou_ids` os usuários em que o toque saiu. */
+  async gravarTocou(id: number, ids: number[]): Promise<void> {
+    await this.prisma.interfone_Chamadas.updateMany({ where: { id }, data: { tocou_ids: JSON.stringify(ids ?? []) } });
+  }
+
+  /** Users.id em que o toque saiu (`tocou_ids`), ou null se ainda não gravado. */
+  tocouDaChamada(c: { tocou_ids?: string | null }): number[] | null {
+    if (!c.tocou_ids) return null;
+    try {
+      const v = JSON.parse(c.tocou_ids);
+      return Array.isArray(v) ? v.filter((n) => Number.isInteger(n)) : null;
+    } catch {
+      return null;
+    }
   }
 
   /** Quem tocou nesta chamada: os moradores da unidade (chamada para a unidade). */

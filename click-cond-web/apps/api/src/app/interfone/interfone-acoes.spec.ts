@@ -58,9 +58,10 @@ function montar(opts: { online?: boolean; dtmf?: string | null; cond?: Record<st
     ],
   });
   const push = {
-    tocar: jest.fn(async () => ({ tocou: 2, semApp: 0 })),
+    tocar: jest.fn(async () => ({ tocou: 2, semApp: 0, ids: [7, 8] })),
     fim: jest.fn(async () => undefined),
     perdida: jest.fn(async () => undefined),
+    podemTocar: jest.fn(async (ids: number[]) => ids.filter((i) => i === 7 || i === 8)),
   };
   const voz = {
     portaria: jest.fn(async () => true),
@@ -68,14 +69,28 @@ function montar(opts: { online?: boolean; dtmf?: string | null; cond?: Record<st
     encerrar: jest.fn(async () => true),
   };
   const realtime = { porteirosOnline: jest.fn(async () => opts.online ?? true), emitirPortaria: jest.fn() };
-  const facial = { abrirDispositivoInterno: jest.fn(async () => ({ ok: true })) };
+  const facial = {
+    abrirDispositivoInterno: jest.fn(async () => ({ ok: true })),
+    registrarAberturaExterna: jest.fn(async () => undefined),
+  };
+  const storage = { assinarUrl: jest.fn(async (u: string) => `${u}?assinada=1`) };
   const auditoria = { registrar: jest.fn(async () => undefined) };
   const nucleo = new InterfoneService(banco.prisma, push as any, voz as any, realtime as any);
   nucleo.agora = () => AGORA;
   nucleo.dormir = async () => undefined;
-  const acoes = new InterfoneAcoesService(banco.prisma, nucleo, push as any, voz as any, facial as any, auditoria as any);
+  const acoes = new InterfoneAcoesService(
+    banco.prisma,
+    nucleo,
+    push as any,
+    voz as any,
+    facial as any,
+    auditoria as any,
+    storage as any,
+  );
   acoes.agora = () => AGORA;
-  return { ...banco, push, voz, realtime, facial, auditoria, nucleo, acoes };
+  // Os testes conferem depois do que o núcleo e as ações disparam em segundo plano.
+  const esperar = () => nucleo.ociosos();
+  return { ...banco, push, voz, realtime, facial, auditoria, storage, nucleo, acoes, esperar };
 }
 
 const ANA = { papel: 'morador' as const, uid: 7, nome: 'Ana Morador' };
@@ -184,6 +199,7 @@ describe('recusar', () => {
   it('um recusa: nada muda; todos recusam → recusou e vai para a portaria', async () => {
     const m = montar();
     const id = await chamadaFacial(m);
+    await m.esperar();
     await expect(m.acoes.recusar(id, 7)).resolves.toEqual({ ok: true });
     expect(m.voz.portaria).not.toHaveBeenCalled();
     await m.acoes.recusar(id, 7); // repetido não conta duas vezes
@@ -199,6 +215,7 @@ describe('recusar', () => {
   it('todos recusam sem porteiro online → encerra a chamada no serviço', async () => {
     const m = montar({ online: false });
     const id = await chamadaFacial(m);
+    await m.esperar();
     await m.acoes.recusar(id, 7);
     await m.acoes.recusar(id, 8);
     expect(m.voz.portaria).not.toHaveBeenCalled();
@@ -259,6 +276,7 @@ describe('abrir', () => {
     const m = montar();
     const id = await atendidaPorAna(m);
     await m.acoes.abrir(id, ANA);
+    m.acoes.agora = () => AGORA + 5_001;
     await expect(m.acoes.abrir(id, ANA)).resolves.toEqual({ ok: true });
     expect(m.facial.abrirDispositivoInterno).toHaveBeenCalledTimes(2);
   });
@@ -334,6 +352,7 @@ describe('ligar', () => {
   it('ligarUnidade toca os moradores com portão "Portaria" e o morador atende', async () => {
     const m = montar();
     const d = await m.acoes.ligarUnidade(PORTEIRO, 100);
+    await m.esperar();
     expect(m.tabelas['interfone_Chamadas'][0]).toMatchObject({ tipo: 'portaria_unidade', estado: 'chamando', id_porteiro_origem: 3 });
     expect(m.push.tocar).toHaveBeenCalledWith(d.id, [7, 8], {
       tipo: 'portaria_unidade',
@@ -348,7 +367,7 @@ describe('ligar', () => {
   it('ligarUnidade de outro condomínio → 403; ninguém com app → 409 sem_app e chamada fechada', async () => {
     const m = montar();
     await expect(m.acoes.ligarUnidade(PORTEIRO, 900)).rejects.toMatchObject({ status: 403 });
-    m.push.tocar.mockResolvedValueOnce({ tocou: 0, semApp: 2 });
+    m.push.podemTocar.mockResolvedValueOnce([]);
     await expect(m.acoes.ligarUnidade(PORTEIRO, 100)).rejects.toMatchObject({ status: 409, response: { motivo: 'sem_app' } });
     expect(m.tabelas['interfone_Chamadas'][0]).toMatchObject({ estado: 'encerrada', resultado: 'falha' });
   });
@@ -374,7 +393,7 @@ describe('consultas do app e do console', () => {
         inicio: new Date(AGORA),
         resultado: null,
         atendida_por_nome: 'Ana Morador',
-        foto_url: 'https://bucket/interfone/x.jpg',
+        foto_url: 'https://bucket/interfone/x.jpg?assinada=1',
         porta_aberta: true,
       },
     ]);
@@ -424,8 +443,182 @@ describe('consultas do app e do console', () => {
   it('encerrar pela portaria: só do próprio condomínio', async () => {
     const m = montar();
     const id = await chamadaFacial(m);
+    await m.nucleo.evento(id, { evento: 'toque_esgotado' });
     await expect(m.acoes.encerrarPortaria(id, PORTEIRO_OUTRO)).rejects.toMatchObject({ status: 403 });
     await expect(m.acoes.encerrarPortaria(id, PORTEIRO)).resolves.toEqual({ ok: true });
     expect(m.voz.encerrar).toHaveBeenCalledWith(id);
+  });
+});
+
+describe('correções da revisão 2', () => {
+  it('todos que TOCARAM recusam (há um terceiro morador sem app) → portaria na hora', async () => {
+    const m = montar();
+    m.tabelas['users'].push({ id: 10, name: 'Sem App', fcm_token: null, interfone_receber: 1 });
+    m.tabelas['apartamentos_Users'].push({ id: 9, id_apto: 100, id_user: 10, vencimento: null });
+    const id = await chamadaFacial(m);
+    await m.esperar();
+    expect(JSON.parse(m.tabelas['interfone_Chamadas'][0].tocou_ids)).toEqual([7, 8]);
+    await m.acoes.recusar(id, 7);
+    expect(m.voz.portaria).not.toHaveBeenCalled();
+    await m.acoes.recusar(id, 8);
+    expect(m.voz.portaria).toHaveBeenCalledWith(id);
+  });
+
+  it('duas recusas ao mesmo tempo: nenhuma se perde', async () => {
+    const m = montar();
+    const id = await chamadaFacial(m);
+    await m.esperar();
+    await Promise.all([m.acoes.recusar(id, 7), m.acoes.recusar(id, 8)]);
+    expect(JSON.parse(m.tabelas['interfone_Chamadas'][0].recusas).sort()).toEqual([7, 8]);
+    expect(m.voz.portaria).toHaveBeenCalledWith(id);
+  });
+
+  it('todos recusam sem portaria: grava recusada antes de encerrar; o encerrada do serviço é descartado (sem perdida)', async () => {
+    const m = montar({ online: false });
+    const id = await chamadaFacial(m);
+    await m.esperar();
+    m.voz.encerrar.mockImplementationOnce(async () => {
+      expect(m.tabelas['interfone_Chamadas'][0]).toMatchObject({ estado: 'encerrada', resultado: 'recusada' });
+      return true;
+    });
+    await m.acoes.recusar(id, 7);
+    await m.acoes.recusar(id, 8);
+    expect(m.voz.encerrar).toHaveBeenCalledWith(id);
+    await m.nucleo.evento(id, { evento: 'encerrada', resultado: 'nao_atendida', duracao_s: 0 });
+    await m.esperar();
+    expect(m.tabelas['interfone_Chamadas'][0].resultado).toBe('recusada');
+    expect(m.push.perdida).not.toHaveBeenCalled();
+  });
+
+  it('reserva do morador não bloqueia o porteiro depois que a chamada vai para a portaria', async () => {
+    const m = montar();
+    const id = await chamadaFacial(m);
+    await m.acoes.atender(id, ANA);
+    await m.nucleo.evento(id, { evento: 'toque_esgotado' });
+    await expect(m.acoes.atender(id, PORTEIRO)).resolves.toMatchObject({ id });
+  });
+
+  it('recusar pelo mesmo usuário que reservou libera a reserva', async () => {
+    const m = montar();
+    const id = await chamadaFacial(m);
+    await m.esperar();
+    await m.acoes.atender(id, ANA);
+    await expect(m.acoes.atender(id, BRUNO)).rejects.toMatchObject({ status: 409 });
+    await m.acoes.recusar(id, 7);
+    await expect(m.acoes.atender(id, BRUNO)).resolves.toMatchObject({ id });
+  });
+
+  it('foto assinada no estado, no histórico e em hoje', async () => {
+    const m = montar();
+    const id = await chamadaFacial(m);
+    m.tabelas['interfone_Chamadas'][0].foto = 'https://bucket/interfone/x.jpg';
+    const assinada = 'https://bucket/interfone/x.jpg?assinada=1';
+    await expect(m.acoes.estadoParaApp(id, 7)).resolves.toMatchObject({ foto_url: assinada });
+    expect((await m.acoes.historico(7, 100))[0].foto_url).toBe(assinada);
+    expect((await m.acoes.hoje(1))[0].foto_url).toBe(assinada);
+  });
+
+  it('histórico do morador só a partir do vínculo dele', async () => {
+    const m = montar();
+    await chamadaFacial(m);
+    m.tabelas['apartamentos_Users'].find((v: any) => v.id_user === 8).created_at = new Date(AGORA + 1000);
+    await expect(m.acoes.historico(8, 100)).resolves.toEqual([]);
+    await expect(m.acoes.historico(7, 100)).resolves.toHaveLength(1);
+  });
+
+  describe('abrir', () => {
+    async function atendidaPorAna(m: ReturnType<typeof montar>) {
+      const id = await chamadaFacial(m);
+      await m.nucleo.evento(id, { evento: 'atendida', papel: 'morador', uid: 7 });
+      return id;
+    }
+
+    it('só até 210 s depois de atendida', async () => {
+      const m = montar();
+      const id = await atendidaPorAna(m);
+      m.acoes.agora = () => AGORA + 210_001;
+      await expect(m.acoes.abrir(id, ANA)).resolves.toEqual({ ok: false, motivo: 'chamada_expirada' });
+      expect(m.facial.abrirDispositivoInterno).not.toHaveBeenCalled();
+    });
+
+    it('no máximo 3 por chamada e 5 s entre aberturas', async () => {
+      const m = montar();
+      const id = await atendidaPorAna(m);
+      let t = AGORA;
+      m.acoes.agora = () => t;
+      await expect(m.acoes.abrir(id, ANA)).resolves.toEqual({ ok: true });
+      t += 4_000;
+      await expect(m.acoes.abrir(id, ANA)).resolves.toEqual({ ok: false, motivo: 'aguarde' });
+      t += 1_001;
+      await expect(m.acoes.abrir(id, ANA)).resolves.toEqual({ ok: true });
+      t += 5_001;
+      await expect(m.acoes.abrir(id, ANA)).resolves.toEqual({ ok: true });
+      t += 5_001;
+      await expect(m.acoes.abrir(id, ANA)).resolves.toEqual({ ok: false, motivo: 'aguarde' });
+      expect(m.facial.abrirDispositivoInterno).toHaveBeenCalledTimes(3);
+    });
+
+    it('abertura por DTMF entra no histórico de acessos como sucesso', async () => {
+      const m = montar({ dtmf: '#1' });
+      m.facial.abrirDispositivoInterno.mockResolvedValueOnce({ ok: false, erro: 'agente offline' } as any);
+      const id = await atendidaPorAna(m);
+      await expect(m.acoes.abrir(id, ANA)).resolves.toEqual({ ok: true });
+      expect(m.facial.registrarAberturaExterna).toHaveBeenCalledWith(12, {
+        origem: 'interfone',
+        tipoPessoa: 'visitante',
+        nomePessoa: 'Interfone Bloco A · Apto 106',
+        nota: 'DTMF',
+      });
+    });
+
+    it('porteiro de outro condomínio → 403; ligação portaria↔unidade → sem_portao; morador que perdeu o vínculo → 403', async () => {
+      const m = montar();
+      const id = await chamadaFacial(m);
+      await m.nucleo.evento(id, { evento: 'toque_esgotado' });
+      await m.nucleo.evento(id, { evento: 'atendida', papel: 'portaria', uid: 3 });
+      await expect(m.acoes.abrir(id, PORTEIRO_OUTRO)).rejects.toMatchObject({ status: 403 });
+      // Morador com o mesmo uid do porteiro não é quem atendeu.
+      await expect(m.acoes.abrir(id, { papel: 'morador', uid: 3, nome: 'x' })).rejects.toMatchObject({ status: 403 });
+
+      const d = await m.acoes.ligarUnidade(PORTEIRO, 100);
+      await m.nucleo.evento(d.id, { evento: 'atendida', papel: 'morador', uid: 7 });
+      await expect(m.acoes.abrir(d.id, ANA)).resolves.toEqual({ ok: false, motivo: 'sem_portao' });
+
+      const id2 = await atendidaPorAna(m);
+      m.tabelas['apartamentos_Users'] = m.tabelas['apartamentos_Users'].filter((v: any) => v.id_user !== 7);
+      await expect(m.acoes.abrir(id2, ANA)).rejects.toMatchObject({ status: 403 });
+    });
+  });
+
+  it('encerrar pela portaria: só chamada na portaria, atendida por ele ou originada por ele', async () => {
+    const m = montar();
+    const id = await chamadaFacial(m);
+    await expect(m.acoes.encerrarPortaria(id, PORTEIRO)).rejects.toMatchObject({ status: 403 }); // tocando no apto
+    await m.nucleo.evento(id, { evento: 'atendida', papel: 'morador', uid: 7 });
+    await expect(m.acoes.encerrarPortaria(id, PORTEIRO)).rejects.toMatchObject({ status: 403 }); // conversa do morador
+    const id2 = await chamadaFacial(m);
+    await m.nucleo.evento(id2, { evento: 'toque_esgotado' });
+    await expect(m.acoes.encerrarPortaria(id2, PORTEIRO)).resolves.toEqual({ ok: true });
+    const d = await m.acoes.ligarUnidade(PORTEIRO, 100);
+    await expect(m.acoes.encerrarPortaria(d.id, PORTEIRO)).resolves.toEqual({ ok: true });
+  });
+
+  it('ligar com toque duplo cria uma chamada só', async () => {
+    const m = montar();
+    const r = await Promise.allSettled([m.acoes.ligarPortaria(ANA, 100), m.acoes.ligarPortaria(ANA, 100)]);
+    expect(r.filter((x) => x.status === 'fulfilled')).toHaveLength(1);
+    expect(r.find((x) => x.status === 'rejected')).toMatchObject({ reason: { status: 409 } });
+    expect(m.tabelas['interfone_Chamadas']).toHaveLength(1);
+    const u = await Promise.allSettled([m.acoes.ligarUnidade(PORTEIRO, 100), m.acoes.ligarUnidade(PORTEIRO, 100)]);
+    expect(u.filter((x) => x.status === 'fulfilled')).toHaveLength(1);
+  });
+
+  it('ligarUnidade não espera o push (APNs lento) e decide sem_app pelos aparelhos', async () => {
+    const m = montar();
+    m.push.tocar.mockImplementationOnce(() => new Promise(() => undefined) as any);
+    await expect(m.acoes.ligarUnidade(PORTEIRO, 100)).resolves.toMatchObject({ id: 1 });
+    m.push.podemTocar.mockResolvedValueOnce([]);
+    await expect(m.acoes.ligarUnidade(PORTEIRO, 200)).rejects.toMatchObject({ status: 409, response: { motivo: 'sem_app' } });
+    expect(m.tabelas['interfone_Chamadas'][1]).toMatchObject({ estado: 'encerrada', resultado: 'falha' });
   });
 });

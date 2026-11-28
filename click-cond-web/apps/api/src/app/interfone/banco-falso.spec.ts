@@ -54,6 +54,7 @@ const PADROES: Record<string, Row> = {
     porta_aberta_por_nome: null,
     porta_aberta_como: null,
     recusas: null,
+    tocou_ids: null,
   },
   interfone_Monitores: { ativo: 1 },
 };

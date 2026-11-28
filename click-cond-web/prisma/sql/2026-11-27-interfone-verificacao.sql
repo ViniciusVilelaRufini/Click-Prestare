@@ -68,9 +68,13 @@ SELECT 'Interfone_Monitores (7 colunas)',
   IF((SELECT COUNT(*) FROM information_schema.COLUMNS
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Monitores') = 7, 'OK', 'FALTA')
 UNION ALL
-SELECT 'Interfone_Chamadas (23 colunas)',
+SELECT 'Interfone_Chamadas (24 colunas)',
   IF((SELECT COUNT(*) FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Chamadas') = 23, 'OK', 'FALTA')
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Chamadas') = 24, 'OK', 'FALTA')
+UNION ALL
+SELECT 'Interfone_Chamadas.tocou_ids',
+  IF((SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Chamadas' AND COLUMN_NAME = 'tocou_ids') = 1, 'OK', 'FALTA')
 UNION ALL
 SELECT 'Interfone_Chamadas.idx_ifc_cond_created',
   IF((SELECT COUNT(*) FROM information_schema.STATISTICS

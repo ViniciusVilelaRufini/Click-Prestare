@@ -2531,6 +2531,30 @@ export class FacialService {
   }
 
   /**
+   * Registra uma abertura que deu certo por outro caminho (ex.: DTMF pela
+   * chamada do interfone, depois de o agente falhar): evento `acionado_auto`
+   * com a nota no nome. Nunca lança.
+   */
+  async registrarAberturaExterna(
+    idDevice: number,
+    ctx: { origem: 'interfone'; tipoPessoa: string; nomePessoa: string; nota: string },
+  ): Promise<void> {
+    try {
+      const device = await this.prisma.facial_Devices.findFirst({ where: { id: idDevice } });
+      if (!device) return;
+      await this.registrarEvento(device, {
+        face_id: ctx.origem,
+        tipo_pessoa: ctx.tipoPessoa,
+        id_pessoa: null,
+        nome_pessoa: `${ctx.nomePessoa} (${ctx.nota})`,
+        evento: 'acionado_auto',
+      });
+    } catch (err: any) {
+      this.logger.warn(`Abertura externa: evento do dispositivo ${idDevice} não gravado: ${err?.message ?? err}`);
+    }
+  }
+
+  /**
    * Lista pessoas com foto cadastrada no condomínio do terminal.
    * Usado pelo simulador (browser) para fazer matching local de rostos.
    * Fotos armazenadas como URL no R2 são baixadas e convertidas para
