@@ -91,8 +91,8 @@ function lerIds(json: string | null | undefined): number[] | null {
   }
 }
 
-const contaFacial = (id: number) => `fac-${id}`;
-const contaMonitor = (id: number) => `mon-${id}`;
+const contaFacial = (id: number) => `fac${id}`;
+const contaMonitor = (id: number) => `mon${id}`;
 
 /**
  * Núcleo das chamadas do interfone. A API é dona dos dados: decide quem toca,
@@ -269,7 +269,7 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
   // ─────────────────────────────────────────── chamada do facial
 
   async novaChamadaFacial(conta: string, numero: string): Promise<NovaChamadaFacial> {
-    const m = /^fac-(\d{1,10})$/.exec(String(conta ?? ''));
+    const m = /^fac-?(\d{1,10})$/.exec(String(conta ?? ''));
     if (!m) return { ok: false, motivo: 'indisponivel' };
     const idFacial = Number(m[1]);
 
@@ -596,7 +596,7 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     const sim = new Set<number>();
     const nao = new Set<number>();
     for (const item of contas.slice(0, 5000)) {
-      const m = /^fac-(\d{1,10})$/.exec(String(item?.conta ?? ''));
+      const m = /^fac-?(\d{1,10})$/.exec(String(item?.conta ?? ''));
       if (!m) continue;
       (item.registrado === true ? sim : nao).add(Number(m[1]));
     }

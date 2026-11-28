@@ -9,8 +9,8 @@ API: `docs/superpowers/plans/2026-11-27-interfone-pelo-app.md`.
 ## Arquitetura
 
 ```
-facial (fac-<id>) ──SIP 5060──► Asterisk ──Stasis "prestare"──► serviço (src/)
-monitor (mon-<id>) ◄─originate─┘   ▲                              │ HTTPS x-voz-token
+facial (fac<id>) ──SIP 5060──► Asterisk ──Stasis "prestare"──► serviço (src/)
+monitor (mon<id>) ◄─originate─┘   ▲                              │ HTTPS x-voz-token
 app / console ──WebRTC wss:8089────┘ (sip:entrar + X-Prestare-Token)
                                                                   ▼
                                                API /api/interno/interfone/*
@@ -98,18 +98,18 @@ Na EC2 (SSM Session Manager):
 ```bash
 curl -s https://voz.prestarecondominios.com.br/controle/saude   # {"ok":true,"ari":true}
 asterisk -rx "pjsip show transports"                            # udp, tcp, wss
-asterisk -rx "pjsip show endpoints"                             # fac-* / mon-* da API
+asterisk -rx "pjsip show endpoints"                             # fac* / mon* da API
 journalctl -u prestare-voz -f
 ```
 
-**Facial simulado** (sem aparelho): com um facial habilitado na API (ex.: `fac-12`)
+**Facial simulado** (sem aparelho): com um facial habilitado na API (ex.: `fac12`)
 e o ramal configurado, rode
 
 ```bash
-sudo bash /opt/prestare-voz/atual/deploy/simular-facial.sh fac-12 106 [segundos]
+sudo bash /opt/prestare-voz/atual/deploy/simular-facial.sh fac12 106 [segundos]
 ```
 
-Ele origina pela ARI um canal Local que entra em `Stasis(prestare,facial,fac-12,106)`
+Ele origina pela ARI um canal Local que entra em `Stasis(prestare,facial,fac12,106)`
 como o facial real; o lado "visitante" fala áudio de teste (`tt-monkeys`) depois
 de atendido. Sem vídeo — para vídeo, registre um softphone (Linphone/pjsua) com
 a conta e a senha do facial (tela do síndico) e disque o ramal.

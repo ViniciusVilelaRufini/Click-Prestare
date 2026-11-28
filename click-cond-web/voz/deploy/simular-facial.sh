@@ -3,7 +3,7 @@
 # Rodar NA EC2, como root (sudo), por exemplo pelo SSM Session Manager:
 #
 #   sudo bash /opt/prestare-voz/atual/deploy/simular-facial.sh <conta> <ramal> [segundos]
-#   sudo bash /opt/prestare-voz/atual/deploy/simular-facial.sh fac-12 106
+#   sudo bash /opt/prestare-voz/atual/deploy/simular-facial.sh fac12 106
 #
 # Cria um canal Local: a ponta ";2" entra em [prestare-facial-teste], que chama
 # Stasis(prestare,facial,<conta>,<ramal>) exatamente como um facial registrado;
@@ -15,11 +15,11 @@
 # desiste em 30 s — menos que o toque do apartamento + a transferência para a portaria.
 set -euo pipefail
 
-CONTA="${1:?uso: simular-facial.sh <conta fac-ID> <ramal> [segundos]}"
-RAMAL="${2:?uso: simular-facial.sh <conta fac-ID> <ramal> [segundos]}"
+CONTA="${1:?uso: simular-facial.sh <conta facID> <ramal> [segundos]}"
+RAMAL="${2:?uso: simular-facial.sh <conta facID> <ramal> [segundos]}"
 SEGUNDOS="${3:-180}"
 
-[[ "$CONTA" =~ ^fac-[0-9]+$ ]] || { echo "conta inválida: $CONTA (esperado fac-<id>)" >&2; exit 1; }
+[[ "$CONTA" =~ ^fac-?[0-9]+$ ]] || { echo "conta inválida: $CONTA (esperado fac<id>)" >&2; exit 1; }
 [[ "$RAMAL" =~ ^[0-9]{1,10}$ ]] || { echo "ramal inválido: $RAMAL" >&2; exit 1; }
 [[ "$SEGUNDOS" =~ ^[0-9]{1,4}$ ]] || { echo "segundos inválido: $SEGUNDOS" >&2; exit 1; }
 

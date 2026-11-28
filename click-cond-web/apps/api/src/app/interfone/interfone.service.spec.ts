@@ -209,6 +209,21 @@ describe('InterfoneService.novaChamadaFacial', () => {
     await expect(svc.novaChamadaFacial('mon-12', '106')).resolves.toEqual({ ok: false, motivo: 'indisponivel' });
   });
 
+  it('conta nova sem hífen (fac12) e antiga (fac-12) são reconhecidas; mon12 não é facial', async () => {
+    const { svc } = montar();
+    await expect(svc.novaChamadaFacial('fac12', '106')).resolves.toMatchObject({ ok: true });
+    await expect(svc.novaChamadaFacial('fac-12', '106')).resolves.toMatchObject({ ok: true });
+    await expect(svc.novaChamadaFacial('mon12', '106')).resolves.toEqual({ ok: false, motivo: 'indisponivel' });
+  });
+
+  it('registros reconhece fac12 e fac-12', async () => {
+    const { svc, faciais } = montar();
+    await svc.registros([{ conta: 'fac12', registrado: true }]);
+    expect(faciais[0].interfone_registrado).toBe(1);
+    await svc.registros([{ conta: 'fac-12', registrado: false }]);
+    expect(faciais[0].interfone_registrado).toBe(0);
+  });
+
   it('cria a chamada chamando e toca os moradores com unidade, portão e condomínio', async () => {
     const { svc, push, chamadas } = montar();
     const r = await svc.novaChamadaFacial('fac-12', '106');
@@ -291,7 +306,7 @@ describe('InterfoneService.novaChamadaFacial', () => {
     const { svc, push, voz } = montar(banco);
     push.tocar.mockResolvedValueOnce({ tocou: 0, semApp: 0 });
     const r = await svc.novaChamadaFacial('fac-12', '106');
-    expect(r).toMatchObject({ ok: true, monitores: ['mon-5'] });
+    expect(r).toMatchObject({ ok: true, monitores: ['mon5'] });
     await soltar();
     expect(voz.portaria).not.toHaveBeenCalled();
   });
@@ -498,7 +513,7 @@ describe('InterfoneService — rotas internas do serviço de voz', () => {
       estado: 'chamando',
       toque_s: 30,
       toque_portaria_s: 45,
-      monitores: ['mon-5'],
+      monitores: ['mon5'],
     });
     await expect(svc.dadosParaServico(99)).rejects.toMatchObject({ status: 404 });
   });
@@ -511,7 +526,7 @@ describe('InterfoneService — rotas internas do serviço de voz', () => {
       { id: 2, id_condominio: 1, tipo: 'unidade_portaria', estado: 'portaria', id_apartamento: 100, created_at: new Date(AGORA) },
     );
     const { svc } = montar(banco);
-    await expect(svc.dadosParaServico(1)).resolves.toMatchObject({ tipo: 'portaria_unidade', monitores: ['mon-5'] });
+    await expect(svc.dadosParaServico(1)).resolves.toMatchObject({ tipo: 'portaria_unidade', monitores: ['mon5'] });
     await expect(svc.dadosParaServico(2)).resolves.toMatchObject({ tipo: 'unidade_portaria', monitores: [] });
   });
 
@@ -522,11 +537,11 @@ describe('InterfoneService — rotas internas do serviço de voz', () => {
     const { svc } = montar(banco);
     const r = await svc.contas();
     expect(r.faciais).toEqual([
-      { conta: 'fac-12', senha: 's3nha', id_condominio: 1, dtmf_modo: 'info' },
-      { conta: 'fac-13', senha: 's3nha', id_condominio: 1, dtmf_modo: 'info' },
-      { conta: 'fac-14', senha: 's3nha', id_condominio: 1, dtmf_modo: 'rfc4733' },
+      { conta: 'fac12', senha: 's3nha', id_condominio: 1, dtmf_modo: 'info' },
+      { conta: 'fac13', senha: 's3nha', id_condominio: 1, dtmf_modo: 'info' },
+      { conta: 'fac14', senha: 's3nha', id_condominio: 1, dtmf_modo: 'rfc4733' },
     ]);
-    expect(r.monitores).toEqual([{ conta: 'mon-5', senha: 'm0n', id_condominio: 1, id_apartamento: 100 }]);
+    expect(r.monitores).toEqual([{ conta: 'mon5', senha: 'm0n', id_condominio: 1, id_apartamento: 100 }]);
   });
 
   it('registros grava interfone_registrado e a hora só quando passa a 1', async () => {

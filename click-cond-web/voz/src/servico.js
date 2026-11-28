@@ -10,8 +10,8 @@ import { randomUUID } from 'node:crypto';
 import { criarChamada } from './chamada.js';
 import { verificarTokenVoz } from './token.js';
 
-const CONTA_FACIAL = /^fac-\d{1,10}$/;
-const CONTA_MONITOR = /^mon-\d{1,10}$/;
+const CONTA_FACIAL = /^fac-?\d{1,10}$/;
+const CONTA_MONITOR = /^mon-?\d{1,10}$/;
 const NUMERO = /^\d{1,10}$/;
 const TIPOS_DE_ORIGEM = new Set(['portaria_unidade', 'unidade_portaria']);
 
