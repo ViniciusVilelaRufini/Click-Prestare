@@ -73,6 +73,11 @@ export class CentralTrocarSenhaComponent {
       this.confirma.set('');
       this.trocada.emit();
     } catch (e) {
+      // 401: a sessão acabou (operador desativado ou outra troca derrubou esta) — volta ao login.
+      if ((e as { status?: number })?.status === 401) {
+        this.auth.logout();
+        return;
+      }
       this.erro.set(CentralAuthService.mensagemDeErro(e, 'senha'));
     } finally {
       this.salvando.set(false);

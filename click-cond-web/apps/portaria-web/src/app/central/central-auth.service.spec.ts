@@ -107,4 +107,17 @@ describe('CentralAuthService', () => {
       'Muitas tentativas. Aguarde alguns minutos e tente de novo.',
     );
   });
+
+  it('etapa do código mostra o texto da API quando vem (tentativas restantes)', () => {
+    montar();
+    const e = new HttpErrorResponse({ status: 401, error: { message: 'Código incorreto. Restam 2 tentativa(s).' } });
+    expect(CentralAuthService.mensagemDeErro(e, 'codigo')).toBe('Código incorreto. Restam 2 tentativa(s).');
+    expect(CentralAuthService.mensagemDeErro(new HttpErrorResponse({ status: 401 }), 'codigo')).toBe(
+      'Código inválido ou vencido. Confira o e-mail ou entre de novo.',
+    );
+    // No login, o 401 continua genérico (não diz se o e-mail existe).
+    expect(CentralAuthService.mensagemDeErro(new HttpErrorResponse({ status: 401, error: { message: 'Qualquer' } }), 'login')).toBe(
+      'E-mail ou senha incorretos.',
+    );
+  });
 });

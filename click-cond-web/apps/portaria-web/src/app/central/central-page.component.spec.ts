@@ -18,6 +18,7 @@ import {
   CentralApiStub,
   CentralRealtimeStub,
   PANICO,
+  PEDIDO,
   tokenDeTeste,
 } from './central.testing';
 
@@ -90,6 +91,82 @@ describe('Central — tela', () => {
     expect(el(f).querySelector('app-central-trocar-senha')).toBeNull();
     expect(api.fila).toHaveBeenCalled();
     expect(rt.total('interfone:chamada')).toBe(1);
+  });
+
+  it('troca de senha com 401 (sessão encerrada): sai e volta para o login', async () => {
+    const f = montar(tokenDeTeste({ trocar_senha: true }));
+    const nav = jest.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    const inputs = el(f).querySelectorAll('app-central-trocar-senha input');
+    ['temporaria-1', 'senha-nova-123', 'senha-nova-123'].forEach((v, i) => {
+      (inputs[i] as HTMLInputElement).value = v;
+      inputs[i].dispatchEvent(new Event('input'));
+    });
+    (el(f).querySelector('app-central-trocar-senha form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+    http.expectOne('/api/central/auth/senha').flush({ message: 'Sessão encerrada.' }, { status: 401, statusText: 'Unauthorized' });
+    await tique();
+    f.detectChanges();
+    await f.whenStable();
+    expect(localStorage.getItem('central_token')).toBeNull();
+    expect(nav).toHaveBeenCalledWith('/central/login');
+  });
+
+  /** Atende a chamada da fila pela tela e deixa a conversa em curso. */
+  async function atenderPelaTela(f: { nativeElement: HTMLElement; detectChanges: () => void }) {
+    f.detectChanges();
+    (el(f).querySelector('app-central-fila li button') as HTMLButtonElement).click();
+    await tique();
+    sip.ultima!.atender();
+    f.detectChanges();
+  }
+
+  it('chamada encerrada: o contexto fica com "Chamada encerrada" até Fechar', async () => {
+    const f = montar(tokenDeTeste());
+    rt.emitir('interfone:chamada', CHAMADA_A);
+    await atenderPelaTela(f);
+    botao(f, 'Encerrar')!.click();
+    f.detectChanges();
+    const aside = () => el(f).querySelector('app-central-atendimento aside')!.textContent!;
+    expect(aside()).toContain('Chamada encerrada');
+    expect(aside()).toContain('Ana, Bruno');
+    expect(el(f).querySelector('input[name="pedido-nome"]')).toBeNull();
+    botao(f, 'Fechar')!.click();
+    f.detectChanges();
+    expect(aside()).not.toContain('Ana, Bruno');
+    expect(aside()).not.toContain('Chamada encerrada');
+  });
+
+  it('pedido mostra o alcance do push', async () => {
+    const f = montar(tokenDeTeste());
+    rt.emitir('interfone:chamada', CHAMADA_A);
+    await atenderPelaTela(f);
+    const ev = (alcance: unknown) => {
+      rt.emitir('interfone:pedido', { ...PEDIDO, alcance, id_chamada: 41, id_condominio: 1 });
+      f.detectChanges();
+    };
+    const card = () => el(f).querySelector('[data-teste="pedido"]')!.textContent!;
+    ev({ apps: 2, antigos: 0 });
+    expect(card()).toContain('Enviado para 2 celulares');
+    ev({ apps: 1, antigos: 0 });
+    expect(card()).toContain('Enviado para 1 celular');
+    ev({ apps: 0, antigos: 0 });
+    expect(card()).toContain('Nenhum morador pode responder pelo app');
+    expect(card()).not.toContain('desatualizado');
+    ev({ apps: 0, antigos: 1 });
+    expect(card()).toContain('Nenhum morador pode responder pelo app — morador com app desatualizado');
+  });
+
+  it('"Pedir autorização ao morador" só em chamada com portão', async () => {
+    const f = montar(tokenDeTeste());
+    rt.emitir('interfone:chamada', { ...CHAMADA_A, id: 43, tipo: 'unidade_portaria', foto_url: null, morador_nome: 'Ana' });
+    await atenderPelaTela(f);
+    expect(el(f).querySelector('app-central-atendimento')!.textContent).toContain('Ana, Bruno');
+    expect(botao(f, 'Pedir autorização ao morador')).toBeUndefined();
+    botao(f, 'Encerrar')!.click();
+    f.detectChanges();
+    botao(f, 'Fechar')!.click();
+    rt.emitir('interfone:chamada', CHAMADA_A);
+    await atenderPelaTela(f);
+    expect(botao(f, 'Pedir autorização ao morador')).toBeDefined();
   });
 
   it('mostra a fila com condomínio, unidade e portão; Atender entra na chamada com o contexto', async () => {

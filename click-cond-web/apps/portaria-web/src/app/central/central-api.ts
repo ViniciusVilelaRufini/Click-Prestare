@@ -44,6 +44,11 @@ export interface PedidoResumo {
   respondido_por_nome: string | null;
   respondido_em: string | null;
   portao_aberto: boolean;
+  /**
+   * Aparelhos que o push alcançou: `apps` com a tela do pedido, `antigos` só com o aviso "Atualize o app".
+   * Null até o push sair.
+   */
+  alcance?: { apps: number; antigos: number } | null;
 }
 
 /** Evento `interfone:pedido`: o pedido + a chamada e o condomínio. */

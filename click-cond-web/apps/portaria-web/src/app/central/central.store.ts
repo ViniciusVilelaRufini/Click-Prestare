@@ -48,6 +48,8 @@ const MOTIVOS: Record<string, string> = {
   modulo_desligado: 'O interfone não está ligado neste condomínio.',
   pedido_respondido: 'O morador já respondeu este pedido.',
   pedido_expirado: 'O pedido expirou.',
+  limite_pedidos: 'Limite de 3 pedidos nesta chamada.',
+  pedido_pendente: 'Já há um pedido esperando a resposta do morador.',
 };
 
 function mensagemDaApi(e: HttpErrorResponse | null | undefined): string | null {
@@ -113,6 +115,7 @@ function semExtras(p: EventoPedido | PedidoResumo): PedidoResumo {
     respondido_por_nome: p.respondido_por_nome ?? null,
     respondido_em: p.respondido_em ?? null,
     portao_aberto: !!p.portao_aberto,
+    alcance: p.alcance ? { apps: Number(p.alcance.apps) || 0, antigos: Number(p.alcance.antigos) || 0 } : null,
   };
 }
 
@@ -136,6 +139,15 @@ export class CentralStore {
   readonly emChamada = signal<ChamadaEmCurso | null>(null);
   readonly estado = signal<EstadoSessao | null>(null);
   readonly contexto = signal<ContextoChamada | null>(null);
+  /**
+   * Chamada cujo contexto está na direita: a em curso ou a que acabou. A que acabou fica até o operador fechar ou
+   * atender outra — o morador pode responder o pedido até 5 min depois, e o resultado chega ao vivo.
+   */
+  readonly chamadaDoContexto = signal<ChamadaEmCurso | null>(null);
+  readonly contextoEncerrado = computed(() => {
+    const c = this.chamadaDoContexto();
+    return !!c && this.emChamada()?.id !== c.id;
+  });
   readonly carregandoContexto = signal(false);
   readonly alertasAbertos = signal<AlertaCentral[]>([]);
   readonly condominios = signal<CondominioCentral[]>([]);
@@ -184,6 +196,8 @@ export class CentralStore {
       this.realtime.on('interfone:fim', (d) => this.aoFim(d)),
       this.realtime.on('interfone:pedido', (d) => this.aoPedido(d)),
       this.realtime.on('alerta:novo', (d) => this.aoAlerta(d)),
+      // Outro operador marcou "visto": sai da tela e a sirene para para todos.
+      this.realtime.on('alerta:visto', (d) => this.aoVisto(d)),
       // Reconectou: algum evento pode ter se perdido.
       this.realtime.on('connect', () => {
         this.recarregarFila();
@@ -214,6 +228,7 @@ export class CentralStore {
     this.fila.set([]);
     this.alertasAbertos.set([]);
     this.limparChamada();
+    this.fecharContexto();
     this.atendendo.set(null);
     this.discando.set(false);
     this.ultimoEvento.clear();
@@ -261,7 +276,7 @@ export class CentralStore {
     this.tirarDaFila(id);
     this.emChamada.set(chamada);
     this.estado.set('conectando');
-    this.carregarContexto(id);
+    this.carregarContexto(chamada);
     this.atualizarSom();
     await this.conectar(dados, chamada, () => {
       // Não conectou: se a chamada ainda espera, volta para a fila (outro operador, ou este de novo).
@@ -337,7 +352,7 @@ export class CentralStore {
     this.pedindo.set(true);
     try {
       const p = await firstValueFrom(this.api.pedido(c.id, dto));
-      if (this.emChamada()?.id === c.id) this.contexto.update((ctx) => (ctx ? { ...ctx, pedido: semExtras(p) } : ctx));
+      if (this.chamadaDoContexto()?.id === c.id) this.contexto.update((ctx) => (ctx ? { ...ctx, pedido: semExtras(p) } : ctx));
       return true;
     } catch (e) {
       this.erro.set(mensagemDaApi(e as HttpErrorResponse) ?? 'Não foi possível enviar o pedido ao morador.');
@@ -379,7 +394,7 @@ export class CentralStore {
     };
     this.emChamada.set(chamada);
     this.estado.set('conectando');
-    this.carregarContexto(dados.id);
+    this.carregarContexto(chamada);
     this.atualizarSom();
     await this.conectar(dados, chamada, () => undefined);
   }
@@ -406,6 +421,13 @@ export class CentralStore {
   ativarSom(): void {
     this.toque.desbloquear();
     this.alarme.desbloquear();
+  }
+
+  /** "Fechar" no contexto de uma chamada que já terminou. */
+  fecharContexto(): void {
+    this.chamadaDoContexto.set(null);
+    this.contexto.set(null);
+    this.carregandoContexto.set(false);
   }
 
   fecharAviso(): void {
@@ -477,9 +499,18 @@ export class CentralStore {
   private aoPedido(d: unknown): void {
     const ev = d as Partial<EventoPedido> | null;
     if (!ev || !Number.isInteger(Number(ev.id))) return;
-    const c = this.emChamada();
+    // Vale também para a chamada que acabou e ainda está no painel (resposta tardia do morador).
+    const c = this.chamadaDoContexto();
     if (!c || Number(ev.id_chamada) !== c.id) return;
     this.contexto.update((ctx) => (ctx ? { ...ctx, pedido: semExtras(ev as EventoPedido) } : ctx));
+  }
+
+  private aoVisto(d: unknown): void {
+    const id = Number((d as { id?: unknown } | null)?.id);
+    if (!Number.isInteger(id) || id <= 0) return;
+    if (!this.alertasAbertos().some((a) => a.id === id)) return;
+    this.alertasAbertos.update((l) => l.filter((a) => a.id !== id));
+    this.atualizarSom();
   }
 
   private aoAlerta(d: unknown): void {
@@ -489,17 +520,19 @@ export class CentralStore {
     this.atualizarSom();
   }
 
-  private carregarContexto(id: number): void {
+  private carregarContexto(chamada: ChamadaEmCurso): void {
+    const id = chamada.id;
+    this.chamadaDoContexto.set(chamada);
     this.contexto.set(null);
     this.carregandoContexto.set(true);
     this.api.contexto(id).subscribe({
       next: (ctx) => {
-        if (this.emChamada()?.id !== id) return;
+        if (this.chamadaDoContexto()?.id !== id) return;
         this.carregandoContexto.set(false);
-        this.contexto.set(ctx ? { ...ctx, pedido: ctx.pedido ?? null } : null);
+        this.contexto.set(ctx ? { ...ctx, pedido: ctx.pedido ? semExtras(ctx.pedido) : null } : null);
       },
       error: () => {
-        if (this.emChamada()?.id === id) this.carregandoContexto.set(false);
+        if (this.chamadaDoContexto()?.id === id) this.carregandoContexto.set(false);
       },
     });
   }
@@ -510,6 +543,7 @@ export class CentralStore {
       sessao = await this.sip.entrar(d, this.video, this.audio);
     } catch (e) {
       if (this.emChamada()?.id === chamada.id) this.limparChamada();
+      if (this.chamadaDoContexto()?.id === chamada.id) this.fecharContexto();
       if ((e as { name?: string })?.name === 'NotAllowedError') this.marcarMicrofoneNegado();
       else this.erro.set('Não foi possível conectar à central de voz.');
       aoFalhar();
@@ -565,8 +599,6 @@ export class CentralStore {
   private limparChamada(): void {
     this.emChamada.set(null);
     this.estado.set(null);
-    this.contexto.set(null);
-    this.carregandoContexto.set(false);
     this.mudo.set(false);
     this.abrindo.set(false);
     this.pedindo.set(false);

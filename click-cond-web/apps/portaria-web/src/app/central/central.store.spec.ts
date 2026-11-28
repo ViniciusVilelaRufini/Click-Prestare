@@ -67,7 +67,7 @@ describe('CentralStore', () => {
       expect(api.fila).toHaveBeenCalled();
       expect(api.alertas).toHaveBeenCalledWith(true);
       expect(api.condominios).toHaveBeenCalled();
-      for (const ev of ['interfone:chamada', 'interfone:fim', 'interfone:pedido', 'alerta:novo']) expect(rt.total(ev)).toBe(1);
+      for (const ev of ['interfone:chamada', 'interfone:fim', 'interfone:pedido', 'alerta:novo', 'alerta:visto']) expect(rt.total(ev)).toBe(1);
     });
 
     it('parar tira os ouvintes, para o toque e o alarme e fecha o socket', () => {
@@ -169,13 +169,29 @@ describe('CentralStore', () => {
       expect(store.erro()).toBe('Não foi possível conectar à central de voz.');
     });
 
-    it('a outra ponta desliga: limpa a chamada e o contexto', async () => {
+    it('a outra ponta desliga: a chamada sai, o contexto fica marcado como encerrado até Fechar', async () => {
       montar();
       store.iniciar();
       await emConversa();
       sip.ultima!.acabar({ atendida: true });
       expect(store.emChamada()).toBeNull();
+      expect(store.contextoEncerrado()).toBe(true);
+      expect(store.chamadaDoContexto()?.id).toBe(41);
+      expect(store.contexto()).toEqual(CONTEXTO);
+      store.fecharContexto();
       expect(store.contexto()).toBeNull();
+      expect(store.chamadaDoContexto()).toBeNull();
+      expect(store.contextoEncerrado()).toBe(false);
+    });
+
+    it('a voz não conecta: o contexto não fica (a chamada nem foi atendida)', async () => {
+      montar();
+      store.iniciar();
+      rt.emitir('interfone:chamada', CHAMADA_A);
+      sip.entrar.mockRejectedValueOnce(new Error('sem_conexao_central'));
+      await store.atender(41);
+      expect(store.contexto()).toBeNull();
+      expect(store.chamadaDoContexto()).toBeNull();
     });
   });
 
@@ -260,6 +276,49 @@ describe('CentralStore', () => {
       );
       expect(store.contexto()?.pedido).not.toHaveProperty('id_chamada');
     });
+
+    it('chamada encerrada: a resposta do morador que chega depois ainda aparece; atender outra troca o contexto', async () => {
+      montar();
+      store.iniciar();
+      await emConversa();
+      await store.pedirAutorizacao('Rodrigo', 'Visita', 'visita');
+      store.encerrar();
+      expect(store.emChamada()).toBeNull();
+      expect(store.contextoEncerrado()).toBe(true);
+      expect(store.contexto()?.pedido?.estado).toBe('pendente');
+      rt.emitir('interfone:pedido', { ...PEDIDO, estado: 'autorizado', respondido_por_nome: 'Ana', portao_aberto: true, id_chamada: 41, id_condominio: 1 });
+      expect(store.contexto()?.pedido).toEqual(expect.objectContaining({ estado: 'autorizado', portao_aberto: true }));
+      // Outra chamada atendida: o contexto passa a ser dela.
+      api.contexto.mockReturnValueOnce(of({ ...CONTEXTO, unidade: 'Portaria', pedido: null }));
+      rt.emitir('interfone:chamada', CHAMADA_B);
+      await store.atender(42);
+      expect(store.contextoEncerrado()).toBe(false);
+      expect(store.chamadaDoContexto()?.id).toBe(42);
+      expect(store.contexto()?.pedido).toBeNull();
+      rt.emitir('interfone:pedido', { ...PEDIDO, estado: 'negado', id_chamada: 41, id_condominio: 1 });
+      expect(store.contexto()?.pedido).toBeNull();
+    });
+
+    it('alcance do push vem no pedido e no evento', async () => {
+      montar();
+      store.iniciar();
+      await emConversa();
+      await store.pedirAutorizacao('Rodrigo', null, 'visita');
+      rt.emitir('interfone:pedido', { ...PEDIDO, alcance: { apps: 2, antigos: 1 }, id_chamada: 41, id_condominio: 1 });
+      expect(store.contexto()?.pedido?.alcance).toEqual({ apps: 2, antigos: 1 });
+    });
+
+    it.each([
+      ['limite_pedidos', 'Limite de 3 pedidos nesta chamada.'],
+      ['pedido_pendente', 'Já há um pedido esperando a resposta do morador.'],
+    ])('409 %s ao pedir vira texto em pt-BR', async (motivo, texto) => {
+      montar();
+      store.iniciar();
+      await emConversa();
+      api.pedido.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 409, error: { motivo, message: 'Conflict' } })));
+      expect(await store.pedirAutorizacao('Rodrigo', null, 'visita')).toBe(false);
+      expect(store.erro()).toBe(texto);
+    });
   });
 
   describe('alertas', () => {
@@ -272,6 +331,19 @@ describe('CentralStore', () => {
       expect(alarme.tocando).toBe(true);
       await store.marcarVisto(7);
       expect(api.alertaVisto).toHaveBeenCalledWith(7);
+      expect(store.alertasAbertos()).toEqual([]);
+      expect(store.somAlerta()).toBe(false);
+      expect(alarme.tocando).toBe(false);
+    });
+
+    it('alerta:visto de outro operador tira o alerta e para a sirene na hora', () => {
+      montar();
+      store.iniciar();
+      rt.emitir('alerta:novo', { ...PANICO });
+      expect(alarme.tocando).toBe(true);
+      rt.emitir('alerta:visto', { id: 99, id_condominio: 1, visto_por: 'Central: Outro', visto_em: '2026-11-28T13:06:00.000Z' });
+      expect(store.alertasAbertos()).toHaveLength(1);
+      rt.emitir('alerta:visto', { id: 7, id_condominio: 1, visto_por: 'Central: Outro', visto_em: '2026-11-28T13:06:00.000Z' });
       expect(store.alertasAbertos()).toEqual([]);
       expect(store.somAlerta()).toBe(false);
       expect(alarme.tocando).toBe(false);

@@ -26,6 +26,19 @@ export function textoDoPedido(p: PedidoResumo): string {
 }
 
 /**
+ * Quantos celulares o push do pedido alcançou (null enquanto o push não saiu). Sem app que responda, o operador
+ * precisa saber logo para resolver de outro jeito (ligar, decidir pelo motivo).
+ */
+export function textoDoAlcance(p: PedidoResumo): string | null {
+  const a = p.alcance;
+  if (!a) return null;
+  if (a.apps === 0) {
+    return 'Nenhum morador pode responder pelo app' + (a.antigos > 0 ? ' — morador com app desatualizado' : '');
+  }
+  return `Enviado para ${a.apps} ${a.apps === 1 ? 'celular' : 'celulares'}`;
+}
+
+/**
  * Centro e direita da Central: a chamada em atendimento (vídeo do facial, áudio, mudo, Abrir portão com motivo,
  * Encerrar) e o contexto para decidir (moradores, esperados hoje, instruções, pedido ao morador ao vivo).
  * Os elementos de vídeo e áudio ficam sempre no DOM: o store entrega a mídia do JsSIP a eles.
@@ -114,11 +127,20 @@ export function textoDoPedido(p: PedidoResumo): string {
     <aside class="ps-panel" aria-labelledby="titulo-contexto">
       <div class="ps-panel-head">
         <h2 id="titulo-contexto" class="ps-h2">Contexto</h2>
+        @if (store.contextoEncerrado()) {
+          <span class="flex items-center gap-2">
+            <span class="ps-tag" data-teste="contexto-encerrado">Chamada encerrada</span>
+            <button type="button" class="ps-btn ps-btn-ghost ps-btn-sm" (click)="store.fecharContexto()">Fechar</button>
+          </span>
+        }
       </div>
-      @if (!store.emChamada()) {
+      @if (!store.chamadaDoContexto()) {
         <p class="ps-cap px-4 py-6">O contexto da chamada aparece aqui ao atender.</p>
       } @else if (store.contexto(); as ctx) {
         <div class="px-4 py-4 space-y-4 text-sm">
+          @if (store.contextoEncerrado()) {
+            <p class="ps-cap">A resposta do morador ao pedido continua chegando aqui por alguns minutos.</p>
+          }
           <div>
             <p class="ps-label">Condomínio</p>
             <p class="mt-1">{{ ctx.condominio }}{{ ctx.portao ? ' · ' + ctx.portao : '' }}</p>
@@ -165,6 +187,9 @@ export function textoDoPedido(p: PedidoResumo): string {
                   <span class="font-medium">{{ textoPedido(p) }}</span>
                 </p>
                 <p class="ps-cap">{{ p.nome_falado }}{{ p.motivo ? ' · ' + p.motivo : '' }}</p>
+                @if (alcance(p); as a) {
+                  <p class="ps-cap" [class.central-sem-alcance]="!!p.alcance && p.alcance.apps === 0" data-teste="alcance">{{ a }}</p>
+                }
                 @if (p.mensagem) {
                   <p class="mt-1">“{{ p.mensagem }}”</p>
                 }
@@ -173,7 +198,7 @@ export function textoDoPedido(p: PedidoResumo): string {
                 }
               </div>
             }
-            @if (!ctx.pedido || ctx.pedido.estado !== 'pendente') {
+            @if (podeMostrarPedido() && (!ctx.pedido || ctx.pedido.estado !== 'pendente')) {
               <form class="mt-2 space-y-2" (submit)="$event.preventDefault(); pedir()">
                 <span class="ps-field">
                   <input type="text" name="pedido-nome" maxlength="120" placeholder="Nome de quem está no portão" [value]="pedidoNome()"
@@ -221,6 +246,9 @@ export function textoDoPedido(p: PedidoResumo): string {
       .central-opcao.on {
         border-color: var(--ink);
       }
+      .central-sem-alcance {
+        color: var(--signal-danger);
+      }
     `,
   ],
 })
@@ -266,6 +294,12 @@ export class CentralAtendimentoComponent implements OnInit, AfterViewInit, OnDes
     () => this.store.podeAbrir() && !!this.motivo() && (this.motivo() !== 'outro' || !!this.detalhe().trim()),
   );
 
+  /** Pedido ao morador: só com a chamada em curso e com portão (o morador autoriza e o portão abre). */
+  readonly podeMostrarPedido = computed(() => {
+    const c = this.store.emChamada();
+    return !!c && this.temPortao(c);
+  });
+
   /** Chamada da portaria (o visitante discou a portaria): o pedido precisa da unidade. */
   readonly precisaUnidade = computed(() => {
     const c = this.store.emChamada();
@@ -297,6 +331,10 @@ export class CentralAtendimentoComponent implements OnInit, AfterViewInit, OnDes
 
   textoPedido(p: PedidoResumo): string {
     return textoDoPedido(p);
+  }
+
+  alcance(p: PedidoResumo): string | null {
+    return textoDoAlcance(p);
   }
 
   async confirmarAbrir(): Promise<void> {

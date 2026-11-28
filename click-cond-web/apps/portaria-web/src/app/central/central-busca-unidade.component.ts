@@ -1,6 +1,6 @@
 import { Component, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subject, catchError, debounceTime, of, switchMap } from 'rxjs';
+import { Subject, catchError, debounceTime, map, of, switchMap } from 'rxjs';
 import { CentralApi, UnidadeCentral } from './central-api';
 
 /**
@@ -66,20 +66,23 @@ export class CentralBuscaUnidadeComponent {
       .pipe(
         debounceTime(250),
         switchMap(({ id, t }) => {
-          if (!id || !t) return of([] as UnidadeCentral[]);
+          if (!id || !t) return of({ id, lista: [] as UnidadeCentral[] });
           this.buscando.set(true);
           return this.api.unidades(id, t).pipe(
+            map((lista) => ({ id, lista })),
             catchError(() => {
-              this.erro.set('Não foi possível buscar as unidades.');
-              return of([] as UnidadeCentral[]);
+              if (id === this.idCondominio()) this.erro.set('Não foi possível buscar as unidades.');
+              return of({ id, lista: [] as UnidadeCentral[] });
             }),
           );
         }),
         takeUntilDestroyed(),
       )
-      .subscribe((l) => {
+      .subscribe(({ id, lista }) => {
         this.buscando.set(false);
-        this.resultados.set(Array.isArray(l) ? l : []);
+        // Resposta de outro condomínio (o operador trocou no meio): descarta — "Ligar" ligaria para a unidade errada.
+        if (id !== this.idCondominio()) return;
+        this.resultados.set(Array.isArray(lista) ? lista : []);
       });
     // Trocou o condomínio: a busca recomeça.
     effect(() => {
@@ -88,6 +91,8 @@ export class CentralBuscaUnidadeComponent {
         this.busca.set('');
         this.resultados.set([]);
         this.erro.set(null);
+        // Cancela a busca do condomínio anterior que ainda estava no ar.
+        this.termos.next({ id: null, t: '' });
       });
     });
   }

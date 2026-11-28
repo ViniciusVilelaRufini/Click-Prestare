@@ -153,7 +153,11 @@ export class CentralAuthService {
     const status = (err as HttpErrorResponse)?.status;
     if (status === 429) return 'Muitas tentativas. Aguarde alguns minutos e tente de novo.';
     if (status === 401 || status === 400 || status === 403) {
-      if (etapa === 'codigo') return 'Código inválido ou vencido. Confira o e-mail ou entre de novo.';
+      if (etapa === 'codigo') {
+        // A API diz em pt-BR quantas tentativas restam ("Código incorreto. Restam N tentativa(s).").
+        const m = (err as HttpErrorResponse)?.error?.message;
+        return typeof m === 'string' && m.trim() ? m : 'Código inválido ou vencido. Confira o e-mail ou entre de novo.';
+      }
       if (etapa === 'senha') {
         const m = (err as HttpErrorResponse)?.error?.message;
         return typeof m === 'string' && m.trim() ? m : 'Senha atual incorreta.';

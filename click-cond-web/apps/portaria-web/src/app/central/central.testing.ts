@@ -56,6 +56,7 @@ export const PEDIDO: PedidoResumo = {
   respondido_por_nome: null,
   respondido_em: null,
   portao_aberto: false,
+  alcance: null,
 };
 
 export const PANICO: AlertaCentral = {
