@@ -77,6 +77,15 @@ const TIPOS_COM_PORTAO: readonly string[] = ['facial_unidade', 'facial_portaria'
  */
 export const PEDIDO_JANELA_MS = 5 * 60_000;
 export const PEDIDO_TETO_MS = 15 * 60_000;
+
+/**
+ * Instante no segundo cheio (sem milissegundos), como fica numa coluna DATETIME(0). Toda data que
+ * é gravada e depois comparada por igualdade (ou contra outra coluna) passa por aqui: o MySQL
+ * arredonda o milissegundo e a igualdade com o valor em memória não casaria.
+ */
+export function segundoCheio(ms: number): Date {
+  return new Date(Math.floor(ms / 1000) * 1000);
+}
 export function chamadaNaJanelaDoPedido(
   c: { estado: string; encerrada_em: Date | null; created_at: Date },
   agoraMs: number,
@@ -322,7 +331,8 @@ export class InterfoneAcoesService {
     if (!temPortao(c)) return { ok: false, motivo: 'sem_portao' };
     if (!this.facial) return { ok: false, motivo: 'indisponivel' };
     // Uma abertura por pedido por chamada: marca antes de acionar (só quem marcou segue).
-    const marca = new Date(this.agora());
+    // Segundo cheio: o mesmo valor que fica na coluna DATETIME(0) (a liberação abaixo compara por igualdade).
+    const marca = segundoCheio(this.agora());
     const marcou = await this.prisma.interfone_Chamadas.updateMany({
       where: { id: c.id, pedido_aberto_em: null },
       data: { pedido_aberto_em: marca },
@@ -370,7 +380,8 @@ export class InterfoneAcoesService {
     }
     if (!como) return false;
 
-    const agora = new Date(this.agora());
+    // Segundo cheio (DATETIME(0)): o pedido compara porta_aberta_em >= respondido_em.
+    const agora = segundoCheio(this.agora());
     await this.prisma.interfone_Chamadas.update({
       where: { id: c.id },
       data: { porta_aberta_em: agora, porta_aberta_por_nome: (autor.nome || '').slice(0, 120) || null, porta_aberta_como: como },

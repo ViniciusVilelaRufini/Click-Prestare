@@ -87,7 +87,25 @@ function montar(opts: { dtmf?: string | null; central?: number } = {}) {
   const pedidos = new InterfonePedidosService(banco.prisma, nucleo, acoes, push as any, realtime as any, storage as any);
   pedidos.agora = () => relogio.t;
   const esperar = () => nucleo.ociosos();
+  comoDateTime0(banco.prisma);
   return { ...banco, push, voz, realtime, facial, storage, auditoria, nucleo, acoes, pedidos, relogio, esperar };
+}
+
+/**
+ * Como o MySQL com DATETIME(0): a data gravada perde os milissegundos (arredonda para o segundo).
+ * Sem isto o banco falso guarda o milissegundo e esconde comparação por igualdade que no banco
+ * real nunca casa.
+ */
+function comoDateTime0(prisma: any) {
+  const arred = (v: unknown) => (v instanceof Date ? new Date(Math.round(v.getTime() / 1000) * 1000) : v);
+  for (const modelo of ['interfone_Chamadas', 'interfone_Pedidos']) {
+    for (const op of ['create', 'update', 'updateMany']) {
+      const original = prisma[modelo][op].getMockImplementation();
+      prisma[modelo][op].mockImplementation(async (a: any) =>
+        original({ ...a, data: Object.fromEntries(Object.entries(a?.data ?? {}).map(([k, v]) => [k, arred(v)])) }),
+      );
+    }
+  }
 }
 
 type M = ReturnType<typeof montar>;
@@ -677,5 +695,34 @@ describe('pedido do portão — correções da revisão (uma abertura por chamad
     const p = await m.pedidos.criar(entrada(idChamada));
     m.relogio.t = AGORA + 5 * MIN;
     await expect(m.pedidos.responder(p.id, 7, 'autorizar')).resolves.toMatchObject({ portao_aberto: true });
+  });
+});
+
+describe('pedido do portão — datas com milissegundo (DATETIME(0))', () => {
+  it('pedido que não abriu libera a marca da chamada mesmo com o relógio fora do segundo cheio', async () => {
+    const m = montar();
+    m.facial.abrirDispositivoInterno.mockResolvedValueOnce({ ok: false, erro: 'agente offline' } as any);
+    const idChamada = await chamada(m);
+    m.relogio.t = AGORA + 30_600;
+    const a = await m.pedidos.criar(entrada(idChamada));
+    await expect(m.pedidos.responder(a.id, 7, 'autorizar')).resolves.toMatchObject({ portao_aberto: false });
+    expect(chamadaRow(m, idChamada).pedido_aberto_em).toBeNull();
+    m.relogio.t = AGORA + 41_400;
+    const b = await m.pedidos.criar(entrada(idChamada));
+    await expect(m.pedidos.responder(b.id, 7, 'autorizar')).resolves.toMatchObject({ portao_aberto: true });
+    expect(m.facial.abrirDispositivoInterno).toHaveBeenCalledTimes(2);
+  });
+
+  it('autorizar com o relógio fora do segundo cheio: portao_aberto true e respondido_em no segundo', async () => {
+    for (const ms of [100, 499, 500, 999]) {
+      const m = montar();
+      const idChamada = await chamada(m);
+      const p = await m.pedidos.criar(entrada(idChamada));
+      m.relogio.t = AGORA + 30_000 + ms;
+      const r = await m.pedidos.responder(p.id, 7, 'autorizar');
+      expect({ ms, aberto: r.portao_aberto }).toEqual({ ms, aberto: true });
+      expect(r.respondido_em).toBe(new Date(AGORA + 30_000).toISOString());
+      await expect(m.pedidos.paraApp(p.id, 7)).resolves.toMatchObject({ portao_aberto: true });
+    }
   });
 });

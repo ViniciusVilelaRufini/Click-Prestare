@@ -15,7 +15,7 @@ import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { StorageService } from '../common/storage/storage.service';
 import { rotuloAptoBloco } from '../visitantes/rotulo-apto-bloco.util';
 import { InterfoneService } from './interfone.service';
-import { InterfoneAcoesService, PEDIDO_JANELA_MS, PEDIDO_TETO_MS, chamadaNaJanelaDoPedido } from './interfone-acoes.service';
+import { InterfoneAcoesService, PEDIDO_JANELA_MS, PEDIDO_TETO_MS, chamadaNaJanelaDoPedido, segundoCheio } from './interfone-acoes.service';
 import { InterfonePushService } from './interfone-push.service';
 
 export type DecisaoPedido = 'autorizar' | 'negar';
@@ -289,7 +289,8 @@ export class InterfonePedidosService implements OnModuleInit, OnModuleDestroy {
         mensagem: msg,
         respondido_por_id: idUser,
         respondido_por_nome: nome,
-        respondido_em: new Date(this.agora()),
+        // Segundo cheio (DATETIME(0)): `portao_aberto` compara com porta_aberta_em da chamada.
+        respondido_em: segundoCheio(this.agora()),
       },
     });
     if (troca.count !== 1) {
