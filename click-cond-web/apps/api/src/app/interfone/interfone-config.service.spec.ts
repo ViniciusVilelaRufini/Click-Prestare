@@ -6,7 +6,7 @@ import { criarBancoFalso } from './banco-falso.spec';
 
 const ATOR = { nome: 'Síndica Sara', autor_id: 50, autor_tipo: 'user' as const };
 
-function montar(cond: Record<string, any> = {}, agent?: { enqueue: jest.Mock }) {
+function montar(cond: Record<string, any> = {}, agent?: { enqueue: jest.Mock; getTelemetria?: jest.Mock }) {
   const banco = criarBancoFalso({
     condominios: [
       {
@@ -177,7 +177,7 @@ describe('faciais', () => {
         porta: 5060,
         registrado: false,
         registrado_em: null,
-        config_automatica: true,
+        config_automatica: false,
       },
     ]);
   });
@@ -232,41 +232,56 @@ describe('faciais', () => {
 });
 
 describe('configurar o facial automaticamente (G1, só pela rota manual)', () => {
-  const agenteOk = () => ({
-    enqueue: jest.fn(async () => ({ ok: true, sip: { alterado: true }, contatos: { inseridos: 2, atualizados: 0, removidos: 0, iguais: 0 } })),
+  const ENV = 'INTERFONE_CONFIG_AUTOMATICA';
+  let antes: string | undefined;
+  beforeEach(() => {
+    antes = process.env[ENV];
+    process.env[ENV] = '1';
+  });
+  afterEach(() => {
+    if (antes === undefined) delete process.env[ENV];
+    else process.env[ENV] = antes;
+  });
+
+  const OK = { ok: true, parcial: false, restantes: 0, conflitos: [], avisos: [] };
+  const agente = (resultado: Record<string, unknown> = OK, versao: string | null = '2026.11.28') => ({
+    enqueue: jest.fn(async () => resultado),
+    getTelemetria: jest.fn(async () => (versao ? { versao } : null)),
   });
 
   async function habilitado(m: ReturnType<typeof montar>, blocos: string[] | null = null) {
     return m.svc.salvarFacial(1, 12, { habilitado: true, blocos }, ATOR);
   }
 
-  it('monta a conta e os contatos (unidades dos blocos do facial com ramal) e enfileira interfone_config', async () => {
-    const agent = agenteOk();
+  it('monta a conta (a MESMA de GET /faciais, sem hífen) e os contatos e enfileira interfone_config', async () => {
+    const agent = agente();
     const m = montar({}, agent);
     const f = await habilitado(m);
-    await expect(m.svc.configurarFacialAutomatico(1, 12, ATOR)).resolves.toEqual({ ok: true });
+    await expect(m.svc.configurarFacialAutomatico(1, 12, ATOR)).resolves.toEqual(OK);
+    const [lista] = await m.svc.faciais(1);
+    expect(lista.conta).toBe('fac12');
     expect(agent.enqueue).toHaveBeenCalledTimes(1);
     expect(agent.enqueue).toHaveBeenCalledWith(12, {
       type: 'interfone_config',
       interfone: {
         servidor: 'voz.prestarecondominios.com.br',
         porta: 5060,
-        conta: 'fac-12',
+        conta: lista.conta,
         senha: f.senha,
+        forcar: false,
         contatos: [
           { nome: 'Bloco A · Apto 106', numero: '106', bloco: 'A', andar: '1' },
           { nome: 'Bloco A · Apto 201', numero: '201', bloco: 'A', andar: '2' },
         ],
       },
     });
-    // Auditoria com o resultado, nunca com a senha.
     const auditorias = JSON.stringify((m.auditoria.registrar.mock.calls as any[]).map((c) => c[0]));
     expect(auditorias).toContain('configurado automaticamente');
     expect(auditorias).not.toContain(f.senha as string);
   });
 
   it('respeita os blocos do facial', async () => {
-    const agent = agenteOk();
+    const agent = agente();
     const m = montar({}, agent);
     m.tabelas['apartamentos'].find((a: any) => a.id === 102).interfone_ramal = '1106';
     await habilitado(m, ['B']);
@@ -275,22 +290,74 @@ describe('configurar o facial automaticamente (G1, só pela rota manual)', () =>
     expect(cmd.interfone.contatos).toEqual([{ nome: 'Bloco B · Apto 106', numero: '1106', bloco: 'B', andar: '1' }]);
   });
 
-  it('facial sem interfone habilitado, de outra marca ou sem agente: {ok:false} sem enfileirar', async () => {
-    const agent = agenteOk();
+  it('conta SIP de outro servidor: devolve sip_de_outro_servidor com o servidor atual; forcar repassa ao agente', async () => {
+    const agent = agente({ ok: false, error: 'sip_de_outro_servidor', servidor_atual: '10.0.0.5' });
+    const m = montar({}, agent);
+    await habilitado(m);
+    await expect(m.svc.configurarFacialAutomatico(1, 12, ATOR)).resolves.toEqual({
+      ok: false,
+      erro: 'sip_de_outro_servidor',
+      servidor_atual: '10.0.0.5',
+    });
+    await m.svc.configurarFacialAutomatico(1, 12, ATOR, { forcar: true });
+    expect((agent.enqueue.mock.calls[1] as any[])[1].interfone.forcar).toBe(true);
+  });
+
+  it('parcial, conflitos e avisos do agente chegam ao console', async () => {
+    const agent = agente({ ok: true, parcial: true, restantes: 15, conflitos: ['301'], avisos: ['x'] });
+    const m = montar({}, agent);
+    await habilitado(m);
+    await expect(m.svc.configurarFacialAutomatico(1, 12, ATOR)).resolves.toEqual({
+      ok: true,
+      parcial: true,
+      restantes: 15,
+      conflitos: ['301'],
+      avisos: ['x'],
+    });
+  });
+
+  it('sem a flag, com agente antigo ou sem telemetria: 409 indisponivel, sem enfileirar; GET /faciais sem config_automatica', async () => {
+    const casos: [string | undefined, string | null][] = [
+      [undefined, '2026.11.28'],
+      ['0', '2026.11.28'],
+      ['1', '2026.11.24'],
+      ['1', null],
+    ];
+    for (const [flag, versao] of casos) {
+      if (flag === undefined) delete process.env[ENV];
+      else process.env[ENV] = flag;
+      const agent = agente(OK, versao);
+      const m = montar({}, agent);
+      await habilitado(m);
+      await expect(m.svc.configurarFacialAutomatico(1, 12, ATOR)).rejects.toMatchObject({
+        status: 409,
+        response: expect.objectContaining({ motivo: 'indisponivel' }),
+      });
+      expect((await m.svc.faciais(1))[0].config_automatica).toBe(false);
+      expect(agent.enqueue).not.toHaveBeenCalled();
+    }
+    process.env[ENV] = '1';
+    const m = montar({}, agente());
+    expect((await m.svc.faciais(1))[0].config_automatica).toBe(true);
+  });
+
+  it('facial sem interfone habilitado, inativo ou de outra marca: {ok:false} sem enfileirar', async () => {
+    const agent = agente();
     const m = montar({}, agent);
     await expect(m.svc.configurarFacialAutomatico(1, 12, ATOR)).resolves.toMatchObject({ ok: false, erro: expect.stringMatching(/habilit/i) });
     await habilitado(m);
-    m.tabelas['facial_Devices'].find((d: any) => d.id === 12).fabricante = 'hikvision';
+    const dev = m.tabelas['facial_Devices'].find((d: any) => d.id === 12);
+    dev.ativo = 0;
+    await expect(m.svc.configurarFacialAutomatico(1, 12, ATOR)).resolves.toMatchObject({ ok: false, erro: expect.stringMatching(/desativado/i) });
+    expect((await m.svc.faciais(1))[0].config_automatica).toBe(false);
+    dev.ativo = 1;
+    dev.fabricante = 'hikvision';
     await expect(m.svc.configurarFacialAutomatico(1, 12, ATOR)).resolves.toMatchObject({ ok: false, erro: expect.stringMatching(/Intelbras/) });
     expect(agent.enqueue).not.toHaveBeenCalled();
-
-    const semAgente = montar();
-    await habilitado(semAgente);
-    await expect(semAgente.svc.configurarFacialAutomatico(1, 12, ATOR)).resolves.toMatchObject({ ok: false });
   });
 
-  it('falha no agente volta como {ok:false, erro} (sem a senha) e fica na auditoria', async () => {
-    const agent = { enqueue: jest.fn(async () => ({ ok: false, error: 'interfone: o aparelho não devolveu a configuração SIP' })) };
+  it('falha no agente volta como {ok:false, erro} e fica na auditoria', async () => {
+    const agent = agente({ ok: false, error: 'interfone: o aparelho não devolveu a configuração SIP' });
     const m = montar({}, agent);
     await habilitado(m);
     const r = await m.svc.configurarFacialAutomatico(1, 12, ATOR);
@@ -301,14 +368,14 @@ describe('configurar o facial automaticamente (G1, só pela rota manual)', () =>
   });
 
   it('não contratado → 403; facial de outro condomínio → 404', async () => {
-    const agent = agenteOk();
+    const agent = agente();
     await expect(montar({ interfone_contratado: 0 }, agent).svc.configurarFacialAutomatico(1, 12, ATOR)).rejects.toMatchObject({ status: 403 });
     await expect(montar({}, agent).svc.configurarFacialAutomatico(1, 90, ATOR)).rejects.toMatchObject({ status: 404 });
     expect(agent.enqueue).not.toHaveBeenCalled();
   });
 
   it('salvar o facial ou os ramais NÃO dispara a configuração automática (fica para depois da bancada)', async () => {
-    const agent = agenteOk();
+    const agent = agente();
     const m = montar({}, agent);
     await habilitado(m);
     await m.svc.salvarRamais(1, [{ id_apartamento: 102, ramal: '1106' }], ATOR);
@@ -396,9 +463,13 @@ describe('controller do síndico', () => {
   it('POST faciais/:id/configurar: só síndico, condomínio do token, responde 200 com {ok, erro?}', async () => {
     const svc: any = { configurarFacialAutomatico: jest.fn(async () => ({ ok: true })) };
     const c = new InterfoneSindicoController(svc);
-    expect(() => c.configurarFacial(12, PORTEIRO)).toThrow();
-    await expect(c.configurarFacial(12, SINDICO)).resolves.toEqual({ ok: true });
-    expect(svc.configurarFacialAutomatico).toHaveBeenCalledWith(1, 12, expect.objectContaining({ nome: 'Síndica Sara' }));
+    expect(() => c.configurarFacial(12, {}, PORTEIRO)).toThrow();
+    await expect(c.configurarFacial(12, {}, SINDICO)).resolves.toEqual({ ok: true });
+    expect(svc.configurarFacialAutomatico).toHaveBeenCalledWith(1, 12, expect.objectContaining({ nome: 'Síndica Sara' }), { forcar: false });
+    await c.configurarFacial(12, { forcar: true }, SINDICO);
+    expect(svc.configurarFacialAutomatico).toHaveBeenLastCalledWith(1, 12, expect.anything(), { forcar: true });
+    await c.configurarFacial(12, { forcar: 'sim' } as any, SINDICO);
+    expect(svc.configurarFacialAutomatico).toHaveBeenLastCalledWith(1, 12, expect.anything(), { forcar: false });
     expect(Reflect.getMetadata('__httpCode__', (InterfoneSindicoController.prototype as any).configurarFacial)).toBe(200);
   });
 

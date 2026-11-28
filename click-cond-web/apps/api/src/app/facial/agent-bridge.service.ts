@@ -60,6 +60,12 @@ const PEDIDO_ATUALIZACAO_TTL_MS = 2 * 60 * 1000;
  */
 export const VERSAO_AGENTE_COM_ATUALIZAR_AGORA = '2026.11.11.1';
 /**
+ * Primeira versão do agente com o comando `interfone_config` (G1). A API só
+ * oferece a configuração automática do facial a agente nesta versão ou acima
+ * (pela telemetria). Ajustar quando a versão for de fato publicada.
+ */
+export const VERSAO_AGENTE_COM_INTERFONE_CONFIG = '2026.11.28';
+/**
  * Folga descontada do `ttl_ms` entregue ao agente: o trajeto do poll até o
  * agente e do resultado de volta. Sem ela o agente poderia executar um
  * comando no último instante e o resultado chegar com a nuvem já desistida.
@@ -791,6 +797,10 @@ export interface InterfoneConfigAgente {
   conta: string;
   senha: string;
   contatos: ContatoInterfoneAgente[];
+  /** Grava mesmo com conta SIP de outro servidor no aparelho (confirmado pelo síndico). */
+  forcar?: boolean;
+  /** Lista vazia só remove os contatos do Prestare com isto. */
+  remover?: boolean;
 }
 
 export interface AgentCommandInput {
@@ -844,6 +854,14 @@ export interface AgentResult {
   sip?: { alterado: boolean; campos?: string[] };
   /** `interfone_config`: o que mudou na lista telefônica. */
   contatos?: { inseridos: number; atualizados: number; removidos: number; iguais: number };
+  /** `interfone_config`: ficou trabalho para a próxima execução (prazo ou lote). */
+  parcial?: boolean;
+  restantes?: number;
+  /** `interfone_config`: números que o instalador já tem no facial (contato manual, não mexido). */
+  conflitos?: string[];
+  avisos?: string[];
+  /** `interfone_config` com `error:'sip_de_outro_servidor'`: o servidor que está no aparelho. */
+  servidor_atual?: string;
 }
 
 interface PendingCommand {

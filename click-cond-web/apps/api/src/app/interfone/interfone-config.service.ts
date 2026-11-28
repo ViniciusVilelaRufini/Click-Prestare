@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
@@ -8,7 +8,9 @@ import { rotuloAptoBloco } from '../visitantes/rotulo-apto-bloco.util';
 import { facialAtendeBloco, ramalValido, sugerirRamais } from './regras';
 import { TOQUE_APTO_S, TOQUE_PORTARIA_S } from './interfone.service';
 import { VOZ_HOST } from './token-voz';
-import { AgentBridgeService } from '../facial/agent-bridge.service';
+import { AgentBridgeService, VERSAO_AGENTE_COM_INTERFONE_CONFIG } from '../facial/agent-bridge.service';
+import { compararVersoesAgente } from '../facial/agent-version.service';
+import { contaFacial } from './interfone.service';
 import type { ContatoInterfoneAgente } from '../facial/agent-bridge.service';
 import { normalizarFabricante } from '../facial/fabricantes';
 
@@ -30,6 +32,22 @@ const FOLGA_RING_S = 10;
 /** Só o Intelbras (família Dahua) tem o comando `interfone_config` no agente. */
 function temConfigAutomatica(fabricante: unknown): boolean {
   return normalizarFabricante(fabricante) === 'intelbras';
+}
+
+/** Liga a configuração automática (G1). Desligada até a bancada aprovar. */
+function flagConfigAutomatica(): boolean {
+  return process.env['INTERFONE_CONFIG_AUTOMATICA'] === '1';
+}
+
+/** Resposta de "Configurar automaticamente" ao console. */
+export interface ResultadoConfigFacial {
+  ok: boolean;
+  erro?: string;
+  servidor_atual?: string;
+  parcial?: boolean;
+  restantes?: number;
+  conflitos?: string[];
+  avisos?: string[];
 }
 
 /** Quem fez a alteração (para a auditoria). */
@@ -216,7 +234,8 @@ export class InterfoneConfigService {
       where: { id_condominio: idCondominio, ...TIPO_FACIAL },
       orderBy: { id: 'asc' },
     });
-    return lista.map((f) => this.paraFacial(f));
+    const auto = await this.configAutomaticaDisponivel(idCondominio);
+    return lista.map((f) => this.paraFacial(f, auto));
   }
 
   async salvarFacial(
@@ -261,7 +280,7 @@ export class InterfoneConfigService {
         senha_gerada: _senha !== undefined,
       });
     }
-    return this.paraFacial(await this.facialDoCondominio(idCondominio, idFacial));
+    return this.paraFacial(await this.facialDoCondominio(idCondominio, idFacial), await this.configAutomaticaDisponivel(idCondominio));
   }
 
   async novaSenha(idCondominio: number, idFacial: number, ator: AtorConfig): Promise<{ senha: string }> {
@@ -285,9 +304,18 @@ export class InterfoneConfigService {
     idCondominio: number,
     idFacial: number,
     ator: AtorConfig,
-  ): Promise<{ ok: boolean; erro?: string }> {
+    opcoes: { forcar?: boolean } = {},
+  ): Promise<ResultadoConfigFacial> {
     await this.assertContratado(idCondominio);
     const f = await this.facialDoCondominio(idCondominio, idFacial);
+    if (!(await this.configAutomaticaDisponivel(idCondominio))) {
+      throw new ConflictException({
+        statusCode: 409,
+        motivo: 'indisponivel',
+        message: 'Configuração automática indisponível (desligada ou Agente Local desatualizado). Use os dados para o instalador.',
+      });
+    }
+    if (f.ativo !== 1) return { ok: false, erro: 'Facial desativado: ative o dispositivo antes de configurar.' };
     if (f.interfone_habilitado !== 1 || !f.interfone_senha) {
       return { ok: false, erro: 'Facial sem interfone habilitado: marque "Faz chamadas" e salve antes de configurar.' };
     }
@@ -295,6 +323,7 @@ export class InterfoneConfigService {
       return { ok: false, erro: 'A configuração automática existe só para facial Intelbras. Use os dados para o instalador.' };
     }
     if (!this.agent) return { ok: false, erro: 'Agente Local indisponível.' };
+    const forcar = opcoes.forcar === true;
 
     const contatos: ContatoInterfoneAgente[] = (await this.aptos(idCondominio))
       .filter((a) => a.interfone_ramal && facialAtendeBloco(f.interfone_blocos ?? null, a.bloco))
@@ -306,7 +335,7 @@ export class InterfoneConfigService {
       }));
     const r = await this.agent.enqueue(f.id, {
       type: 'interfone_config',
-      interfone: { servidor: VOZ_HOST, porta: VOZ_SIP_PORTA, conta: `fac-${f.id}`, senha: f.interfone_senha, contatos },
+      interfone: { servidor: VOZ_HOST, porta: VOZ_SIP_PORTA, conta: contaFacial(f.id), senha: f.interfone_senha, forcar, contatos },
     });
     await this.auditar(
       idCondominio,
@@ -317,11 +346,36 @@ export class InterfoneConfigService {
       {
         id_facial: f.id,
         contatos: contatos.length,
+        forcar,
         ok: r.ok,
-        ...(r.ok ? { sip: r.sip ?? null, lista: r.contatos ?? null } : { erro: r.error ?? null }),
+        ...(r.ok
+          ? { sip: r.sip ?? null, lista: r.contatos ?? null, parcial: !!r.parcial, conflitos: r.conflitos ?? [] }
+          : { erro: r.error ?? null, servidor_atual: r.servidor_atual ?? null }),
       },
     );
-    return r.ok ? { ok: true } : { ok: false, erro: r.error || 'O agente não conseguiu configurar o facial.' };
+    if (!r.ok) {
+      const erro = r.error || 'O agente não conseguiu configurar o facial.';
+      return erro === 'sip_de_outro_servidor'
+        ? { ok: false, erro, servidor_atual: r.servidor_atual ?? '' }
+        : { ok: false, erro };
+    }
+    return {
+      ok: true,
+      parcial: !!r.parcial,
+      restantes: Number(r.restantes) || 0,
+      conflitos: Array.isArray(r.conflitos) ? r.conflitos : [],
+      avisos: Array.isArray(r.avisos) ? r.avisos : [],
+    };
+  }
+
+  /**
+   * Botão e rota só com a flag `INTERFONE_CONFIG_AUTOMATICA=1` E o Agente
+   * Local do condomínio numa versão que tem o comando (pela telemetria).
+   */
+  private async configAutomaticaDisponivel(idCondominio: number): Promise<boolean> {
+    if (!flagConfigAutomatica() || !this.agent) return false;
+    const versao = (await this.agent.getTelemetria(idCondominio).catch(() => null))?.versao;
+    return !!versao && compararVersoesAgente(versao, VERSAO_AGENTE_COM_INTERFONE_CONFIG) >= 0;
   }
 
   /**
@@ -455,13 +509,14 @@ export class InterfoneConfigService {
     nome: string;
     modelo: string | null;
     fabricante?: string | null;
+    ativo?: number;
     interfone_habilitado: number;
     interfone_blocos: string | null;
     interfone_dtmf: string | null;
     interfone_senha: string | null;
     interfone_registrado: number;
     interfone_registrado_em: Date | null;
-  }) {
+  }, configAutomatica = false) {
     return {
       id: f.id,
       nome: f.nome,
@@ -469,14 +524,14 @@ export class InterfoneConfigService {
       habilitado: f.interfone_habilitado === 1,
       blocos: lerBlocos(f.interfone_blocos),
       dtmf: f.interfone_dtmf ?? null,
-      conta: `fac${f.id}`,
+      conta: contaFacial(f.id),
       senha: f.interfone_senha ?? null,
       servidor: VOZ_HOST,
       porta: VOZ_SIP_PORTA,
       registrado: f.interfone_registrado === 1,
       registrado_em: f.interfone_registrado_em ?? null,
       /** Intelbras: o console oferece "Configurar automaticamente" (G1). */
-      config_automatica: temConfigAutomatica(f.fabricante),
+      config_automatica: configAutomatica && f.ativo === 1 && temConfigAutomatica(f.fabricante),
     };
   }
 
