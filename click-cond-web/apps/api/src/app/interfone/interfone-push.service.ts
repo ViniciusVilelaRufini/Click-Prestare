@@ -199,8 +199,8 @@ export class InterfonePushService {
 
   /**
    * Pedido do portão aos moradores da unidade (exceto quem desligou o interfone). App com a tela do
-   * pedido (interfone_versao >= INTERFONE_VERSAO_PEDIDO): Android → dados `interfone_pedido` (o app
-   * abre a tela de Autorizar/Negar); iPhone → alerta com os mesmos dados (o toque abre a tela).
+   * pedido (interfone_versao >= INTERFONE_VERSAO_PEDIDO), Android e iPhone: alerta com os dados
+   * `interfone_pedido` (com o app aberto ele abre a tela de Autorizar/Negar; fechado, o toque no aviso abre).
    * Nunca VoIP: não é ligação. App antigo (sem a tela) → alerta comum, sem tipo, pedindo para
    * atualizar. `ids` = usuários em que o pedido saiu num app com a tela; `alcance` = aparelhos
    * alcançados (com a tela / antigos).
@@ -234,12 +234,10 @@ export class InterfonePushService {
           try {
             const plataforma = (a.plataforma ?? '').toLowerCase();
             const comTela = (a.interfone_versao ?? 0) >= INTERFONE_VERSAO_PEDIDO;
-            if (comTela && plataforma === 'android') {
-              if ((await this.notifications.enviarDados(a.fcm_token, conteudo)) === 'ok') {
-                saiu.add(a.id_user);
-                alcance.apps++;
-              }
-            } else if (comTela && plataforma === 'ios') {
+            if (comTela && (plataforma === 'android' || plataforma === 'ios')) {
+              // Alerta com os dados nos dois: no Android, push só de dados com o app em segundo plano ou
+              // fechado roda num isolate sem navegador e a tela não abre; o alerta o sistema mostra, e o
+              // toque abre a tela (handleNotificationNavigation). Com o app aberto, o onMessage abre direto.
               if (await this.notifications.enviarParaAparelho(a.fcm_token, titulo, texto, conteudo)) {
                 saiu.add(a.id_user);
                 alcance.apps++;

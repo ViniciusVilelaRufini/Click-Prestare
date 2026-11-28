@@ -253,14 +253,17 @@ describe('InterfonePushService.pedido e pedidoFim (pedido do portão)', () => {
     expect(INTERFONE_VERSAO_APP).toBe(1);
   });
 
-  it('app com a tela do pedido (v2): Android → dados interfone_pedido em texto; iPhone → alerta com os mesmos dados; nunca VoIP', async () => {
+  it('app com a tela do pedido (v2): Android e iPhone → alerta com os dados interfone_pedido em texto (o sistema mostra com o app fechado); nunca VoIP nem só dados', async () => {
     const { svc, notifications, apns } = montar(usuarios, aparelhos);
     const r = await svc.pedido(77, [1, 2, 3, 4, 5, 6], PEDIDO);
     expect(apns.enviar).not.toHaveBeenCalled();
-    expect(notifications.enviarDados).toHaveBeenCalledTimes(1);
-    expect(notifications.enviarDados).toHaveBeenCalledWith('f-and2', CONTEUDO);
-    for (const v of Object.values((notifications.enviarDados.mock.calls as any[])[0][1])) expect(typeof v).toBe('string');
-    expect(notifications.enviarParaAparelho).toHaveBeenCalledWith('f-ios', 'Entrega no portão', 'Rodrigo pede para entrar. Toque para responder.', CONTEUDO);
+    // Push só de dados no Android não aparece com o app em segundo plano ou fechado (sem navegador no isolate).
+    expect(notifications.enviarDados).not.toHaveBeenCalled();
+    const ALERTA = ['Entrega no portão', 'Rodrigo pede para entrar. Toque para responder.', CONTEUDO];
+    expect(notifications.enviarParaAparelho).toHaveBeenCalledWith('f-ios', ...ALERTA);
+    expect(notifications.enviarParaAparelho).toHaveBeenCalledWith('f-and2', ...ALERTA);
+    const doAndroid = (notifications.enviarParaAparelho.mock.calls as any[]).find((c) => c[0] === 'f-and2');
+    for (const v of Object.values(doAndroid[3])) expect(typeof v).toBe('string');
     // interfone_receber = 0 não recebe.
     const tokens = [...(notifications.enviarDados.mock.calls as any[]), ...(notifications.enviarParaAparelho.mock.calls as any[])].map((c) => c[0]);
     expect(tokens).not.toContain('f-desligou');
@@ -282,8 +285,9 @@ describe('InterfonePushService.pedido e pedidoFim (pedido do portão)', () => {
 
   it('alcance conta só os envios que saíram', async () => {
     const { svc, notifications } = montar(usuarios, aparelhos);
-    notifications.enviarDados.mockResolvedValueOnce('falha' as any);
-    (notifications.enviarParaAparelho as jest.Mock).mockImplementation(async (token: string) => (token === 'f-and1' ? null : {}));
+    (notifications.enviarParaAparelho as jest.Mock).mockImplementation(async (token: string) =>
+      token === 'f-and1' || token === 'f-and2' ? null : {},
+    );
     const r = await svc.pedido(77, [1, 2, 3, 5, 6], PEDIDO);
     expect(r).toEqual({ ids: [1], alcance: { apps: 1, antigos: 2 } });
   });
