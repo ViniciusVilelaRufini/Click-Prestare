@@ -21,7 +21,7 @@ test('renderizarPjsip gera endpoint, auth e aor de cada conta', () => {
   assert.match(txt, /\[fac12\]\ntype=aor\nmax_contacts=1\nremove_existing=yes\nqualify_frequency=30\n/);
   assert.match(txt, /\[mon-5\]\ntype=endpoint\ncontext=prestare-monitor\n/);
   for (const linha of ['disallow=all', 'allow=ulaw,alaw,h264', 'direct_media=no', 'rtp_symmetric=yes',
-    'force_rport=yes', 'rewrite_contact=yes', 'auth=fac12', 'aors=fac12']) {
+    'force_rport=yes', 'rewrite_contact=yes', 'transport=transport-udp-5080', 'auth=fac12', 'aors=fac12']) {
     assert.ok(txt.includes(linha + '\n'), linha);
   }
 });

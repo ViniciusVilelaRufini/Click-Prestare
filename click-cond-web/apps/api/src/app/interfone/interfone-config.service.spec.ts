@@ -174,7 +174,7 @@ describe('faciais', () => {
         conta: 'fac12',
         senha: null,
         servidor: 'voz.prestarecondominios.com.br',
-        porta: 5060,
+        porta: 5080,
         registrado: false,
         registrado_em: null,
         config_automatica: false,
@@ -265,7 +265,7 @@ describe('configurar o facial automaticamente (G1, só pela rota manual)', () =>
       type: 'interfone_config',
       interfone: {
         servidor: 'voz.prestarecondominios.com.br',
-        porta: 5060,
+        porta: 5080,
         conta: lista.conta,
         senha: f.senha,
         forcar: false,
@@ -429,7 +429,7 @@ describe('monitores', () => {
   it('cadastra, lista (com dados de registro) e remove; audita', async () => {
     const m = montar();
     const criado = await m.svc.criarMonitor(1, { id_apartamento: 100, nome: 'Monitor da sala' }, ATOR);
-    expect(criado).toMatchObject({ id_apartamento: 100, nome: 'Monitor da sala', unidade: 'Bloco A · Apto 106', conta: `mon${criado.id}`, porta: 5060 });
+    expect(criado).toMatchObject({ id_apartamento: 100, nome: 'Monitor da sala', unidade: 'Bloco A · Apto 106', conta: `mon${criado.id}`, porta: 5080 });
     expect(criado.senha).toMatch(/^[A-Za-z0-9]{24}$/);
     await expect(m.svc.monitores(1)).resolves.toEqual([criado]);
     await expect(m.svc.removerMonitor(1, criado.id, ATOR)).resolves.toEqual({ ok: true });

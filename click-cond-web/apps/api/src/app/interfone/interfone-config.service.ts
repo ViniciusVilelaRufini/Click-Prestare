@@ -20,8 +20,11 @@ import { normalizarFabricante } from '../facial/fabricantes';
  */
 const TIPO_FACIAL = { OR: [{ tipo: 'facial' }, { tipo: '' }] };
 
-/** Porta SIP do facial e do monitor (UDP/TCP). */
-export const VOZ_SIP_PORTA = 5060;
+/**
+ * Porta SIP do facial e do monitor (UDP). 5080, não 5060: o SIP ALG dos roteadores
+ * mexe na 5060 e engole as respostas da central (bancada SS 3530, 28/11).
+ */
+export const VOZ_SIP_PORTA = 5080;
 const ALFABETO_SENHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 /** Cabeçalho do phoneBook do Intelbras (separador `;`). */
 export const CABECALHO_LISTA_INTELBRAS =

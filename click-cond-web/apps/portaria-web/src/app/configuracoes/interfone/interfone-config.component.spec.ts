@@ -29,7 +29,7 @@ const RAMAIS: RamalUnidade[] = [
 ];
 const FACIAL: FacialInterfone = {
   id: 9, nome: 'Portão social', modelo: 'SS 3532 MF W', habilitado: true, blocos: ['A'], dtmf: '#1',
-  conta: 'fac9', senha: 'abcDEF123456789012345678', servidor: 'voz.prestarecondominios.com.br', porta: 5060,
+  conta: 'fac9', senha: 'abcDEF123456789012345678', servidor: 'voz.prestarecondominios.com.br', porta: 5080,
   registrado: false, registrado_em: null,
 };
 

@@ -31,6 +31,14 @@ test('pjsip.conf: transportes udp/tcp/wss com IP público, anonymous WebRTC no c
     assert.ok(s[t].includes('external_signaling_address=54.21.36.213'), t);
     assert.ok(s[t].includes('local_net=172.31.0.0/16'), t);
   }
+  // Faciais e monitores usam a 5080: o SIP ALG dos roteadores mexe na 5060 e
+  // engole as respostas (bancada SS 3530, 28/11).
+  const alt = s['transport-udp-5080'];
+  assert.ok(alt, 'transport-udp-5080');
+  for (const l of ['protocol=udp', 'bind=0.0.0.0:5080', 'external_media_address=54.21.36.213',
+    'external_signaling_address=54.21.36.213', 'local_net=172.31.0.0/16']) {
+    assert.ok(alt.includes(l), l);
+  }
   assert.ok(s['transport-wss'].includes('protocol=wss'));
   const anon = s.anonymous;
   for (const l of ['type=endpoint', 'context=prestare-entrar', 'webrtc=yes', 'allow=ulaw,alaw,h264', 'max_video_streams=1']) {

@@ -23,6 +23,8 @@ function bloco(conta, senha, contexto, dtmf) {
     'rtp_symmetric=yes',
     'force_rport=yes',
     'rewrite_contact=yes',
+    // Sai pela mesma porta em que o aparelho registra (ver pjsip.conf).
+    'transport=transport-udp-5080',
     `auth=${conta}`,
     `aors=${conta}`,
     '',

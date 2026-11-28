@@ -20,7 +20,7 @@ Para o teste de 28/11/2026 no condomínio de teste **Boa Vista** (único com o m
 ## 2. Conta SIP (manual)
 
 1. Console → **Configurações → Interfone → Faciais que chamam**: marque **Faz chamadas** no SS 3532 e salve.
-2. Copie os **Dados para o instalador**: servidor `voz.prestarecondominios.com.br`, porta `5060`, usuário `fac<id>` (sem hífen) e a senha (ícone do olho).
+2. Copie os **Dados para o instalador**: servidor `voz.prestarecondominios.com.br`, porta **`5080`** (não 5060: o SIP ALG dos roteadores mexe na 5060), usuário `fac<id>` (sem hífen) e a senha (ícone de copiar).
 3. Na interface web do facial: **Intercomunicação → Configurações SIP** → habilite a **Conta SIP 1**, preencha servidor, porta, usuário (e usuário de autenticação, se pedir) e senha, transporte UDP. Aplique.
    - Se o facial não aceitar o domínio no campo do servidor, use o IP `54.21.36.213`.
 4. Em até 1 minuto o console mostra **Registrado** no card do facial. A Conta SIP 1 do facial fica verde.
@@ -51,6 +51,12 @@ Para o teste de 28/11/2026 no condomínio de teste **Boa Vista** (único com o m
   - `voz "asterisk -rx 'pjsip show endpoints'"` (o facial deve aparecer como Available)
 - **Sem vídeo**: o facial manda H.264. Confira no facial se a chamada de vídeo está habilitada e, na central, `asterisk -rx 'core show channels verbose'` durante a chamada.
 - **Celular não toca**: o morador precisa do app novo e do vínculo com a unidade. O sistema só guarda o **último** aparelho de cada usuário: se você abrir o app em outro aparelho, só ele toca.
+- **Facial não registra (status "Not Registered")** — lições do SS 3530 em 28/11:
+  - Na central: `voz "timeout 30 tcpdump -n -i any -A -s0 -c 6 host <IP público da portaria>"`. Se aparecem REGISTER repetidos com o **mesmo branch e CSeq 1**, o facial não está recebendo a resposta da central (problema de rede, não de senha).
+  - Porta do servidor no facial: **5080**. Na 5060 o SIP ALG do roteador reescreve o Via/Contact com o IP público e engole as respostas.
+  - Porta SIP **local** do facial: se o roteador tiver redirecionamentos de porta na faixa (no escritório, 5064/5065 nunca recebem resposta e a 5062 também falhou), troque `LocalSIPPort` (no SS 3530 não aparece na tela; muda pela configuração interna `configManager name=SIP`) para uma porta livre, por exemplo 5070, e desligue/ligue a conta SIP.
+  - O SS 3530 vinha com `RouteEnable` ligado apontando para 10.30.1.2 (resto de configuração de fábrica): desligue.
+  - Teste rápido do roteador a partir de um PC da mesma rede: mande um `OPTIONS` UDP para `54.21.36.213:5080` e veja se o `200 OK` volta.
 - **Teste sem facial**: na central, `bash /opt/prestare-voz/atual/deploy/simular-facial.sh fac1 1106 45` (o visitante simulado fala um som de teste; não tem vídeo).
 
 ## Depois: configuração automática pelo agente (opcional)
