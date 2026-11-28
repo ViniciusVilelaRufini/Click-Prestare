@@ -46,6 +46,7 @@ import 'package:click/widgets/app/app_button.dart';
 import 'package:click/pages/shared/interfone/historico_interfone.dart';
 import 'package:click/pages/shared/interfone/tela_chamada.dart';
 import 'package:click/services/interfone/interfone_api.dart';
+import 'package:click/services/interfone/permissoes_interfone.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -115,6 +116,13 @@ class _MyCondominiumState extends State<MyCondominium> {
       _interfoneAtivo = ativo;
       _menu = _buildMenu();
     });
+    // Microfone (e tela cheia no Android 14+) antes da primeira chamada: na
+    // tela bloqueada não dá para pedir.
+    if (ativo) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) PermissoesInterfone.preparar(context);
+      });
+    }
   }
 
   void _ligarParaPortaria() {

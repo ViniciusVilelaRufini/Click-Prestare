@@ -1,4 +1,5 @@
 import 'package:click/services/interfone/interfone_api.dart';
+import 'package:click/services/interfone/permissoes_interfone.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -68,7 +69,10 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
           backgroundColor: AppColors.error,
         ),
       );
+      return;
     }
+    // Ligou: microfone e tela cheia agora, não na primeira chamada.
+    if (novo) await PermissoesInterfone.preparar(context, doSwitch: true);
   }
 
   Future<void> _loadSettings() async {

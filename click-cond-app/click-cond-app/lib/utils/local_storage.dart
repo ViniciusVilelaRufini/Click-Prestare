@@ -321,3 +321,9 @@ Map<String, dynamic>? getCondCachePersistent(int id) {
   } catch (_) {}
   return null;
 }
+
+/// Interfone: o pedido de "notificações em tela cheia" (Android 14+) já foi
+/// feito neste login. Sai com o logout, como o resto do user_data.
+bool interfoneTelaCheiaPedida() => _storage.getItem('interfone_tela_cheia_pedida') == true;
+
+void marcarInterfoneTelaCheiaPedida() => _guardar('interfone_tela_cheia_pedida', true);
