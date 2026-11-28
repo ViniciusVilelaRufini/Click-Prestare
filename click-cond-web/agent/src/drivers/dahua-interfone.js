@@ -283,7 +283,7 @@ function senhaDiferente(tabela, cfg, anterior) {
   return !(anterior.senhaLida && anterior.senhaLida === sha(atual)); // cifrada: igual à de depois da gravação
 }
 
-async function configurarContaSip(req, relogio, device, cfg) {
+async function configurarContaSip(req, relogio, device, cfg, portaEsperando = () => false) {
   const lido = await lerSip(req);
   if (lido.erro) return { erro: lido.erro };
   const { tabela } = lido;
@@ -316,6 +316,10 @@ async function configurarContaSip(req, relogio, device, cfg) {
   if (diferentes.length === 0 && !senhaMudou && !cfg.forcar) {
     return { alterado: false, campos: [], avisos };
   }
+
+  // Porta esperando: não começa a gravação da conta (setConfig + conferência
+  // levam alguns segundos).
+  if (portaEsperando()) return { pausado: true };
 
   // A conta inteira (o que a doc marca como obrigatório no setConfig), não
   // só o que mudou: firmware que exige o bloco não fica com a conta pela metade.
@@ -370,12 +374,13 @@ async function totalDeContatos(req) {
  * ignora o offset (a página repete). Na dúvida, erro — remover "o que não
  * veio" apagaria contatos que só não foram lidos.
  */
-async function lerContatos(req, relogio) {
+async function lerContatos(req, relogio, portaEsperando = () => false) {
   let total = await totalDeContatos(req);
   const lidos = new Map();
   let offset = 0;
   let offsetIgnorado = false;
   for (let volta = 0; volta <= MAX_CONTATOS; volta++) {
+    if (volta > 0 && portaEsperando()) return { pausado: true };
     if (!relogio.temTempo()) return { semTempo: true };
     const res = await req(
       'GET',
@@ -443,6 +448,7 @@ function planejar(registros, cfg, memoriaContatos) {
   const manuais = new Set();
   const filas = { insert: [], remove: [], update: [] };
   let iguais = 0;
+  let memoriaMudou = false;
   for (const r of registros) {
     const numero = String(r.VTShortNumber ?? '').trim();
     const nosso = String(r.Notes ?? '').trim() === MARCA_CONTATO;
@@ -477,6 +483,16 @@ function planejar(registros, cfg, memoriaContatos) {
       continue;
     }
     const lembrado = memoriaContatos[c.numero];
+    if (lembrado && lembrado.e === assinatura(c.nome, c.bloco) && lembrado.naoConfirmado) {
+      // Gravamos isto, mas a leitura de volta não achou o contato (filtro
+      // ignorado ou leitura que falhou). A lista inteira de agora confirma o
+      // que o aparelho mostra: vira a referência, sem regravar.
+      memoriaContatos[c.numero] = { e: lembrado.e, l: assinatura(r.FirstName, r.VTOBuilding) };
+      memoriaMudou = true;
+      iguais++;
+      avisos.push(`contato ${c.numero}: o aparelho mostra "${r.FirstName ?? ''}"${r.VTOBuilding ? ` / bloco "${r.VTOBuilding}"` : ''} (enviado "${c.nome}")`);
+      continue;
+    }
     if (lembrado && lembrado.e === assinatura(c.nome, c.bloco) && lembrado.l === assinatura(r.FirstName, r.VTOBuilding)) {
       // Já gravamos exatamente isto e o aparelho mostra o mesmo de logo depois: é o firmware.
       iguais++;
@@ -496,7 +512,7 @@ function planejar(registros, cfg, memoriaContatos) {
   while (filas.insert.length || filas.remove.length || filas.update.length) {
     for (const t of ['insert', 'remove', 'update']) if (filas[t].length) ops.push(filas[t].shift());
   }
-  return { ops, iguais, conflitos, avisos };
+  return { ops, iguais, conflitos, avisos, memoriaMudou };
 }
 
 async function gravarContato(req, op, cfg) {
@@ -531,9 +547,10 @@ async function lerDeVolta(req, numero) {
       `/cgi-bin/recordFinder.cgi?action=find&name=VideoTalkContact&count=10&condition.VTShortNumber=${encodeURIComponent(numero)}`,
     );
     if (!ok2xx(res)) return null;
-    const r = parseDahuaINI(String(res.raw || '')).find(
-      (x) => String(x.VTShortNumber ?? '').trim() === numero && String(x.Notes ?? '').trim() === MARCA_CONTATO,
-    );
+    // Firmware que ignora o filtro devolve outras linhas: procura o número em
+    // todas (de preferência o nosso, com a marca).
+    const linhas = parseDahuaINI(String(res.raw || '')).filter((x) => String(x.VTShortNumber ?? '').trim() === numero);
+    const r = linhas.find((x) => String(x.Notes ?? '').trim() === MARCA_CONTATO) || linhas[0];
     return r ? assinatura(r.FirstName, r.VTOBuilding) : null;
   } catch {
     return null;
@@ -542,7 +559,7 @@ async function lerDeVolta(req, numero) {
 
 // ---------- Comando ----------
 
-const ERRO_PORTA_ESPERANDO = 'interrompido: há um comando de porta esperando neste facial; tente de novo em instantes';
+const AVISO_PORTA_ESPERANDO = 'pausado para abrir a porta deste facial: clique de novo para continuar';
 
 /**
  * `ctx`: `lanRequest(device, method, path, opts)` do driver, `lanTimeoutMs`,
@@ -579,9 +596,21 @@ async function executar(device, entrada, { lanRequest, lanTimeoutMs = 8000, rest
     }
   };
 
-  // Porta esperando: nem começa (a conta SIP é a parte que não dá para cortar no meio).
-  if (portaEsperando()) return { ok: false, error: `interfone: ${ERRO_PORTA_ESPERANDO}` };
-  const sip = await configurarContaSip(req, relogio, device, cfg);
+  const contatos = { inseridos: 0, atualizados: 0, removidos: 0, iguais: 0 };
+  // Porta esperando (antes de começar, antes do setConfig, entre as páginas
+  // da lista, entre gravações): devolve parcial na hora; repetir continua.
+  const pausado = (sipResumo, avisos = []) => ({
+    ok: true,
+    parcial: true,
+    restantes: null,
+    sip: sipResumo,
+    contatos,
+    conflitos: [],
+    avisos: [...avisos, AVISO_PORTA_ESPERANDO],
+  });
+  if (portaEsperando()) return pausado({ alterado: false, campos: [] });
+  const sip = await configurarContaSip(req, relogio, device, cfg, portaEsperando);
+  if (sip.pausado) return pausado({ alterado: false, campos: [] });
   if (sip.outroServidor) {
     return {
       ok: false,
@@ -592,11 +621,11 @@ async function executar(device, entrada, { lanRequest, lanTimeoutMs = 8000, rest
   if (sip.erro) return { ok: false, error: `interfone: ${sip.erro}` };
   const sipResumo = { alterado: sip.alterado, campos: sip.campos };
   const avisos = [...sip.avisos];
-  const contatos = { inseridos: 0, atualizados: 0, removidos: 0, iguais: 0 };
   const estado = sip.alterado ? 'gravada' : 'já estava certa';
 
-  if (portaEsperando()) return { ok: false, error: `interfone: conta SIP ${estado}; ${ERRO_PORTA_ESPERANDO}`, sip: sipResumo };
-  const lido = await lerContatos(req, relogio);
+  if (portaEsperando()) return pausado(sipResumo, avisos);
+  const lido = await lerContatos(req, relogio, portaEsperando);
+  if (lido.pausado) return pausado(sipResumo, avisos);
   if (lido.semTempo) {
     return {
       ok: false,
@@ -612,14 +641,16 @@ async function executar(device, entrada, { lanRequest, lanTimeoutMs = 8000, rest
   contatos.iguais = plano.iguais;
   const conta = { insert: 'inseridos', update: 'atualizados', remove: 'removidos' };
   let feitos = 0;
-  let memoriaMudou = false;
+  let memoriaMudou = plano.memoriaMudou;
+  let cedeu = false;
   const salvarMemoria = () => {
     if (memoriaMudou) lembrar(`contatos:${device.id}`, memoriaContatos);
   };
   for (const op of plano.ops) {
     if (feitos >= LOTE_MAX || !relogio.temTempo()) break;
     if (portaEsperando()) {
-      avisos.push('pausado para abrir a porta deste facial: clique de novo para continuar');
+      avisos.push(AVISO_PORTA_ESPERANDO);
+      cedeu = true;
       break;
     }
     const g = await gravarContato(req, op, cfg);
@@ -635,12 +666,24 @@ async function executar(device, entrada, { lanRequest, lanTimeoutMs = 8000, rest
     contatos[conta[op.tipo]]++;
     feitos++;
     memoriaMudou = true;
-    if (op.tipo === 'remove') delete memoriaContatos[op.numero];
+    if (op.tipo === 'remove') {
+      delete memoriaContatos[op.numero];
+      continue;
+    }
+    const e = assinatura(op.contato.nome, op.contato.bloco);
+    if (portaEsperando()) {
+      // Sem a leitura de volta: fica "não confirmado" (a próxima leitura da
+      // lista confirma, sem regravar) e cede a vez à porta.
+      memoriaContatos[op.numero] = { e, l: e, naoConfirmado: true };
+      avisos.push(AVISO_PORTA_ESPERANDO);
+      cedeu = true;
+      break;
+    }
+    const l = await lerDeVolta(req, op.numero);
+    if (l) memoriaContatos[op.numero] = { e, l };
     else {
-      memoriaContatos[op.numero] = {
-        e: assinatura(op.contato.nome, op.contato.bloco),
-        l: await lerDeVolta(req, op.numero),
-      };
+      memoriaContatos[op.numero] = { e, l: e, naoConfirmado: true };
+      avisos.push(`não deu para conferir o contato ${op.numero} no aparelho (a leitura de volta não o encontrou)`);
     }
   }
   salvarMemoria();
@@ -652,7 +695,7 @@ async function executar(device, entrada, { lanRequest, lanTimeoutMs = 8000, rest
   );
   return {
     ok: true,
-    parcial: restantes > 0,
+    parcial: restantes > 0 || cedeu,
     restantes,
     sip: sipResumo,
     contatos,

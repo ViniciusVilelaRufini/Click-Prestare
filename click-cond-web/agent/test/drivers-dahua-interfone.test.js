@@ -494,9 +494,79 @@ test('porta esperando na fila: o interfone cede entre as gravações e devolve p
 
   aparelhoNovo();
   const logo = await configurar(cfg(), { _haUrgenteNaFila: () => true });
-  assert.equal(logo.ok, false);
-  assert.match(logo.error, /porta/);
+  assert.equal(logo.ok, true, JSON.stringify(logo));
+  assert.equal(logo.parcial, true);
+  assert.ok(logo.avisos.some((a) => /porta/.test(a)));
   assert.equal(estado.dahua.gravacoesSip, 0, 'não começa a gravar com porta esperando');
+});
+
+test('porta esperando: cede antes do setConfig SIP, entre as páginas da lista e entre a gravação e a leitura de volta', async () => {
+  // 1) chega depois da leitura da conta, antes do setConfig
+  aparelhoNovo();
+  let n = 0;
+  let r = await configurar(cfg(), { _haUrgenteNaFila: () => ++n > 1 });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.parcial, true);
+  assert.equal(estado.dahua.gravacoesSip, 0, 'setConfig não saiu');
+
+  // 2) entre as páginas da lista (conta já certa, 250 contatos = 3 páginas)
+  aparelhoNovo();
+  Object.assign(estado.dahua.sip, { SIPServer: 'voz.prestarecondominios.com.br', UserID: 'fac12', AuthID: 'fac12', UserEnable: 'true', AuthPassword: SENHA });
+  preencherAparelho(contatosNossos(250));
+  let paginas = 0;
+  r = await configurar(cfg({ contatos: contatosNossos(250) }), {
+    _haUrgenteNaFila: () => {
+      paginas = estado.dahua.requisicoes.filter((x) => x.includes('recordFinder.cgi?find')).length;
+      return paginas >= 1;
+    },
+  });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.parcial, true);
+  // Uma página = 2 requisições HTTP (o desafio Digest 401 + a autenticada).
+  assert.equal(estado.dahua.requisicoes.filter((x) => x.includes('recordFinder.cgi?find')).length, 2, 'parou depois da 1ª página');
+  assert.deepEqual(gravacoesDeContato(), []);
+
+  // 3) entre a gravação e a leitura de volta: não lê de volta, devolve parcial, e não regrava depois
+  aparelhoNovo();
+  let gravou = false;
+  r = await configurar(cfg({ contatos: contatosNossos(1) }), {
+    _haUrgenteNaFila: () => {
+      if (gravou) return true;
+      gravou = gravacoesDeContato().length > 0;
+      return gravou;
+    },
+  });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.parcial, true);
+  assert.equal(r.contatos.inseridos, 1);
+  estado.dahua.requisicoes.length = 0;
+  const r2 = await configurar(cfg({ contatos: contatosNossos(1) }));
+  assert.equal(r2.parcial, false);
+  assert.deepEqual(gravacoesDeContato(), []);
+});
+
+test('firmware que ignora o filtro na leitura de volta (contato não aparece): marca não confirmado, avisa e não regrava para sempre', async () => {
+  aparelhoNovo();
+  estado.dahua.cortaNomeContato = 6;
+  estado.dahua.ignoraFiltroContato = true;
+  preencherAparelho(contatosNossos(15, 3000)); // os 10 primeiros da busca "sem filtro" são estes
+  const lista = [...contatosNossos(15, 3000), { nome: 'Bloco Z Apto 9999', numero: '9999', bloco: '', andar: '' }];
+  const r1 = await configurar(cfg({ contatos: lista }));
+  assert.equal(r1.ok, true, JSON.stringify(r1));
+  assert.equal(r1.contatos.inseridos, 1);
+  assert.ok(r1.avisos.some((a) => /não deu para conferir o contato 9999/.test(a)), JSON.stringify(r1.avisos));
+  for (let i = 0; i < 2; i++) {
+    estado.dahua.requisicoes.length = 0;
+    const r = await configurar(cfg({ contatos: lista }));
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.equal(r.parcial, false, `rodada ${i}`);
+    assert.deepEqual(gravacoesDeContato(), [], `rodada ${i}: não regrava o 9999`);
+  }
+  // E se alguém mexer no contato à mão depois de confirmado, grava de novo.
+  estado.dahua.cortaNomeContato = null;
+  estado.dahua.contatos.find((c) => c.VTShortNumber === '9999').FirstName = 'Mexido';
+  const r4 = await configurar(cfg({ contatos: lista }));
+  assert.equal(r4.contatos.atualizados, 1);
 });
 
 test('servidor vazio, 0.0.0.0 ou conta desativada não contam como "outro servidor"', async () => {

@@ -434,6 +434,7 @@ function reiniciarInterfoneDahua() {
   estado.dahua.atrasoMs = 0;
   // Firmware que corta o FirstName do contato em N caracteres.
   estado.dahua.cortaNomeContato = null;
+  estado.dahua.ignoraFiltroContato = false;
   // getConfig SIP responde este corpo cru com HTTP 400 (teste de mascaramento).
   estado.dahua.respostaSipCrua = null;
   estado.dahua.gravacoesSip = 0;
@@ -522,7 +523,8 @@ function responderContatos(caminho, url, acao, texto) {
   }
   if (caminho === '/cgi-bin/recordFinder.cgi' && acao === 'find') {
     let lista = estado.dahua.contatos;
-    const filtro = p.get('condition.VTShortNumber');
+    // `ignoraFiltroContato`: firmware que ignora o condition.VTShortNumber (devolve a lista do começo).
+    const filtro = estado.dahua.ignoraFiltroContato ? null : p.get('condition.VTShortNumber');
     if (filtro != null) lista = lista.filter((c) => c.VTShortNumber === filtro);
     const total = lista.length;
     // `offset` não está na tabela 13-9 da doc; firmwares Dahua costumam
