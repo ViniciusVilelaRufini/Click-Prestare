@@ -736,7 +736,7 @@ async function main() {
     const cfgInterfone = {
       servidor: 'voz.prestarecondominios.com.br',
       porta: 5060,
-      conta: 'fac-30',
+      conta: 'fac30',
       senha: 'HarnessSenhaSip0123456789',
       contatos: [
         { nome: 'Bloco A · Apto 106', numero: '106', bloco: 'A', andar: '1' },
@@ -748,7 +748,7 @@ async function main() {
     checar(
       'dahua: conta SIP gravada e ativada',
       estado.dahua.sip.SIPServer === cfgInterfone.servidor &&
-        estado.dahua.sip.UserID === 'fac-30' &&
+        estado.dahua.sip.UserID === 'fac30' &&
         estado.dahua.sip.AuthPassword === cfgInterfone.senha &&
         estado.dahua.sip.UserEnable === 'true',
       JSON.stringify({ ...estado.dahua.sip, AuthPassword: '(oculta)' }),

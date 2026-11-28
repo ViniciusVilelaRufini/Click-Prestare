@@ -633,3 +633,24 @@ test('Q6: prazoParaAbrir() — sem prazo conhecido usa o timeout padrão; prazo 
   assert.deepEqual(prazoParaAbrir({ _prazoRestanteMs: () => 60000 }, 8000), { expirado: null, timeout: 8000 });
   assert.match(ERRO_PRAZO_ABRIR, /nada foi enviado/);
 });
+
+test('interfone_config chega ao driver com _prazoRestanteMs (para parar antes de a nuvem desistir)', async () => {
+  const relogio = { t: 0 };
+  let visto = null;
+  const d = criarDespachante({
+    executar: async (device, cmd) => {
+      visto = cmd._prazoRestanteMs;
+      return { ok: true };
+    },
+    postarResultado: async () => {},
+    log: logMudo,
+    agora: () => relogio.t,
+  });
+  const p = d.despachar([{ device: PORTA, commands: [{ id: 'ifn', type: 'interfone_config', ttl_ms: 20000 }] }]);
+  relogio.t = 3000;
+  await p;
+  assert.equal(typeof visto, 'function');
+  assert.equal(visto(), 17000);
+  relogio.t = 25000;
+  assert.equal(visto(), 0);
+});

@@ -422,7 +422,19 @@ function reiniciarInterfoneDahua() {
   estado.dahua.limiteBuscaContatos = null;
   // Responde "OK" ao setConfig mas não grava (para o cliente conferir lendo de volta).
   estado.dahua.sipIgnoraGravacao = false;
+  // Firmware que devolve a senha "cifrada" (legível, mas diferente da gravada).
+  estado.dahua.senhaLidaCifrada = false;
+  // Firmware sem o campo AuthID na conta SIP (não aparece na leitura e é ignorado no set).
+  estado.dahua.sipSemAuthID = false;
+  // Busca de contatos: firmware que ignora `offset`, sem getQuerySize, sem totalCount.
+  estado.dahua.ignoraOffset = false;
+  estado.dahua.semQuerySize = false;
+  estado.dahua.semTotalCount = false;
+  // Atraso (ms) em cada resposta do aparelho (para testar o prazo do comando).
+  estado.dahua.atrasoMs = 0;
   estado.dahua.gravacoesSip = 0;
+  estado.dahua.ultimoSetSip = '';
+  estado.dahua.urls = [];
 }
 reiniciarInterfoneDahua();
 
@@ -443,7 +455,7 @@ const CAMPOS_CONTATO = [
 ];
 
 function contatosParaIni(lista, total) {
-  const linhas = [`totalCount=${total}`, `found=${lista.length}`];
+  const linhas = [...(estado.dahua.semTotalCount ? [] : [`totalCount=${total}`]), `found=${lista.length}`];
   lista.forEach((c, i) => {
     for (const [k, v] of Object.entries(c)) linhas.push(`records[${i}].${k}=${v}`);
   });
@@ -458,10 +470,14 @@ function responderConfigSip(url, acao, texto) {
       texto('Error\r\nBad Request!\r\n', 400);
       return true;
     }
-    const linhas = Object.entries(estado.dahua.sip).map(([k, v]) => {
-      const valor = k === 'AuthPassword' && estado.dahua.mascararSenhaSip ? '******' : v;
-      return `table.SIP.${k}=${valor}`;
-    });
+    const linhas = Object.entries(estado.dahua.sip)
+      .filter(([k]) => !(k === 'AuthID' && estado.dahua.sipSemAuthID))
+      .map(([k, v]) => {
+        let valor = v;
+        if (k === 'AuthPassword' && estado.dahua.mascararSenhaSip) valor = '******';
+        else if (k === 'AuthPassword' && estado.dahua.senhaLidaCifrada) valor = md5(`cifra:${v}`).toUpperCase();
+        return `table.SIP.${k}=${valor}`;
+      });
     texto(linhas.join('\r\n') + '\r\n');
     return true;
   }
@@ -471,9 +487,14 @@ function responderConfigSip(url, acao, texto) {
       return true;
     }
     if (!estado.dahua.sipIgnoraGravacao) {
-      for (const [k, v] of p) if (k.startsWith('SIP.')) estado.dahua.sip[k.slice(4)] = v;
+      for (const [k, v] of p) {
+        if (!k.startsWith('SIP.')) continue;
+        if (k === 'SIP.AuthID' && estado.dahua.sipSemAuthID) continue;
+        estado.dahua.sip[k.slice(4)] = v;
+      }
     }
     estado.dahua.gravacoesSip++;
+    estado.dahua.ultimoSetSip = [...p.keys()].join('&');
     texto('OK\r\n');
     return true;
   }
@@ -484,15 +505,25 @@ function responderConfigSip(url, acao, texto) {
 function responderContatos(caminho, url, acao, texto) {
   const p = url.searchParams;
   if (p.get('name') !== 'VideoTalkContact') return false;
+  if (caminho === '/cgi-bin/recordFinder.cgi' && acao === 'getQuerySize') {
+    // Tabela 13-14: a resposta de exemplo é "Count=200".
+    const fimDeLinha = String.fromCharCode(13, 10);
+    if (estado.dahua.semQuerySize) texto(`Error${fimDeLinha}Bad Request!${fimDeLinha}`, 400);
+    else texto(`Count=${estado.dahua.contatos.length}${fimDeLinha}`);
+    return true;
+  }
   if (caminho === '/cgi-bin/recordFinder.cgi' && acao === 'find') {
     let lista = estado.dahua.contatos;
     const filtro = p.get('condition.VTShortNumber');
     if (filtro != null) lista = lista.filter((c) => c.VTShortNumber === filtro);
     const total = lista.length;
+    // `offset` não está na tabela 13-9 da doc; firmwares Dahua costumam
+    // aceitar — `ignoraOffset` simula o que não aceita.
+    const offset = estado.dahua.ignoraOffset ? 0 : Number(p.get('offset') || 0);
     const count = Number(p.get('count') || 0) || total;
-    let corte = Math.min(count, total);
-    if (estado.dahua.limiteBuscaContatos != null) corte = Math.min(corte, estado.dahua.limiteBuscaContatos);
-    texto(contatosParaIni(lista.slice(0, corte), total));
+    let fatia = lista.slice(offset, offset + count);
+    if (estado.dahua.limiteBuscaContatos != null) fatia = fatia.slice(0, estado.dahua.limiteBuscaContatos);
+    texto(contatosParaIni(fatia, total));
     return true;
   }
   if (caminho !== '/cgi-bin/recordUpdater.cgi') return false;
@@ -545,12 +576,14 @@ function servidorDahua(porta, onStream) {
     .createServer((req, res) => {
       const chunks = [];
       req.on('data', (c) => chunks.push(c));
-      req.on('end', () => {
+      // `atrasoMs` (testes de prazo): o aparelho demora a responder cada requisição.
+      req.on('end', () => setTimeout(() => {
         const body = Buffer.concat(chunks);
         const url = new URL(req.url, 'http://x');
         const caminho = url.pathname;
         const acao = url.searchParams.get('action');
         estado.dahua.requisicoes.push(`${req.method} ${caminho}?${acao ?? ''}`);
+        (estado.dahua.urls || (estado.dahua.urls = [])).push(req.url);
         const parse = () => {
           try {
             return JSON.parse(body.toString('utf8'));
@@ -694,7 +727,7 @@ function servidorDahua(porta, onStream) {
         }
         res.writeHead(404);
         res.end('nao implementado: ' + caminho);
-      });
+      }, estado.dahua.atrasoMs || 0));
     })
     .listen(porta, '127.0.0.1'),
   );

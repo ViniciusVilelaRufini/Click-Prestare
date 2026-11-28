@@ -11,6 +11,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { once } = require('node:events');
 const dahua = require('../src/drivers/dahua-facial');
+const interfone = require('../src/drivers/dahua-interfone');
 const mock = require('../harness/mock-device');
 
 const { estado } = mock;
@@ -20,8 +21,8 @@ let servidor;
 let device;
 
 test.before(async () => {
-  // Sem gravar o estado do interfone em disco durante os testes.
-  dahua.configurar({ arquivoInterfoneSip: null });
+  // Sem gravar o estado do interfone em disco e sem a espera antes de conferir.
+  interfone.configurar({ arquivoSip: null, esperaConferenciaMs: 0, margemMs: 50 });
   servidor = mock.servidorDahua(0, () => {});
   await once(servidor, 'listening');
   device = {
@@ -40,7 +41,7 @@ test.after(async () => {
 });
 
 let proximoId = 7100;
-/** Cada teste num "aparelho" novo: fábrica + id novo (a memória da senha é por id). */
+/** Cada teste num "aparelho" novo: fábrica + id novo (a memória da conta é por id). */
 function aparelhoNovo() {
   mock.reiniciarInterfoneDahua();
   estado.dahua.requisicoes.length = 0;
@@ -52,7 +53,7 @@ function cfg(extra = {}) {
   return {
     servidor: 'voz.prestarecondominios.com.br',
     porta: 5060,
-    conta: 'fac-12',
+    conta: 'fac12',
     senha: SENHA,
     contatos: [
       { nome: 'Bloco A · Apto 106', numero: '106', bloco: 'A', andar: '1' },
@@ -62,21 +63,40 @@ function cfg(extra = {}) {
   };
 }
 
+const configurar = (c, cmd) => dahua.configurarInterfone(device, c, cmd);
 const gravacoesDeContato = () =>
   estado.dahua.requisicoes.filter((r) => r.startsWith('GET /cgi-bin/recordUpdater.cgi'));
+const contatosNossos = (n, base = 1000) =>
+  Array.from({ length: n }, (_, i) => ({ nome: `Apto ${base + i}`, numero: String(base + i), bloco: '', andar: '' }));
+/** Coloca direto no aparelho falso os contatos como o agente gravaria. */
+function preencherAparelho(contatos) {
+  for (const c of contatos) {
+    estado.dahua.contatos.push({
+      RecNo: String(estado.dahua.proximoRecNo++),
+      FirstName: c.nome,
+      VTShortNumber: c.numero,
+      VTOBuilding: c.bloco,
+      Notes: 'prestare',
+      RegisterType: 'public',
+      VTHPassword: 'x',
+    });
+  }
+}
 
 test('aparelho de fábrica: grava a conta SIP e a lista telefônica (VideoTalkContact)', async () => {
   aparelhoNovo();
-  const r = await dahua.configurarInterfone(device, cfg());
+  const r = await configurar(cfg());
   assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.parcial, false);
   assert.equal(r.sip.alterado, true);
   assert.deepEqual(r.contatos, { inseridos: 2, atualizados: 0, removidos: 0, iguais: 0 });
+  assert.deepEqual(r.conflitos, []);
 
   const sip = estado.dahua.sip;
   assert.equal(sip.SIPServer, 'voz.prestarecondominios.com.br');
   assert.equal(sip.SIPServerPort, '5060');
-  assert.equal(sip.UserID, 'fac-12');
-  assert.equal(sip.AuthID, 'fac-12');
+  assert.equal(sip.UserID, 'fac12');
+  assert.equal(sip.AuthID, 'fac12');
   assert.equal(sip.AuthPassword, SENHA);
   assert.equal(sip.UserEnable, 'true');
 
@@ -93,11 +113,11 @@ test('aparelho de fábrica: grava a conta SIP e a lista telefônica (VideoTalkCo
 
 test('segunda vez com os mesmos dados: lê e não grava nada', async () => {
   aparelhoNovo();
-  await dahua.configurarInterfone(device, cfg());
+  await configurar(cfg());
   const gravacoes = estado.dahua.gravacoesSip;
   estado.dahua.requisicoes.length = 0;
 
-  const r = await dahua.configurarInterfone(device, cfg());
+  const r = await configurar(cfg());
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.equal(r.sip.alterado, false);
   assert.deepEqual(r.contatos, { inseridos: 0, atualizados: 0, removidos: 0, iguais: 2 });
@@ -105,62 +125,106 @@ test('segunda vez com os mesmos dados: lê e não grava nada', async () => {
   assert.deepEqual(gravacoesDeContato(), [], 'recordUpdater não foi chamado');
 });
 
-test('firmware que esconde a senha na leitura: grava uma vez, não regrava a mesma senha, regrava senha nova', async () => {
+test('senha escondida na leitura: grava uma vez, não regrava a mesma, regrava a nova; forcar regrava sempre', async () => {
   aparelhoNovo();
   estado.dahua.mascararSenhaSip = true;
-  assert.equal((await dahua.configurarInterfone(device, cfg())).sip.alterado, true);
+  assert.equal((await configurar(cfg())).sip.alterado, true);
+  assert.equal((await configurar(cfg())).sip.alterado, false, 'mesma senha já aplicada por este agente');
   assert.equal(estado.dahua.gravacoesSip, 1);
 
-  const igual = await dahua.configurarInterfone(device, cfg());
-  assert.equal(igual.sip.alterado, false, 'mesma senha já aplicada por este agente');
-  assert.equal(estado.dahua.gravacoesSip, 1);
-
-  const nova = await dahua.configurarInterfone(device, cfg({ senha: 'Zz99Yy88Xx77Ww66Vv55Uu44' }));
+  const nova = await configurar(cfg({ senha: 'Zz99Yy88Xx77Ww66Vv55Uu44' }));
   assert.equal(nova.sip.alterado, true);
   assert.equal(estado.dahua.sip.AuthPassword, 'Zz99Yy88Xx77Ww66Vv55Uu44');
+
+  const forcado = await configurar(cfg({ senha: 'Zz99Yy88Xx77Ww66Vv55Uu44', forcar: true }));
+  assert.equal(forcado.sip.alterado, true, 'clique manual com forcar manda a senha de novo');
+  assert.equal(estado.dahua.gravacoesSip, 3);
+});
+
+test('senha lida de volta diferente do que foi gravado (firmware que cifra): sem "não gravou" e sem regravar', async () => {
+  aparelhoNovo();
+  estado.dahua.senhaLidaCifrada = true;
+  const r = await configurar(cfg());
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.sip.alterado, true);
+  const r2 = await configurar(cfg());
+  assert.equal(r2.sip.alterado, false);
+  assert.equal(estado.dahua.gravacoesSip, 1);
 });
 
 test('senha trocada no aparelho por fora (legível): regrava', async () => {
   aparelhoNovo();
-  await dahua.configurarInterfone(device, cfg());
+  await configurar(cfg());
   estado.dahua.sip.AuthPassword = 'outra';
-  const r = await dahua.configurarInterfone(device, cfg());
+  const r = await configurar(cfg());
   assert.equal(r.sip.alterado, true);
   assert.equal(estado.dahua.sip.AuthPassword, SENHA);
 });
 
-test('lista muda: atualiza o nome, remove o ramal que saiu (só os nossos) e não mexe no contato do instalador', async () => {
+test('conta SIP de outro servidor (do instalador): não sobrescreve sem forcar', async () => {
   aparelhoNovo();
-  await dahua.configurarInterfone(device, cfg());
-  // Contato criado à mão pelo instalador (sem a nossa marca).
-  estado.dahua.contatos.push({ RecNo: '90', VTShortNumber: '999', FirstName: 'Zelador', Notes: '', RegisterType: 'public', VTHPassword: 'x' });
-  // Contato manual com o mesmo número de uma unidade nossa: passa a ser nosso.
-  estado.dahua.contatos.push({ RecNo: '91', VTShortNumber: '301', FirstName: 'Antigo', Notes: '', RegisterType: 'public', VTHPassword: 'x' });
+  Object.assign(estado.dahua.sip, { SIPServer: '10.0.0.5', UserID: '2001', AuthID: '2001', UserEnable: 'true' });
+  const r = await configurar(cfg());
+  assert.equal(r.ok, false);
+  assert.equal(r.error, 'sip_de_outro_servidor');
+  assert.equal(r.servidor_atual, '10.0.0.5');
+  assert.equal(estado.dahua.gravacoesSip, 0);
+  assert.deepEqual(gravacoesDeContato(), [], 'nem a lista é mexida');
+  assert.equal(estado.dahua.sip.SIPServer, '10.0.0.5');
 
-  const r = await dahua.configurarInterfone(
-    device,
-    cfg({
-      contatos: [
-        { nome: 'Bloco A · Apto 106 (Cobertura)', numero: '106', bloco: 'A', andar: '1' },
-        { nome: 'Bloco A · Apto 301', numero: '301', bloco: 'A', andar: '3' },
-      ],
-    }),
-  );
+  const forcado = await configurar(cfg({ forcar: true }));
+  assert.equal(forcado.ok, true, JSON.stringify(forcado));
+  assert.equal(estado.dahua.sip.SIPServer, 'voz.prestarecondominios.com.br');
+});
+
+test('servidor normalizado: o aparelho com o IP do nosso domínio (ou maiúsculas, "sip:", ":5060") conta como o nosso', async () => {
+  aparelhoNovo();
+  Object.assign(estado.dahua.sip, { SIPServer: '127.0.0.1', UserID: 'fac12', AuthID: 'fac12', UserEnable: 'true', AuthPassword: SENHA });
+  const r = await configurar(cfg({ servidor: 'localhost', contatos: [] }));
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.deepEqual(r.contatos, { inseridos: 0, atualizados: 2, removidos: 1, iguais: 0 });
-  const porNumero = Object.fromEntries(estado.dahua.contatos.map((c) => [c.VTShortNumber, c]));
-  assert.equal(porNumero['106'].FirstName, 'Bloco A - Apto 106 Cobertura');
-  assert.equal(porNumero['106'].RecNo, '1', 'atualizado no lugar, não removido e inserido');
-  assert.equal(porNumero['201'], undefined, 'ramal que saiu foi removido');
-  assert.equal(porNumero['301'].FirstName, 'Bloco A - Apto 301');
-  assert.equal(porNumero['301'].Notes, 'prestare');
-  assert.equal(porNumero['999'].FirstName, 'Zelador', 'contato do instalador intacto');
+  assert.equal(r.sip.alterado, false);
+
+  aparelhoNovo();
+  Object.assign(estado.dahua.sip, {
+    SIPServer: 'sip:VOZ.PrestareCondominios.com.br:5060',
+    UserID: 'fac12',
+    AuthID: 'fac12',
+    UserEnable: 'true',
+    AuthPassword: SENHA,
+  });
+  const r2 = await configurar(cfg({ contatos: [] }));
+  assert.equal(r2.ok, true, JSON.stringify(r2));
+  assert.equal(r2.sip.alterado, false);
+});
+
+test('firmware sem o campo AuthID: não manda o que não existe e não acusa "não gravou"', async () => {
+  aparelhoNovo();
+  estado.dahua.sipSemAuthID = true;
+  const r = await configurar(cfg());
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(r.avisos, []);
+  assert.equal(estado.dahua.gravacoesSip, 1);
+  assert.equal(estado.dahua.ultimoSetSip.includes('SIP.AuthID'), false);
+  assert.equal((await configurar(cfg())).sip.alterado, false);
+});
+
+test('aparelho responde OK mas não guarda a conta: vira aviso (não "não gravou" eterno) e não regrava em loop', async () => {
+  aparelhoNovo();
+  estado.dahua.sipIgnoraGravacao = true;
+  const r = await configurar(cfg());
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(r.avisos.some((a) => /SIPServer/.test(a)), JSON.stringify(r.avisos));
+  const gravacoes = estado.dahua.gravacoesSip;
+  const r2 = await configurar(cfg());
+  assert.equal(r2.sip.alterado, false);
+  assert.equal(estado.dahua.gravacoesSip, gravacoes);
+  assert.ok(r2.avisos.length > 0, 'a divergência continua avisada');
 });
 
 test('firmware sem configManager SIP: falha clara e não toca na lista', async () => {
   aparelhoNovo();
   estado.dahua.semConfigSip = true;
-  const r = await dahua.configurarInterfone(device, cfg());
+  const r = await configurar(cfg());
   assert.equal(r.ok, false);
   assert.match(r.error, /SIP/);
   assert.deepEqual(
@@ -169,32 +233,127 @@ test('firmware sem configManager SIP: falha clara e não toca na lista', async (
   );
 });
 
-test('aparelho responde OK mas não grava a conta: confere lendo de volta e falha', async () => {
+test('lista muda: só os nossos (Notes=prestare) mudam; contato manual com o mesmo número fica e vira conflito', async () => {
   aparelhoNovo();
-  estado.dahua.sipIgnoraGravacao = true;
-  const r = await dahua.configurarInterfone(device, cfg());
-  assert.equal(r.ok, false);
-  assert.match(r.error, /não gravou/);
+  await configurar(cfg());
+  estado.dahua.contatos.push({ RecNo: '90', VTShortNumber: '999', FirstName: 'Zelador', Notes: '', RegisterType: 'public', VTHPassword: 'x' });
+  estado.dahua.contatos.push({ RecNo: '91', VTShortNumber: '301', FirstName: 'Monitor 301', Notes: '', RegisterType: 'public', VTHPassword: 'y' });
+
+  const r = await configurar(
+    cfg({
+      contatos: [
+        { nome: 'Bloco A · Apto 106 (Cobertura)', numero: '106', bloco: 'A', andar: '1' },
+        { nome: 'Bloco A · Apto 301', numero: '301', bloco: 'A', andar: '3' },
+      ],
+    }),
+  );
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(r.contatos, { inseridos: 0, atualizados: 1, removidos: 1, iguais: 0 });
+  assert.deepEqual(r.conflitos, ['301']);
+  const porNumero = Object.fromEntries(estado.dahua.contatos.map((c) => [c.VTShortNumber, c]));
+  assert.equal(porNumero['106'].FirstName, 'Bloco A - Apto 106 Cobertura');
+  assert.equal(porNumero['106'].RecNo, '1', 'atualizado no lugar');
+  assert.equal(porNumero['201'], undefined, 'o nosso que saiu foi removido');
+  assert.deepEqual(porNumero['301'], { RecNo: '91', VTShortNumber: '301', FirstName: 'Monitor 301', Notes: '', RegisterType: 'public', VTHPassword: 'y' });
+  assert.equal(porNumero['999'].FirstName, 'Zelador');
+  assert.equal(estado.dahua.contatos.filter((c) => c.VTShortNumber === '301').length, 1, 'não duplica o número');
 });
 
-test('lista lida pela metade (aparelho cortou a busca): não grava nem remove nenhum contato', async () => {
+test('lista vazia não remove nada; só com remover:true', async () => {
   aparelhoNovo();
-  await dahua.configurarInterfone(device, cfg());
-  estado.dahua.limiteBuscaContatos = 1;
-  estado.dahua.requisicoes.length = 0;
-  const r = await dahua.configurarInterfone(device, cfg({ contatos: [{ nome: 'X', numero: '500', bloco: '', andar: '' }] }));
+  await configurar(cfg());
+  const r = await configurar(cfg({ contatos: [] }));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.contatos.removidos, 0);
+  assert.equal(estado.dahua.contatos.length, 2);
+  assert.ok(r.avisos.some((a) => /vazia/.test(a)));
+
+  const r2 = await configurar(cfg({ contatos: [], remover: true }));
+  assert.equal(r2.contatos.removidos, 2);
+  assert.equal(estado.dahua.contatos.length, 0);
+});
+
+test('firmware que limita o count: pagina pelo offset e lê a lista inteira', async () => {
+  aparelhoNovo();
+  const lista = contatosNossos(150);
+  preencherAparelho(lista);
+  estado.dahua.limiteBuscaContatos = 100;
+  const r = await configurar(cfg({ contatos: lista }));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(r.contatos, { inseridos: 0, atualizados: 0, removidos: 0, iguais: 150 });
+  assert.deepEqual(gravacoesDeContato(), []);
+  assert.ok(estado.dahua.requisicoes.filter((x) => x.includes('recordFinder.cgi?find')).length >= 2, 'mais de uma página');
+});
+
+test('firmware que limita o count e ignora o offset: não altera nada (lista pela metade)', async () => {
+  aparelhoNovo();
+  preencherAparelho(contatosNossos(150));
+  estado.dahua.limiteBuscaContatos = 100;
+  estado.dahua.ignoraOffset = true;
+  const r = await configurar(cfg({ contatos: contatosNossos(3, 5000) }));
   assert.equal(r.ok, false);
   assert.match(r.error, /lista telefônica/i);
   assert.deepEqual(gravacoesDeContato(), []);
-  assert.equal(estado.dahua.contatos.length, 2);
+  assert.equal(estado.dahua.contatos.length, 150);
 });
 
-test('dados inválidos: recusa sem falar com o aparelho', async () => {
+test('firmware sem getQuerySize e sem totalCount: pagina até a página vir menor', async () => {
+  aparelhoNovo();
+  const lista = contatosNossos(120);
+  preencherAparelho(lista);
+  estado.dahua.semQuerySize = true;
+  estado.dahua.semTotalCount = true;
+  const r = await configurar(cfg({ contatos: lista }));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.contatos.iguais, 120);
+});
+
+test('RecNo não numérico: não manda recno torto ao aparelho e avisa', async () => {
+  aparelhoNovo();
+  estado.dahua.contatos.push({ RecNo: 'abc', VTShortNumber: '777', FirstName: 'X', Notes: 'prestare', RegisterType: 'public', VTHPassword: 'x' });
+  const r = await configurar(cfg());
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(r.avisos.some((a) => /RecNo/.test(a)));
+  assert.equal(estado.dahua.urls.some((x) => /recno=abc/.test(x)), false);
+});
+
+test('carga grande: grava em lotes e devolve parcial; repetir continua de onde parou', async () => {
+  aparelhoNovo();
+  const lista = contatosNossos(45);
+  const r = await configurar(cfg({ contatos: lista }));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.parcial, true);
+  assert.equal(r.contatos.inseridos, 30);
+  assert.equal(r.restantes, 15);
+  const r2 = await configurar(cfg({ contatos: lista }));
+  assert.equal(r2.parcial, false);
+  assert.equal(r2.contatos.inseridos, 15);
+  assert.equal(r2.contatos.iguais, 30);
+  assert.equal(estado.dahua.contatos.length, 45);
+});
+
+test('prazo: com o aparelho lento, para antes do fim do prazo e devolve parcial', async () => {
+  aparelhoNovo();
+  estado.dahua.atrasoMs = 30;
+  const inicio = Date.now();
+  const fim = inicio + 900;
+  const cmd = { _prazoRestanteMs: () => Math.max(0, fim - Date.now()) };
+  const r = await configurar(cfg({ contatos: contatosNossos(20) }), cmd);
+  const gasto = Date.now() - inicio;
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.parcial, true);
+  assert.ok(r.restantes > 0);
+  assert.ok(gasto < 900 + 150, `levou ${gasto} ms`);
+});
+
+test('dados inválidos (inclusive conta com hífen): recusa sem falar com o aparelho', async () => {
   aparelhoNovo();
   const casos = [
     cfg({ servidor: '' }),
     cfg({ porta: 70000 }),
     cfg({ conta: '' }),
+    cfg({ conta: 'fac-12' }),
+    cfg({ conta: 'fac.12' }),
     cfg({ senha: 'abc;def' }),
     cfg({ contatos: [{ nome: 'A', numero: '10a', bloco: '', andar: '' }] }),
     cfg({ contatos: 'nada' }),
@@ -206,29 +365,36 @@ test('dados inválidos: recusa sem falar com o aparelho', async () => {
     }),
   ];
   for (const c of casos) {
-    const r = await dahua.configurarInterfone(device, c);
+    const r = await configurar(c);
     assert.equal(r.ok, false, JSON.stringify(c));
   }
   assert.deepEqual(estado.dahua.requisicoes, []);
 });
 
-test('a senha nunca aparece no resultado nem no log', async () => {
+test('a senha nunca aparece no resultado, no erro nem no log (inclusive "URL inválida")', async () => {
   aparelhoNovo();
   const linhas = [];
   const orig = { log: console.log, error: console.error, warn: console.warn };
   console.log = console.error = console.warn = (...a) => linhas.push(a.join(' '));
-  let r;
+  const resultados = [];
   try {
-    r = await dahua.configurarInterfone(device, cfg());
+    resultados.push(await configurar(cfg()));
     estado.dahua.sipIgnoraGravacao = true;
-    await dahua.configurarInterfone(device, cfg({ senha: 'Novasenha123456789012345' }));
+    resultados.push(await configurar(cfg({ senha: 'Novasenha123456789012345' })));
+    // Endereço torto: a URL do setConfig (com a senha) não pode ir para o erro.
+    const torto = { ...device, id: device.id + 50000, porta: 'x y' };
+    resultados.push(await dahua.configurarInterfone(torto, cfg({ senha: 'Tortasenha123456789012345' })));
+    resultados.push(await dahua.executar(torto, { type: 'interfone_config', interfone: cfg({ senha: 'Tortasenha123456789012345' }) }));
   } finally {
     Object.assign(console, orig);
   }
-  assert.equal(r.ok, true);
-  const tudo = JSON.stringify(r) + linhas.join('\n');
-  assert.ok(!tudo.includes(SENHA), 'senha vazou');
-  assert.ok(!tudo.includes('Novasenha123456789012345'), 'senha nova vazou');
+  assert.equal(resultados[0].ok, true);
+  assert.equal(resultados[2].ok, false);
+  const tudo = JSON.stringify(resultados) + linhas.join('\n');
+  for (const s of [SENHA, 'Novasenha123456789012345', 'Tortasenha123456789012345']) {
+    assert.ok(!tudo.includes(s), `senha vazou: ${s}`);
+    assert.ok(!tudo.includes(encodeURIComponent(s)));
+  }
 });
 
 test('executar: comando interfone_config chega ao driver; sem dados → recusa', async () => {

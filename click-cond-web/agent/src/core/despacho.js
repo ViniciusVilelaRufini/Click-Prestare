@@ -128,6 +128,12 @@ function criarDespachante({ executar, postarResultado, log = console, agora = ()
     // Relé do Módulo Guarita: o driver só espera a vez na conexão pelo que
     // ainda sobra da validade (não abre o portão depois do prazo).
     if (cmd.type === 'guarita_rele') cmd._restanteMs = Math.max(0, prazo - (agora() - item.chegouEm));
+    // Interfone: o driver para de gravar antes de a nuvem desistir e devolve
+    // "parcial" (repetir o comando continua de onde parou).
+    if (cmd.type === 'interfone_config') {
+      const fim = item.chegouEm + prazo;
+      cmd._prazoRestanteMs = () => Math.max(0, fim - agora());
+    }
     // Colapso: vários "abrir porta" seguidos na fila (cliques acumulados
     // enquanto o aparelho não respondia) viram UMA abertura física; os que
     // vinham logo atrás recebem o mesmo resultado.
@@ -319,6 +325,7 @@ function prazoParaAbrir(cmd, timeoutPadraoMs) {
 module.exports = {
   criarDespachante,
   prazoParaAbrir,
+  restanteDoPrazo,
   criarCicloDePing,
   prazoDoComando,
   PING_TIMEOUT_MS,

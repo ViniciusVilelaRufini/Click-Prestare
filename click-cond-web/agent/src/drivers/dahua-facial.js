@@ -51,8 +51,8 @@ const { deviceBaselines, setBaseline, lerJson, gravarJsonAtomico } = require('..
 const { agoraDaNuvem } = require('../core/nuvem');
 const { criarAvisoDeQueda } = require('./comum/queda');
 const { idDoCadastro } = require('./comum/cadastro');
-const crypto = require('crypto');
-const { prazoParaAbrir } = require('../core/despacho');
+const interfone = require('./dahua-interfone');
+const { prazoParaAbrir, restanteDoPrazo } = require('../core/despacho');
 
 // lib/http.js não conhece o timeout da LAN — é config injetada por quem monta
 // o agente (index.js lê LAN_TIMEOUT_MS do .env). Guardamos aqui um valor com
@@ -66,17 +66,10 @@ const PAUSA_APOS_ERRO_MS = 5000;
 const DURACAO_MINIMA_STREAM_MS = 1000;
 let pausaAposErroMs = PAUSA_APOS_ERRO_MS;
 let duracaoMinimaStreamMs = DURACAO_MINIMA_STREAM_MS;
-// Onde o interfone guarda a "impressão" (hash) da conta SIP já gravada em cada
-// aparelho — ver `configurarInterfone`. `null` = só em memória (testes).
-let arquivoInterfoneSip = 'interfone-sip.json';
-function configurar({ lanTimeoutMs: t, pausaAposErroMs: p, duracaoMinimaStreamMs: d, arquivoInterfoneSip: a } = {}) {
+function configurar({ lanTimeoutMs: t, pausaAposErroMs: p, duracaoMinimaStreamMs: d } = {}) {
   if (t) lanTimeoutMs = t;
   if (Number.isFinite(p) && p > 0) pausaAposErroMs = p;
   if (Number.isFinite(d) && d >= 0) duracaoMinimaStreamMs = d;
-  if (a !== undefined) {
-    arquivoInterfoneSip = a;
-    sipAplicado = null;
-  }
 }
 function lanRequest(device, method, pathname, opts) {
   return lanRequestComTimeout(device, method, pathname, opts, lanTimeoutMs);
@@ -171,7 +164,7 @@ async function executar(device, cmd) {
     case 'remove_users':
       return removerUsuarios(device, cmd);
     case 'interfone_config':
-      return configurarInterfone(device, cmd.interfone);
+      return configurarInterfone(device, cmd.interfone, cmd);
     default:
       return { ok: false, error: `comando desconhecido: ${cmd.type}` };
   }
@@ -523,288 +516,16 @@ function snapshotComDigest(device, st) {
   })();
 }
 
-// ---------- Interfone: conta SIP + lista telefônica (comando interfone_config) ----------
-//
-// NÃO VALIDADO em aparelho: nomes da "API of HTTP Protocol Specification" da
-// Dahua V3.26 (2023-02-28), cap. 13 (Intelligent Building APIs), a mesma
-// família de CGIs que o SS 3530 já atende (configManager/recordFinder). A
-// Intelbras documenta `configManager.cgi?action=setConfig&SIPKeepAlive...` e
-// `VTOCallInfo.ManagerNumber` para esses faciais, o que reforça o caminho —
-// mas os campos exatos e o comportamento (senha mascarada na leitura, a
-// "lista telefônica" da Interface Web 2.0) só a bancada confirma. Ver
-// .superpowers/sdd/2026-11-27-interfone-pelo-app/g1-preparatorio-report.md.
-//
-//   Conta SIP: GET configManager.cgi?action=getConfig&name=SIP
-//              (linhas `table.SIP.<Campo>=<valor>`)
-//              GET configManager.cgi?action=setConfig&SIP.<Campo>=<valor>&... → "OK"
-//   Lista:     GET recordFinder.cgi?action=find&name=VideoTalkContact&count=N
-//              GET recordUpdater.cgi?action=insert|update|remove&name=VideoTalkContact
-//
-// Idempotente: lê antes e só grava o que mudou. A senha da conta nunca vai
-// para log nem para o resultado (ela só sai na query do setConfig, pela LAN,
-// como as demais credenciais do aparelho).
+// ---------- Interfone (comando interfone_config) ----------
+// O protocolo e as regras moram em ./dahua-interfone.js (NÃO validado em
+// aparelho). Aqui só entram o lanRequest deste driver e o prazo do comando.
 
-/** Campos da conta SIP que o agente administra (o resto fica como está no aparelho). */
-const CAMPOS_SIP = ['SIPServer', 'SIPServerPort', 'UserID', 'AuthID', 'UserEnable'];
-/** Marca dos contatos gravados pelo agente: só esses são removidos quando saem da lista. */
-const MARCA_CONTATO = 'prestare';
-/** Teto da busca de contatos (Interface Web 2.0: até 1500 ramais). */
-const MAX_CONTATOS = 2000;
-/** Caracteres que o manual Intelbras diz não aceitar na senha SIP. */
-const SENHA_SIP_PROIBIDA = /['":;&]/;
-
-// deviceId → hash(servidor|porta|conta|senha) da última conta gravada com sucesso.
-// Serve para o firmware que não devolve a senha na leitura: sem isso, toda
-// execução regravaria a conta (e derrubaria o registro na central).
-let sipAplicado = null;
-function memoriaSip() {
-  if (!sipAplicado) {
-    const lido = arquivoInterfoneSip ? lerJson(arquivoInterfoneSip, {}) : {};
-    sipAplicado = new Map(Object.entries(lido && typeof lido === 'object' ? lido : {}));
-  }
-  return sipAplicado;
-}
-function lembrarSip(deviceId, impressao) {
-  const m = memoriaSip();
-  m.set(String(deviceId), impressao);
-  if (!arquivoInterfoneSip) return;
-  try {
-    gravarJsonAtomico(arquivoInterfoneSip, Object.fromEntries(m));
-  } catch (e) {
-    console.error(`[agente] falha ao salvar ${arquivoInterfoneSip}: ${e.message || e}`);
-  }
-}
-function impressaoSip({ servidor, porta, conta, senha }) {
-  return crypto.createHash('sha256').update(`${servidor}|${porta}|${conta}|${senha}`).digest('hex');
-}
-
-/**
- * Nome na tela do facial: sem acento, "·" vira "-", só letras, números,
- * espaço, "-" e "_" (o changelog da Interface Web 2.0 cita só esses), até 32.
- */
-function nomeParaAparelho(s) {
-  return String(s ?? '')
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[·•|/]/g, '-')
-    .replace(/[^A-Za-z0-9 _-]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 32)
-    .trim();
-}
-
-/** Senha de registro do contato (campo obrigatório do VideoTalkContact; só serve a monitor da Intelbras registrado NO facial, o que não usamos). */
-function senhaDoContato(senhaConta, numero) {
-  return crypto.createHash('sha256').update(`${senhaConta}:${numero}`).digest('hex').slice(0, 12);
-}
-
-/** Valida e normaliza a entrada. Devolve `{ erro }` ou `{ cfg }`. */
-function validarConfigInterfone(c) {
-  if (!c || typeof c !== 'object') return { erro: 'comando sem os dados do interfone' };
-  const servidor = typeof c.servidor === 'string' ? c.servidor.trim() : '';
-  if (!servidor || !/^[A-Za-z0-9.-]{1,253}$/.test(servidor)) return { erro: 'servidor SIP inválido' };
-  const porta = Number(c.porta);
-  if (!Number.isInteger(porta) || porta < 1 || porta > 65535) return { erro: 'porta SIP inválida' };
-  const conta = typeof c.conta === 'string' ? c.conta.trim() : '';
-  if (!conta || conta.length > 32 || !/^[A-Za-z0-9#._-]+$/.test(conta)) return { erro: 'conta SIP inválida' };
-  const senha = typeof c.senha === 'string' ? c.senha : '';
-  if (!senha || senha.length > 64 || SENHA_SIP_PROIBIDA.test(senha)) {
-    return { erro: 'senha SIP inválida (vazia, longa demais ou com caractere que o aparelho não aceita)' };
-  }
-  if (!Array.isArray(c.contatos) || c.contatos.length > MAX_CONTATOS) return { erro: 'lista de contatos inválida' };
-  const contatos = [];
-  const vistos = new Set();
-  for (const k of c.contatos) {
-    const numero = String((k && k.numero) ?? '').trim();
-    if (!/^\d{1,10}$/.test(numero)) return { erro: `contato com número inválido: "${numero.slice(0, 12)}"` };
-    if (vistos.has(numero)) return { erro: `número repetido na lista: ${numero}` };
-    vistos.add(numero);
-    contatos.push({
-      numero,
-      nome: nomeParaAparelho(k.nome) || numero,
-      bloco: nomeParaAparelho(k.bloco),
-    });
-  }
-  return { cfg: { servidor, porta, conta, senha, contatos } };
-}
-
-/** `table.SIP.Campo=valor` → { Campo: valor }. Vazio se não veio nenhuma linha da tabela. */
-function lerTabelaSip(raw) {
-  const out = {};
-  for (const linha of String(raw || '').split(/\r?\n/)) {
-    const m = linha.match(/^table\.SIP\.([A-Za-z0-9_]+)=(.*)$/);
-    if (m) out[m[1]] = m[2].trim();
-  }
-  return out;
-}
-
-async function lerSip(device) {
-  const res = await lanRequest(device, 'GET', '/cgi-bin/configManager.cgi?action=getConfig&name=SIP');
-  const tabela = lerTabelaSip(res.raw);
-  if (!(res.status >= 200 && res.status < 300) || Object.keys(tabela).length === 0) {
-    return {
-      erro: `o aparelho não devolveu a configuração SIP (configManager name=SIP, HTTP ${res.status}): ${trecho(res)} — configure a conta à mão`,
-    };
-  }
-  return { tabela };
-}
-
-/** Senha que dá para comparar: vazia ou só asteriscos = o firmware escondeu. */
-function senhaLegivel(v) {
-  return typeof v === 'string' && v !== '' && !/^\*+$/.test(v);
-}
-
-async function configurarContaSip(device, cfg) {
-  const lido = await lerSip(device);
-  if (lido.erro) return { erro: lido.erro };
-  const desejado = {
-    SIPServer: cfg.servidor,
-    SIPServerPort: String(cfg.porta),
-    UserID: cfg.conta,
-    AuthID: cfg.conta,
-    UserEnable: 'true',
-  };
-  const diferentes = CAMPOS_SIP.filter((k) => (lido.tabela[k] ?? '') !== desejado[k]);
-  const impressao = impressaoSip(cfg);
-  const atual = lido.tabela.AuthPassword;
-  const senhaMudou = senhaLegivel(atual)
-    ? atual !== cfg.senha
-    : memoriaSip().get(String(device.id)) !== impressao;
-  if (diferentes.length === 0 && !senhaMudou) return { alterado: false, campos: [] };
-
-  // Manda a conta inteira (os campos que a doc marca como obrigatórios no
-  // setConfig), não só o que mudou: firmware que exige o bloco completo não
-  // fica com a conta pela metade.
-  const query = [...CAMPOS_SIP.map((k) => [k, desejado[k]]), ['AuthPassword', cfg.senha]]
-    .map(([k, v]) => `SIP.${k}=${encodeURIComponent(v)}`)
-    .join('&');
-  const res = await lanRequest(device, 'GET', `/cgi-bin/configManager.cgi?action=setConfig&${query}`);
-  if (!(res.status >= 200 && res.status < 300) || !/^\s*OK\b/i.test(String(res.raw || ''))) {
-    return { erro: `o aparelho recusou a conta SIP (HTTP ${res.status}): ${trecho(res)}` };
-  }
-  // Confere lendo de novo: há firmware que responde OK e ignora campo.
-  const depois = await lerSip(device);
-  if (depois.erro) return { erro: depois.erro };
-  const naoGravou = CAMPOS_SIP.filter((k) => (depois.tabela[k] ?? '') !== desejado[k]);
-  if (senhaLegivel(depois.tabela.AuthPassword) && depois.tabela.AuthPassword !== cfg.senha) naoGravou.push('AuthPassword');
-  if (naoGravou.length) {
-    return { erro: `o aparelho respondeu OK mas não gravou: ${naoGravou.join(', ')}` };
-  }
-  lembrarSip(device.id, impressao);
-  return { alterado: true, campos: senhaMudou ? [...diferentes, 'AuthPassword'] : diferentes };
-}
-
-async function lerContatos(device) {
-  const res = await lanRequest(
-    device,
-    'GET',
-    `/cgi-bin/recordFinder.cgi?action=find&name=VideoTalkContact&count=${MAX_CONTATOS}`,
-  );
-  const raw = String(res.raw || '');
-  const found = raw.match(/^\s*found=(\d+)/m);
-  if (!(res.status >= 200 && res.status < 300) || !found) {
-    return {
-      erro: `o aparelho não devolveu a lista telefônica (VideoTalkContact, HTTP ${res.status}): ${trecho(res)}`,
-    };
-  }
-  const registros = parseDahuaINI(raw);
-  const total = raw.match(/^\s*totalCount=(\d+)/m);
-  if (registros.length !== Number(found[1]) || (total && Number(total[1]) > registros.length)) {
-    // Remover "o que não veio" apagaria contatos que só não foram lidos.
-    return {
-      erro: `a lista telefônica do aparelho veio pela metade (${registros.length} de ${total ? total[1] : found[1]}); nada foi alterado`,
-    };
-  }
-  return { registros };
-}
-
-/** Chamada a recordUpdater; `esperado` = regex do corpo de sucesso. */
-async function gravarContato(device, acao, params, esperado) {
-  const q = Object.entries(params)
-    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-    .join('&');
-  const res = await lanRequest(device, 'GET', `/cgi-bin/recordUpdater.cgi?action=${acao}&name=VideoTalkContact&${q}`);
-  if (!(res.status >= 200 && res.status < 300) || !esperado.test(String(res.raw || ''))) {
-    return { erro: `o aparelho recusou ${acao} na lista telefônica (HTTP ${res.status}): ${trecho(res)}` };
-  }
-  return {};
-}
-
-async function sincronizarContatos(device, cfg) {
-  const lido = await lerContatos(device);
-  if (lido.erro) return { erro: lido.erro };
-  const desejados = new Map(cfg.contatos.map((c) => [c.numero, c]));
-  const cont = { inseridos: 0, atualizados: 0, removidos: 0, iguais: 0 };
-  const jaTratados = new Set();
-  const falha = (erro) => ({ erro: `${erro} (até aqui: ${JSON.stringify(cont)})` });
-
-  for (const r of lido.registros) {
-    const numero = String(r.VTShortNumber ?? '').trim();
-    const nosso = String(r.Notes ?? '').trim() === MARCA_CONTATO;
-    const alvo = desejados.get(numero);
-    if (!alvo || jaTratados.has(numero)) {
-      // Fora da lista (ou repetido): só o que o agente gravou sai. O que o
-      // instalador cadastrou à mão (ex.: "Zelador") fica.
-      if (!nosso) continue;
-      const g = await gravarContato(device, 'remove', { recno: r.RecNo }, /^\s*OK\b/i);
-      if (g.erro) return falha(g.erro);
-      cont.removidos++;
-      continue;
-    }
-    jaTratados.add(numero);
-    const queremos = { FirstName: alvo.nome, VTOBuilding: alvo.bloco, Notes: MARCA_CONTATO };
-    const mudam = Object.entries(queremos).filter(([k, v]) => String(r[k] ?? '') !== v);
-    if (mudam.length === 0) {
-      cont.iguais++;
-      continue;
-    }
-    const g = await gravarContato(device, 'update', { recno: r.RecNo, ...Object.fromEntries(mudam) }, /^\s*OK\b/i);
-    if (g.erro) return falha(g.erro);
-    cont.atualizados++;
-  }
-  for (const c of cfg.contatos) {
-    if (jaTratados.has(c.numero)) continue;
-    const g = await gravarContato(
-      device,
-      'insert',
-      {
-        FirstName: c.nome,
-        VTShortNumber: c.numero,
-        VTOBuilding: c.bloco,
-        Notes: MARCA_CONTATO,
-        Type: 'VTH',
-        RegisterType: 'public',
-        VTHPassword: senhaDoContato(cfg.senha, c.numero),
-      },
-      /RecNo=\d+/,
-    );
-    if (g.erro) return falha(g.erro);
-    cont.inseridos++;
-  }
-  return { contatos: cont };
-}
-
-/**
- * Grava no facial a conta SIP (servidor, porta, conta, senha, registrar) e a
- * lista telefônica (nome, número, bloco). `contatos[].andar` é aceito mas o
- * VideoTalkContact da doc não tem campo de andar — fica para o plano B
- * (lista telefônica da Interface Web 2.0), ver relatório do G1.
- * Resultado: `{ ok, sip: { alterado, campos }, contatos: { inseridos,
- * atualizados, removidos, iguais } }` ou `{ ok:false, error }`.
- */
-async function configurarInterfone(device, entrada) {
-  const v = validarConfigInterfone(entrada);
-  if (v.erro) return { ok: false, error: `interfone: ${v.erro} — nada foi enviado ao aparelho` };
-  const sip = await configurarContaSip(device, v.cfg);
-  if (sip.erro) return { ok: false, error: `interfone: ${sip.erro}` };
-  const lista = await sincronizarContatos(device, v.cfg);
-  if (lista.erro) return { ok: false, error: `interfone: conta SIP ${sip.alterado ? 'gravada' : 'já estava certa'}; ${lista.erro}`, sip };
-  console.log(
-    `[agente] ${device.nome}: interfone configurado (conta SIP ${sip.alterado ? 'gravada' : 'sem mudança'}; ` +
-      `contatos +${lista.contatos.inseridos} ~${lista.contatos.atualizados} -${lista.contatos.removidos} =${lista.contatos.iguais})`,
-  );
-  return { ok: true, sip, contatos: lista.contatos };
+function configurarInterfone(device, entrada, cmd) {
+  return interfone.configurarInterfone(device, entrada, {
+    lanRequest,
+    lanTimeoutMs,
+    restanteDoPrazo: () => restanteDoPrazo(cmd),
+  });
 }
 
 // ---------- Contrato: escutar (stream de eventos de acesso) ----------
