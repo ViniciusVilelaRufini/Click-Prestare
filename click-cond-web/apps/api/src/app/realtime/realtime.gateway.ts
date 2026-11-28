@@ -11,9 +11,13 @@ import {
 import type { Server, Socket } from 'socket.io';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { JwtStrategy } from '../auth/jwt.strategy';
+import { criarAdaptadorRedis } from './redis-adapter';
 
 /** Sala dos porteiros do condomínio (só tokens `tipo_sub === 'funcionario_portaria'`). */
 export const salaPortaria = (idCondominio: number) => `portaria:${idCondominio}`;
+
+/** Sala dos operadores da central (token com `papel === 'operador_central'`, sem condomínio). */
+export const SALA_CENTRAL = 'central';
 
 /** De quanto em quanto tempo as conexões abertas são reconferidas contra a revogação da sessão. */
 const RECONFERIR_MS = 60_000;
@@ -22,19 +26,17 @@ const RECONFERIR_MS = 60_000;
  * Gateway WebSocket para eventos em tempo real do portaria-web — hoje só a
  * autorização remota de visitante (era o polling mais agressivo, 3s).
  *
- * IMPORTANTE — assume UMA réplica da API: as salas (`condominio:<id>`) vivem
- * em memória do processo Socket.IO. Se o Railway rodar mais de uma instância
- * desta API, um evento emitido na réplica A não chega a um cliente conectado
- * na réplica B — precisaria de um adapter Redis (@socket.io/redis-adapter)
- * para propagar entre instâncias. Não confirmado no momento da implementação
- * (ver conversa/commit) — checar no painel do Railway antes de escalar
- * réplicas > 1 em produção.
+ * Réplicas: com REDIS_URL definido, as salas passam pelo adaptador Redis
+ * (@socket.io/redis-adapter) e um evento emitido numa réplica chega aos
+ * clientes de todas. Sem REDIS_URL (ou se o Redis cair na partida) as salas
+ * ficam em memória do processo, como antes — vale só com uma réplica.
  *
  * Autenticação: o token JWT do portaria-web (mesmo usado no header
  * Authorization das chamadas REST) é enviado no handshake
  * (`io(url, { auth: { token } })`). Só tokens com `id_condominio` fixo
  * (porteiro/síndico logado no console) conseguem conectar — é o mesmo
- * requisito que `assertOperador` já exige nas rotas REST equivalentes.
+ * requisito que `assertOperador` já exige nas rotas REST equivalentes. A exceção é o operador da central
+ * (`papel: 'operador_central'`, sem condomínio), que entra só na sala `central`.
  *
  * Revogação: a conexão passa pela mesma regra do JwtStrategy das rotas REST (porteiro removido, desativado ou
  * com a credencial trocada; síndico/QR sem vínculo; senha trocada). Antes era só jwt.verify, e quem perdia o
@@ -58,7 +60,10 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     @Optional() private readonly moduleRef?: ModuleRef,
   ) {}
 
-  afterInit() {
+  async afterInit(server?: Server) {
+    const alvo = server ?? this.server;
+    const adaptador = await criarAdaptadorRedis(process.env['REDIS_URL']);
+    if (adaptador && alvo) alvo.adapter(adaptador);
     this.timer = setInterval(() => void this.reconferirConexoes(), RECONFERIR_MS);
     this.timer.unref?.();
   }
@@ -99,6 +104,11 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       if (!token) throw new Error('sem token');
 
       const payload = await this.conferir(token);
+      if (payload?.papel === 'operador_central' && !payload?.id_condominio) {
+        client.data = { ...(client.data ?? {}), token };
+        client.join(SALA_CENTRAL);
+        return;
+      }
       const idCondominio = payload?.id_condominio;
       if (!idCondominio) throw new Error('token sem id_condominio (console apenas)');
 
@@ -147,6 +157,22 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     try {
       if (!this.server) return false;
       const sockets = await this.server.in(salaPortaria(idCondominio)).fetchSockets();
+      return sockets.length > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Evento só para os operadores da central conectados. */
+  emitirCentral(evento: string, dados: unknown): void {
+    this.server?.to(SALA_CENTRAL).emit(evento, dados);
+  }
+
+  /** Há ao menos um operador da central conectado? Nunca lança. */
+  async centralOnline(): Promise<boolean> {
+    try {
+      if (!this.server) return false;
+      const sockets = await this.server.in(SALA_CENTRAL).fetchSockets();
       return sockets.length > 0;
     } catch {
       return false;

@@ -18,5 +18,7 @@ export interface JwtPayload {
    * (credencial-portaria.util). O JwtStrategy recusa o token quando a credencial da linha mudou.
    */
   cred?: string;
+  /** Operador da central de portaria (sem condomínio fixo): conecta só na sala `central`. */
+  papel?: 'operador_central';
   user?: any;
 }
