@@ -302,12 +302,17 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     return l.length;
   }
 
-  private naoEncontrado(idFacial: number, agora: number): NovaChamadaFacial {
+  /** Tentativa sem chamada (número inexistente, portaria sem ninguém): conta para o limite por facial. */
+  private tentativaPerdida(idFacial: number, agora: number, motivo: 'nao_encontrado' | 'indisponivel'): NovaChamadaFacial {
     const l = this.erros.get(idFacial) ?? [];
     l.push(agora);
     this.erros.set(idFacial, l);
     if (this.erros.size > 5000) this.erros.clear();
-    return { ok: false, motivo: 'nao_encontrado' };
+    return { ok: false, motivo };
+  }
+
+  private naoEncontrado(idFacial: number, agora: number): NovaChamadaFacial {
+    return this.tentativaPerdida(idFacial, agora, 'nao_encontrado');
   }
 
   // ─────────────────────────────────────────── chamada do facial
@@ -451,11 +456,13 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     agora: number,
   ): Promise<NovaChamadaFacial> {
     const idCondominio = facial.id_condominio;
-    const destino = await this.destinoDoCondominio(idCondominio, cond.central_contratada);
-    const porteiro = await this.porteirosOnline(idCondominio);
+    const d = await this.destinoDoCondominio(idCondominio, cond.central_contratada);
+    const destino = d.destino;
+    const porteiro = d.porteiro ?? (await this.porteirosOnline(idCondominio));
     if (!porteiro && (destino === 'local' || !(await this.centralOnline()))) {
       if (destino === 'central') this.registrarSemOperador(idCondominio, null);
-      return { ok: false, motivo: 'indisponivel' };
+      // Rediscar a portaria sem ninguém também é trote: conta para o limite por facial.
+      return this.tentativaPerdida(facial.id, agora, 'indisponivel');
     }
 
     const chamada = await this.prisma.interfone_Chamadas.create({
@@ -565,8 +572,9 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
   /**
    * A unidade não atendeu (toque esgotado, todos recusaram, ninguém para
    * tocar): leva a chamada para a portaria conforme o destino do condomínio.
-   * - `local`: regra de sempre — o síndico ligou "transferir" e há porteiro no console.
-   * - `central`: transfere sempre (incluído no contrato); toca no console do
+   * - `local`: há porteiro no console e o síndico ligou "transferir" (com
+   *   central contratada, transferir é sempre ligado: incluído no contrato).
+   * - `central`: transfere sempre; toca no console do
    *   prédio se houver porteiro e sempre na sala `central`. Sem porteiro nem
    *   operador → `encerrar` e registra `sem_operador` (log + métrica).
    * Grava `portaria` + motivo só se a chamada ainda está `chamando`.
@@ -576,14 +584,16 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     motivo: MotivoPortaria,
     opcoes: { registrarSemOperador?: boolean; emitirEmSegundoPlano?: boolean } = {},
   ): Promise<'portaria' | 'encerrar'> {
-    const destino = await this.destinoDoCondominio(c.id_condominio, c.condominio?.central_contratada);
+    const comCentral = c.condominio?.central_contratada === 1;
+    const d = await this.destinoDoCondominio(c.id_condominio, c.condominio?.central_contratada);
+    const destino = d.destino;
     let porteiro: boolean;
     if (destino === 'local') {
-      if (c.condominio?.interfone_transferir !== 1) return 'encerrar';
-      porteiro = await this.porteirosOnline(c.id_condominio);
+      if (!comCentral && c.condominio?.interfone_transferir !== 1) return 'encerrar';
+      porteiro = d.porteiro ?? (await this.porteirosOnline(c.id_condominio));
       if (!porteiro) return 'encerrar';
     } else {
-      porteiro = await this.porteirosOnline(c.id_condominio);
+      porteiro = d.porteiro ?? (await this.porteirosOnline(c.id_condominio));
       if (!porteiro && !(await this.centralOnline())) {
         if (opcoes.registrarSemOperador !== false) this.registrarSemOperador(c.id_condominio, c.id);
         return 'encerrar';
@@ -639,7 +649,7 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     console.log(
       JSON.stringify({
         _aws: {
-          Timestamp: Date.now(),
+          Timestamp: this.agora(),
           CloudWatchMetrics: [{ Namespace: 'Prestare/Interfone', Dimensions: [[]], Metrics: [{ Name: 'CentralSemOperador', Unit: 'Count' }] }],
         },
         CentralSemOperador: 1,
@@ -810,21 +820,29 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Destino sem consulta extra para quem não contratou a central (o caso de
-   * hoje). Agenda ilegível em condomínio da central → `central`: toca na
-   * central e, se houver porteiro, também no prédio.
+   * hoje; `porteiro: null` = não consultado). Com central, o porteiro online
+   * é consultado uma vez e devolvido junto. Agenda ilegível em condomínio da
+   * central → `central`: toca na central e, se houver porteiro, também no prédio.
    */
-  private async destinoDoCondominio(idCondominio: number, centralContratada: number | null | undefined): Promise<DestinoPortaria> {
-    if (centralContratada !== 1) return 'local';
+  private async destinoDoCondominio(
+    idCondominio: number,
+    centralContratada: number | null | undefined,
+  ): Promise<{ destino: DestinoPortaria; porteiro: boolean | null }> {
+    if (centralContratada !== 1) return { destino: 'local', porteiro: null };
+    const porteiro = await this.porteirosOnline(idCondominio);
     try {
-      return await this.destinoPortaria(idCondominio, new Date(this.agora()));
+      return { destino: await this.destinoPortaria(idCondominio, new Date(this.agora()), porteiro), porteiro };
     } catch (e) {
       this.logger.warn(`Interfone: destino da portaria do condomínio ${idCondominio} não veio do banco: ${(e as Error)?.message ?? e}`);
-      return 'central';
+      return { destino: 'central', porteiro };
     }
   }
 
-  /** Para onde vai a chamada da portaria agora: porteiro local ou central (agenda + salvaguarda). */
-  async destinoPortaria(idCondominio: number, agora = new Date()): Promise<DestinoPortaria> {
+  /**
+   * Para onde vai a chamada da portaria agora: porteiro local ou central
+   * (agenda + salvaguarda). `porteiroOnline`: já consultado por quem chama.
+   */
+  async destinoPortaria(idCondominio: number, agora = new Date(), porteiroOnline?: boolean): Promise<DestinoPortaria> {
     const cond = await this.prisma.condominios.findUnique({ where: { id: idCondominio }, select: { central_contratada: true } });
     if (!cond?.central_contratada) return 'local';
     const momento = agoraEmBrasilia(agora);
@@ -832,7 +850,7 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
       where: { id_condominio: idCondominio, dia_semana: momento.diaSemana },
       select: { dia_semana: true, inicio: true, fim: true, destino: true },
     });
-    return decidirDestino(true, faixas as FaixaAgenda[], momento, await this.porteirosOnline(idCondominio));
+    return decidirDestino(true, faixas as FaixaAgenda[], momento, porteiroOnline ?? (await this.porteirosOnline(idCondominio)));
   }
 
   /**

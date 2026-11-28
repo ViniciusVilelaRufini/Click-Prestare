@@ -778,6 +778,7 @@ describe('InterfoneService.fecharOrfas (serviço de voz reiniciou e perdeu o enc
 describe('InterfoneService — destino da portaria (local ou central)', () => {
   // AGORA é sexta (dia 5) às 14:05 em Brasília.
   const FAIXA_CENTRAL = { id: 1, id_condominio: 1, dia_semana: 5, inicio: '00:00', fim: '24:00', destino: 'central' };
+  const FAIXA_LOCAL = { ...FAIXA_CENTRAL, destino: 'local' };
   const comCentral = (cond: Partial<Linha> = {}, agenda: Linha[] = [FAIXA_CENTRAL]) =>
     bancoFalso({ cond: { central_contratada: 1, interfone_numero_portaria: '0', ...cond }, agenda });
   const EVENTO_CENTRAL = {
@@ -845,6 +846,28 @@ describe('InterfoneService — destino da portaria (local ou central)', () => {
     expect(realtime.emitirCentral).toHaveBeenCalledWith('interfone:chamada', { ...EVENTO_CENTRAL, motivo: 'nao_atendeu' });
   });
 
+  it('central contratada em horário local: transferir=0 não impede levar ao console do prédio', async () => {
+    const { svc, realtime, chamadas } = montar(comCentral({ interfone_transferir: 0 }, [FAIXA_LOCAL]), true, { central: true });
+    await svc.novaChamadaFacial('fac-12', '106');
+    await expect(svc.evento(1, { evento: 'toque_esgotado' })).resolves.toEqual({ proximo: 'portaria' });
+    expect(chamadas[0]).toMatchObject({ estado: 'portaria', motivo_portaria: 'nao_atendeu' });
+    expect(chamadasNaPortaria(realtime)).toHaveLength(1);
+    expect(realtime.emitirCentral).not.toHaveBeenCalledWith('interfone:chamada', expect.anything());
+  });
+
+  it('condomínio da central consulta o porteiro online uma vez só por decisão', async () => {
+    for (const agenda of [[FAIXA_CENTRAL], [FAIXA_LOCAL]]) {
+      const { svc, realtime } = montar(comCentral({}, agenda), true, { central: true });
+      await svc.novaChamadaFacial('fac-12', '106');
+      realtime.porteirosOnline.mockClear();
+      await expect(svc.evento(1, { evento: 'toque_esgotado' })).resolves.toEqual({ proximo: 'portaria' });
+      expect(realtime.porteirosOnline).toHaveBeenCalledTimes(1);
+    }
+    const { svc, realtime } = montar(comCentral(), true, { central: true });
+    await svc.novaChamadaFacial('fac-12', '0');
+    expect(realtime.porteirosOnline).toHaveBeenCalledTimes(1);
+  });
+
   it('destino central com porteiro online e central vazia ainda vai para a portaria do prédio', async () => {
     const { svc, realtime } = montar(comCentral(), true, { central: false });
     await svc.novaChamadaFacial('fac-12', '106');
@@ -864,7 +887,7 @@ describe('InterfoneService — destino da portaria (local ou central)', () => {
     const emf = log.mock.calls.map((c: any[]) => JSON.parse(c[0])).find((j: any) => j.CentralSemOperador === 1);
     expect(emf).toEqual({
       _aws: {
-        Timestamp: expect.any(Number),
+        Timestamp: AGORA,
         CloudWatchMetrics: [{ Namespace: 'Prestare/Interfone', Dimensions: [[]], Metrics: [{ Name: 'CentralSemOperador', Unit: 'Count' }] }],
       },
       CentralSemOperador: 1,
@@ -930,8 +953,7 @@ describe('InterfoneService — destino da portaria (local ou central)', () => {
 
   it('discar o número da portaria cria facial_portaria em estado portaria sem apartamento', async () => {
     // Central contratada, horário local e porteiro no console: toca só no prédio.
-    const faixaLocal = { ...FAIXA_CENTRAL, destino: 'local' };
-    const { svc, push, realtime, chamadas } = montar(comCentral({}, [faixaLocal]), true, { central: true });
+    const { svc, push, realtime, chamadas } = montar(comCentral({}, [FAIXA_LOCAL]), true, { central: true });
     await expect(svc.novaChamadaFacial('fac-12', '0')).resolves.toEqual({
       ok: true,
       id: 1,
@@ -1000,6 +1022,18 @@ describe('InterfoneService — destino da portaria (local ou central)', () => {
     const comRamal = montar(banco, true, { central: true });
     await expect(comRamal.svc.novaChamadaFacial('fac-12', '0')).resolves.toMatchObject({ ok: true, tipo: 'facial_unidade', estado: 'chamando' });
     expect(comRamal.chamadas[0]).toMatchObject({ tipo: 'facial_unidade', id_apartamento: 100 });
+  });
+
+  it('número da portaria indisponível conta para o limite por facial (rediscar sem ninguém online)', async () => {
+    const { svc } = montar(comCentral(), false, { central: false });
+    for (let i = 0; i < 6; i++) {
+      await expect(svc.novaChamadaFacial('fac-12', '0')).resolves.toEqual({ ok: false, motivo: 'indisponivel' });
+    }
+    await expect(svc.novaChamadaFacial('fac-12', '0')).resolves.toEqual({ ok: false, motivo: 'limite' });
+    await expect(svc.novaChamadaFacial('fac-12', '106')).resolves.toEqual({ ok: false, motivo: 'limite' });
+    // Passado o minuto, as tentativas saem da conta.
+    svc.agora = () => AGORA + 61_000;
+    await expect(svc.novaChamadaFacial('fac-12', '106')).resolves.toMatchObject({ ok: true });
   });
 
   it('número da portaria sem ninguém online responde indisponivel', async () => {
