@@ -108,7 +108,38 @@ describe('InterfonePushService.tocar', () => {
     );
   });
 
-  it('podemTocar: só quem tem aparelho com interfone novo (iPhone com voip_token)', async () => {
+  it('iPhone com app novo sem voip_token: alerta "Toque para atender" com os dados da chamada; conta como tocou', async () => {
+    const { svc, notifications, apns } = montar(
+      [{ id: 4, fcm_token: 'f-ios-sem', interfone_receber: 1 }],
+      [{ id: 14, id_user: 4, fcm_token: 'f-ios-sem', plataforma: 'iOS', voip_token: null, interfone_versao: 1 }],
+    );
+    (notifications.enviarParaAparelho as jest.Mock).mockResolvedValue('msg-id' as any);
+    await expect(svc.tocar(42, [4], DADOS)).resolves.toEqual({ tocou: 1, semApp: 0, ids: [4] });
+    expect(apns.enviar).not.toHaveBeenCalled();
+    expect(notifications.enviarParaAparelho).toHaveBeenCalledWith('f-ios-sem', 'Visitante chamando no portão', 'Toque para atender.', {
+      type: 'interfone_chamada',
+      id: '42',
+      ...DADOS,
+    });
+    await svc.tocar(43, [4], { ...DADOS, tipo: 'portaria_unidade', portao: 'Portaria' });
+    expect(notifications.enviarParaAparelho).toHaveBeenLastCalledWith(
+      'f-ios-sem',
+      'A portaria está chamando',
+      'Toque para atender.',
+      expect.objectContaining({ type: 'interfone_chamada', id: '43', tipo: 'portaria_unidade' }),
+    );
+  });
+
+  it('alerta do iPhone sem voip_token que não saiu não conta como tocou', async () => {
+    const { svc, notifications } = montar(
+      [{ id: 4, fcm_token: 'f-ios-sem', interfone_receber: 1 }],
+      [{ id: 14, id_user: 4, fcm_token: 'f-ios-sem', plataforma: 'ios', voip_token: null, interfone_versao: 1 }],
+    );
+    (notifications.enviarParaAparelho as jest.Mock).mockResolvedValue(null as any);
+    await expect(svc.tocar(42, [4], DADOS)).resolves.toEqual({ tocou: 0, semApp: 0, ids: [] });
+  });
+
+  it('podemTocar: só quem tem aparelho com interfone novo (iPhone com ou sem voip_token)', async () => {
     const { svc } = montar(
       [...usuarios, { id: 4, fcm_token: 'f-ios-sem', interfone_receber: 1 }, { id: 5, fcm_token: 'f5', interfone_receber: 0 }],
       [
@@ -117,7 +148,7 @@ describe('InterfonePushService.tocar', () => {
         { id: 15, id_user: 5, fcm_token: 'f5', plataforma: 'android', voip_token: null, interfone_versao: 1 },
       ],
     );
-    await expect(svc.podemTocar([1, 2, 3, 4, 5])).resolves.toEqual([1, 2]);
+    await expect(svc.podemTocar([1, 2, 3, 4, 5])).resolves.toEqual([1, 2, 4]);
   });
 
   it('lista vazia não consulta o banco', async () => {
