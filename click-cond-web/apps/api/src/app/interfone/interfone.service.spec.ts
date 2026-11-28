@@ -97,10 +97,9 @@ function bancoFalso(opts: { cond?: Partial<Linha>; facial?: Partial<Linha>; apto
     users: {
       findMany: jest.fn(async ({ where }: any) => {
         const some = where.apartamentosUsers.some;
-        const hoje: Date = some.OR[1].vencimento.gte;
-        const ids = vinculos
-          .filter((v) => v.id_apto === some.id_apto && (v.vencimento === null || v.vencimento >= hoje))
-          .map((v) => v.id_user);
+        // Vínculo = existir a linha; o vencimento é só exibição no resto do sistema.
+        expect(some).toEqual({ id_apto: some.id_apto });
+        const ids = vinculos.filter((v) => v.id_apto === some.id_apto).map((v) => v.id_user);
         return usuarios.filter((u) => ids.includes(u.id)).map((u) => ({ id: u.id }));
       }),
       findUnique: jest.fn(async ({ where }: any) => usuarios.find((u) => u.id === where.id) ?? null),
@@ -247,7 +246,7 @@ describe('InterfoneService.novaChamadaFacial', () => {
     await expect(svc.novaChamadaFacial('fac-12', '106')).resolves.toEqual({ ok: false, motivo: 'limite' });
   });
 
-  it('unidade com 2 moradores (1 com vínculo vencido) → tocar recebe só 1 id', async () => {
+  it('vínculo com vencimento passado toca (o vencimento de 45 dias do app é só exibição)', async () => {
     const banco = bancoFalso({
       vinculos: [
         { id_apto: 100, id_user: 7, vencimento: null },
@@ -256,7 +255,7 @@ describe('InterfoneService.novaChamadaFacial', () => {
     });
     const { svc, push } = montar(banco);
     await svc.novaChamadaFacial('fac-12', '106');
-    expect((push.tocar.mock.calls as any[])[0][1]).toEqual([7]);
+    expect((push.tocar.mock.calls as any[])[0][1]).toEqual([7, 8]);
   });
 
   it('vínculo que vence hoje ainda toca', async () => {

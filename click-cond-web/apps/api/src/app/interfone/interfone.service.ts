@@ -2,7 +2,6 @@ import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleDes
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { StorageService } from '../common/storage/storage.service';
-import { hojeBrasilia } from '../common/hora-brasilia.util';
 import { executarComLock } from '../common/lock-distribuido';
 import { rotuloAptoBloco } from '../visitantes/rotulo-apto-bloco.util';
 import { normalizarFabricante } from '../facial/fabricantes';
@@ -628,14 +627,13 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     return (await this.realtime?.porteirosOnline(idCondominio)) ?? false;
   }
 
-  /** Moradores com vínculo vigente na unidade (vencimento nulo ou de hoje em diante, em Brasília). */
+  /**
+   * Moradores vinculados à unidade: basta existir a linha em Apartamentos_Users. O vencimento não conta — no resto
+   * do sistema é só exibição ("dias restantes") e todo vínculo feito pelo app nasce com hoje + 45 dias.
+   */
   async moradoresDaUnidade(idApartamento: number): Promise<number[]> {
     const usuarios = await this.prisma.users.findMany({
-      where: {
-        apartamentosUsers: {
-          some: { id_apto: idApartamento, OR: [{ vencimento: null }, { vencimento: { gte: hojeBrasilia(new Date(this.agora())) } }] },
-        },
-      },
+      where: { apartamentosUsers: { some: { id_apto: idApartamento } } },
       select: { id: true },
     });
     return usuarios.map((u) => u.id);

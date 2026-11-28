@@ -433,7 +433,7 @@ describe('consultas do app e do console', () => {
     expect(m.tabelas['users'].find((u: any) => u.id === 7).interfone_receber).toBe(0);
   });
 
-  it('disponivel: vínculo vigente em condomínio com o módulo ligado', async () => {
+  it('disponivel: vínculo em condomínio com o módulo ligado', async () => {
     const m = montar();
     await expect(m.acoes.disponivel(7)).resolves.toEqual({ ativo: true });
     const m2 = montar({ cond: { interfone_contratado: 0 } });
@@ -562,6 +562,23 @@ describe('correções da revisão 2', () => {
     await expect(m.acoes.estadoParaApp(id, 7)).resolves.toMatchObject({ foto_url: assinada });
     expect((await m.acoes.historico(7, 100))[0].foto_url).toBe(assinada);
     expect((await m.acoes.hoje(1))[0].foto_url).toBe(assinada);
+  });
+
+  it('vínculo com vencimento passado: atende, abre, vê histórico, liga para a portaria e vê o interfone', async () => {
+    const m = montar();
+    for (const v of m.tabelas['apartamentos_Users']) v.vencimento = new Date(Date.UTC(2026, 8, 1));
+    await expect(m.acoes.disponivel(7)).resolves.toEqual({ ativo: true });
+    const id = await chamadaFacial(m);
+    await m.esperar();
+    expect((m.push.tocar.mock.calls as any[])[0][1]).toEqual([7, 8]);
+    await expect(m.acoes.atender(id, ANA)).resolves.toMatchObject({ id });
+    await expect(m.acoes.historico(7, 100)).resolves.toHaveLength(1);
+    await expect(m.acoes.estadoParaApp(id, 7)).resolves.toMatchObject({ estado: expect.any(String) });
+    await m.nucleo.evento(id, { evento: 'atendida', papel: 'morador', uid: 7 });
+    await expect(m.acoes.abrir(id, ANA)).resolves.toMatchObject({ ok: true });
+    const m2 = montar();
+    for (const v of m2.tabelas['apartamentos_Users']) v.vencimento = new Date(Date.UTC(2026, 8, 1));
+    await expect(m2.acoes.ligarPortaria(BRUNO, 100)).resolves.toMatchObject({ id: expect.any(Number) });
   });
 
   it('histórico do morador só a partir do vínculo dele', async () => {

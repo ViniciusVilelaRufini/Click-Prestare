@@ -11,7 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { StorageService } from '../common/storage/storage.service';
-import { hojeBrasilia, intervaloHojeBrasilia } from '../common/hora-brasilia.util';
+import { intervaloHojeBrasilia } from '../common/hora-brasilia.util';
 import { rotuloAptoBloco } from '../visitantes/rotulo-apto-bloco.util';
 import { InterfoneService, unidadeDaChamada } from './interfone.service';
 import { InterfonePushService } from './interfone-push.service';
@@ -411,12 +411,14 @@ export class InterfoneAcoesService {
     return { receber };
   }
 
-  /** O app mostra o interfone? Vínculo vigente em condomínio com o módulo contratado e ligado. */
+  /**
+   * O app mostra o interfone? Vínculo com a unidade (existir a linha em Apartamentos_Users; o vencimento é só
+   * exibição no resto do sistema) em condomínio com o módulo contratado e ligado.
+   */
   async disponivel(idUser: number): Promise<{ ativo: boolean }> {
     const v = await this.prisma.apartamentos_Users.findFirst({
       where: {
         id_user: idUser,
-        OR: [{ vencimento: null }, { vencimento: { gte: hojeBrasilia(new Date(this.agora())) } }],
         apartamento: { condominio: { ativo: 1, interfone_contratado: 1, interfone_ativo: 1 } },
       },
       select: { id: true },
@@ -479,7 +481,7 @@ export class InterfoneAcoesService {
     return montarDadosEntrada(id, token, credencialTurn(uid, segredos.turn, seg));
   }
 
-  /** Morador: vínculo vigente com a unidade da chamada. Porteiro: mesmo condomínio. */
+  /** Morador: vínculo com a unidade da chamada. Porteiro: mesmo condomínio. */
   private async assertPodeVer(c: { id_condominio: number; id_apartamento: number | null }, quem: Quem) {
     if (quem.papel === 'portaria') this.assertMesmoCondominio(c.id_condominio, quem);
     else await this.assertVinculo(quem.uid, c.id_apartamento);
@@ -491,13 +493,13 @@ export class InterfoneAcoesService {
     }
   }
 
+  /** Vínculo = existir a linha em Apartamentos_Users; o vencimento não conta (todo vínculo do app nasce com +45 dias). */
   private async assertVinculo(idUser: number, idApartamento: number | null | undefined): Promise<{ id: number; created_at: Date | null }> {
     if (!idApartamento || !Number.isInteger(idUser) || idUser <= 0) throw new ForbiddenException('Acesso negado à unidade.');
     const v = await this.prisma.apartamentos_Users.findFirst({
       where: {
         id_apto: idApartamento,
         id_user: idUser,
-        OR: [{ vencimento: null }, { vencimento: { gte: hojeBrasilia(new Date(this.agora())) } }],
       },
       select: { id: true, created_at: true },
     });
