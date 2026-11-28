@@ -62,7 +62,7 @@ function montar(opts: { dtmf?: string | null; central?: number } = {}) {
     fim: jest.fn(async () => undefined),
     perdida: jest.fn(async () => undefined),
     podemTocar: jest.fn(async (ids: number[]) => ids),
-    pedido: jest.fn(async (_id: number, ids: number[]) => ({ ids })),
+    pedido: jest.fn(async (_id: number, ids: number[]) => ({ ids, alcance: { apps: 2, antigos: 1 } })),
     pedidoFim: jest.fn(async () => undefined),
   };
   const voz = { portaria: jest.fn(async () => true), dtmf: jest.fn(async () => true), encerrar: jest.fn(async () => true) };
@@ -95,7 +95,15 @@ type M = ReturnType<typeof montar>;
 /** Chamada atendida pela central (operadora 5), com foto do visitante. */
 async function chamada(
   m: M,
-  o: { tipo?: string; estado?: string; apto?: number | null; facial?: number | null; encerrada_em?: Date | null; foto?: string | null } = {},
+  o: {
+    tipo?: string;
+    estado?: string;
+    apto?: number | null;
+    facial?: number | null;
+    encerrada_em?: Date | null;
+    foto?: string | null;
+    created_at?: Date;
+  } = {},
 ): Promise<number> {
   const c = await m.prisma.interfone_Chamadas.create({
     data: {
@@ -111,7 +119,7 @@ async function chamada(
       destino: 'central',
       foto: o.foto === undefined ? 'interfone/fotos/1.jpg' : o.foto,
       encerrada_em: o.encerrada_em ?? null,
-      created_at: new Date(AGORA - MIN),
+      created_at: o.created_at ?? new Date(AGORA - MIN),
     },
   });
   return c.id;
@@ -146,6 +154,7 @@ describe('pedido do portão — criar', () => {
       respondido_por_nome: null,
       respondido_em: null,
       portao_aberto: false,
+      alcance: null,
     });
     // Copia a foto da chamada.
     expect(pedidoRow(m, r.id)).toMatchObject({
@@ -170,6 +179,12 @@ describe('pedido do portão — criar', () => {
     const evento = { ...r, id_chamada: idChamada, id_condominio: 1 };
     expect(m.realtime.emitirPortaria).toHaveBeenCalledWith(1, 'interfone:pedido', evento);
     expect(m.realtime.emitirCentral).toHaveBeenCalledWith('interfone:pedido', evento);
+    // Depois do push: alcance gravado no pedido e repetido no evento (apps novos e antigos).
+    expect(pedidoRow(m, r.id)).toMatchObject({ alcance_apps: 2, alcance_antigos: 1 });
+    const comAlcance = { ...evento, alcance: { apps: 2, antigos: 1 } };
+    expect(m.realtime.emitirPortaria).toHaveBeenLastCalledWith(1, 'interfone:pedido', comAlcance);
+    expect(m.realtime.emitirCentral).toHaveBeenLastCalledWith('interfone:pedido', comAlcance);
+    await expect(m.pedidos.ultimoDaChamada(idChamada)).resolves.toMatchObject({ alcance: { apps: 2, antigos: 1 } });
   });
 
   it('condomínio sem central contratada: o evento vai só para a portaria do prédio', async () => {
@@ -500,7 +515,8 @@ describe('pedido do portão — consultas', () => {
   it('GET do app: morador da unidade vê o resumo; outro → 403; inexistente → 404', async () => {
     const m = montar();
     const p = await m.pedidos.criar(entrada(await chamada(m)));
-    await expect(m.pedidos.paraApp(p.id, 8)).resolves.toEqual(p);
+    const { alcance: _alcance, ...semAlcance } = p;
+    await expect(m.pedidos.paraApp(p.id, 8)).resolves.toEqual(semAlcance);
     await expect(m.pedidos.paraApp(p.id, 9)).rejects.toMatchObject({ status: 403 });
     await expect(m.pedidos.paraApp(999, 7)).rejects.toMatchObject({ status: 404 });
   });
@@ -531,5 +547,135 @@ describe('pedido do portão — consultas', () => {
       respondido_por_nome: 'Ana',
       portao_aberto: true,
     });
+  });
+});
+
+describe('pedido do portão — correções da revisão (uma abertura por chamada, limite, vencidos, teto)', () => {
+  it('segundo pedido autorizado na mesma chamada não abre de novo (ja_aberto_por_pedido)', async () => {
+    const m = montar();
+    const idChamada = await chamada(m);
+    const a = await m.pedidos.criar(entrada(idChamada));
+    await expect(m.pedidos.responder(a.id, 7, 'autorizar')).resolves.toMatchObject({ portao_aberto: true });
+    m.relogio.t = AGORA + 30_000;
+    const b = await m.pedidos.criar(entrada(idChamada, { nome: 'Acompanhante' }));
+    await expect(m.pedidos.responder(b.id, 8, 'autorizar')).resolves.toMatchObject({ estado: 'autorizado', portao_aberto: false });
+    expect(m.facial.abrirDispositivoInterno).toHaveBeenCalledTimes(1);
+    await expect(m.acoes.abrirPorPedido(idChamada, { uid: 7, nome: 'Ana' })).resolves.toEqual({ ok: false, motivo: 'ja_aberto_por_pedido' });
+    expect(m.facial.abrirDispositivoInterno).toHaveBeenCalledTimes(1);
+  });
+
+  it('duas aberturas por pedido ao mesmo tempo na mesma chamada → só uma aciona o portão', async () => {
+    const m = montar();
+    const idChamada = await chamada(m);
+    const rs = await Promise.all([
+      m.acoes.abrirPorPedido(idChamada, { uid: 7, nome: 'Ana' }),
+      m.acoes.abrirPorPedido(idChamada, { uid: 8, nome: 'Bruno' }),
+    ]);
+    expect(rs.filter((r) => r.ok)).toHaveLength(1);
+    expect(rs.filter((r) => !r.ok)).toEqual([{ ok: false, motivo: 'ja_aberto_por_pedido' }]);
+    expect(m.facial.abrirDispositivoInterno).toHaveBeenCalledTimes(1);
+  });
+
+  it('pedido que não conseguiu abrir (agente fora, sem DTMF) não gasta a abertura da chamada', async () => {
+    const m = montar();
+    m.facial.abrirDispositivoInterno.mockResolvedValueOnce({ ok: false, erro: 'agente offline' } as any);
+    const idChamada = await chamada(m);
+    const a = await m.pedidos.criar(entrada(idChamada));
+    await expect(m.pedidos.responder(a.id, 7, 'autorizar')).resolves.toMatchObject({ portao_aberto: false });
+    const b = await m.pedidos.criar(entrada(idChamada));
+    await expect(m.pedidos.responder(b.id, 7, 'autorizar')).resolves.toMatchObject({ portao_aberto: true });
+    expect(m.facial.abrirDispositivoInterno).toHaveBeenCalledTimes(2);
+  });
+
+  it('a abertura do operador não conta como abertura por pedido (o pedido ainda abre uma vez)', async () => {
+    const m = montar();
+    const idChamada = await chamada(m);
+    await m.acoes.abrir(idChamada, { papel: 'central', uid: 5, nome: 'Olga' }, { codigo: 'entrega' });
+    const a = await m.pedidos.criar(entrada(idChamada));
+    await expect(m.pedidos.responder(a.id, 7, 'autorizar')).resolves.toMatchObject({ portao_aberto: true });
+    expect(m.facial.abrirDispositivoInterno).toHaveBeenCalledTimes(2);
+  });
+
+  it('no máximo 3 pedidos por chamada: o 4º → 409 limite_pedidos sem push', async () => {
+    const m = montar();
+    const idChamada = await chamada(m);
+    for (let i = 0; i < 3; i++) {
+      const p = await m.pedidos.criar(entrada(idChamada, { nome: `Visitante ${i}` }));
+      await m.pedidos.responder(p.id, 7, 'negar');
+    }
+    await expect(m.pedidos.criar(entrada(idChamada, { nome: 'Quarto' }))).rejects.toMatchObject({
+      status: 409,
+      response: { motivo: 'limite_pedidos' },
+    });
+    await m.esperar();
+    expect(m.tabelas['interfone_Pedidos']).toHaveLength(3);
+    expect(m.push.pedido).toHaveBeenCalledTimes(3);
+  });
+
+  it('criar duas vezes ao mesmo tempo (clique duplo) → um pedido pendente e um push só', async () => {
+    const m = montar();
+    const idChamada = await chamada(m);
+    const rs = await Promise.allSettled([m.pedidos.criar(entrada(idChamada)), m.pedidos.criar(entrada(idChamada))]);
+    await m.esperar();
+    expect(rs.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const falha = rs.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+    expect(falha?.reason).toMatchObject({ status: 409, response: { motivo: 'pedido_pendente' } });
+    expect(m.tabelas['interfone_Pedidos']).toHaveLength(1);
+    expect(m.push.pedido).toHaveBeenCalledTimes(1);
+  });
+
+  it('rotina de vencidos: pendente de chamada encerrada há mais de 5 min vira expirado, fecha a tela e avisa o console', async () => {
+    const m = montar();
+    const idVencida = await chamada(m);
+    const vencido = await m.pedidos.criar(entrada(idVencida));
+    const idViva = await chamada(m);
+    const vivo = await m.pedidos.criar(entrada(idViva, { nome: 'Ainda vale' }));
+    encerrar(m, idVencida);
+    m.realtime.emitirCentral.mockClear();
+    m.relogio.t = AGORA + 5 * MIN + 1_000;
+    await expect(m.pedidos.expirarVencidos()).resolves.toBe(1);
+    await m.esperar();
+    expect(pedidoRow(m, vencido.id).estado).toBe('expirado');
+    expect(pedidoRow(m, vivo.id).estado).toBe('pendente');
+    expect(m.push.pedidoFim).toHaveBeenCalledWith(vencido.id, [7, 8]);
+    expect(m.realtime.emitirCentral).toHaveBeenCalledWith('interfone:pedido', expect.objectContaining({ id: vencido.id, estado: 'expirado' }));
+    expect(m.realtime.emitirPortaria).toHaveBeenCalledWith(1, 'interfone:pedido', expect.objectContaining({ id: vencido.id, estado: 'expirado' }));
+    // Segunda passada não repete nada.
+    await expect(m.pedidos.expirarVencidos()).resolves.toBe(0);
+    await m.esperar();
+    expect(m.push.pedidoFim).toHaveBeenCalledTimes(1);
+  });
+
+  it('rotina de vencidos: chamada ainda "ativa" criada há mais de 15 min também expira o pedido', async () => {
+    const m = montar();
+    const idChamada = await chamada(m, { created_at: new Date(AGORA - 14 * MIN) });
+    const p = await m.pedidos.criar(entrada(idChamada));
+    m.relogio.t = AGORA + 2 * MIN;
+    await expect(m.pedidos.expirarVencidos()).resolves.toBe(1);
+    expect(pedidoRow(m, p.id).estado).toBe('expirado');
+  });
+
+  it('rotina de vencidos nunca lança (banco fora)', async () => {
+    const m = montar();
+    m.prisma.interfone_Pedidos.findMany.mockRejectedValueOnce(new Error('banco fora'));
+    await expect(m.pedidos.expirarVencidos()).resolves.toBe(0);
+  });
+
+  it('teto absoluto: nunca abre depois de 15 min da criação da chamada, mesmo com ela ativa', async () => {
+    const m = montar();
+    const idChamada = await chamada(m, { created_at: new Date(AGORA - 10 * MIN) });
+    const p = await m.pedidos.criar(entrada(idChamada));
+    m.relogio.t = AGORA + 5 * MIN + 1_000;
+    await expect(m.pedidos.responder(p.id, 7, 'autorizar')).rejects.toMatchObject({ status: 409, response: { motivo: 'pedido_expirado' } });
+    await expect(m.acoes.abrirPorPedido(idChamada, { uid: 7, nome: 'Ana' })).resolves.toEqual({ ok: false, motivo: 'chamada_expirada' });
+    expect(m.facial.abrirDispositivoInterno).not.toHaveBeenCalled();
+  });
+
+  it('teto absoluto: chamada criada há 15 min ou menos ainda abre', async () => {
+    const m = montar();
+    const idChamada = await chamada(m, { created_at: new Date(AGORA - 10 * MIN) });
+    const p = await m.pedidos.criar(entrada(idChamada));
+    m.relogio.t = AGORA + 5 * MIN;
+    await expect(m.pedidos.responder(p.id, 7, 'autorizar')).resolves.toMatchObject({ portao_aberto: true });
   });
 });

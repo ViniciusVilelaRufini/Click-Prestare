@@ -15,7 +15,8 @@
 --   2. Interfone_Chamadas: id_operador_central, ia_resumo, ia_transcricao,
 --      destino (VARCHAR(8) NULL: 'local' | 'central', para onde a chamada foi
 --      encaminhada na portaria; null nas chamadas antigas e nas que não
---      passaram pela portaria).
+--      passaram pela portaria), pedido_aberto_em (DATETIME NULL: um pedido do
+--      portão abriu esta chamada; no máximo uma abertura por pedido por chamada).
 --      (tipo 'facial_portaria', atendida_por_tipo 'central' e resultado
 --      'atendida_central' cabem nas colunas VarChar atuais.)
 --   3. Portaria_Agenda: janelas semanais (dia, HH:MM-HH:MM) e destino
@@ -23,6 +24,8 @@
 --   4. Central_Operadores: operadores da central (login próprio, e-mail único).
 --   5. Interfone_Pedidos: pedido de autorização por chamada. FKs para
 --      Interfone_Chamadas, Condominios e Apartamentos com ON DELETE CASCADE.
+--      alcance_apps / alcance_antigos (INT NULL): aparelhos alcançados pelo
+--      push (com a tela do pedido / só o alerta "Atualize o app").
 --
 -- Idempotente: cada passo confere o information_schema e vira no-op se já foi
 -- aplicado. Rodar numa única sessão (usa @sql). MySQL 8.4.
@@ -105,6 +108,15 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Chamadas' AND COLUMN_NAME = 'pedido_aberto_em') = 0,
+  'ALTER TABLE `Interfone_Chamadas` ADD COLUMN `pedido_aberto_em` DATETIME(0) NULL',
+  'SELECT ''Interfone_Chamadas.pedido_aberto_em: ja existe'' AS passo_2e');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- 3. Portaria_Agenda ------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS `Portaria_Agenda` (
@@ -153,6 +165,8 @@ CREATE TABLE IF NOT EXISTS `Interfone_Pedidos` (
   `respondido_por_id` INT NULL,
   `respondido_por_nome` VARCHAR(120) NULL,
   `respondido_em` DATETIME(0) NULL,
+  `alcance_apps` INT NULL,
+  `alcance_antigos` INT NULL,
   `created_at` DATETIME(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   INDEX `idx_ipd_chamada` (`id_chamada`),
@@ -162,3 +176,22 @@ CREATE TABLE IF NOT EXISTS `Interfone_Pedidos` (
   CONSTRAINT `fk_ipd_cond` FOREIGN KEY (`id_condominio`) REFERENCES `Condominios` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_ipd_apto` FOREIGN KEY (`id_apartamento`) REFERENCES `Apartamentos` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Banco em que a tabela já foi criada sem as colunas do alcance: acrescenta.
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Pedidos' AND COLUMN_NAME = 'alcance_apps') = 0,
+  'ALTER TABLE `Interfone_Pedidos` ADD COLUMN `alcance_apps` INT NULL',
+  'SELECT ''Interfone_Pedidos.alcance_apps: ja existe'' AS passo_5b');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Pedidos' AND COLUMN_NAME = 'alcance_antigos') = 0,
+  'ALTER TABLE `Interfone_Pedidos` ADD COLUMN `alcance_antigos` INT NULL',
+  'SELECT ''Interfone_Pedidos.alcance_antigos: ja existe'' AS passo_5c');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

@@ -1,4 +1,4 @@
-import { InterfonePushService } from './interfone-push.service';
+import { INTERFONE_VERSAO_APP, INTERFONE_VERSAO_PEDIDO, InterfonePushService } from './interfone-push.service';
 
 type U = { id: number; fcm_token: string | null; interfone_receber: number };
 type D = { id: number; id_user: number; fcm_token: string; plataforma: string | null; voip_token: string | null; interfone_versao: number };
@@ -210,15 +210,19 @@ describe('InterfonePushService.fim e perdida', () => {
 describe('InterfonePushService.pedido e pedidoFim (pedido do portão)', () => {
   const usuarios: U[] = [
     { id: 1, fcm_token: 'f-ios', interfone_receber: 1 },
-    { id: 2, fcm_token: 'f-and1', interfone_receber: 1 },
+    { id: 2, fcm_token: 'f-and2', interfone_receber: 1 },
     { id: 3, fcm_token: 'f-and0', interfone_receber: 1 },
     { id: 4, fcm_token: 'f-desligou', interfone_receber: 0 },
+    { id: 5, fcm_token: 'f-and1', interfone_receber: 1 },
+    { id: 6, fcm_token: 'f-ios1', interfone_receber: 1 },
   ];
   const aparelhos: D[] = [
-    { id: 11, id_user: 1, fcm_token: 'f-ios', plataforma: 'iOS', voip_token: 'voip-1', interfone_versao: 1 },
-    { id: 12, id_user: 2, fcm_token: 'f-and1', plataforma: 'android', voip_token: null, interfone_versao: 1 },
+    { id: 11, id_user: 1, fcm_token: 'f-ios', plataforma: 'iOS', voip_token: 'voip-1', interfone_versao: 2 },
+    { id: 12, id_user: 2, fcm_token: 'f-and2', plataforma: 'android', voip_token: null, interfone_versao: 2 },
     { id: 13, id_user: 3, fcm_token: 'f-and0', plataforma: 'android', voip_token: null, interfone_versao: 0 },
-    { id: 14, id_user: 4, fcm_token: 'f-desligou', plataforma: 'android', voip_token: null, interfone_versao: 1 },
+    { id: 14, id_user: 4, fcm_token: 'f-desligou', plataforma: 'android', voip_token: null, interfone_versao: 2 },
+    { id: 15, id_user: 5, fcm_token: 'f-and1', plataforma: 'android', voip_token: null, interfone_versao: 1 },
+    { id: 16, id_user: 6, fcm_token: 'f-ios1', plataforma: 'ios', voip_token: 'voip-6', interfone_versao: 1 },
   ];
   const PEDIDO = {
     id_chamada: 42,
@@ -242,26 +246,46 @@ describe('InterfonePushService.pedido e pedidoFim (pedido do portão)', () => {
     tipo: 'entrega',
     foto_url: 'https://foto?assinada=1',
   };
+  const ALERTA_ANTIGO = 'Visitante no portão: Rodrigo. Atualize o app Prestare para responder.';
 
-  it('Android novo → dados interfone_pedido (todas as chaves em texto); iPhone novo → alerta com os mesmos dados; nunca VoIP', async () => {
+  it('INTERFONE_VERSAO_PEDIDO é 2 e o toque das chamadas continua exigindo só a 1', () => {
+    expect(INTERFONE_VERSAO_PEDIDO).toBe(2);
+    expect(INTERFONE_VERSAO_APP).toBe(1);
+  });
+
+  it('app com a tela do pedido (v2): Android → dados interfone_pedido em texto; iPhone → alerta com os mesmos dados; nunca VoIP', async () => {
     const { svc, notifications, apns } = montar(usuarios, aparelhos);
-    const r = await svc.pedido(77, [1, 2, 3, 4], PEDIDO);
+    const r = await svc.pedido(77, [1, 2, 3, 4, 5, 6], PEDIDO);
     expect(apns.enviar).not.toHaveBeenCalled();
     expect(notifications.enviarDados).toHaveBeenCalledTimes(1);
-    expect(notifications.enviarDados).toHaveBeenCalledWith('f-and1', CONTEUDO);
+    expect(notifications.enviarDados).toHaveBeenCalledWith('f-and2', CONTEUDO);
     for (const v of Object.values((notifications.enviarDados.mock.calls as any[])[0][1])) expect(typeof v).toBe('string');
     expect(notifications.enviarParaAparelho).toHaveBeenCalledWith('f-ios', 'Entrega no portão', 'Rodrigo pede para entrar. Toque para responder.', CONTEUDO);
-    // App sem o interfone: push comum pedindo para atualizar.
-    expect(notifications.enviarParaAparelho).toHaveBeenCalledWith(
-      'f-and0',
-      'Entrega no portão',
-      'Atualize o app para responder pelo celular.',
-      { type: 'interfone_perdida', id: '42' },
-    );
     // interfone_receber = 0 não recebe.
     const tokens = [...(notifications.enviarDados.mock.calls as any[]), ...(notifications.enviarParaAparelho.mock.calls as any[])].map((c) => c[0]);
     expect(tokens).not.toContain('f-desligou');
     expect(r.ids).toEqual([1, 2]);
+  });
+
+  it('app sem a tela do pedido (v1, e o sem interfone): alerta comum "Atualize o app", sem tipo especial; alcance conta os dois grupos', async () => {
+    const { svc, notifications } = montar(usuarios, aparelhos);
+    const r = await svc.pedido(77, [1, 2, 3, 4, 5, 6], PEDIDO);
+    for (const token of ['f-and1', 'f-ios1', 'f-and0']) {
+      expect(notifications.enviarParaAparelho).toHaveBeenCalledWith(token, 'Interfone', ALERTA_ANTIGO);
+    }
+    const doV1 = (notifications.enviarParaAparelho.mock.calls as any[]).filter((c) => c[0] === 'f-and1');
+    expect(doV1).toHaveLength(1);
+    expect(doV1[0]).toHaveLength(3);
+    expect(notifications.enviarDados).not.toHaveBeenCalledWith('f-and1', expect.anything());
+    expect(r.alcance).toEqual({ apps: 2, antigos: 3 });
+  });
+
+  it('alcance conta só os envios que saíram', async () => {
+    const { svc, notifications } = montar(usuarios, aparelhos);
+    notifications.enviarDados.mockResolvedValueOnce('falha' as any);
+    (notifications.enviarParaAparelho as jest.Mock).mockImplementation(async (token: string) => (token === 'f-and1' ? null : {}));
+    const r = await svc.pedido(77, [1, 2, 3, 5, 6], PEDIDO);
+    expect(r).toEqual({ ids: [1], alcance: { apps: 1, antigos: 2 } });
   });
 
   it('título pelo tipo e motivo no texto quando há', async () => {
@@ -284,20 +308,34 @@ describe('InterfonePushService.pedido e pedidoFim (pedido do portão)', () => {
     );
   });
 
-  it('pedidoFim: dados interfone_pedido_fim nos aparelhos com o interfone (Android e iPhone)', async () => {
+  it('pedidoFim: dados interfone_pedido_fim só nos aparelhos com a tela do pedido (v2, Android e iPhone)', async () => {
     const { svc, notifications, apns } = montar(usuarios, aparelhos);
-    await svc.pedidoFim(77, [1, 2, 3]);
+    await svc.pedidoFim(77, [1, 2, 3, 5, 6]);
     expect(notifications.enviarDados).toHaveBeenCalledTimes(2);
     expect(notifications.enviarDados).toHaveBeenCalledWith('f-ios', { type: 'interfone_pedido_fim', id: '77' });
-    expect(notifications.enviarDados).toHaveBeenCalledWith('f-and1', { type: 'interfone_pedido_fim', id: '77' });
+    expect(notifications.enviarDados).toHaveBeenCalledWith('f-and2', { type: 'interfone_pedido_fim', id: '77' });
     expect(apns.enviar).not.toHaveBeenCalled();
     expect(notifications.enviarParaAparelho).not.toHaveBeenCalled();
+  });
+
+  it('regressão: aparelhos com interfone v1 e v2 continuam tocando nas chamadas (o v2 do pedido não muda o toque)', async () => {
+    const { svc, notifications, apns } = montar(usuarios, aparelhos);
+    const r = await svc.tocar(42, [1, 2, 5, 6], DADOS);
+    expect(r).toEqual({ tocou: 4, semApp: 0, ids: [1, 2, 5, 6] });
+    expect(apns.enviar).toHaveBeenCalledTimes(2);
+    expect((apns.enviar.mock.calls as any[]).map((c) => c[0]).sort()).toEqual(['voip-1', 'voip-6']);
+    expect(notifications.enviarDados).toHaveBeenCalledWith('f-and1', expect.objectContaining({ type: 'interfone_chamada' }));
+    expect(notifications.enviarDados).toHaveBeenCalledWith('f-and2', expect.objectContaining({ type: 'interfone_chamada' }));
+    await expect(svc.podemTocar([1, 2, 5, 6])).resolves.toEqual([1, 2, 5, 6]);
+    notifications.enviarDados.mockClear();
+    await svc.fim(42, [2, 5]);
+    expect((notifications.enviarDados.mock.calls as any[]).map((c) => c[0]).sort()).toEqual(['f-and1', 'f-and2']);
   });
 
   it('nunca lança (banco fora)', async () => {
     const { svc, prisma } = montar(usuarios, aparelhos);
     prisma.users.findMany.mockRejectedValue(new Error('banco fora'));
-    await expect(svc.pedido(77, [1], PEDIDO)).resolves.toEqual({ ids: [] });
+    await expect(svc.pedido(77, [1], PEDIDO)).resolves.toEqual({ ids: [], alcance: { apps: 0, antigos: 0 } });
     await expect(svc.pedidoFim(77, [1])).resolves.toBeUndefined();
   });
 });

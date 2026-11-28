@@ -2398,6 +2398,8 @@ model Interfone_Chamadas {
   /// Para onde a chamada foi encaminhada na portaria: 'local' | 'central'. Null nas antigas e nas
   /// que não passaram pela portaria. A central só vê e age nas 'central' (ou nas do próprio operador).
   destino               String?         @db.VarChar(8)
+  /// Quando um pedido do portão abriu esta chamada (no máximo uma abertura por pedido por chamada).
+  pedido_aberto_em      DateTime?       @db.DateTime(0)
   /// Resumo da conversa feito pela IA.
   ia_resumo             String?         @db.Text
   /// Transcrição completa da conversa com a IA.
@@ -2469,6 +2471,10 @@ model Interfone_Pedidos {
   respondido_por_id   Int?
   respondido_por_nome String?            @db.VarChar(120)
   respondido_em       DateTime?          @db.DateTime(0)
+  /// Aparelhos alcançados pelo push do pedido: com a tela do pedido (interfone_versao >= 2) e
+  /// antigos (receberam só o alerta "Atualize o app"). Null até o push sair.
+  alcance_apps        Int?
+  alcance_antigos     Int?
   created_at          DateTime           @default(now()) @db.DateTime(0)
   chamada             Interfone_Chamadas @relation(fields: [id_chamada], references: [id], onDelete: Cascade, map: "fk_ipd_chamada")
   condominio          Condominios        @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_ipd_cond")

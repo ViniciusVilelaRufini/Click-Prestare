@@ -71,10 +71,17 @@ const TIPOS_COM_PORTAO: readonly string[] = ['facial_unidade', 'facial_portaria'
 
 /**
  * Pedido do portão: autorizar só abre com a chamada ativa ou encerrada há até 5 min (conta do
- * `encerrada_em`). Chamada encerrada sem horário de fim gravado: fora da janela (falha fechado).
+ * `encerrada_em`) e nunca depois de 15 min da criação da chamada, qualquer que seja o estado (chamada
+ * que ficou "ativa" porque o serviço perdeu o fim). Chamada encerrada sem horário de fim gravado:
+ * fora da janela (falha fechado).
  */
 export const PEDIDO_JANELA_MS = 5 * 60_000;
-export function chamadaNaJanelaDoPedido(c: { estado: string; encerrada_em: Date | null }, agoraMs: number): boolean {
+export const PEDIDO_TETO_MS = 15 * 60_000;
+export function chamadaNaJanelaDoPedido(
+  c: { estado: string; encerrada_em: Date | null; created_at: Date },
+  agoraMs: number,
+): boolean {
+  if (!c.created_at || agoraMs - c.created_at.getTime() > PEDIDO_TETO_MS) return false;
   if (c.estado !== 'encerrada') return true;
   return !!c.encerrada_em && agoraMs - c.encerrada_em.getTime() <= PEDIDO_JANELA_MS;
 }
@@ -292,10 +299,12 @@ export class InterfoneAcoesService {
   /**
    * Pedido do portão: o morador autorizou pelo app. Mesmo caminho físico do `abrir` (agente → relé,
    * DTMF de reserva), sem exigir que o morador tenha atendido a chamada, só no portão do facial da
-   * chamada e só na janela do pedido (chamada ativa ou encerrada há até 5 min). Não passa pelo
-   * limite de aberturas de quem atendeu: quem garante "uma vez" é o InterfonePedidosService (troca
-   * condicional pendente → autorizado antes de chamar aqui), que também confere o vínculo do morador
-   * com a unidade do pedido. Nenhuma rota chama isto direto.
+   * chamada e só na janela do pedido (chamada ativa ou encerrada há até 5 min, teto de 15 min da
+   * criação). Não passa pelo limite de aberturas de quem atendeu. "Uma vez", em duas travas no banco:
+   * o InterfonePedidosService troca o pedido pendente → autorizado (condicional) antes de chamar
+   * aqui, e aqui a chamada aceita UMA abertura por pedido (`pedido_aberto_em`, marcado de forma
+   * condicional antes de acionar o portão; liberado só se nada abriu). O vínculo do morador com a
+   * unidade do pedido é conferido pelo InterfonePedidosService. Nenhuma rota chama isto direto.
    */
   async abrirPorPedido(
     idChamada: number,
@@ -312,13 +321,27 @@ export class InterfoneAcoesService {
     if (!chamadaNaJanelaDoPedido(c, this.agora())) return { ok: false, motivo: 'chamada_expirada' };
     if (!temPortao(c)) return { ok: false, motivo: 'sem_portao' };
     if (!this.facial) return { ok: false, motivo: 'indisponivel' };
+    // Uma abertura por pedido por chamada: marca antes de acionar (só quem marcou segue).
+    const marca = new Date(this.agora());
+    const marcou = await this.prisma.interfone_Chamadas.updateMany({
+      where: { id: c.id, pedido_aberto_em: null },
+      data: { pedido_aberto_em: marca },
+    });
+    if (marcou.count !== 1) return { ok: false, motivo: 'ja_aberto_por_pedido' };
     // facial_portaria não tem unidade na chamada: vale a que a central escolheu no pedido.
     const unidade = extra.unidade || unidadeDaChamada(c);
     const nome = (morador.nome || '').trim() || 'Morador';
+    // Se lançar depois de acionar (gravação/auditoria), a marca fica: falha fechado.
     const aberto = await this.abrirPortaoDaChamada(c, unidade, { papel: 'morador', uid: morador.uid, nome }, {
       descricao: `Portão "${c.facial.nome}" aberto por autorização do morador ${nome} (pedido do interfone) — ${unidade || 'sem unidade'}`,
       detalhes: { pedido: true, ...(extra.idPedido ? { id_pedido: extra.idPedido } : {}) },
     });
+    if (!aberto) {
+      // Nada abriu (agente fora, sem DTMF): o próximo pedido da chamada ainda pode tentar.
+      await this.prisma.interfone_Chamadas
+        .updateMany({ where: { id: c.id, pedido_aberto_em: marca }, data: { pedido_aberto_em: null } })
+        .catch(() => undefined);
+    }
     return aberto ? { ok: true } : { ok: false, motivo: 'falha_ao_abrir' };
   }
 

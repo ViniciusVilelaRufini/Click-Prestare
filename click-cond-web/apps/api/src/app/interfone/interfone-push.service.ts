@@ -8,6 +8,11 @@ import { carregarChaveApns } from '../card-ao-vivo/apns-chave';
 /** Versão mínima do interfone no app para receber o toque (VoIP/dados). */
 export const INTERFONE_VERSAO_APP = 1;
 /**
+ * Versão do interfone no app que tem a tela do pedido do portão (Autorizar/Negar). Só decide o
+ * push do pedido; o toque das chamadas continua com INTERFONE_VERSAO_APP.
+ */
+export const INTERFONE_VERSAO_PEDIDO = 2;
+/**
  * Validade do VoIP push: o toque máximo no apartamento é 60 s. Depois disso o
  * APNs descarta em vez de entregar atrasado (todo VoIP push vira ligação no
  * CallKit, mesmo de chamada que já acabou).
@@ -193,13 +198,20 @@ export class InterfonePushService {
   }
 
   /**
-   * Pedido do portão aos moradores da unidade (exceto quem desligou o interfone). Android com o
-   * interfone → dados `interfone_pedido` (o app abre a tela de Autorizar/Negar); iPhone com o
-   * interfone → alerta com os mesmos dados (o toque abre a tela). Nunca VoIP: não é ligação. App sem
-   * o interfone → push comum pedindo para atualizar. `ids` = usuários em que o pedido saiu.
+   * Pedido do portão aos moradores da unidade (exceto quem desligou o interfone). App com a tela do
+   * pedido (interfone_versao >= INTERFONE_VERSAO_PEDIDO): Android → dados `interfone_pedido` (o app
+   * abre a tela de Autorizar/Negar); iPhone → alerta com os mesmos dados (o toque abre a tela).
+   * Nunca VoIP: não é ligação. App antigo (sem a tela) → alerta comum, sem tipo, pedindo para
+   * atualizar. `ids` = usuários em que o pedido saiu num app com a tela; `alcance` = aparelhos
+   * alcançados (com a tela / antigos).
    */
-  async pedido(idPedido: number, idsUsuarios: number[], dados: DadosPedidoPush): Promise<{ ids: number[] }> {
+  async pedido(
+    idPedido: number,
+    idsUsuarios: number[],
+    dados: DadosPedidoPush,
+  ): Promise<{ ids: number[]; alcance: { apps: number; antigos: number } }> {
     const saiu = new Set<number>();
+    const alcance = { apps: 0, antigos: 0 };
     try {
       const alvos = await this.aparelhos(idsUsuarios, true);
       const conteudo: Record<string, string> = {
@@ -216,20 +228,25 @@ export class InterfonePushService {
       };
       const titulo = TITULO_PEDIDO[dados.tipo] ?? TITULO_PEDIDO['outro'];
       const texto = `${dados.nome} pede para entrar${dados.motivo ? ` (${dados.motivo})` : ''}. Toque para responder.`;
+      const antigo = `Visitante no portão: ${dados.nome}. Atualize o app Prestare para responder.`;
       await Promise.all(
         alvos.map(async (a) => {
           try {
             const plataforma = (a.plataforma ?? '').toLowerCase();
-            const novo = (a.interfone_versao ?? 0) >= INTERFONE_VERSAO_APP;
-            if (novo && plataforma === 'android') {
-              if ((await this.notifications.enviarDados(a.fcm_token, conteudo)) === 'ok') saiu.add(a.id_user);
-            } else if (novo && plataforma === 'ios') {
-              if (await this.notifications.enviarParaAparelho(a.fcm_token, titulo, texto, conteudo)) saiu.add(a.id_user);
-            } else {
-              await this.notifications.enviarParaAparelho(a.fcm_token, titulo, 'Atualize o app para responder pelo celular.', {
-                type: 'interfone_perdida',
-                id: String(dados.id_chamada),
-              });
+            const comTela = (a.interfone_versao ?? 0) >= INTERFONE_VERSAO_PEDIDO;
+            if (comTela && plataforma === 'android') {
+              if ((await this.notifications.enviarDados(a.fcm_token, conteudo)) === 'ok') {
+                saiu.add(a.id_user);
+                alcance.apps++;
+              }
+            } else if (comTela && plataforma === 'ios') {
+              if (await this.notifications.enviarParaAparelho(a.fcm_token, titulo, texto, conteudo)) {
+                saiu.add(a.id_user);
+                alcance.apps++;
+              }
+            } else if (await this.notifications.enviarParaAparelho(a.fcm_token, 'Interfone', antigo)) {
+              // App sem a tela do pedido (interfone v1 ou sem interfone): só o aviso, sem tipo.
+              alcance.antigos++;
             }
           } catch (e: any) {
             this.logger.warn(`Interfone: pedido ${idPedido} no aparelho do usuário ${a.id_user} falhou: ${e?.message ?? e}`);
@@ -239,13 +256,13 @@ export class InterfonePushService {
     } catch (e: any) {
       this.logger.warn(`Interfone: push do pedido ${idPedido} falhou: ${e?.message ?? e}`);
     }
-    return { ids: [...saiu].sort((x, y) => x - y) };
+    return { ids: [...saiu].sort((x, y) => x - y), alcance };
   }
 
   /**
    * Fecha a tela do pedido nos outros celulares (alguém respondeu ou o pedido expirou): dados
-   * `interfone_pedido_fim` nos aparelhos com o interfone, Android e iPhone (no iPhone chega com o app
-   * aberto; fechado, a tela consulta o estado ao abrir).
+   * `interfone_pedido_fim` nos aparelhos com a tela do pedido, Android e iPhone (no iPhone chega com
+   * o app aberto; fechado, a tela consulta o estado ao abrir).
    */
   async pedidoFim(idPedido: number, idsUsuarios: number[]): Promise<void> {
     try {
@@ -253,7 +270,7 @@ export class InterfonePushService {
       const dados = { type: 'interfone_pedido_fim', id: String(idPedido) };
       await Promise.all(
         alvos
-          .filter((a) => ['android', 'ios'].includes((a.plataforma ?? '').toLowerCase()) && (a.interfone_versao ?? 0) >= INTERFONE_VERSAO_APP)
+          .filter((a) => ['android', 'ios'].includes((a.plataforma ?? '').toLowerCase()) && (a.interfone_versao ?? 0) >= INTERFONE_VERSAO_PEDIDO)
           .map((a) => this.notifications.enviarDados(a.fcm_token, dados).catch(() => undefined)),
       );
     } catch (e: any) {

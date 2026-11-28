@@ -33,6 +33,11 @@ SELECT 'Interfone_Chamadas.destino' AS item,
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Chamadas' AND COLUMN_NAME = 'destino'
       AND DATA_TYPE = 'varchar' AND CHARACTER_MAXIMUM_LENGTH = 8 AND IS_NULLABLE = 'YES') = 1, 'OK', 'FALTA') AS status
 UNION ALL
+SELECT 'Interfone_Chamadas.pedido_aberto_em' AS item,
+  IF((SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Chamadas' AND COLUMN_NAME = 'pedido_aberto_em'
+      AND DATA_TYPE = 'datetime' AND IS_NULLABLE = 'YES') = 1, 'OK', 'FALTA') AS status
+UNION ALL
 SELECT 'tabela Portaria_Agenda',
   IF((SELECT COUNT(*) FROM information_schema.TABLES
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Portaria_Agenda') = 1, 'OK', 'FALTA')
@@ -144,6 +149,16 @@ UNION ALL
 SELECT 'Interfone_Pedidos.respondido_em' AS item,
   IF((SELECT COUNT(*) FROM information_schema.COLUMNS
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Pedidos' AND COLUMN_NAME = 'respondido_em') = 1, 'OK', 'FALTA') AS status
+UNION ALL
+SELECT 'Interfone_Pedidos.alcance_apps' AS item,
+  IF((SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Pedidos' AND COLUMN_NAME = 'alcance_apps'
+      AND DATA_TYPE = 'int' AND IS_NULLABLE = 'YES') = 1, 'OK', 'FALTA') AS status
+UNION ALL
+SELECT 'Interfone_Pedidos.alcance_antigos' AS item,
+  IF((SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Pedidos' AND COLUMN_NAME = 'alcance_antigos'
+      AND DATA_TYPE = 'int' AND IS_NULLABLE = 'YES') = 1, 'OK', 'FALTA') AS status
 UNION ALL
 SELECT 'Portaria_Agenda.idx_pag_cond_dia',
   IF((SELECT COUNT(*) FROM information_schema.STATISTICS

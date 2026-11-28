@@ -5,14 +5,17 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
   Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { executarComLock } from '../common/lock-distribuido';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { StorageService } from '../common/storage/storage.service';
 import { rotuloAptoBloco } from '../visitantes/rotulo-apto-bloco.util';
 import { InterfoneService } from './interfone.service';
-import { InterfoneAcoesService, chamadaNaJanelaDoPedido } from './interfone-acoes.service';
+import { InterfoneAcoesService, PEDIDO_JANELA_MS, PEDIDO_TETO_MS, chamadaNaJanelaDoPedido } from './interfone-acoes.service';
 import { InterfonePushService } from './interfone-push.service';
 
 export type DecisaoPedido = 'autorizar' | 'negar';
@@ -24,6 +27,11 @@ export type TipoPedido = (typeof TIPOS_PEDIDO)[number];
 export const ORIGENS_PEDIDO = ['central', 'ia'] as const;
 export type OrigemPedido = (typeof ORIGENS_PEDIDO)[number];
 export const MENSAGEM_PEDIDO_MAX = 120;
+/** Pedidos por chamada (qualquer estado): o 4º → 409 `limite_pedidos`. */
+export const PEDIDOS_POR_CHAMADA_MAX = 3;
+/** Rotina que expira os pedidos pendentes que ninguém pode mais responder. */
+const VENCIDOS_VERIFICA_MS = 30_000;
+const VENCIDOS_POR_VEZ = 100;
 const NOME_MAX = 120;
 const MOTIVO_MAX = 255;
 
@@ -42,6 +50,11 @@ export interface PedidoResumo {
   respondido_em: string | null;
   /** O portão abriu depois da autorização (pelo pedido ou, se ele falhou, por quem atendeu). */
   portao_aberto: boolean;
+  /**
+   * Só para o console e a central: aparelhos que o push alcançou (com a tela do pedido / antigos,
+   * que só receberam "Atualize o app"). Null até o push sair.
+   */
+  alcance?: { apps: number; antigos: number } | null;
 }
 
 export interface EntradaPedido {
@@ -54,12 +67,12 @@ export interface EntradaPedido {
 }
 
 const INCLUDE_PEDIDO = {
-  chamada: { select: { estado: true, encerrada_em: true, porta_aberta_em: true } },
+  chamada: { select: { estado: true, encerrada_em: true, porta_aberta_em: true, created_at: true } },
   condominio: { select: { central_contratada: true } },
   apartamento: { select: { apto: true, bloco: true } },
 } as const;
 
-type ChamadaDoPedido = { estado: string; encerrada_em: Date | null; porta_aberta_em: Date | null };
+type ChamadaDoPedido = { estado: string; encerrada_em: Date | null; porta_aberta_em: Date | null; created_at: Date };
 type LinhaPedido = {
   id: number;
   id_chamada: number;
@@ -72,6 +85,8 @@ type LinhaPedido = {
   mensagem: string | null;
   respondido_por_nome: string | null;
   respondido_em: Date | null;
+  alcance_apps?: number | null;
+  alcance_antigos?: number | null;
 };
 
 function conflito(motivo: string, message: string): ConflictException {
@@ -124,10 +139,13 @@ function normalizarMensagem(m: unknown): string | null {
  * da chamada e pronto.
  */
 @Injectable()
-export class InterfonePedidosService {
+export class InterfonePedidosService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(InterfonePedidosService.name);
   /** Público para os testes; em produção é Date.now. */
   agora: () => number = () => Date.now();
+  /** `criar` em fila por chamada (memória desta réplica): clique duplo não manda dois pushes. */
+  private readonly criando = new Map<number, Promise<unknown>>();
+  private vencidosInterval?: ReturnType<typeof setInterval>;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -138,15 +156,34 @@ export class InterfonePedidosService {
     @Optional() private readonly storage?: StorageService,
   ) {}
 
+  onModuleInit() {
+    if (process.env['NODE_ENV'] === 'test') return;
+    this.vencidosInterval = setInterval(
+      () => void executarComLock(this.prisma, 'interfone:pedidos-vencidos', async () => void (await this.expirarVencidos())),
+      VENCIDOS_VERIFICA_MS,
+    );
+    this.vencidosInterval.unref?.();
+  }
+
+  onModuleDestroy() {
+    if (this.vencidosInterval) clearInterval(this.vencidosInterval);
+  }
+
   /**
    * Cria o pedido na chamada (que ainda não acabou). Chamada com unidade: o pedido vai para ela;
-   * `facial_portaria` (sem unidade): para a unidade escolhida, do mesmo condomínio. Um pedido
-   * pendente por chamada (409 `pedido_pendente`). Copia a foto da chamada, avisa o console e a
-   * central (`interfone:pedido`) e manda o push aos moradores da unidade em segundo plano.
-   * Quem chama confere quem pode pedir (a central confere o operador).
+   * `facial_portaria` (sem unidade): para a unidade escolhida, do mesmo condomínio. Até 3 pedidos
+   * por chamada (409 `limite_pedidos`) e um pendente por vez (409 `pedido_pendente`), em fila por
+   * chamada nesta réplica. Copia a foto da chamada, avisa o console e a central (`interfone:pedido`)
+   * e manda o push aos moradores da unidade em segundo plano; depois do push grava o alcance e repete
+   * o evento com `alcance`. Quem chama confere quem pode pedir (a central confere o operador).
+   * Devolve o resumo das salas (primeiro nome, `alcance`).
    */
   async criar(entrada: EntradaPedido): Promise<PedidoResumo> {
     const e = normalizarEntrada(entrada);
+    return this.emFila(e.idChamada, () => this.criarSemFila(e));
+  }
+
+  private async criarSemFila(e: ReturnType<typeof normalizarEntrada>): Promise<PedidoResumo> {
     const c = await this.nucleo.carregar(e.idChamada);
     if (!c) throw new NotFoundException('Chamada não encontrada.');
     if (c.estado === 'encerrada') throw conflito('encerrada', 'A chamada já terminou.');
@@ -159,8 +196,14 @@ export class InterfonePedidosService {
     });
     if (!apto) throw new NotFoundException('Unidade não encontrada.');
     if (apto.id_condominio !== c.id_condominio) throw new ForbiddenException('Acesso negado: unidade de outro condomínio.');
-    const pendentes = await this.prisma.interfone_Pedidos.count({ where: { id_chamada: c.id, estado: 'pendente' } });
+    const [total, pendentes] = await Promise.all([
+      this.prisma.interfone_Pedidos.count({ where: { id_chamada: c.id } }),
+      this.prisma.interfone_Pedidos.count({ where: { id_chamada: c.id, estado: 'pendente' } }),
+    ]);
     if (pendentes > 0) throw conflito('pedido_pendente', 'Já há um pedido esperando a resposta do morador nesta chamada.');
+    if (total >= PEDIDOS_POR_CHAMADA_MAX) {
+      throw conflito('limite_pedidos', `Esta chamada já teve ${PEDIDOS_POR_CHAMADA_MAX} pedidos ao morador.`);
+    }
 
     const p = await this.prisma.interfone_Pedidos.create({
       data: {
@@ -176,13 +219,14 @@ export class InterfonePedidosService {
         created_at: new Date(this.agora()),
       },
     });
-    const resumo = this.resumo(p, c);
-    this.emitir(p, c.condominio?.central_contratada === 1, this.paraSalas(resumo));
+    const central = c.condominio?.central_contratada === 1;
+    const resumo = this.resumoSala(p, c);
+    this.emitir(p, central, resumo);
 
     const unidade = rotuloAptoBloco(apto.apto, apto.bloco);
     this.nucleo.emSegundoPlano(`push do pedido ${p.id}`, async () => {
       const moradores = await this.nucleo.moradoresDaUnidade(apto.id);
-      await this.push.pedido(p.id, moradores, {
+      const r = await this.push.pedido(p.id, moradores, {
         id_chamada: c.id,
         unidade,
         condominio: c.condominio?.nome ?? '',
@@ -192,8 +236,28 @@ export class InterfonePedidosService {
         tipo: e.tipo,
         foto_url: await this.assinar(c.foto),
       });
+      // O console e a central veem quantos aparelhos têm a tela do pedido (e quantos só o aviso).
+      await this.prisma.interfone_Pedidos.updateMany({
+        where: { id: p.id },
+        data: { alcance_apps: r.alcance.apps, alcance_antigos: r.alcance.antigos },
+      });
+      const atual = await this.carregar(p.id);
+      if (atual) this.emitir(atual, central, this.resumoSala(atual, atual.chamada));
     });
     return resumo;
+  }
+
+  /** Um `criar` por vez por chamada: o segundo espera o primeiro e então vê o pendente (409). */
+  private async emFila<T>(idChamada: number, fn: () => Promise<T>): Promise<T> {
+    const antes = this.criando.get(idChamada) ?? Promise.resolve();
+    const atual = antes.catch(() => undefined).then(fn);
+    const fim = atual.catch(() => undefined);
+    this.criando.set(idChamada, fim);
+    try {
+      return await atual;
+    } finally {
+      if (this.criando.get(idChamada) === fim) this.criando.delete(idChamada);
+    }
   }
 
   /**
@@ -265,17 +329,60 @@ export class InterfonePedidosService {
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       include: INCLUDE_PEDIDO,
     });
-    return p ? this.paraSalas(this.resumo(p, p.chamada)) : null;
+    return p ? this.resumoSala(p, p.chamada) : null;
+  }
+
+  /**
+   * Rotina (a cada 30 s, com trava distribuída): pedido pendente que ninguém pode mais responder —
+   * chamada encerrada há mais de 5 min (ou sem horário de fim) ou criada há mais de 15 min — vira
+   * `expirado` (condicional), fecha a tela nos celulares da unidade (`interfone_pedido_fim`) e avisa
+   * o console e a central. Devolve quantos expirou. Nunca lança.
+   */
+  async expirarVencidos(): Promise<number> {
+    let n = 0;
+    try {
+      const agora = this.agora();
+      const lista = await this.prisma.interfone_Pedidos.findMany({
+        where: {
+          estado: 'pendente',
+          OR: [
+            {
+              chamada: {
+                estado: 'encerrada',
+                OR: [{ encerrada_em: null }, { encerrada_em: { lt: new Date(agora - PEDIDO_JANELA_MS) } }],
+              },
+            },
+            { chamada: { created_at: { lt: new Date(agora - PEDIDO_TETO_MS) } } },
+          ],
+        },
+        include: INCLUDE_PEDIDO,
+        orderBy: { id: 'asc' },
+        take: VENCIDOS_POR_VEZ,
+      });
+      for (const p of lista) {
+        if (p.chamada && chamadaNaJanelaDoPedido(p.chamada, agora)) continue;
+        const r = await this.prisma.interfone_Pedidos.updateMany({ where: { id: p.id, estado: 'pendente' }, data: { estado: 'expirado' } });
+        if (r.count !== 1) continue;
+        n++;
+        await this.depoisDaResposta(p.id, 0, p.condominio?.central_contratada === 1);
+      }
+    } catch (e: any) {
+      this.logger.warn(`Interfone: rotina de pedidos vencidos falhou: ${e?.message ?? e}`);
+    }
+    return n;
   }
 
   // ─────────────────────────────────────────── apoio
 
-  /** Relê o pedido, avisa o console/central e fecha a tela nos outros celulares da unidade. */
+  /**
+   * Relê o pedido, avisa o console/central e fecha a tela nos outros celulares da unidade
+   * (`idUser = 0`: em todos). Devolve o resumo do app.
+   */
   private async depoisDaResposta(idPedido: number, idUser: number, central: boolean): Promise<PedidoResumo> {
     const p = await this.carregar(idPedido);
     if (!p) throw new NotFoundException('Pedido não encontrado.');
     const resumo = this.resumo(p, p.chamada);
-    this.emitir(p, central, this.paraSalas(resumo));
+    this.emitir(p, central, this.resumoSala(p, p.chamada));
     this.nucleo.emSegundoPlano(`fim do pedido ${p.id}`, async () => {
       const outros = (await this.nucleo.moradoresDaUnidade(p.id_apartamento)).filter((u) => u !== idUser);
       if (outros.length) await this.push.pedidoFim(p.id, outros);
@@ -310,9 +417,15 @@ export class InterfonePedidosService {
     };
   }
 
-  /** Console e central: só o primeiro nome de quem respondeu (LGPD, como no contexto). */
-  private paraSalas(r: PedidoResumo): PedidoResumo {
-    return { ...r, respondido_por_nome: r.respondido_por_nome ? primeiroNome(r.respondido_por_nome) : null };
+  /** Console e central: só o primeiro nome de quem respondeu (LGPD, como no contexto) e o alcance do push. */
+  private resumoSala(p: LinhaPedido, c: ChamadaDoPedido | null | undefined): PedidoResumo {
+    const r = this.resumo(p, c);
+    const temAlcance = p.alcance_apps != null || p.alcance_antigos != null;
+    return {
+      ...r,
+      respondido_por_nome: r.respondido_por_nome ? primeiroNome(r.respondido_por_nome) : null,
+      alcance: temAlcance ? { apps: p.alcance_apps ?? 0, antigos: p.alcance_antigos ?? 0 } : null,
+    };
   }
 
   /** `interfone:pedido` no console do prédio e, em condomínio da central, na sala da central. */

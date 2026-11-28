@@ -106,7 +106,7 @@ function montar(opts: { porteiroOnline?: boolean } = {}) {
     fim: jest.fn(async () => undefined),
     perdida: jest.fn(async () => undefined),
     podemTocar: jest.fn(async (ids: number[]) => ids.filter((i) => i === 7 || i === 8)),
-    pedido: jest.fn(async (_id: number, ids: number[]) => ({ ids })),
+    pedido: jest.fn(async (_id: number, ids: number[]) => ({ ids, alcance: { apps: ids.length, antigos: 0 } })),
     pedidoFim: jest.fn(async () => undefined),
   };
   const voz = { portaria: jest.fn(async () => true), dtmf: jest.fn(async () => true), encerrar: jest.fn(async () => true) };
@@ -767,6 +767,7 @@ describe('central — pedido de autorização ao morador', () => {
       respondido_por_nome: null,
       respondido_em: null,
       portao_aberto: false,
+      alcance: null,
     });
     expect(m.tabelas['interfone_Pedidos'][0]).toMatchObject({ id_chamada: id, id_apartamento: 100, origem: 'central', foto: 'interfone/fotos/9.jpg' });
     expect(m.push.pedido).toHaveBeenCalledWith(r.id, [7, 8], expect.objectContaining({ id_chamada: id, condominio: 'Residencial Central' }));
@@ -832,9 +833,17 @@ describe('central — pedido de autorização ao morador', () => {
     await expect(m.ctrl.contexto(id, TOKEN_OPERADORA)).resolves.toMatchObject({ pedido: null });
     const r = await m.ctrl.pedido(id, { nome: 'Rodrigo', tipo: 'entrega' }, TOKEN_OPERADORA);
     await expect(m.ctrl.contexto(id, TOKEN_OPERADORA)).resolves.toMatchObject({ pedido: { id: r.id, estado: 'pendente' } });
+    await m.nucleo.ociosos();
     await m.pedidos.responder(r.id, 7, 'negar', 'Deixe na portaria');
     const ctx = await m.ctrl.contexto(id, TOKEN_OPERADORA);
-    expect(ctx.pedido).toMatchObject({ id: r.id, estado: 'negado', mensagem: 'Deixe na portaria', respondido_por_nome: 'Ana', portao_aberto: false });
+    expect(ctx.pedido).toMatchObject({
+      id: r.id,
+      estado: 'negado',
+      mensagem: 'Deixe na portaria',
+      respondido_por_nome: 'Ana',
+      portao_aberto: false,
+      alcance: { apps: 2, antigos: 0 },
+    });
     expect(JSON.stringify(ctx)).not.toContain('Souza');
   });
 });
