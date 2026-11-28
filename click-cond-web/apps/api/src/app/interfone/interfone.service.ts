@@ -8,6 +8,7 @@ import { rotuloAptoBloco } from '../visitantes/rotulo-apto-bloco.util';
 import { normalizarFabricante } from '../facial/fabricantes';
 import { InterfonePushService } from './interfone-push.service';
 import { VozControleClient } from './voz-controle.client';
+import { InterfoneFotoService } from './interfone-foto.service';
 import { facialAtendeBloco, ramalValido } from './regras';
 
 /** Anti-trote (Global Constraints do plano). */
@@ -97,7 +98,7 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
    * tentativa espera um pouco.
    */
   esperasPortariaMs = [800, 1500, 3000];
-  /** Foto do visitante (Task A6 preenche com o InterfoneFotoService). */
+  /** Foto do visitante (InterfoneFotoService; público para os testes trocarem). */
   foto: CapturadorFotoInterfone | null = null;
 
   constructor(
@@ -106,7 +107,10 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     private readonly voz: VozControleClient,
     @Optional() private readonly realtime?: RealtimeGateway,
     @Optional() private readonly storage?: StorageService,
-  ) {}
+    @Optional() fotoService?: InterfoneFotoService,
+  ) {
+    this.foto = fotoService ?? null;
+  }
 
   onModuleInit() {
     if (process.env['NODE_ENV'] === 'test') return;

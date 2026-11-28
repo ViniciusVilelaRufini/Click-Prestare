@@ -10,6 +10,8 @@ import { FacialService } from '../facial/facial.service';
 import { AgentBridgeService } from '../facial/agent-bridge.service';
 import { InterfoneModule } from './interfone.module';
 import { InterfoneAcoesService } from './interfone-acoes.service';
+import { InterfoneService } from './interfone.service';
+import { InterfoneFotoService } from './interfone-foto.service';
 @Global()
 @Module({ providers: [
   { provide: PrismaService, useValue: {} }, { provide: NotificationsService, useValue: {} }, { provide: AuditoriaService, useValue: { registrar: async () => 1 } },
@@ -23,4 +25,6 @@ it('o InterfoneModule resolve as dependências (FacialModule trocado por falso)'
   const s: any = m.get(InterfoneAcoesService);
   expect(s.facial).toEqual({ x: 1 });
   expect(s.auditoria).toBeDefined();
+  // A foto do visitante vem ligada no núcleo.
+  expect(m.get(InterfoneService).foto).toBeInstanceOf(InterfoneFotoService);
 });
