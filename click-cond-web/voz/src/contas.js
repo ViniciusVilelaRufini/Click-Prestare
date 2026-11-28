@@ -2,13 +2,13 @@
 // /etc/asterisk/pjsip_prestare.conf (incluído pelo pjsip.conf) e recarrega o
 // res_pjsip pela ARI só quando o conteúdo muda.
 
-const CONTA_FACIAL = /^fac-\d{1,10}$/;
-const CONTA_MONITOR = /^mon-\d{1,10}$/;
+const CONTA_FACIAL = /^fac-?\d{1,10}$/;
+const CONTA_MONITOR = /^mon-?\d{1,10}$/;
 // Senha entra crua no .conf: nada de quebra de linha, ';' (comentário) ou espaço.
 const SENHA = /^[A-Za-z0-9._~+=@!-]{12,64}$/;
 
 function numeroDaConta(conta) {
-  return Number(conta.slice(4));
+  return Number(conta.replace(/^\D+/, ''));
 }
 
 function bloco(conta, senha, contexto, dtmf) {

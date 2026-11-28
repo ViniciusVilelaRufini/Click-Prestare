@@ -108,7 +108,7 @@ export function criarChamada({
     entrou,
 
     monitorAtendeu(conta, canal) {
-      return entrou({ papel: 'monitor', uid: Number(String(conta).replace(/^mon-/, '')), canal });
+      return entrou({ papel: 'monitor', uid: Number(String(conta).replace(/^mon-?/, '')), canal });
     },
 
     expirou(nome) {

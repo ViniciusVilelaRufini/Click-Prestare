@@ -29,7 +29,7 @@ const RAMAIS: RamalUnidade[] = [
 ];
 const FACIAL: FacialInterfone = {
   id: 9, nome: 'Portão social', modelo: 'SS 3532 MF W', habilitado: true, blocos: ['A'], dtmf: '#1',
-  conta: 'fac-9', senha: 'abcDEF123456789012345678', servidor: 'voz.prestarecondominios.com.br', porta: 5060,
+  conta: 'fac9', senha: 'abcDEF123456789012345678', servidor: 'voz.prestarecondominios.com.br', porta: 5060,
   registrado: false, registrado_em: null,
 };
 
@@ -234,7 +234,7 @@ describe('InterfoneConfigComponent', () => {
     expect(el.textContent).toContain('Portão social');
     expect(el.textContent).toContain('Não registrado');
     expect(el.textContent).toContain('voz.prestarecondominios.com.br');
-    expect(el.textContent).toContain('fac-9');
+    expect(el.textContent).toContain('fac9');
   });
 
   describe('configurar automaticamente (Intelbras)', () => {

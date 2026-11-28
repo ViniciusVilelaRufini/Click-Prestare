@@ -6,22 +6,22 @@ import { criarApi } from '../src/api.js';
 
 const CONTAS = {
   faciais: [
-    { conta: 'fac-12', senha: 'Abc123def456ghi789jkl012', id_condominio: 1, dtmf_modo: 'info' },
-    { conta: 'fac-3', senha: 'Zyx987wvu654tsr321qpo000', id_condominio: 2, dtmf_modo: 'rfc4733' },
+    { conta: 'fac12', senha: 'Abc123def456ghi789jkl012', id_condominio: 1, dtmf_modo: 'info' },
+    { conta: 'fac3', senha: 'Zyx987wvu654tsr321qpo000', id_condominio: 2, dtmf_modo: 'rfc4733' },
   ],
   monitores: [{ conta: 'mon-5', senha: 'Mon5senhaLongaAleatoria1', id_condominio: 1, id_apartamento: 9 }],
 };
 
 test('renderizarPjsip gera endpoint, auth e aor de cada conta', () => {
   const txt = renderizarPjsip(CONTAS);
-  assert.match(txt, /\[fac-12\]\ntype=endpoint\ncontext=prestare-facial\n/);
-  assert.match(txt, /\[fac-12\]\ntype=endpoint[^[]*dtmf_mode=info\n/);
-  assert.match(txt, /\[fac-3\]\ntype=endpoint[^[]*dtmf_mode=rfc4733\n/);
-  assert.match(txt, /\[fac-12\]\ntype=auth\nauth_type=userpass\nusername=fac-12\npassword=Abc123def456ghi789jkl012\n/);
-  assert.match(txt, /\[fac-12\]\ntype=aor\nmax_contacts=1\nremove_existing=yes\nqualify_frequency=30\n/);
+  assert.match(txt, /\[fac12\]\ntype=endpoint\ncontext=prestare-facial\n/);
+  assert.match(txt, /\[fac12\]\ntype=endpoint[^[]*dtmf_mode=info\n/);
+  assert.match(txt, /\[fac3\]\ntype=endpoint[^[]*dtmf_mode=rfc4733\n/);
+  assert.match(txt, /\[fac12\]\ntype=auth\nauth_type=userpass\nusername=fac12\npassword=Abc123def456ghi789jkl012\n/);
+  assert.match(txt, /\[fac12\]\ntype=aor\nmax_contacts=1\nremove_existing=yes\nqualify_frequency=30\n/);
   assert.match(txt, /\[mon-5\]\ntype=endpoint\ncontext=prestare-monitor\n/);
   for (const linha of ['disallow=all', 'allow=ulaw,alaw,h264', 'direct_media=no', 'rtp_symmetric=yes',
-    'force_rport=yes', 'rewrite_contact=yes', 'auth=fac-12', 'aors=fac-12']) {
+    'force_rport=yes', 'rewrite_contact=yes', 'auth=fac12', 'aors=fac12']) {
     assert.ok(txt.includes(linha + '\n'), linha);
   }
 });
@@ -29,10 +29,10 @@ test('renderizarPjsip gera endpoint, auth e aor de cada conta', () => {
 test('renderizarPjsip tem ordem estável', () => {
   const invertido = { faciais: [...CONTAS.faciais].reverse(), monitores: CONTAS.monitores };
   assert.equal(renderizarPjsip(invertido), renderizarPjsip(CONTAS));
-  // fac-3 antes de fac-12 (ordem numérica), faciais antes dos monitores
+  // fac3 antes de fac12 (ordem numérica), faciais antes dos monitores
   const txt = renderizarPjsip(CONTAS);
-  assert.ok(txt.indexOf('[fac-3]') < txt.indexOf('[fac-12]'));
-  assert.ok(txt.indexOf('[fac-12]') < txt.indexOf('[mon-5]'));
+  assert.ok(txt.indexOf('[fac3]') < txt.indexOf('[fac12]'));
+  assert.ok(txt.indexOf('[fac12]') < txt.indexOf('[mon-5]'));
 });
 
 test('renderizarPjsip descarta conta ou senha que poderia injetar configuração', () => {
@@ -41,7 +41,7 @@ test('renderizarPjsip descarta conta ou senha que poderia injetar configuração
       { conta: 'fac-1', senha: 'curta', dtmf_modo: 'info' },
       { conta: 'fac-2', senha: 'senhaboa123456\n[x]\ntype=endpoint', dtmf_modo: 'info' },
       { conta: 'fac-x;', senha: 'senhaboa1234567890', dtmf_modo: 'info' },
-      { conta: 'fac-4', senha: 'senhaboa1234567890', dtmf_modo: 'qualquer' },
+      { conta: 'fac4', senha: 'senhaboa1234567890', dtmf_modo: 'qualquer' },
     ],
     monitores: [],
   });
@@ -49,7 +49,7 @@ test('renderizarPjsip descarta conta ou senha que poderia injetar configuração
   assert.ok(!txt.includes('[fac-2]'));
   assert.ok(!txt.includes('[x]'));
   assert.ok(!txt.includes('fac-x'));
-  assert.match(txt, /\[fac-4\]\ntype=endpoint[^[]*dtmf_mode=rfc4733\n/);
+  assert.match(txt, /\[fac4\]\ntype=endpoint[^[]*dtmf_mode=rfc4733\n/);
 });
 
 test('renderizarPjsip recusa resposta malformada', () => {
@@ -153,4 +153,16 @@ test('criarApi lança em resposta de erro', async () => {
   const api = criarApi({ apiBase: 'https://x/api', vozToken: 'tk',
     fetch: async () => ({ ok: false, status: 503, json: async () => ({}) }) });
   await assert.rejects(api.contas(), (e) => /503/.test(e.message) && e.status === 503);
+});
+
+test('contas antigas com hífen (fac-12) continuam válidas e ordenam junto das novas', () => {
+  const txt = renderizarPjsip({
+    faciais: [
+      { conta: 'fac-12', senha: 'Abc123def456ghi789jkl012', id_condominio: 1, dtmf_modo: 'info' },
+      { conta: 'fac3', senha: 'Zyx987wvu654tsr321qpo000', id_condominio: 1, dtmf_modo: 'info' },
+    ],
+    monitores: [{ conta: 'mon-5', senha: 'Mon5senhaLongaAleatoria1', id_condominio: 1, id_apartamento: 9 }],
+  }, () => {});
+  assert.ok(txt.indexOf('[fac3]') < txt.indexOf('[fac-12]'));
+  assert.match(txt, /\[mon-5\]\ntype=endpoint/);
 });
