@@ -48,8 +48,10 @@ function bancoFalso(opts: { cond?: Partial<Linha>; facial?: Partial<Linha>; apto
   const casa = (l: Linha, w: Linha): boolean =>
     Object.entries(w).every(([k, v]) => {
       if (k === 'condominio') return casa(cond, v as Linha);
+      if (k === 'OR') return (v as Linha[]).some((x) => casa(l, x));
       if (v && typeof v === 'object' && !(v instanceof Date)) {
         if ('in' in v) return v.in.includes(l[k]);
+        if ('notIn' in v) return !v.notIn.includes(l[k]);
         if ('not' in v) return l[k] !== v.not;
         if ('gte' in v) return l[k] >= v.gte;
         if ('lt' in v) return l[k] < v.lt;
@@ -134,7 +136,7 @@ function bancoFalso(opts: { cond?: Partial<Linha>; facial?: Partial<Linha>; apto
   return { prisma, cond, faciais, aptos, vinculos, monitores, chamadas };
 }
 
-function montar(banco = bancoFalso(), online = true) {
+function montar(banco = bancoFalso(), online = true, opcoes: { esperarSegundoPlano?: boolean } = {}) {
   const push = {
     tocar: jest.fn(async () => ({ tocou: 1, semApp: 0 })),
     fim: jest.fn(async () => undefined),
@@ -152,11 +154,25 @@ function montar(banco = bancoFalso(), online = true) {
   const svc = new InterfoneService(banco.prisma, push as any, voz as any, realtime as any);
   svc.agora = () => AGORA;
   svc.dormir = async () => undefined;
+  // Por padrão os testes esperam o que o serviço dispara em segundo plano
+  // (push, eventos do console) antes de conferir; os testes de "responde sem
+  // esperar" desligam isto.
+  if (opcoes.esperarSegundoPlano !== false) {
+    for (const nome of ['novaChamadaFacial', 'evento', 'fecharOrfas'] as const) {
+      const original = (svc as any)[nome].bind(svc);
+      (svc as any)[nome] = async (...a: any[]) => {
+        const r = await original(...a);
+        await svc.ociosos();
+        return r;
+      };
+    }
+  }
   return { svc, push, voz, realtime, ...banco };
 }
 
 /** Deixa rodar o que o serviço disparou sem esperar (transferência em segundo plano, foto). */
 const soltar = () => new Promise((r) => setImmediate(r));
+const nunca = () => new Promise<any>(() => undefined);
 
 describe('InterfoneService.novaChamadaFacial', () => {
   it('número sem unidade → nao_encontrado (sem tocar ninguém)', async () => {
@@ -295,6 +311,25 @@ describe('InterfoneService.novaChamadaFacial', () => {
     expect(svc.foto.capturar).toHaveBeenCalledWith(1, expect.objectContaining({ id: 12 }));
   });
 
+  it('responde ao serviço sem esperar o push (APNs lento não derruba a chamada)', async () => {
+    const { svc, push, chamadas } = montar(bancoFalso(), true, { esperarSegundoPlano: false });
+    push.tocar.mockImplementationOnce(nunca);
+    await expect(svc.novaChamadaFacial('fac-12', '106')).resolves.toEqual({ ok: true, id: 1, toque_s: 30, monitores: [] });
+    expect(chamadas[0].estado).toBe('chamando');
+  });
+
+  it('número inexistente também conta para o limite por facial', async () => {
+    const { svc } = montar();
+    for (let i = 0; i < 5; i++) {
+      await expect(svc.novaChamadaFacial('fac-12', `99${i}`)).resolves.toEqual({ ok: false, motivo: 'nao_encontrado' });
+    }
+    await expect(svc.novaChamadaFacial('fac-12', '106')).resolves.toMatchObject({ ok: true });
+    await expect(svc.novaChamadaFacial('fac-12', '106')).resolves.toEqual({ ok: false, motivo: 'limite' });
+    // Passado o minuto, os erros saem da conta.
+    svc.agora = () => AGORA + 61_000;
+    await expect(svc.novaChamadaFacial('fac-12', '106')).resolves.toMatchObject({ ok: true });
+  });
+
   it('toque fora da faixa vira o limite (15–60)', async () => {
     const { svc } = montar(bancoFalso({ cond: { interfone_toque_apto_s: 600 } }));
     await expect(svc.novaChamadaFacial('fac-12', '106')).resolves.toMatchObject({ toque_s: 60 });
@@ -326,6 +361,15 @@ describe('InterfoneService.evento', () => {
     expect(chamadas[0]).toMatchObject({ estado: 'portaria', motivo_portaria: 'nao_atendeu' });
     expect(push.fim).toHaveBeenCalledWith(1, [7]);
     expect(realtime.emitirPortaria).toHaveBeenCalledWith(1, 'interfone:chamada', expect.objectContaining({ id: 1, motivo: 'nao_atendeu' }));
+  });
+
+  it('toque_esgotado responde portaria sem esperar o push fim', async () => {
+    const m = montar(bancoFalso(), true, { esperarSegundoPlano: false });
+    await m.svc.novaChamadaFacial('fac-12', '106');
+    await m.svc.ociosos();
+    m.push.fim.mockImplementationOnce(nunca);
+    await expect(m.svc.evento(1, { evento: 'toque_esgotado' })).resolves.toEqual({ proximo: 'portaria' });
+    expect(m.chamadas[0].estado).toBe('portaria');
   });
 
   it('toque_esgotado mantém o motivo que já havia', async () => {
@@ -433,6 +477,18 @@ describe('InterfoneService — rotas internas do serviço de voz', () => {
     await expect(svc.dadosParaServico(99)).rejects.toMatchObject({ status: 404 });
   });
 
+  it('dadosParaServico: monitores também tocam quando a portaria liga para a unidade', async () => {
+    const banco = bancoFalso();
+    banco.monitores.push({ id: 5, id_condominio: 1, id_apartamento: 100, nome: 'Sala', senha: 'x', ativo: 1 });
+    banco.chamadas.push(
+      { id: 1, id_condominio: 1, tipo: 'portaria_unidade', estado: 'chamando', id_apartamento: 100, created_at: new Date(AGORA) },
+      { id: 2, id_condominio: 1, tipo: 'unidade_portaria', estado: 'portaria', id_apartamento: 100, created_at: new Date(AGORA) },
+    );
+    const { svc } = montar(banco);
+    await expect(svc.dadosParaServico(1)).resolves.toMatchObject({ tipo: 'portaria_unidade', monitores: ['mon-5'] });
+    await expect(svc.dadosParaServico(2)).resolves.toMatchObject({ tipo: 'unidade_portaria', monitores: [] });
+  });
+
   it('contas: faciais habilitados (dtmf info para Intelbras/Dahua, rfc4733 para os demais) e monitores', async () => {
     const banco = bancoFalso();
     banco.faciais.push({ ...banco.faciais[0], id: 13, fabricante: 'dahua' }, { ...banco.faciais[0], id: 14, fabricante: 'hikvision' });
@@ -458,10 +514,23 @@ describe('InterfoneService — rotas internas do serviço de voz', () => {
     await svc.registros([{ conta: 'fac-12', registrado: false }]);
     expect(faciais[0].interfone_registrado).toBe(0);
   });
+
+  it('registros em lote; facial que saiu da lista (desabilitado) volta a 0', async () => {
+    const banco = bancoFalso();
+    banco.faciais.push({ ...banco.faciais[0], id: 13, interfone_registrado: 1 }, { ...banco.faciais[0], id: 14, interfone_registrado: 1 });
+    const { svc, faciais, prisma } = montar(banco);
+    const r = await svc.registros([
+      { conta: 'fac-12', registrado: true },
+      { conta: 'fac-13', registrado: false },
+    ]);
+    expect(faciais.map((f) => f.interfone_registrado)).toEqual([1, 0, 0]);
+    expect(r).toEqual({ ok: true, atualizados: 3 });
+    expect(prisma.facial_Devices.updateMany).toHaveBeenCalledTimes(3);
+  });
 });
 
 describe('InterfoneService.fecharOrfas (serviço de voz reiniciou e perdeu o encerrada)', () => {
-  it('fecha como falha a chamada não terminal com mais de 10 min, para o toque e avisa o console', async () => {
+  it('fecha como falha as chamadas além do prazo do estado, para o toque e avisa o console', async () => {
     const { svc, push, realtime, chamadas } = montar();
     await svc.novaChamadaFacial('fac-12', '106'); // id 1, chamando
     await svc.novaChamadaFacial('fac-12', '106'); // id 2, atendida
@@ -471,7 +540,7 @@ describe('InterfoneService.fecharOrfas (serviço de voz reiniciou e perdeu o enc
     push.fim.mockClear();
     realtime.emitirPortaria.mockClear();
 
-    svc.agora = () => AGORA + 10 * 60_000 + 1;
+    svc.agora = () => AGORA + 6 * 60_000 + 1;
     await expect(svc.fecharOrfas()).resolves.toBe(2);
     expect(chamadas[0]).toMatchObject({ estado: 'encerrada', resultado: 'falha' });
     expect(chamadas[1]).toMatchObject({ estado: 'encerrada', resultado: 'falha' });
@@ -482,11 +551,24 @@ describe('InterfoneService.fecharOrfas (serviço de voz reiniciou e perdeu o enc
     expect(push.perdida).not.toHaveBeenCalled();
   });
 
-  it('não mexe em chamada com menos de 10 min', async () => {
+  it('prazo por estado: chamando > 2 min, portaria > 3 min, atendida > 6 min', async () => {
     const { svc, chamadas } = montar();
-    await svc.novaChamadaFacial('fac-12', '106');
-    svc.agora = () => AGORA + 9 * 60_000;
+    await svc.novaChamadaFacial('fac-12', '106'); // 1 chamando
+    await svc.novaChamadaFacial('fac-12', '106'); // 2 portaria
+    await svc.evento(2, { evento: 'toque_esgotado' });
+    await svc.novaChamadaFacial('fac-12', '106'); // 3 atendida
+    await svc.evento(3, { evento: 'atendida', papel: 'morador', uid: 7 });
+
+    svc.agora = () => AGORA + 2 * 60_000;
     await expect(svc.fecharOrfas()).resolves.toBe(0);
-    expect(chamadas[0].estado).toBe('chamando');
+    svc.agora = () => AGORA + 2 * 60_000 + 1;
+    await expect(svc.fecharOrfas()).resolves.toBe(1);
+    expect(chamadas.map((c) => c.estado)).toEqual(['encerrada', 'portaria', 'atendida']);
+    svc.agora = () => AGORA + 3 * 60_000 + 1;
+    await expect(svc.fecharOrfas()).resolves.toBe(1);
+    expect(chamadas[2].estado).toBe('atendida');
+    svc.agora = () => AGORA + 6 * 60_000 + 1;
+    await expect(svc.fecharOrfas()).resolves.toBe(1);
+    expect(chamadas.every((c) => c.resultado === 'falha')).toBe(true);
   });
 });

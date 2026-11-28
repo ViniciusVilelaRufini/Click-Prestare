@@ -19,14 +19,17 @@
 --   3. Facial_Devices: interfone_habilitado, interfone_senha (conta SIP),
 --      interfone_blocos (JSON; NULL = todos), interfone_dtmf (abrir pelo
 --      facial), interfone_registrado / interfone_registrado_em.
---   4. Users_Devices: voip_token (PushKit do iPhone), interfone_versao (0 = app
---      sem interfone, recebe push comum).
+--   4. Users_Devices: voip_token (PushKit do iPhone) + índice idx_ud_voip_token
+--      (o registro do aparelho e o token morto buscam por ele), interfone_versao
+--      (0 = app sem interfone, recebe push comum).
 --   5. Users.interfone_receber (1): morador pode desligar o toque.
 --   6. Tabela Interfone_Monitores (monitores IP de unidade, conta SIP própria),
 --      FKs para Condominios e Apartamentos com ON DELETE CASCADE.
 --   7. Tabela Interfone_Chamadas (registro de cada chamada). FK para
 --      Condominios com CASCADE; facial, apartamento e usuário de origem com
 --      SET NULL (apagar um facial/unidade/conta não apaga o histórico).
+--      Índice (estado, created_at) para a rotina de chamadas órfãs (a cada
+--      minuto); criado também em separado para quem já tinha a tabela.
 --
 -- Idempotente: cada passo confere o information_schema e vira no-op se já foi
 -- aplicado. Rodar numa única sessão (usa @sql). MySQL 8.4.
@@ -176,6 +179,15 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Users_Devices' AND INDEX_NAME = 'idx_ud_voip_token') = 0,
+  'ALTER TABLE `Users_Devices` ADD INDEX `idx_ud_voip_token` (`voip_token`)',
+  'SELECT ''idx_ud_voip_token: ja existe'' AS passo_4c');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- 5. Users ----------------------------------------------------------------------
 
 SET @sql = IF(
@@ -235,8 +247,18 @@ CREATE TABLE IF NOT EXISTS `Interfone_Chamadas` (
   INDEX `idx_ifc_apto_created` (`id_apartamento`, `created_at`),
   INDEX `idx_ifc_facial_created` (`id_facial`, `created_at`),
   INDEX `idx_ifc_user_origem` (`id_user_origem`),
+  INDEX `idx_ifc_estado_created` (`estado`, `created_at`),
   CONSTRAINT `fk_ifc_cond` FOREIGN KEY (`id_condominio`) REFERENCES `Condominios` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_ifc_facial` FOREIGN KEY (`id_facial`) REFERENCES `Facial_Devices` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_ifc_apto` FOREIGN KEY (`id_apartamento`) REFERENCES `Apartamentos` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_ifc_user_origem` FOREIGN KEY (`id_user_origem`) REFERENCES `Users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Chamadas' AND INDEX_NAME = 'idx_ifc_estado_created') = 0,
+  'ALTER TABLE `Interfone_Chamadas` ADD INDEX `idx_ifc_estado_created` (`estado`, `created_at`)',
+  'SELECT ''idx_ifc_estado_created: ja existe'' AS passo_7b');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

@@ -84,6 +84,14 @@ SELECT 'Interfone_Chamadas.idx_ifc_facial_created',
   IF((SELECT COUNT(*) FROM information_schema.STATISTICS
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Chamadas' AND INDEX_NAME = 'idx_ifc_facial_created') > 0, 'OK', 'FALTA')
 UNION ALL
+SELECT 'Interfone_Chamadas.idx_ifc_estado_created',
+  IF((SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Chamadas' AND INDEX_NAME = 'idx_ifc_estado_created') > 0, 'OK', 'FALTA')
+UNION ALL
+SELECT 'Users_Devices.idx_ud_voip_token',
+  IF((SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Users_Devices' AND INDEX_NAME = 'idx_ud_voip_token') > 0, 'OK', 'FALTA')
+UNION ALL
 SELECT 'Interfone_Chamadas.idx_ifc_user_origem',
   IF((SELECT COUNT(*) FROM information_schema.STATISTICS
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Interfone_Chamadas' AND INDEX_NAME = 'idx_ifc_user_origem') > 0, 'OK', 'FALTA')

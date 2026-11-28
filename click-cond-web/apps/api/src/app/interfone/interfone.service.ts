@@ -16,11 +16,12 @@ export const LIMITE_POR_FACIAL_MIN = 6;
 export const LIMITE_POR_UNIDADE_5MIN = 3;
 const MIN_MS = 60_000;
 /**
- * Rede de segurança: chamada não terminal mais velha que isto é dada como
- * `falha` (o serviço de voz reiniciou e perdeu o `encerrada`). Bem acima do
- * pior caso real (60 s de toque + 120 s na portaria + 180 s de conversa).
+ * Rede de segurança: chamada não terminal mais velha que isto (contado da
+ * criação) é dada como `falha` — o serviço de voz reiniciou e perdeu o
+ * `encerrada`. Por estado, com folga sobre o pior caso real: toque máximo de
+ * 60 s; + 120 s na portaria; + 180 s de conversa.
  */
-export const ORFA_APOS_MS = 10 * MIN_MS;
+export const ORFA_APOS_MS = { chamando: 2 * MIN_MS, portaria: 3 * MIN_MS, atendida: 6 * MIN_MS } as const;
 const ORFAS_VERIFICA_MS = MIN_MS;
 
 /** Tempos de toque: [mínimo, máximo, padrão] em segundos. */
@@ -98,6 +99,10 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
    * tentativa espera um pouco.
    */
   esperasPortariaMs = [800, 1500, 3000];
+  /** Trabalho disparado sem esperar (push, eventos do console, foto). */
+  private readonly pendentes = new Set<Promise<unknown>>();
+  /** Erros de número inexistente por facial (contam para o limite por minuto). */
+  private readonly erros = new Map<number, number[]>();
   /** Foto do visitante (InterfoneFotoService; público para os testes trocarem). */
   foto: CapturadorFotoInterfone | null = null;
 
@@ -126,15 +131,21 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Fecha como `falha` as chamadas em estado não terminal criadas há mais de
-   * ORFA_APOS_MS, com o mesmo efeito do `encerrada` (push `fim`, evento
-   * `interfone:fim`). Devolve quantas fechou. Nunca lança.
+   * Fecha como `falha` as chamadas em estado não terminal além do prazo do
+   * estado (ORFA_APOS_MS), com o mesmo efeito do `encerrada` (push `fim`,
+   * evento `interfone:fim`). Devolve quantas fechou. Nunca lança.
    */
   async fecharOrfas(): Promise<number> {
     let fechadas = 0;
     try {
+      const agora = this.agora();
       const orfas = await this.prisma.interfone_Chamadas.findMany({
-        where: { estado: { in: ['chamando', 'portaria', 'atendida'] }, created_at: { lt: new Date(this.agora() - ORFA_APOS_MS) } },
+        where: {
+          OR: (Object.keys(ORFA_APOS_MS) as (keyof typeof ORFA_APOS_MS)[]).map((estado) => ({
+            estado,
+            created_at: { lt: new Date(agora - ORFA_APOS_MS[estado]) },
+          })),
+        },
         include: INCLUDE_CHAMADA,
         orderBy: { id: 'asc' },
         take: 200,
@@ -151,6 +162,38 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(`Interfone: rotina de chamadas órfãs falhou: ${e?.message ?? e}`);
     }
     return fechadas;
+  }
+
+  /**
+   * Roda `fn` em segundo plano: quem chamou (o serviço de voz desiste em 5 s)
+   * não espera push nem evento do console. Erros só vão para o log.
+   */
+  private emSegundoPlano(rotulo: string, fn: () => Promise<unknown>): void {
+    const p: Promise<unknown> = Promise.resolve()
+      .then(fn)
+      .catch((e: any) => this.logger.warn(`Interfone: ${rotulo} falhou: ${e?.message ?? e}`))
+      .finally(() => this.pendentes.delete(p));
+    this.pendentes.add(p);
+  }
+
+  /** Para os testes: espera tudo o que foi disparado em segundo plano. */
+  async ociosos(): Promise<void> {
+    while (this.pendentes.size) await Promise.all([...this.pendentes]);
+  }
+
+  private errosRecentes(idFacial: number, agora: number): number {
+    const l = (this.erros.get(idFacial) ?? []).filter((t) => t > agora - MIN_MS);
+    if (l.length) this.erros.set(idFacial, l);
+    else this.erros.delete(idFacial);
+    return l.length;
+  }
+
+  private naoEncontrado(idFacial: number, agora: number): NovaChamadaFacial {
+    const l = this.erros.get(idFacial) ?? [];
+    l.push(agora);
+    this.erros.set(idFacial, l);
+    if (this.erros.size > 5000) this.erros.clear();
+    return { ok: false, motivo: 'nao_encontrado' };
   }
 
   // ─────────────────────────────────────────── chamada do facial
@@ -197,20 +240,22 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
       return { ok: false, motivo: 'indisponivel' };
     }
 
-    const num = String(numero ?? '').trim();
-    if (!ramalValido(num)) return { ok: false, motivo: 'nao_encontrado' };
-
     const agora = this.agora();
+    // Limite por facial: chamadas criadas + números inexistentes (memória
+    // desta réplica) no último minuto — varrer ramais também é trote.
     const doFacial = await this.prisma.interfone_Chamadas.count({
       where: { id_facial: facial.id, created_at: { gte: new Date(agora - MIN_MS) } },
     });
-    if (doFacial >= LIMITE_POR_FACIAL_MIN) return { ok: false, motivo: 'limite' };
+    if (doFacial + this.errosRecentes(facial.id, agora) >= LIMITE_POR_FACIAL_MIN) return { ok: false, motivo: 'limite' };
+
+    const num = String(numero ?? '').trim();
+    if (!ramalValido(num)) return this.naoEncontrado(facial.id, agora);
 
     const apto = await this.prisma.apartamentos.findFirst({
       where: { id_condominio: facial.id_condominio, interfone_ramal: num },
       select: { id: true, apto: true, bloco: true },
     });
-    if (!apto || !facialAtendeBloco(facial.interfone_blocos, apto.bloco)) return { ok: false, motivo: 'nao_encontrado' };
+    if (!apto || !facialAtendeBloco(facial.interfone_blocos, apto.bloco)) return this.naoEncontrado(facial.id, agora);
 
     const daUnidade = await this.prisma.interfone_Chamadas.count({
       where: { id_apartamento: apto.id, tipo: 'facial_unidade', created_at: { gte: new Date(agora - 5 * MIN_MS) } },
@@ -230,27 +275,32 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     });
 
     // Foto do visitante: disparada sem esperar; nunca atrasa nem derruba o toque.
-    if (this.foto) {
-      void this.foto
-        .capturar(chamada.id, facial)
-        .catch((e: any) => this.logger.warn(`Interfone: foto da chamada ${chamada.id} falhou: ${e?.message ?? e}`));
-    }
+    const foto = this.foto;
+    if (foto) this.emSegundoPlano(`foto da chamada ${chamada.id}`, () => foto.capturar(chamada.id, facial));
 
+    // Monitores entram na resposta (o serviço liga para eles); o toque dos
+    // celulares vai em segundo plano: o APNs pode levar segundos e o serviço
+    // desiste em 5 s.
+    const monitores = await this.monitoresDaUnidade(apto.id);
     const unidade = rotuloAptoBloco(apto.apto, apto.bloco);
-    const [moradores, monitores] = await Promise.all([this.moradoresDaUnidade(apto.id), this.monitoresDaUnidade(apto.id)]);
-    const r = await this.push.tocar(chamada.id, moradores, {
-      tipo: 'facial_unidade',
-      unidade,
-      portao: facial.nome,
-      condominio: cond.nome,
+    this.emSegundoPlano(`toque da chamada ${chamada.id}`, async () => {
+      const moradores = await this.moradoresDaUnidade(apto.id);
+      const r = await this.push.tocar(chamada.id, moradores, {
+        tipo: 'facial_unidade',
+        unidade,
+        portao: facial.nome,
+        condominio: cond.nome,
+      });
+      // Nenhum celular tocou (sem app novo, push falhou, ninguém com vínculo)
+      // e não há monitor na unidade: vai direto para a portaria, se houver.
+      if (r.tocou === 0 && monitores.length === 0) {
+        await this.prisma.interfone_Chamadas.updateMany({
+          where: { id: chamada.id, motivo_portaria: null },
+          data: { motivo_portaria: 'sem_app' },
+        });
+        if (cond.interfone_transferir === 1) await this.transferirSemApp(chamada.id, facial.id_condominio, unidade);
+      }
     });
-
-    // Nenhum celular tocou (sem app novo, push falhou, ninguém com vínculo) e
-    // não há monitor na unidade: vai direto para a portaria, se houver.
-    if (r.tocou === 0 && monitores.length === 0) {
-      await this.prisma.interfone_Chamadas.update({ where: { id: chamada.id }, data: { motivo_portaria: 'sem_app' } });
-      if (cond.interfone_transferir === 1) await this.transferirSemApp(chamada.id, facial.id_condominio, unidade);
-    }
 
     return { ok: true, id: chamada.id, toque_s: limitar(cond.interfone_toque_apto_s, TOQUE_APTO_S), monitores };
   }
@@ -273,13 +323,11 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
       morador_nome: null,
       foto_url: null,
     });
-    void (async () => {
-      for (const ms of this.esperasPortariaMs) {
-        await this.dormir(ms);
-        if (await this.voz.portaria(id)) return;
-      }
-      this.logger.warn(`Interfone: serviço de voz não aceitou levar a chamada ${id} para a portaria.`);
-    })().catch(() => undefined);
+    for (const ms of this.esperasPortariaMs) {
+      await this.dormir(ms);
+      if (await this.voz.portaria(id)) return;
+    }
+    this.logger.warn(`Interfone: serviço de voz não aceitou levar a chamada ${id} para a portaria.`);
   }
 
   // ─────────────────────────────────────────── eventos do serviço
@@ -315,12 +363,14 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
       },
     });
     if (r.count === 0) return { ok: true };
-    const tocados = await this.tocadosDaChamada(c);
-    await this.push.fim(
-      c.id,
-      tocados.filter((u) => !(papel === 'morador' && u === uid)),
-    );
     this.realtime?.emitirPortaria(c.id_condominio, 'interfone:fim', { id: c.id });
+    this.emSegundoPlano(`fim (atendida) da chamada ${c.id}`, async () => {
+      const tocados = await this.tocadosDaChamada(c);
+      await this.push.fim(
+        c.id,
+        tocados.filter((u) => !(papel === 'morador' && u === uid)),
+      );
+    });
     return { ok: true };
   }
 
@@ -337,9 +387,12 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
       data: { estado: 'portaria', motivo_portaria: motivo },
     });
     if (r.count === 0) return { proximo: 'encerrar' };
-    // Os celulares param: na portaria o morador não atende mais.
-    await this.push.fim(c.id, await this.tocadosDaChamada(c));
-    await this.emitirChamadaPortaria(c, motivo);
+    // Responde já ao serviço; os celulares param (na portaria o morador não
+    // atende mais) e o console toca em segundo plano.
+    this.emSegundoPlano(`transferência da chamada ${c.id}`, async () => {
+      await this.emitirChamadaPortaria(c, motivo);
+      await this.push.fim(c.id, await this.tocadosDaChamada(c));
+    });
     return { proximo: 'portaria' };
   }
 
@@ -379,12 +432,14 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
       data: { estado: 'encerrada', resultado, duracao_s: duracao, encerrada_em: new Date(this.agora()) },
     });
     if (r.count === 0) return false;
-    const tocados = await this.tocadosDaChamada(c);
-    await this.push.fim(c.id, tocados);
     this.realtime?.emitirPortaria(c.id_condominio, 'interfone:fim', { id: c.id });
-    if (resultado === 'nao_atendida' && c.tipo === 'facial_unidade') {
-      await this.push.perdida(c.id, tocados, horaBrasiliaHHMM(c.created_at));
-    }
+    this.emSegundoPlano(`fim da chamada ${c.id}`, async () => {
+      const tocados = await this.tocadosDaChamada(c);
+      await this.push.fim(c.id, tocados);
+      if (resultado === 'nao_atendida' && c.tipo === 'facial_unidade') {
+        await this.push.perdida(c.id, tocados, horaBrasiliaHHMM(c.created_at));
+      }
+    });
     return true;
   }
 
@@ -437,28 +492,39 @@ export class InterfoneService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  /** Estado de registro das contas na central. Só os faciais guardam (o console mostra). */
+  /**
+   * Estado de registro das contas na central (a cada 60 s, a lista inteira).
+   * Só os faciais guardam (o console mostra). Em lote: registrados passam a 1
+   * (com a hora da passagem), os demais da lista a 0, e facial que saiu da
+   * lista (desabilitado, módulo desligado) também volta a 0.
+   */
   async registros(contas: { conta: string; registrado: boolean }[]): Promise<{ ok: true; atualizados: number }> {
     if (!Array.isArray(contas)) throw new BadRequestException('contas deve ser uma lista.');
-    let atualizados = 0;
-    const agora = new Date(this.agora());
+    const sim = new Set<number>();
+    const nao = new Set<number>();
     for (const item of contas.slice(0, 5000)) {
       const m = /^fac-(\d{1,10})$/.exec(String(item?.conta ?? ''));
       if (!m) continue;
-      const id = Number(m[1]);
-      const r =
-        item.registrado === true
-          ? await this.prisma.facial_Devices.updateMany({
-              where: { id, interfone_registrado: 0 },
-              data: { interfone_registrado: 1, interfone_registrado_em: agora },
-            })
-          : await this.prisma.facial_Devices.updateMany({
-              where: { id, interfone_registrado: 1 },
-              data: { interfone_registrado: 0 },
-            });
-      atualizados += r.count;
+      (item.registrado === true ? sim : nao).add(Number(m[1]));
     }
-    return { ok: true, atualizados };
+    for (const id of sim) nao.delete(id);
+    const agora = new Date(this.agora());
+    const [a, b, c] = await Promise.all([
+      sim.size
+        ? this.prisma.facial_Devices.updateMany({
+            where: { id: { in: [...sim] }, interfone_registrado: 0 },
+            data: { interfone_registrado: 1, interfone_registrado_em: agora },
+          })
+        : { count: 0 },
+      nao.size
+        ? this.prisma.facial_Devices.updateMany({ where: { id: { in: [...nao] }, interfone_registrado: 1 }, data: { interfone_registrado: 0 } })
+        : { count: 0 },
+      this.prisma.facial_Devices.updateMany({
+        where: { interfone_registrado: 1, id: { notIn: [...sim, ...nao] } },
+        data: { interfone_registrado: 0 },
+      }),
+    ]);
+    return { ok: true, atualizados: a.count + b.count + c.count };
   }
 
   // ─────────────────────────────────────────── apoio

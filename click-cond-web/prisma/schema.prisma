@@ -176,6 +176,8 @@ model Users_Devices {
   user       Users    @relation(fields: [id_user], references: [id], onDelete: Cascade, map: "fk_users_devices_user")
 
   @@index([id_user], map: "idx_users_devices_user")
+  /// Interfone: registro do aparelho e token VoIP morto buscam pelo token.
+  @@index([voip_token], map: "idx_ud_voip_token")
 }
 
 /// Card ao vivo da portaria remota: um por pedido de autorização por aparelho.
@@ -2386,4 +2388,6 @@ model Interfone_Chamadas {
   @@index([id_apartamento, created_at], map: "idx_ifc_apto_created")
   @@index([id_facial, created_at], map: "idx_ifc_facial_created")
   @@index([id_user_origem], map: "idx_ifc_user_origem")
+  /// Rotina de chamadas órfãs (estado não terminal além do prazo).
+  @@index([estado, created_at], map: "idx_ifc_estado_created")
 }

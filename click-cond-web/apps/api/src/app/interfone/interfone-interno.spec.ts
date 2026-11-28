@@ -48,6 +48,13 @@ describe('InterfoneInternoController', () => {
     expect(Reflect.getMetadata(IS_PUBLIC_KEY, InterfoneInternoController)).toBe(true);
   });
 
+  it('todas as rotas internas respondem com Cache-Control: no-store', () => {
+    for (const m of ['contas', 'novaChamada', 'chamada', 'evento', 'registros'] as const) {
+      const h = Reflect.getMetadata('__headers__', (InterfoneInternoController.prototype as any)[m]) ?? [];
+      expect(h).toContainEqual({ name: 'Cache-Control', value: 'no-store' });
+    }
+  });
+
   it('sem token ou com token errado, nenhuma rota chega ao serviço', async () => {
     const { c, svc } = montar();
     expect(() => c.contas(undefined)).toThrow();
