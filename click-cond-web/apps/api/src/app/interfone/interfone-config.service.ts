@@ -8,6 +8,9 @@ import { rotuloAptoBloco } from '../visitantes/rotulo-apto-bloco.util';
 import { facialAtendeBloco, ramalValido, sugerirRamais } from './regras';
 import { TOQUE_APTO_S, TOQUE_PORTARIA_S } from './interfone.service';
 import { VOZ_HOST } from './token-voz';
+import { AgentBridgeService } from '../facial/agent-bridge.service';
+import type { ContatoInterfoneAgente } from '../facial/agent-bridge.service';
+import { normalizarFabricante } from '../facial/fabricantes';
 
 /**
  * Facial pelo tipo: cadastros antigos têm `tipo` vazio e contam como facial,
@@ -23,6 +26,11 @@ export const CABECALHO_LISTA_INTELBRAS =
   'Ramal;1° núm. chamado;Conta SIP;Tempo de ring;2° núm. chamado;Grupo agenda;Nome do bloco;Núm. andar';
 /** Folga do "Tempo de ring" do facial sobre o toque da unidade + portaria (o facial não pode desligar antes da transferência). */
 const FOLGA_RING_S = 10;
+
+/** Só o Intelbras (família Dahua) tem o comando `interfone_config` no agente. */
+function temConfigAutomatica(fabricante: unknown): boolean {
+  return normalizarFabricante(fabricante) === 'intelbras';
+}
 
 /** Quem fez a alteração (para a auditoria). */
 export interface AtorConfig {
@@ -87,6 +95,7 @@ export class InterfoneConfigService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly auditoria?: AuditoriaService,
+    @Optional() private readonly agent?: AgentBridgeService,
   ) {}
 
   // ─────────────────────────────────────────── módulo
@@ -265,6 +274,57 @@ export class InterfoneConfigService {
   }
 
   /**
+   * Configuração automática do facial Intelbras pelo Agente Local (G1): grava
+   * no aparelho a conta SIP e a lista telefônica (unidades com ramal dos
+   * blocos que o facial atende). Só pela rota manual do síndico — salvar o
+   * facial ou os ramais NÃO dispara isto até a bancada confirmar os nomes da
+   * API no SS 3532. Erro de negócio ou do agente volta como `{ok:false, erro}`
+   * (o console mostra); a senha não vai para a auditoria nem para a resposta.
+   */
+  async configurarFacialAutomatico(
+    idCondominio: number,
+    idFacial: number,
+    ator: AtorConfig,
+  ): Promise<{ ok: boolean; erro?: string }> {
+    await this.assertContratado(idCondominio);
+    const f = await this.facialDoCondominio(idCondominio, idFacial);
+    if (f.interfone_habilitado !== 1 || !f.interfone_senha) {
+      return { ok: false, erro: 'Facial sem interfone habilitado: marque "Faz chamadas" e salve antes de configurar.' };
+    }
+    if (!temConfigAutomatica(f.fabricante)) {
+      return { ok: false, erro: 'A configuração automática existe só para facial Intelbras. Use os dados para o instalador.' };
+    }
+    if (!this.agent) return { ok: false, erro: 'Agente Local indisponível.' };
+
+    const contatos: ContatoInterfoneAgente[] = (await this.aptos(idCondominio))
+      .filter((a) => a.interfone_ramal && facialAtendeBloco(f.interfone_blocos ?? null, a.bloco))
+      .map((a) => ({
+        nome: rotuloAptoBloco(a.apto, a.bloco),
+        numero: a.interfone_ramal as string,
+        bloco: a.bloco ?? '',
+        andar: andarDoApto(a.apto),
+      }));
+    const r = await this.agent.enqueue(f.id, {
+      type: 'interfone_config',
+      interfone: { servidor: VOZ_HOST, porta: VOZ_SIP_PORTA, conta: `fac-${f.id}`, senha: f.interfone_senha, contatos },
+    });
+    await this.auditar(
+      idCondominio,
+      ator,
+      r.ok
+        ? `Facial "${f.nome}" configurado automaticamente para o interfone`
+        : `Configuração automática do facial "${f.nome}" falhou`,
+      {
+        id_facial: f.id,
+        contatos: contatos.length,
+        ok: r.ok,
+        ...(r.ok ? { sip: r.sip ?? null, lista: r.contatos ?? null } : { erro: r.error ?? null }),
+      },
+    );
+    return r.ok ? { ok: true } : { ok: false, erro: r.error || 'O agente não conseguiu configurar o facial.' };
+  }
+
+  /**
    * phoneBook do Intelbras: uma linha por unidade com ramal dos blocos que o
    * facial chama. "Tempo de ring" cobre o toque da unidade + o da portaria +
    * folga, para o facial não desligar antes da transferência.
@@ -394,6 +454,7 @@ export class InterfoneConfigService {
     id: number;
     nome: string;
     modelo: string | null;
+    fabricante?: string | null;
     interfone_habilitado: number;
     interfone_blocos: string | null;
     interfone_dtmf: string | null;
@@ -414,6 +475,8 @@ export class InterfoneConfigService {
       porta: VOZ_SIP_PORTA,
       registrado: f.interfone_registrado === 1,
       registrado_em: f.interfone_registrado_em ?? null,
+      /** Intelbras: o console oferece "Configurar automaticamente" (G1). */
+      config_automatica: temConfigAutomatica(f.fabricante),
     };
   }
 

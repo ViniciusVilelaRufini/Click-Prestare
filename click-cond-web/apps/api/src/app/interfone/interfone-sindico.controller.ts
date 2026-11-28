@@ -71,6 +71,19 @@ export class InterfoneSindicoController {
     return this.svc.novaSenha(this.condominio(user), id, this.ator(user));
   }
 
+  /**
+   * Grava conta SIP + lista telefônica no facial Intelbras pelo Agente Local
+   * (G1). Responde 200 com `{ok, erro?}`: a falha do aparelho é resultado, não
+   * erro HTTP. Auditoria própria no serviço (sem a senha).
+   */
+  @Header('Cache-Control', 'no-store')
+  @SkipAudit()
+  @Post('faciais/:id/configurar')
+  @HttpCode(200)
+  configurarFacial(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+    return this.svc.configurarFacialAutomatico(this.condominio(user), id, this.ator(user));
+  }
+
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="lista-telefonica.csv"')
   @Header('Cache-Control', 'no-store')

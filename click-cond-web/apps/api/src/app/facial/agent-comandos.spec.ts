@@ -219,6 +219,7 @@ describe('tempo de espera por tipo de comando', () => {
     ['update', 25_000],
     ['list_users', 25_000],
     ['remove_users', 25_000],
+    ['interfone_config', 25_000],
   ] as const)('%s espera %i ms (base padrão de 15 s)', (type, ms) => {
     expect(criar().timeoutDoComando(type)).toBe(ms);
   });
