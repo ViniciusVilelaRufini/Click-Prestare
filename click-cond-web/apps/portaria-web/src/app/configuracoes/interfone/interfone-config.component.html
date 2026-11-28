@@ -1,0 +1,246 @@
+<div class="space-y-5 animate-fadeIn">
+  @if (!carregado()) {
+    <div class="ps-panel px-5 py-6 text-sm text-[var(--ink-muted)]">Carregando o interfone…</div>
+  } @else {
+    @if (erroCarga()) {
+      <p role="alert" class="ps-panel flex items-start gap-2.5 px-5 py-3 text-sm">
+        <span class="ps-dot ps-dot-danger mt-1.5"></span>{{ erroCarga() }}
+      </p>
+    }
+
+    <!-- ===== Módulo ===== -->
+    <section class="ps-panel" aria-labelledby="titulo-interfone-modulo">
+      <div class="ps-panel-head">
+        <div class="min-w-0">
+          <h2 id="titulo-interfone-modulo" class="ps-h2">Interfone pelo app</h2>
+          <p class="ps-cap mt-1">O morador atende o visitante do facial no celular. Desligado, o facial avisa "O interfone está indisponível no momento".</p>
+        </div>
+        <label class="flex shrink-0 cursor-pointer items-center gap-2 text-sm">
+          <input type="checkbox" name="interfone-ativo" class="h-4 w-4" style="accent-color: var(--brand)"
+            [checked]="ativo()" (change)="ativo.set($any($event.target).checked)" />
+          <span class="ps-tag"><span class="ps-dot" [class.ps-dot-ok]="ativo()"></span>{{ ativo() ? 'Ligado' : 'Desligado' }}</span>
+        </label>
+      </div>
+      <div class="flex flex-wrap items-end gap-4 px-5 py-4">
+        <label class="block">
+          <span class="ps-label mb-1.5 block">Toque no apartamento (s)</span>
+          <span class="ps-field w-40">
+            <input type="number" name="toque-apto" min="15" max="60" step="1"
+              [value]="toqueApto()" (input)="toqueApto.set(numero($any($event.target).value))" />
+          </span>
+        </label>
+        <label class="flex cursor-pointer items-center gap-2 h-10 text-sm">
+          <input type="checkbox" name="interfone-transferir" class="h-4 w-4" style="accent-color: var(--brand)"
+            [checked]="transferir()" (change)="transferir.set($any($event.target).checked)" />
+          Transferir para a portaria se ninguém atender
+        </label>
+        <label class="block">
+          <span class="ps-label mb-1.5 block">Toque na portaria (s)</span>
+          <span class="ps-field w-40">
+            <input type="number" name="toque-portaria" min="15" max="120" step="1"
+              [value]="toquePortaria()" (input)="toquePortaria.set(numero($any($event.target).value))" />
+          </span>
+        </label>
+        <button type="button" data-salvar-config class="ps-btn disabled:opacity-40" [disabled]="salvandoConfig()" (click)="salvarConfig()">
+          {{ salvandoConfig() ? 'Salvando…' : 'Salvar' }}
+        </button>
+      </div>
+      @if (erroConfig()) {
+        <p role="alert" class="px-5 pb-4 text-sm flex items-start gap-2.5"><span class="ps-dot ps-dot-danger mt-1.5"></span>{{ erroConfig() }}</p>
+      }
+    </section>
+
+    <!-- ===== Faciais ===== -->
+    <section class="ps-panel" aria-labelledby="titulo-interfone-faciais">
+      <div class="ps-panel-head">
+        <div class="min-w-0">
+          <h2 id="titulo-interfone-faciais" class="ps-h2">Faciais que chamam</h2>
+          <p class="ps-cap mt-1">Marque os faciais com interfone. O instalador configura o aparelho com os dados abaixo e importa a lista telefônica.</p>
+        </div>
+      </div>
+      @for (f of faciais(); track f.id) {
+        <div class="px-5 py-4 border-b border-[var(--line-100)] last:border-b-0 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-sm font-medium truncate">{{ f.nome }}</p>
+              @if (f.modelo) { <p class="ps-cap truncate">{{ f.modelo }}</p> }
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="ps-tag"><span class="ps-dot" [class.ps-dot-ok]="f.registrado" [class.ps-dot-danger]="f.habilitado && !f.registrado"></span>{{ f.registrado ? 'Registrado' : 'Não registrado' }}</span>
+              <label class="flex cursor-pointer items-center gap-2 text-sm">
+                <input type="checkbox" class="h-4 w-4" style="accent-color: var(--brand)" [attr.name]="'facial-habilitado-' + f.id"
+                  [checked]="edFacial()[f.id]?.habilitado" (change)="editarFacial(f.id, 'habilitado', $any($event.target).checked)" />
+                Faz chamadas
+              </label>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-end gap-3">
+            <label class="block">
+              <span class="ps-label mb-1.5 block">Blocos atendidos</span>
+              <span class="ps-field w-56">
+                <input type="text" [attr.name]="'facial-blocos-' + f.id" placeholder="Vazio = todos os blocos"
+                  [value]="edFacial()[f.id]?.blocos ?? ''" (input)="editarFacial(f.id, 'blocos', $any($event.target).value)" />
+              </span>
+            </label>
+            <label class="block">
+              <span class="ps-label mb-1.5 block">Comando DTMF de abertura</span>
+              <span class="ps-field w-40">
+                <input type="text" [attr.name]="'facial-dtmf-' + f.id" placeholder="Opcional (ex.: #1)" maxlength="10"
+                  [value]="edFacial()[f.id]?.dtmf ?? ''" (input)="editarFacial(f.id, 'dtmf', $any($event.target).value)" />
+              </span>
+            </label>
+            <button type="button" class="ps-btn disabled:opacity-40" [disabled]="salvandoFacial() !== null" (click)="salvarFacial(f)">
+              {{ salvandoFacial() === f.id ? 'Salvando…' : 'Salvar' }}
+            </button>
+          </div>
+
+          @if (f.habilitado) {
+            <div class="border border-[var(--line-100)] bg-[var(--bg-100)] p-3 space-y-2">
+              <p class="ps-label">Dados para o instalador</p>
+              <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                <div class="flex items-center justify-between gap-2 min-w-0">
+                  <dt class="ps-cap shrink-0">Servidor</dt>
+                  <dd class="flex items-center gap-1 min-w-0"><span class="truncate font-mono text-xs">{{ f.servidor }}</span>
+                    <button type="button" class="ps-ibtn" aria-label="Copiar servidor" (click)="copiar(f.servidor)"><svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></button></dd>
+                </div>
+                <div class="flex items-center justify-between gap-2 min-w-0">
+                  <dt class="ps-cap shrink-0">Porta</dt>
+                  <dd class="flex items-center gap-1"><span class="font-mono text-xs">{{ f.porta }}</span>
+                    <button type="button" class="ps-ibtn" aria-label="Copiar porta" (click)="copiar(f.porta)"><svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></button></dd>
+                </div>
+                <div class="flex items-center justify-between gap-2 min-w-0">
+                  <dt class="ps-cap shrink-0">Usuário</dt>
+                  <dd class="flex items-center gap-1"><span class="font-mono text-xs">{{ f.conta }}</span>
+                    <button type="button" class="ps-ibtn" aria-label="Copiar usuário" (click)="copiar(f.conta)"><svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></button></dd>
+                </div>
+                <div class="flex items-center justify-between gap-2 min-w-0">
+                  <dt class="ps-cap shrink-0">Senha</dt>
+                  <dd class="flex items-center gap-1 min-w-0">
+                    <span class="truncate font-mono text-xs">{{ senhaVisivel()[f.id] ? (f.senha ?? '—') : '••••••••' }}</span>
+                    <button type="button" class="ps-ibtn" [attr.aria-label]="senhaVisivel()[f.id] ? 'Esconder senha' : 'Mostrar senha'" (click)="alternarSenha(f.id)"><svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.04 12.32a1 1 0 010-.64C3.42 7.51 7.36 4.5 12 4.5c4.64 0 8.57 3.01 9.96 7.18a1 1 0 010 .64C20.58 16.49 16.64 19.5 12 19.5c-4.64 0-8.57-3.01-9.96-7.18z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg></button>
+                    <button type="button" class="ps-ibtn" aria-label="Copiar senha" (click)="copiar(f.senha)"><svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></button>
+                  </dd>
+                </div>
+              </dl>
+              <div class="flex flex-wrap gap-2 pt-1">
+                <button type="button" class="ps-btn ps-btn-sec ps-btn-sm" (click)="baixarLista(f)">Baixar lista telefônica</button>
+                <button type="button" class="ps-btn ps-btn-danger ps-btn-sm" (click)="novaSenha(f)">Gerar nova senha</button>
+              </div>
+            </div>
+          }
+        </div>
+      } @empty {
+        <p class="px-5 py-6 text-center text-sm text-[var(--ink-muted)]">Nenhum facial cadastrado neste condomínio.</p>
+      }
+    </section>
+
+    <!-- ===== Ramais ===== -->
+    <section class="ps-panel" aria-labelledby="titulo-interfone-ramais">
+      <div class="ps-panel-head">
+        <div class="min-w-0">
+          <h2 id="titulo-interfone-ramais" class="ps-h2">Ramais das unidades</h2>
+          <p class="ps-cap mt-1">O número que o visitante digita no facial. Quando dois blocos têm o mesmo apartamento, defina números diferentes (ex.: 1106 e 2106).</p>
+        </div>
+        <div class="flex items-center gap-2">
+          @if (totalProblemas() > 0) {
+            <span class="ps-tag"><span class="ps-dot ps-dot-danger"></span>{{ totalProblemas() }} a resolver</span>
+          }
+          <button type="button" data-aplicar-sugestoes class="ps-btn ps-btn-sec ps-btn-sm" (click)="aplicarSugestoes()">Usar sugestões</button>
+          <button type="button" data-salvar-ramais class="ps-btn ps-btn-sm disabled:opacity-40" [disabled]="!podeSalvarRamais()" (click)="salvarRamais()">
+            {{ salvandoRamais() ? 'Salvando…' : 'Salvar ramais' }}
+          </button>
+        </div>
+      </div>
+      @if (erroRamais()) {
+        <p role="alert" class="px-5 pt-3 text-sm flex items-start gap-2.5"><span class="ps-dot ps-dot-danger mt-1.5"></span>{{ erroRamais() }}</p>
+      }
+      <div class="ps-tablewrap">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left">
+              <th class="ps-label px-5 py-2.5">Unidade</th>
+              <th class="ps-label px-3 py-2.5">Sugestão</th>
+              <th class="ps-label px-3 py-2.5">Ramal</th>
+              <th class="ps-label px-5 py-2.5"><span class="sr-only">Situação</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of ramais(); track r.id_apartamento) {
+              <tr class="border-t border-[var(--line-100)]" [attr.data-conflito]="problemaDe(r) ? '' : null">
+                <td class="px-5 py-2 whitespace-nowrap">{{ r.unidade }}</td>
+                <td class="px-3 py-2 ps-cap tabular-nums">{{ r.sugestao ?? '—' }}</td>
+                <td class="px-3 py-2">
+                  <span class="ps-field h-8 w-28" [style.border-color]="problemaDe(r) ? 'var(--signal-danger)' : null">
+                    <input type="text" inputmode="numeric" maxlength="10" [attr.data-ramal]="r.id_apartamento"
+                      [attr.aria-label]="'Ramal de ' + r.unidade" [attr.aria-invalid]="problemaDe(r) ? 'true' : null"
+                      [placeholder]="r.sugestao ?? ''" [value]="valorRamal(r)" (input)="editarRamal(r.id_apartamento, $any($event.target).value)" />
+                  </span>
+                </td>
+                <td class="px-5 py-2 whitespace-nowrap">
+                  @if (problemaDe(r); as p) {
+                    <span class="ps-tag"><span class="ps-dot ps-dot-danger"></span>{{ textoProblema(p) }}</span>
+                  }
+                </td>
+              </tr>
+            } @empty {
+              <tr><td colspan="4" class="px-5 py-6 text-center text-[var(--ink-muted)]">Nenhuma unidade cadastrada.</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== Monitores IP ===== -->
+    <section class="ps-panel" aria-labelledby="titulo-interfone-monitores">
+      <div class="ps-panel-head">
+        <div class="min-w-0">
+          <h2 id="titulo-interfone-monitores" class="ps-h2">Monitores IP</h2>
+          <p class="ps-cap mt-1">Monitor de interfone dentro do apartamento: toca junto com os celulares da unidade.</p>
+        </div>
+      </div>
+      @for (m of monitores(); track m.id) {
+        <div class="flex flex-wrap items-center gap-3 px-5 py-3 border-b border-[var(--line-100)]">
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium truncate">{{ m.nome }}</p>
+            <p class="ps-cap truncate">{{ unidadeDoMonitor(m) }}</p>
+          </div>
+          <div class="ps-cap font-mono text-xs">
+            {{ m.servidor ?? 'voz.prestarecondominios.com.br' }}:{{ m.porta ?? 5060 }} · {{ m.conta }} · {{ senhaMonitorVisivel()[m.id] ? (m.senha ?? '—') : '••••••••' }}
+          </div>
+          <button type="button" class="ps-ibtn" [attr.aria-label]="senhaMonitorVisivel()[m.id] ? 'Esconder senha' : 'Mostrar senha'" (click)="alternarSenhaMonitor(m.id)"><svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.04 12.32a1 1 0 010-.64C3.42 7.51 7.36 4.5 12 4.5c4.64 0 8.57 3.01 9.96 7.18a1 1 0 010 .64C20.58 16.49 16.64 19.5 12 19.5c-4.64 0-8.57-3.01-9.96-7.18z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg></button>
+          <button type="button" class="ps-ibtn" aria-label="Copiar senha do monitor" (click)="copiar(m.senha)"><svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></button>
+          @if (m.registrado !== undefined) {
+            <span class="ps-tag"><span class="ps-dot" [class.ps-dot-ok]="m.registrado"></span>{{ m.registrado ? 'Registrado' : 'Não registrado' }}</span>
+          }
+          <button type="button" class="ps-btn ps-btn-danger ps-btn-sm" (click)="removerMonitor(m)">Remover</button>
+        </div>
+      } @empty {
+        <p class="px-5 py-4 text-sm text-[var(--ink-muted)]">Nenhum monitor cadastrado.</p>
+      }
+      <div class="flex flex-wrap items-end gap-3 px-5 py-4">
+        <label class="block">
+          <span class="ps-label mb-1.5 block">Unidade</span>
+          <span class="ps-field w-56">
+            <select name="monitor-unidade" [value]="novoMonitorApto() ?? ''" (change)="novoMonitorApto.set(+$any($event.target).value || null)">
+              <option value="">Escolha a unidade</option>
+              @for (r of ramais(); track r.id_apartamento) {
+                <option [value]="r.id_apartamento">{{ r.unidade }}</option>
+              }
+            </select>
+          </span>
+        </label>
+        <label class="block">
+          <span class="ps-label mb-1.5 block">Nome</span>
+          <span class="ps-field w-56">
+            <input type="text" name="monitor-nome" maxlength="80" placeholder="Ex.: Monitor da sala"
+              [value]="novoMonitorNome()" (input)="novoMonitorNome.set($any($event.target).value)" />
+          </span>
+        </label>
+        <button type="button" class="ps-btn disabled:opacity-40" [disabled]="!novoMonitorApto() || !novoMonitorNome().trim() || salvandoMonitor()" (click)="adicionarMonitor()">
+          {{ salvandoMonitor() ? 'Adicionando…' : 'Adicionar' }}
+        </button>
+      </div>
+    </section>
+  }
+</div>
