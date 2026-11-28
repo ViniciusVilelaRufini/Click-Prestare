@@ -7,6 +7,7 @@ import {
   InterfoneApi,
   MonitorInterfone,
   RamalUnidade,
+  ResultadoConfigFacial,
 } from '../../interfone/interfone.api';
 import { ConfirmService } from '../../shared/confirm.service';
 import { ToastService } from '../../shared/toast.service';
@@ -90,6 +91,9 @@ export class InterfoneConfigComponent implements OnInit {
   readonly edFacial = signal<Record<number, EdicaoFacial>>({});
   readonly salvandoFacial = signal<number | null>(null);
   readonly senhaVisivel = signal<Record<number, boolean>>({});
+  /** "Configurar automaticamente" (Intelbras): qual facial está rodando e o último resultado de cada um. */
+  readonly configurando = signal<number | null>(null);
+  readonly resultadoConfig = signal<Record<number, { ok: boolean; texto: string }>>({});
 
   // ===== Ramais =====
   readonly ramais = signal<RamalUnidade[]>([]);
@@ -245,6 +249,26 @@ export class InterfoneConfigComponent implements OnInit {
         this.copiar(senha);
       },
       error: (e: HttpErrorResponse) => this.toast.error(mensagem(e) ?? 'Não foi possível gerar a senha.'),
+    });
+  }
+
+  configurarAutomatico(f: FacialInterfone): void {
+    if (this.configurando() !== null) return;
+    this.configurando.set(f.id);
+    this.resultadoConfig.update((r) => {
+      const { [f.id]: _antigo, ...resto } = r;
+      return resto;
+    });
+    const fim = (ok: boolean, texto: string) => {
+      this.configurando.set(null);
+      this.resultadoConfig.update((r) => ({ ...r, [f.id]: { ok, texto } }));
+    };
+    this.api.configurarFacial(f.id).subscribe({
+      next: (r: ResultadoConfigFacial | null) => {
+        if (r?.ok) fim(true, 'Facial configurado: conta SIP e lista telefônica gravadas no aparelho.');
+        else fim(false, r?.erro?.trim() || 'O agente não conseguiu configurar o facial.');
+      },
+      error: (e: HttpErrorResponse) => fim(false, mensagem(e) ?? 'Não foi possível configurar o facial agora.'),
     });
   }
 

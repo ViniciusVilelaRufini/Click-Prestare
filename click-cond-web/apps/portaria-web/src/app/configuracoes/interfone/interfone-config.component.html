@@ -124,9 +124,21 @@
                 </div>
               </dl>
               <div class="flex flex-wrap gap-2 pt-1">
+                @if (f.config_automatica) {
+                  <button type="button" class="ps-btn ps-btn-sm disabled:opacity-40" [attr.data-configurar-facial]="f.id"
+                    [disabled]="configurando() !== null" (click)="configurarAutomatico(f)">
+                    {{ configurando() === f.id ? 'Configurando…' : 'Configurar automaticamente' }}
+                  </button>
+                }
                 <button type="button" class="ps-btn ps-btn-sec ps-btn-sm" (click)="baixarLista(f)">Baixar lista telefônica</button>
                 <button type="button" class="ps-btn ps-btn-danger ps-btn-sm" (click)="novaSenha(f)">Gerar nova senha</button>
               </div>
+              @if (resultadoConfig()[f.id]; as res) {
+                <p class="ps-cap flex items-start gap-2" role="status" [attr.data-resultado-config]="f.id">
+                  <span class="ps-dot mt-1.5 shrink-0" [class.ps-dot-ok]="res.ok" [class.ps-dot-danger]="!res.ok"></span>
+                  <span>{{ res.texto }}@if (!res.ok) { Use os dados acima para configurar à mão.}</span>
+                </p>
+              }
             </div>
           }
         </div>

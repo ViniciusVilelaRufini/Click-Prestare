@@ -134,13 +134,13 @@ describe('InterfoneConfigComponent', () => {
   let http: HttpTestingController;
   afterEach(() => TestBed.resetTestingModule());
 
-  function render() {
+  function render(faciais: FacialInterfone[] = [FACIAL]) {
     TestBed.configureTestingModule({ imports: [InterfoneConfigComponent], providers: providers(SINDICO, 'Síndico') });
     http = TestBed.inject(HttpTestingController);
     const fixture = TestBed.createComponent(InterfoneConfigComponent);
     fixture.detectChanges();
     http.expectOne(`${URL}/config`).flush(CONFIG);
-    http.expectOne(`${URL}/faciais`).flush([FACIAL]);
+    http.expectOne(`${URL}/faciais`).flush(faciais);
     http.expectOne(`${URL}/ramais`).flush(RAMAIS);
     http.expectOne(`${URL}/monitores`).flush([]);
     fixture.detectChanges();
@@ -235,6 +235,46 @@ describe('InterfoneConfigComponent', () => {
     expect(el.textContent).toContain('Não registrado');
     expect(el.textContent).toContain('voz.prestarecondominios.com.br');
     expect(el.textContent).toContain('fac-9');
+  });
+
+  describe('configurar automaticamente (Intelbras)', () => {
+    const botaoConfigurar = (el: HTMLElement) => el.querySelector('button[data-configurar-facial="9"]') as HTMLButtonElement | null;
+
+    it('só aparece para facial com config_automatica (Intelbras) habilitado', () => {
+      expect(botaoConfigurar(render().el)).toBeNull();
+      TestBed.resetTestingModule();
+      expect(botaoConfigurar(render([{ ...FACIAL, habilitado: false, config_automatica: true }]).el)).toBeNull();
+      TestBed.resetTestingModule();
+      expect(botaoConfigurar(render([{ ...FACIAL, config_automatica: true }]).el)?.textContent).toContain('Configurar automaticamente');
+    });
+
+    it('sucesso: chama a rota, trava o botão enquanto roda e mostra "Facial configurado"', () => {
+      const { fixture, el } = render([{ ...FACIAL, config_automatica: true }]);
+      botaoConfigurar(el)!.click();
+      fixture.detectChanges();
+      const req = http.expectOne({ method: 'POST', url: `${URL}/faciais/9/configurar` });
+      expect(botaoConfigurar(el)!.disabled).toBe(true);
+      expect(botaoConfigurar(el)!.textContent).toContain('Configurando');
+      req.flush({ ok: true });
+      fixture.detectChanges();
+      expect(botaoConfigurar(el)!.disabled).toBe(false);
+      expect(el.querySelector('[data-resultado-config="9"]')?.textContent).toContain('Facial configurado');
+    });
+
+    it('falha do aparelho ({ok:false, erro}) e erro HTTP aparecem no card, com os dados manuais ainda na tela', () => {
+      const { fixture, el } = render([{ ...FACIAL, config_automatica: true }]);
+      botaoConfigurar(el)!.click();
+      http.expectOne(`${URL}/faciais/9/configurar`).flush({ ok: false, erro: 'interfone: o aparelho não devolveu a configuração SIP' });
+      fixture.detectChanges();
+      const res = () => el.querySelector('[data-resultado-config="9"]')?.textContent ?? '';
+      expect(res()).toContain('não devolveu a configuração SIP');
+      expect(el.textContent).toContain('fac-9');
+
+      botaoConfigurar(el)!.click();
+      http.expectOne(`${URL}/faciais/9/configurar`).flush(null, { status: 502, statusText: 'Bad Gateway' });
+      fixture.detectChanges();
+      expect(res()).toContain('Não foi possível configurar');
+    });
   });
 
   it('tempo de toque fora da faixa não salva', () => {
