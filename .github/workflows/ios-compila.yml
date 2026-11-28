@@ -1,0 +1,75 @@
+name: iOS — só compila
+
+# Confere que o app do iPhone compila (Swift + Dart) sem assinar e sem enviar
+# nada à Apple. Roda nas branches de trabalho quando o app muda; o envio ao
+# TestFlight continua só no ios-release.yml, a partir de master/main.
+on:
+  push:
+    branches:
+      - "feat/**"
+    paths:
+      - "click-cond-app/**"
+      - ".github/workflows/ios-compila.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-compila-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compila:
+    name: Compilar iOS (sem assinatura)
+    runs-on: macos-15
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: click-cond-app/click-cond-app/ios
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Mesmo critério do ios-release.yml: Xcode 26+ (SDK do iOS 26).
+      - name: Selecionar Xcode 26+
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then
+            echo "::error::Nenhum Xcode 26+ nesta imagem."
+            ls -d /Applications/Xcode*.app || true
+            exit 1
+          fi
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.9
+          channel: stable
+          cache: true
+
+      - name: Instalar dependências do Flutter
+        working-directory: click-cond-app/click-cond-app
+        run: |
+          rm -f ios/Flutter/Generated.xcconfig
+          rm -f ios/Flutter/flutter_export_environment.sh
+          flutter pub get
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: click-cond-app/click-cond-app/ios
+
+      - name: Alvo do card ao vivo (extensão CardPortaria)
+        run: bundle exec ruby scripts/criar_alvo_card.rb
+
+      - name: CocoaPods
+        run: |
+          bundle exec pod install --repo-update
+          find Pods -name "*.sh" -exec chmod +x {} +
+
+      - name: Build do Flutter (sem assinatura, sem envio)
+        working-directory: click-cond-app/click-cond-app
+        run: flutter build ios --release --no-codesign
