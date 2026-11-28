@@ -32,6 +32,7 @@ import 'package:click/utils/api_client.dart';
 import 'package:click/utils/api_config.dart';
 import 'package:click/utils/autorizacoes_controle.dart';
 import 'package:click/utils/local_storage.dart';
+import 'package:click/pages/shared/interfone/pedido_portao.dart';
 import 'package:click/utils/navigation_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -287,6 +288,11 @@ class FirebaseService {
       unawaited(InterfoneChamadas.abrirPeloAviso(message.data));
       return;
     }
+    // Pedido de abertura do portão (portaria autônoma): o toque abre a tela.
+    if (message.data['type'] == 'interfone_pedido') {
+      unawaited(PedidoPortaoPage.abrirPeloAviso(message.data));
+      return;
+    }
     // Push comum do delivery vem sem `type` (só id_delivery/status): F9.
     final type = tipoDoPush(message.data);
     if (type == null) return;
@@ -530,6 +536,12 @@ Future<void>? tratarPushDoInterfone(Map<String, dynamic> data) {
     case 'interfone_fim':
       final id = int.tryParse('${data['id'] ?? ''}');
       return id == null ? Future.value() : InterfoneChamadas.encerrarTela(id);
+    case 'interfone_pedido':
+      return PedidoPortaoPage.abrir(data);
+    case 'interfone_pedido_fim':
+      final idPedido = int.tryParse('${data['id'] ?? ''}');
+      if (idPedido != null) PedidoPortaoPage.aoFim(idPedido);
+      return Future.value();
     default:
       // `interfone_perdida` é push comum: a notificação do sistema já aparece.
       return null;
