@@ -32,14 +32,27 @@ export function tokenDeOperadorBemFormado(payload: JwtPayload): boolean {
 /**
  * Operador da central logado. Qualquer outro token (porteiro, síndico, morador, CRM) → 403: o `sub`
  * dele mora em outra tabela.
+ *
+ * Token com `trocar_senha` (senha temporária ainda não trocada) → 403 `{ motivo: 'trocar_senha' }`:
+ * só a rota de troca (`permitirTrocaDeSenha`) aceita, e ela devolve um token sem a marca.
  */
-export function operadorDoToken(user: JwtPayload | null | undefined): { uid: number; nome: string } {
+export function operadorDoToken(
+  user: JwtPayload | null | undefined,
+  opcoes: { permitirTrocaDeSenha?: boolean } = {},
+): { uid: number; nome: string } {
   if (!user || !tokenDeOperadorBemFormado(user)) {
     throw new ForbiddenException('Acesso negado: esta área é exclusiva dos operadores da central.');
   }
   const uid = Number(user.sub);
   if (!Number.isInteger(uid) || uid <= 0) {
     throw new ForbiddenException('Acesso negado: sessão da central sem operador válido.');
+  }
+  if (user.trocar_senha && !opcoes.permitirTrocaDeSenha) {
+    throw new ForbiddenException({
+      statusCode: 403,
+      motivo: 'trocar_senha',
+      message: 'Troque a senha temporária antes de usar a central.',
+    });
   }
   return { uid, nome: String(user.nome ?? '').trim() };
 }

@@ -20,5 +20,7 @@ export interface JwtPayload {
   cred?: string;
   /** Operador da central de portaria (sem condomínio fixo): conecta só na sala `central`. */
   papel?: 'operador_central';
+  /** Operador da central que ainda precisa trocar a senha temporária: só a rota central/auth/senha aceita. */
+  trocar_senha?: boolean;
   user?: any;
 }

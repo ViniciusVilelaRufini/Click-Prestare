@@ -52,6 +52,11 @@ interface DesafioPendente {
   hash: string;
 }
 
+/** Chave da trava de senhas erradas: hash do e-mail, sem o e-mail em claro no estado compartilhado. */
+function chaveFalhasDoEmail(emailNormal: string): string {
+  return `central-falha:${crypto.createHash('sha256').update(emailNormal).digest('hex')}`;
+}
+
 /** Carimbo da credencial do operador: troca ao mudar a senha e ao desativar/reativar (derruba os tokens). */
 export function novoCredOperador(): string {
   return crypto.randomBytes(16).toString('hex');
@@ -67,7 +72,7 @@ export function novoCredOperador(): string {
  *  - `mfa-central:<desafio>` → { id, cred, hash do código } (10 min)
  *  - `mfa-central-tent:<desafio>` → tentativas de código usadas (teto 5, reservadas antes de conferir)
  *  - `mfa-central-atual:<id>` → o único desafio válido do operador (novo login invalida o anterior)
- *  - `central-falha:<sha256 do e-mail>` → senhas erradas na janela de 15 min (teto 8)
+ *  - `central-falha:<sha256 do e-mail>` → senhas erradas (login e troca de senha) na janela de 15 min (teto 8)
  */
 @Injectable()
 export class CentralAuthService {
@@ -99,14 +104,8 @@ export class CentralAuthService {
     }
 
     const emailNormal = email.trim().toLowerCase();
-    const chaveFalhas = `central-falha:${crypto.createHash('sha256').update(emailNormal).digest('hex')}`;
-    const falhas = Number((await this.estado.obter<number>(chaveFalhas))?.valor) || 0;
-    if (falhas >= MAX_FALHAS_SENHA) {
-      throw new HttpException(
-        'Muitas tentativas de login. Aguarde alguns minutos e tente novamente.',
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
+    const chaveFalhas = chaveFalhasDoEmail(emailNormal);
+    await this.assertNaoTravado(chaveFalhas);
 
     const op = await this.prisma.central_Operadores.findUnique({ where: { email: emailNormal } });
     const senhaConfere = await this.compararSenha(senha, op?.senha_hash || HASH_FICTICIO);
@@ -204,7 +203,7 @@ export class CentralAuthService {
       .catch((e: any) => this.logger.warn(`Não foi possível gravar o último acesso do operador ${op.id}: ${e?.message ?? e}`));
 
     return {
-      access_token: this.assinar(op.id, op.nome, op.cred),
+      access_token: this.assinar(op.id, op.nome, op.cred, op.trocar_senha === 1),
       nome: op.nome,
       trocar_senha: op.trocar_senha === 1,
     };
@@ -219,7 +218,8 @@ export class CentralAuthService {
     senhaAtual: unknown,
     senhaNova: unknown,
   ): Promise<{ access_token: string; nome: string; trocar_senha: false }> {
-    const { uid } = operadorDoToken(user);
+    // Única rota que aceita o token marcado com trocar_senha.
+    const { uid } = operadorDoToken(user, { permitirTrocaDeSenha: true });
     if (typeof senhaAtual !== 'string' || !senhaAtual) {
       throw new BadRequestException('Informe a senha atual.');
     }
@@ -237,10 +237,16 @@ export class CentralAuthService {
     if (!op || op.ativo !== 1 || !op.cred || op.cred !== user.cred) {
       throw new UnauthorizedException(MSG_SESSAO_ENCERRADA);
     }
-    // 400, como no change-password do console: 401 o console trata como fim de sessão.
+    // Senha atual errada conta na mesma trava do login (por e-mail): quem tem só o token não testa
+    // senhas à vontade. 400, como no change-password do console: 401 o console trata como fim de sessão.
+    const chaveFalhas = chaveFalhasDoEmail(String(op.email ?? '').trim().toLowerCase());
+    await this.assertNaoTravado(chaveFalhas);
     if (!(await this.compararSenha(senhaAtual, op.senha_hash))) {
+      await this.estado.incrementarSeAbaixo(chaveFalhas, MAX_FALHAS_SENHA, JANELA_FALHAS_MS);
+      this.logger.warn(`Troca de senha da central com senha atual errada (operador ${uid})`);
       throw new BadRequestException('Senha atual incorreta.');
     }
+    await this.estado.remover(chaveFalhas);
 
     const senha_hash = await bcrypt.hash(senhaNova, CUSTO_BCRYPT_SENHA);
     const cred = novoCredOperador();
@@ -254,9 +260,26 @@ export class CentralAuthService {
     return { access_token: this.assinar(uid, op.nome, cred), nome: op.nome, trocar_senha: false };
   }
 
-  private assinar(id: number, nome: string, cred: string): string {
-    const payload: JwtPayload = { sub: id, nome, papel: PAPEL_OPERADOR_CENTRAL, cred };
+  /** `trocarSenha`: a marca vai no token e o operadorDoToken recusa tudo menos a rota de troca. */
+  private assinar(id: number, nome: string, cred: string, trocarSenha = false): string {
+    const payload: JwtPayload = {
+      sub: id,
+      nome,
+      papel: PAPEL_OPERADOR_CENTRAL,
+      cred,
+      ...(trocarSenha ? { trocar_senha: true } : {}),
+    };
     return this.jwt.sign(payload, { expiresIn: VALIDADE_TOKEN });
+  }
+
+  private async assertNaoTravado(chaveFalhas: string): Promise<void> {
+    const falhas = Number((await this.estado.obter<number>(chaveFalhas))?.valor) || 0;
+    if (falhas >= MAX_FALHAS_SENHA) {
+      throw new HttpException(
+        'Muitas tentativas com senha errada. Aguarde alguns minutos e tente novamente.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
   }
 
   /** Hash ausente ou fora do formato bcrypt nunca confere (em vez de estourar 500). */

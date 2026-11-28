@@ -94,6 +94,9 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const payload = this.jwt.verify<JwtPayload>(token);
     const estrategia = this.estrategia();
     if (estrategia) await estrategia.validate(payload as any);
+    // O token do operador enxerga vários condomínios: sem a JwtStrategy (ativo + cred), a assinatura
+    // sozinha não basta. Fail-closed, ao contrário dos tokens de condomínio.
+    else if (payload?.papel === 'operador_central') throw new Error('operador da central sem conferência de revogação');
     return payload;
   }
 
@@ -106,6 +109,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       const payload = await this.conferir(token);
       if (payload?.papel === 'operador_central' && !payload?.id_condominio) {
+        // Senha temporária ainda não trocada: nenhuma rota da central vale (operadorDoToken), o socket também não.
+        if (payload.trocar_senha) throw new Error('operador da central precisa trocar a senha');
         client.data = { ...(client.data ?? {}), token };
         client.join(SALA_CENTRAL);
         return;

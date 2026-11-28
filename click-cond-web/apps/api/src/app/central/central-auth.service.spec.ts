@@ -158,6 +158,27 @@ describe('CentralAuthService', () => {
       expect(linha().ultimo_acesso).toBeInstanceOf(Date);
     });
 
+    it('token de quem precisa trocar a senha leva trocar_senha: true; depois da troca, não', async () => {
+      const { svc, codigoEnviado } = build(operador({ trocar_senha: 1 }));
+      const { desafio } = await svc.login('ana@prestare.test', SENHA);
+      const r = await svc.verificar(desafio, codigoEnviado());
+      const p: any = jwt.verify(r.access_token);
+      expect(p.trocar_senha).toBe(true);
+      // A rota de troca aceita o token marcado e devolve um token limpo.
+      const t = await svc.trocarSenha(p, SENHA, 'nova-senha-forte-1');
+      const novo: any = jwt.verify(t.access_token);
+      expect(novo.trocar_senha).toBeUndefined();
+      expect(novo.papel).toBe('operador_central');
+    });
+
+    it('operador sem troca pendente recebe token sem a marca', async () => {
+      const { svc, codigoEnviado } = build(operador({ trocar_senha: 0 }));
+      const { desafio } = await svc.login('ana@prestare.test', SENHA);
+      const r = await svc.verificar(desafio, codigoEnviado());
+      expect(r.trocar_senha).toBe(false);
+      expect((jwt.verify(r.access_token) as any).trocar_senha).toBeUndefined();
+    });
+
     it('o código só vale uma vez', async () => {
       const { svc, codigoEnviado } = build();
       const { desafio } = await svc.login('ana@prestare.test', SENHA);
@@ -262,6 +283,24 @@ describe('CentralAuthService', () => {
       const porteiro: any = { sub: 7, nome: 'P', id_condominio: 1, tipo_sub: 'funcionario_portaria' };
       await expect(svc.trocarSenha(porteiro, SENHA, 'nova-senha-forte-1')).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.central_Operadores.update).not.toHaveBeenCalled();
+    });
+
+    it('senha atual errada conta na mesma trava do login: token roubado não testa senhas à vontade', async () => {
+      const { svc, mail, linha } = build();
+      for (let i = 0; i < 8; i++) {
+        await expect(svc.trocarSenha(tokenOperador(), `errada-${i}`, 'nova-senha-forte-1')).rejects.toBeInstanceOf(
+          BadRequestException,
+        );
+      }
+      const credAntes = linha().cred;
+      const err: any = await svc.trocarSenha(tokenOperador(), SENHA, 'nova-senha-forte-1').catch((e) => e);
+      expect(err).toBeInstanceOf(HttpException);
+      expect(err.getStatus()).toBe(429);
+      expect(linha().cred).toBe(credAntes);
+      // O login do mesmo e-mail também fica travado.
+      const login: any = await svc.login('ana@prestare.test', SENHA).catch((e) => e);
+      expect(login.getStatus()).toBe(429);
+      expect(mail.sendCodigoCentral).not.toHaveBeenCalled();
     });
 
     it('token com cred antigo não troca a senha', async () => {

@@ -4,6 +4,7 @@ import * as nodemailer from 'nodemailer';
 import * as dns from 'dns';
 import { promisify } from 'util';
 import { limiteExterno } from '../limitar-concorrencia';
+import { mascararLogin } from '../../auth/mascarar-login.util';
 import { botao, caixaCodigo, esc, forte, layoutEmail, linkSecundario, nota, painelDados, paragrafo, urlCopiavel } from './mail-layout';
 
 /**
@@ -290,6 +291,8 @@ export class MailService implements OnModuleInit {
   }
 
   private async send(to: string, subject: string, html: string, text?: string): Promise<void> {
+    // O log (CloudWatch) leva o destinatário mascarado, nunca o e-mail completo.
+    const destinoLog = mascararLogin(to);
     const textContent =
       text ||
       html
@@ -322,12 +325,12 @@ export class MailService implements OnModuleInit {
           }),
         );
         if (error) {
-          this.logger.error(`Falha Resend para ${to}: ${error.name ?? ''} ${error.message ?? error}`);
+          this.logger.error(`Falha Resend para ${destinoLog}: ${error.name ?? ''} ${error.message ?? error}`);
           throw new Error(error.message ?? 'Resend error');
         }
-        this.logger.log(`E-mail enviado via Resend para ${to}. id=${data?.id}`);
+        this.logger.log(`E-mail enviado via Resend para ${destinoLog}. id=${data?.id}`);
       } catch (err: any) {
-        this.logger.error(`Erro no envio Resend para ${to}: ${err?.message ?? err}`);
+        this.logger.error(`Erro no envio Resend para ${destinoLog}: ${err?.message ?? err}`);
         throw err;
       }
       return;
@@ -347,16 +350,16 @@ export class MailService implements OnModuleInit {
             headers,
           }),
         );
-        this.logger.log(`E-mail enviado via SMTP para ${to}. messageId=${info.messageId}`);
+        this.logger.log(`E-mail enviado via SMTP para ${destinoLog}. messageId=${info.messageId}`);
       } catch (err: any) {
-        this.logger.error(`Erro no envio SMTP para ${to}: ${err?.message ?? err}`);
+        this.logger.error(`Erro no envio SMTP para ${destinoLog}: ${err?.message ?? err}`);
         throw err;
       }
       return;
     }
 
     this.logger.error(
-      `Tentativa de envio de e-mail para ${to} rejeitada: nenhum serviço de e-mail (Resend ou SMTP) está configurado no servidor.`,
+      `Tentativa de envio de e-mail para ${destinoLog} rejeitada: nenhum serviço de e-mail (Resend ou SMTP) está configurado no servidor.`,
     );
     throw new ServiceUnavailableException(
       'Serviço de envio de e-mail não configurado no servidor.',

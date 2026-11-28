@@ -31,6 +31,19 @@ describe('operadorDoToken', () => {
     expect(operadorDoToken(operadorToken())).toEqual({ uid: 7, nome: 'Ana Central' });
   });
 
+  it('token com trocar_senha → 403 motivo trocar_senha (exceto na rota de troca)', () => {
+    const t = operadorToken({ trocar_senha: true });
+    let err: any;
+    try {
+      operadorDoToken(t);
+    } catch (e) {
+      err = e;
+    }
+    expect(err).toBeInstanceOf(ForbiddenException);
+    expect(err.getResponse()).toMatchObject({ statusCode: 403, motivo: 'trocar_senha' });
+    expect(operadorDoToken(t, { permitirTrocaDeSenha: true })).toEqual({ uid: 7, nome: 'Ana Central' });
+  });
+
   it('token de porteiro → 403', () => {
     expect(() => operadorDoToken(porteiroToken)).toThrow(ForbiddenException);
   });
@@ -213,6 +226,33 @@ describe('RealtimeGateway com a JwtStrategy de verdade', () => {
     await gw.handleConnection(s);
     expect(s.join).toHaveBeenCalledWith(SALA_CENTRAL);
     expect(s.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('operador com trocar_senha não entra na sala central', async () => {
+    const gw = build({ id: 7, ativo: 1, cred: CRED });
+    const s = socket(jwt.sign(operadorToken({ trocar_senha: true })));
+    await gw.handleConnection(s);
+    expect(s.join).not.toHaveBeenCalled();
+    expect(s.disconnect).toHaveBeenCalledWith(true);
+  });
+
+  it('sem JwtStrategy resolvida: operador é recusado (fail-closed), porteiro segue como antes', async () => {
+    const gw = new RealtimeGateway(jwt, { get: jest.fn(() => { throw new Error('sem provider'); }) } as any);
+    (gw as any).logger = { warn: jest.fn(), log: jest.fn(), error: jest.fn() };
+    const op = socket(jwt.sign(operadorToken()));
+    await gw.handleConnection(op);
+    expect(op.join).not.toHaveBeenCalled();
+    expect(op.disconnect).toHaveBeenCalledWith(true);
+
+    const semRef = new RealtimeGateway(jwt);
+    (semRef as any).logger = { warn: jest.fn(), log: jest.fn(), error: jest.fn() };
+    const op2 = socket(jwt.sign(operadorToken()));
+    await semRef.handleConnection(op2);
+    expect(op2.disconnect).toHaveBeenCalledWith(true);
+
+    const porteiro = socket(jwt.sign(porteiroToken));
+    await gw.handleConnection(porteiro);
+    expect(porteiro.join).toHaveBeenCalledWith('condominio:1');
   });
 
   it('operador desativado é desconectado', async () => {

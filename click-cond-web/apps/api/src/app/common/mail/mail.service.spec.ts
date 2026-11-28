@@ -62,3 +62,50 @@ describe('MailService - sendResetPasswordCode', () => {
     expect(text).not.toContain('https://www.clickprestarecondominios.com.br');
   });
 });
+
+describe('MailService - log do envio não grava o e-mail completo', () => {
+  const EMAIL = 'ana.operadora@prestare.test';
+
+  function build() {
+    const service = new MailService();
+    const logger = { log: jest.fn(), error: jest.fn(), warn: jest.fn() };
+    (service as any).logger = logger;
+    const textos = () => [...logger.log.mock.calls, ...logger.error.mock.calls].map((c) => String(c[0])).join('\n');
+    return { service, logger, textos };
+  }
+
+  it('Resend: sucesso e falha registram o destinatário mascarado', async () => {
+    const { service, textos } = build();
+    const send = jest
+      .fn()
+      .mockResolvedValueOnce({ data: { id: 'abc' }, error: null })
+      .mockResolvedValueOnce({ data: null, error: { name: 'x', message: 'recusado' } });
+    (service as any).resend = { emails: { send } };
+    await (service as any).send(EMAIL, 'Assunto', '<p>oi</p>');
+    await expect((service as any).send(EMAIL, 'Assunto', '<p>oi</p>')).rejects.toThrow();
+    expect(send.mock.calls[0][0].to).toEqual([EMAIL]);
+    expect(textos()).not.toContain(EMAIL);
+    expect(textos()).toContain('an***@prestare.test');
+  });
+
+  it('SMTP: sucesso e falha registram o destinatário mascarado', async () => {
+    const { service, textos } = build();
+    const sendMail = jest.fn().mockResolvedValueOnce({ messageId: 'm1' }).mockRejectedValueOnce(new Error('caiu'));
+    (service as any).resend = null;
+    (service as any).transporter = { sendMail };
+    await (service as any).send(EMAIL, 'Assunto', '<p>oi</p>');
+    await expect((service as any).send(EMAIL, 'Assunto', '<p>oi</p>')).rejects.toThrow('caiu');
+    expect(sendMail.mock.calls[0][0].to).toBe(EMAIL);
+    expect(textos()).not.toContain(EMAIL);
+    expect(textos()).toContain('an***@prestare.test');
+  });
+
+  it('sem serviço configurado: o erro também sai mascarado', async () => {
+    const { service, textos } = build();
+    (service as any).resend = null;
+    (service as any).transporter = null;
+    await expect((service as any).send(EMAIL, 'Assunto', '<p>oi</p>')).rejects.toThrow();
+    expect(textos()).not.toContain(EMAIL);
+    expect(textos()).toContain('an***@prestare.test');
+  });
+});
