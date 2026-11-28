@@ -61,7 +61,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   ) {}
 
   async afterInit(server?: Server) {
-    // O timer sobe antes do Redis: a revogação das sessões não pode esperar a conexão.
+    // O timer sobe antes do Redis: a revogaÃ§Ã£o das sessÃµes nÃ£o pode esperar a conexÃ£o.
     this.timer = setInterval(() => void this.reconferirConexoes(), RECONFERIR_MS);
     this.timer.unref?.();
     const alvo = server ?? this.server;

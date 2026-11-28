@@ -30,7 +30,7 @@ describe('criarAdaptadorRedis', () => {
     await expect(criarAdaptadorRedis('redis://x')).resolves.toBeNull();
   });
 
-  it('Redis que nunca responde: devolve null após o timeout e destrói os dois clientes', async () => {
+  it('Redis que nunca responde: devolve null apÃ³s o timeout e destrÃ³i os dois clientes', async () => {
     jest.useFakeTimers();
     try {
       connect.mockImplementation(() => new Promise<void>(() => undefined));

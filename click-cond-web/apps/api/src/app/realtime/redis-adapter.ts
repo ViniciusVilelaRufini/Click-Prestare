@@ -4,7 +4,7 @@ import { createClient } from 'redis';
 
 const logger = new Logger('RedisAdapter');
 
-/** Tempo m·ximo para a conex„o inicial com o Redis antes de cair para a memÛria. */
+/** Tempo m√°ximo para a conex√£o inicial com o Redis antes de cair para a mem√≥ria. */
 const CONEXAO_TIMEOUT_MS = 5_000;
 
 /**
@@ -25,21 +25,21 @@ export async function criarAdaptadorRedis(
     clientes.push(sub);
     pub.on?.('error', (err: any) => logger.warn(`Redis pub: ${err?.message ?? err}`));
     sub.on?.('error', (err: any) => logger.warn(`Redis sub: ${err?.message ?? err}`));
-    // O connect() do node-redis n„o rejeita com o servidor fora: ele fica tentando para sempre.
+    // O connect() do node-redis n√£o rejeita com o servidor fora: ele fica tentando para sempre.
     const limite = new Promise<never>((_, rej) => {
-      timer = setTimeout(() => rej(new Error(`sem conex„o em ${timeoutMs} ms`)), timeoutMs);
+      timer = setTimeout(() => rej(new Error(`sem conex√£o em ${timeoutMs} ms`)), timeoutMs);
       timer.unref?.();
     });
     await Promise.race([Promise.all([pub.connect(), sub.connect()]), limite]);
     return createAdapter(pub, sub);
   } catch (err: any) {
-    logger.error(`Redis indisponÌvel, tempo real em memÛria: ${err?.message ?? err}`);
+    logger.error(`Redis indispon√≠vel, tempo real em mem√≥ria: ${err?.message ?? err}`);
     for (const c of clientes) {
       try {
         if (c.destroy) c.destroy();
         else void c.disconnect?.();
       } catch {
-        /* j· fechado */
+        /* j√° fechado */
       }
     }
     return null;

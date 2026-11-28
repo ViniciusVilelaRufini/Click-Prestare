@@ -80,7 +80,7 @@ describe('RealtimeGateway â€” sala central do operador', () => {
     }
   });
 
-  it('o timer de reconferência começa mesmo com o adaptador pendente', async () => {
+  it('o timer de reconferÃªncia comeÃ§a mesmo com o adaptador pendente', async () => {
     const gw = build();
     (criarAdaptadorRedis as jest.Mock).mockReturnValue(new Promise(() => undefined));
     const pendente = gw.afterInit({ adapter: jest.fn() } as any);
