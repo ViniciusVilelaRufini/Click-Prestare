@@ -52,4 +52,45 @@ describe('LigarUnidadeComponent', () => {
       jest.useRealTimers();
     }
   });
+
+  function montarSemBusca(hoje = HOJE) {
+    const store = storeFalso();
+    store.hoje.set(hoje);
+    TestBed.configureTestingModule({
+      imports: [LigarUnidadeComponent],
+      providers: [
+        { provide: InterfoneStore, useValue: store },
+        { provide: ApartamentosApi, useValue: { list: jest.fn(() => of([])) } },
+      ],
+    });
+    const fixture = TestBed.createComponent(LigarUnidadeComponent);
+    fixture.detectChanges();
+    return { fixture, store, el: fixture.nativeElement as HTMLElement };
+  }
+
+  it('busca vazia mostra as unidades mais chamadas hoje e liga com um clique', () => {
+    const { el, store, fixture } = montarSemBusca([
+      { ...HOJE[0], id: 1 },
+      { ...HOJE[0], id: 2 },
+      { ...HOJE[0], id: 3, unidade: 'Bloco B · Apto 201', id_apartamento: 200 },
+    ]);
+    const sec = el.querySelector('[data-teste="frequentes"]') as HTMLElement;
+    expect(sec.textContent).toContain('Mais chamadas hoje');
+    expect(sec.textContent).toContain('2 chamadas');
+    expect(sec.textContent).toContain('1 chamada');
+    (sec.querySelector('button') as HTMLButtonElement).click();
+    expect(store.ligar).toHaveBeenCalledWith(100, 'Bloco A · Apto 106');
+
+    const input = el.querySelector('input') as HTMLInputElement;
+    input.value = '10';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(el.querySelector('[data-teste="frequentes"]')).toBeNull();
+  });
+
+  it('sem chamadas hoje mostra a dica de busca', () => {
+    const { el } = montarSemBusca([]);
+    expect(el.querySelector('[data-teste="frequentes"]')).toBeNull();
+    expect(el.querySelector('[data-teste="dica-ligar"]')?.textContent).toContain('Digite o bloco');
+  });
 });
