@@ -84,7 +84,7 @@ central → se ia_portao_ativa: IA atende o visitante
 central sem operador conectado → IA (se ativa) e depois "ninguém atendeu"; registra alerta
 ```
 
-- **O visitante que chama a portaria.** Novo tipo de chamada `facial_portaria`: o visitante digita o **número da portaria** no teclado do facial (campo novo `Condominios.interfone_numero_portaria`, padrão `0`). Vai direto ao destino (console do prédio, IA ou central), sem tocar morador. A IA pergunta a unidade e usa `avisar_morador`. A IA **não** toca o celular do morador (o morador recebe o pedido por push).
+- **O visitante que chama a portaria.** Novo tipo de chamada `facial_portaria`: o visitante digita o **número da portaria** no teclado do facial (campo novo `Condominios.interfone_numero_portaria`, padrão `0`). Vai direto ao destino (console do prédio, IA ou central), sem tocar morador. A IA pergunta a unidade e usa `avisar_morador`. A IA pode tocar o morador (`chamar_morador`) ou mandar o pedido por push.
 - **Convivência (escolha minha):**
   - Em horário `central` com porteiro ainda conectado no prédio: toca **nos dois** (console do prédio e central); quem atender primeiro leva.
   - Com `central_contratada`, a transferência quando ninguém atende passa a ser **sempre ligada** (o ajuste "Transferir para a portaria" do síndico fica travado e explicado: "incluído no contrato da central"). Sem central, segue a escolha do síndico como hoje.
@@ -121,6 +121,22 @@ central sem operador conectado → IA (se ativa) e depois "ninguém atendeu"; re
 - Registro: "aberto por autorização do morador <nome> (pedido do interfone)". O pedido aparece no histórico da chamada.
 - Entregas usam o mesmo pedido (tipo `entrega`); a IA antes orienta conforme `instrucao_entregas`. O módulo Delivery (PIN do morador) continua valendo à parte.
 - Isso exige **versão nova do app** (Android e iPhone) para a tela de pedido.
+
+**IA o mais inteligente possível (pedido do dono em 28/11: "eu quero o sistema mais inteligente possível").** Dentro da regra de nunca abrir, a IA ganha, além das ferramentas acima:
+
+| Ferramenta / capacidade | O que faz |
+|---|---|
+| `chamar_morador()` | Toca o app dos moradores da unidade (como a chamada do interfone). Quem atende ouve a IA apresentar o visitante ("o entregador do Mercado Livre está no portão") e a IA sai: morador e visitante falam direto, com vídeo, e o morador abre pelo botão de sempre. |
+| Resposta por mensagem | Na tela do pedido, o morador toca "Já desço", "Deixe na portaria", "Volte mais tarde" ou escreve um texto curto; a IA **fala** a resposta ao visitante (`situacao_do_pedido` passa a trazer a mensagem). |
+| `esperados_hoje()` | Convites e entregas esperados hoje para a unidade. Com convite válido, a IA orienta a usar o QR/PIN no leitor; senão marca o pedido como "esperado"/"não esperado". Nunca lê a lista para o visitante. |
+| Visitante frequente | O pedido traz "autorizado N vezes nos últimos 60 dias" quando nome e unidade batem com pedidos autorizados antes. |
+| Visão da foto | A foto do facial passa pelo modelo de visão já usado na Prestare IA (Claude no Bedrock, `sa-east-1`): uniforme/mochila de entrega, quantas pessoas, rosto coberto. Vai no pedido ao morador e na tela do operador. **Só informa, nunca decide.** |
+| `perguntar_condominio(pergunta)` | Responde dúvidas (horário de mudança, regras, onde deixar entregas) pela base RAG da Prestare IA com os documentos do condomínio. Nada de dados de moradores. |
+| Idiomas | Atende em espanhol e inglês se o visitante falar (vozes poliglotas do Nova 2 Sonic). |
+| Risco e urgência | Classifica a chamada (`normal`/`suspeita`/`urgente`): pedir dados de morador, insistir em entrar, contradições → `suspeita`; emergência → `urgente`. `suspeita` e `urgente` vão na hora ao operador com o motivo; o histórico guarda a classificação. |
+| Resumo ao morador | Depois da chamada, o histórico do app mostra o resumo ("Carlos, Mercado Livre, deixou na portaria às 14:32"). |
+
+Com `chamar_morador`, a IA pode tocar o celular do morador (isso não abre portão). Isso substitui a frase anterior de que a IA não tocava o morador.
 
 **Instruções fixas da IA (prompt de sistema), escolha minha:**
 - Apresenta-se: "Portaria virtual Prestare. Esta conversa é atendida por um assistente e pode ser registrada."
