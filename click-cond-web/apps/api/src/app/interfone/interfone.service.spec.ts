@@ -417,6 +417,39 @@ describe('InterfoneService.evento', () => {
     expect(push.fim).toHaveBeenCalledWith(1, [7]);
   });
 
+  it('reenvio do serviço: atendida repetida pelo mesmo papel/uid e encerrada repetida → 200 sem efeito', async () => {
+    const { svc, push, realtime, chamadas } = await comChamada();
+    await expect(svc.evento(1, { evento: 'atendida', papel: 'morador', uid: 7 })).resolves.toEqual({ ok: true });
+    const gravado = { ...chamadas[0] };
+    push.fim.mockClear();
+    realtime.emitirPortaria.mockClear();
+    await expect(svc.evento(1, { evento: 'atendida', papel: 'morador', uid: 7 })).resolves.toEqual({ ok: true });
+    expect(chamadas[0]).toEqual(gravado);
+    expect(push.fim).not.toHaveBeenCalled();
+    expect(realtime.emitirPortaria).not.toHaveBeenCalled();
+
+    await expect(svc.evento(1, { evento: 'encerrada', resultado: 'atendida_morador', duracao_s: 30 })).resolves.toEqual({ ok: true });
+    const encerrada = { ...chamadas[0] };
+    push.fim.mockClear();
+    realtime.emitirPortaria.mockClear();
+    for (let i = 0; i < 3; i++) {
+      await expect(svc.evento(1, { evento: 'encerrada', resultado: 'atendida_morador', duracao_s: 31 })).resolves.toEqual({ ok: true });
+      await expect(svc.evento(1, { evento: 'atendida', papel: 'morador', uid: 7 })).resolves.toEqual({ ok: true });
+    }
+    expect(chamadas[0]).toEqual(encerrada);
+    expect(push.fim).not.toHaveBeenCalled();
+    expect(push.perdida).not.toHaveBeenCalled();
+    expect(realtime.emitirPortaria).not.toHaveBeenCalled();
+  });
+
+  it('encerrada nao_atendida reenviada não repete o aviso de perdida', async () => {
+    const { svc, push } = await comChamada();
+    await svc.evento(1, { evento: 'encerrada', resultado: 'nao_atendida', duracao_s: 0 });
+    await svc.evento(1, { evento: 'encerrada', resultado: 'nao_atendida', duracao_s: 0 });
+    expect(push.perdida).toHaveBeenCalledTimes(1);
+    expect(push.fim).toHaveBeenCalledTimes(1);
+  });
+
   it('atendida pela portaria grava o nome do porteiro', async () => {
     const { svc, chamadas } = await comChamada();
     await svc.evento(1, { evento: 'toque_esgotado' });
