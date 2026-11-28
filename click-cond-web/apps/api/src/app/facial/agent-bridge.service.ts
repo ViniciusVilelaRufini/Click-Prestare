@@ -461,7 +461,9 @@ export class AgentBridgeService implements OnModuleInit, OnModuleDestroy {
             if (this.pending.has(id)) naFilaEmMemoria();
             return;
           }
-          this.logger.error(`Comando ${id} não entrou na fila do banco: ${err?.message ?? err}`);
+          // Só o código/nome do erro: a mensagem do Prisma repete os dados do
+          // create — o comando inteiro, com a senha SIP do interfone_config.
+          this.logger.error(`Comando ${id} (${command.type}) não entrou na fila do banco: ${err?.code ?? err?.name ?? 'erro'}`);
           this.finalizar(id, { ok: false, error: 'Falha ao enfileirar o comando para o agente local.' });
         });
     });
